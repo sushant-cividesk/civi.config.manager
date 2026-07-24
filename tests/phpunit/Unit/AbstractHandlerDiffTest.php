@@ -89,6 +89,9 @@ final class TestHandler extends AbstractHandler {
     return 'examples';
   }
 
+  /**
+   * @return array<int, array{filename: string, data: array<string, mixed>}>
+   */
   public function export(): array {
     return [];
   }

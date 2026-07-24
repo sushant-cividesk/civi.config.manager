@@ -48,6 +48,9 @@ final class YamlFileStorageTest extends TestCase {
     $storage->write($directory, $filename, ['safe' => TRUE]);
   }
 
+  /**
+   * @return array<string, array{0: string, 1: string}>
+   */
   public static function unsafePathProvider(): array {
     return [
       'parent directory' => ['../outside', 'file.yml'],

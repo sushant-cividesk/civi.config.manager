@@ -47,10 +47,16 @@ class YamlFileStorage {
     return !is_link($path) && is_file($path);
   }
 
+  /**
+   * @param array<string, mixed> $data
+   */
   public function dump(array $data): string {
     return SimpleYaml::dump($data);
   }
 
+  /**
+   * @param array<string, mixed> $data
+   */
   public function isSame(string $directory, string $filename, array $data): bool {
     $path = $this->getPath($directory, $filename);
     $this->assertPathInsideRoot($path);
@@ -68,6 +74,9 @@ class YamlFileStorage {
     return $this->normalise($current) === $this->normalise($new);
   }
 
+  /**
+   * @param array<string, mixed> $data
+   */
   public function write(string $directory, string $filename, array $data): string {
     $this->ensureRoot();
     $path = $this->getPath($directory, $filename);
@@ -131,6 +140,9 @@ class YamlFileStorage {
     }
   }
 
+  /**
+   * @return array<string, mixed>
+   */
   public function readFile(string $relativePath): array {
     $relativePath = $this->normaliseRelativePath($relativePath, FALSE);
     $path = $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
@@ -144,6 +156,9 @@ class YamlFileStorage {
     return SimpleYaml::parseFile($path);
   }
 
+  /**
+   * @return array<string, array<string, mixed>>
+   */
   public function readDirectory(string $directory): array {
     $directory = $this->normaliseRelativePath($directory, TRUE);
     $path = $directory === ''

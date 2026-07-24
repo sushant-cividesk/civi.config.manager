@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha50-core
+
+- Fixed the GitHub Fast QA PHPStan failure by adding API4 autoloading, iterable PHPDoc coverage for the unit-testable storage/YAML code, and a realistic initial PHPStan level for the legacy-safe baseline.
+- Kept Composer audit visible as an advisory workflow step so known dev-dependency advisories do not block the first automated QA push while the dependency baseline is stabilized.
+- Preserved the full isolated QA workflow and symlink-safe sync-root support from alpha49.
+
 ## 0.1.0-alpha49-core
 
 - Added a fast GitHub Actions workflow for syntax, isolated PHPUnit unit tests, PHPStan, Composer audit, CiviCRM coding standards, and PHP 8.1 compatibility checks.

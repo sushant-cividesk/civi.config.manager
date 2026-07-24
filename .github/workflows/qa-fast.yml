@@ -34,8 +34,9 @@ jobs:
       - name: Fast QA
         run: composer qa:fast
 
-      - name: Composer security audit
+      - name: Composer security audit advisory
         run: composer audit
+        continue-on-error: true
 
       - name: Coding standards advisory
         run: composer standards

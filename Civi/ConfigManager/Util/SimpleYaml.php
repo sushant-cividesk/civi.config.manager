@@ -8,6 +8,9 @@ namespace Civi\ConfigManager\Util;
  * The fallback parser is intentionally limited; reading prefers Symfony YAML or ext-yaml.
  */
 class SimpleYaml {
+  /**
+   * @param array<string|int, mixed> $data
+   */
   public static function dump(array $data): string {
     if (class_exists('Symfony\\Component\\Yaml\\Yaml')) {
       return self::normaliseYamlOutput(\Symfony\Component\Yaml\Yaml::dump($data, 8, 2));
@@ -27,6 +30,9 @@ class SimpleYaml {
     return rtrim($yaml) . "\n";
   }
 
+  /**
+   * @return array<string|int, mixed>
+   */
   public static function parseFile(string $file): array {
     if (class_exists('Symfony\\Component\\Yaml\\Yaml')) {
       $data = \Symfony\Component\Yaml\Yaml::parseFile($file);
@@ -40,6 +46,9 @@ class SimpleYaml {
     return ['__raw_yaml' => file_get_contents($file)];
   }
 
+  /**
+   * @param mixed $value
+   */
   private static function dumpValue($value, int $indent): string {
     if (is_array($value)) {
       return self::dumpArray($value, $indent);
@@ -47,6 +56,9 @@ class SimpleYaml {
     return self::scalar($value);
   }
 
+  /**
+   * @param array<string|int, mixed> $array
+   */
   private static function dumpArray(array $array, int $indent): string {
     $lines = [];
     $isList = array_keys($array) === range(0, count($array) - 1);
@@ -74,10 +86,16 @@ class SimpleYaml {
     return implode("\n", $lines);
   }
 
+  /**
+   * @param mixed $key
+   */
   private static function key($key): string {
     return preg_match('/^[A-Za-z0-9_.-]+$/', (string) $key) ? (string) $key : self::scalar((string) $key);
   }
 
+  /**
+   * @param mixed $value
+   */
   private static function scalar($value): string {
     if ($value === NULL) {
       return 'null';

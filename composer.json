@@ -16,6 +16,7 @@
   },
   "autoload": {
     "psr-4": {
+      "Civi\\Api4\\": "Civi/Api4/",
       "Civi\\ConfigManager\\": "Civi/ConfigManager/"
     }
   },

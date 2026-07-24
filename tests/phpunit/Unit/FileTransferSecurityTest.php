@@ -29,6 +29,9 @@ final class FileTransferSecurityTest extends TestCase {
     self::assertSame($expected, $method->invoke($transfer, $path));
   }
 
+  /**
+   * @return array<string, array{0: string, 1: bool}>
+   */
   public static function safeYamlPathProvider(): array {
     return [
       'root yml' => ['manifest.yml', TRUE],

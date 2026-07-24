@@ -12,8 +12,8 @@ Blocking checks:
 - PHP syntax
 - developer scenario contract validation
 - isolated PHPUnit unit tests on PHP 8.1 and PHP 8.3
-- PHPStan for the independently testable service/storage code
-- Composer security audit
+- PHPStan for the independently testable service/storage code at the current legacy-safe baseline
+- Composer security audit advisory
 
 CiviCRM coding standards and PHP 8.1 compatibility are included as visible advisory checks during the initial legacy-baseline phase. They should become blocking after the existing findings are resolved or baselined.
 

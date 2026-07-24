@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-07-06</releaseDate>
-  <version>0.1.0-alpha49-core</version>
+  <version>0.1.0-alpha50-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha core build: adds push-ready automated QA workflows, hardened test isolation, and symlink-safe sync directory handling.</comments>
+  <comments>Alpha core build: fixes GitHub fast QA static-analysis baseline and keeps QA workflows push-ready.</comments>
 </extension>
