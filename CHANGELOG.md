@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha51-core
+
+- Added full isolated CiviCRM real-fixture QA coverage for scheduled jobs, dedupe rules, contact types, settings ignore/revert, stale YAML deletion, and full export/import idempotency.
+- Added fixture-extension download/install support for Mosaico, SQLTasks, Contact Layout, and CiviRules before the Docker app is isolated from external network access.
+- Added extension config QA assertions to verify deployable extension YAML is produced, generated Mosaico base templates are skipped, and extension import/idempotency stays safe.
+- Added full QA artifacts for fixture-extension fetch/install logs and real-fixture integration summaries.
+
 ## 0.1.0-alpha50-core
 
 - Fixed the GitHub Fast QA PHPStan failure by adding API4 autoloading, iterable PHPDoc coverage for the unit-testable storage/YAML code, and a realistic initial PHPStan level for the legacy-safe baseline.

@@ -129,3 +129,29 @@ Playwright coverage currently includes:
 ## Next coverage increments
 
 The next additions should be data-driven round-trip tests for every remaining handler, destructive import ordering across dependency chains, full ZIP upload/download integration cases, extension uninstall/reinstall and previous-release upgrade tests, permission-role browser tests, and pinned CiviCRM compatibility anchors.
+
+## Full real-fixture CiviCRM QA
+
+The full workflow now runs two integration suites inside an isolated CiviCRM Docker site:
+
+1. `StandaloneRoundTrip.php` covers the fast disposable round-trip and security checks.
+2. `FullRealFixtures.php` covers broader real fixtures:
+   - scheduled jobs export/import/revert/stale YAML cleanup
+   - dedupe rule groups export/import
+   - contact types export/import
+   - settings field-level ignore and revert
+   - real extension discovery/idempotency for Mosaico, SQLTasks, Contact Layout, and CiviRules when installed
+   - full export/import idempotency after all fixture changes
+
+The runner fetches fixture extensions on the host first via `tests/ci/fetch-fixture-extensions.sh`, then mounts them read-only into the CiviCRM container. The CiviCRM container remains on an internal Docker network during the application test, so extension code cannot use the public internet during QA.
+
+Useful environment switches:
+
+```bash
+RUN_REAL_EXTENSION_FIXTURES=true
+RUN_FULL_REAL_FIXTURE_SUITE=true
+CIVICFG_QA_FIXTURE_EXTENSION_KEYS="uk.co.vedaconsulting.mosaico de.systopia.sqltasks org.civicrm.contactlayout org.civicoop.civirules"
+CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS=false
+```
+
+Keep `CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS=false` for release QA. Set it to `true` only while debugging network/download problems in a fork.

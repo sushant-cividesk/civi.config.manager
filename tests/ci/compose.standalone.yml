@@ -28,6 +28,10 @@ services:
         source: ${QA_ARTIFACT_DIR}
         target: /qa-artifacts
       - type: bind
+        source: ${FIXTURE_EXTENSION_DIR}
+        target: /var/www/html/ext-fixtures
+        read_only: true
+      - type: bind
         source: ${PHP_QA_INI}
         target: /usr/local/etc/php/conf.d/99-civicfg-qa.ini
         read_only: true

@@ -6,13 +6,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXTENSION_ROOT="${EXTENSION_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR:-${EXTENSION_ROOT}/tests/ci/artifacts}"
 PHP_QA_INI="${PHP_QA_INI:-${SCRIPT_DIR}/php-qa.ini}"
+FIXTURE_EXTENSION_DIR="${FIXTURE_EXTENSION_DIR:-${QA_ARTIFACT_DIR}/fixture-extensions}"
 COMPOSE_FILE="${SCRIPT_DIR}/compose.standalone.yml"
 CIVICRM_HTTP_PORT="${CIVICRM_HTTP_PORT:-8760}"
 MAILPIT_HTTP_PORT="${MAILPIT_HTTP_PORT:-8025}"
 CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID:-github-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-civicfgqa-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
 
-export EXTENSION_ROOT QA_ARTIFACT_DIR PHP_QA_INI CIVICRM_HTTP_PORT MAILPIT_HTTP_PORT
+export EXTENSION_ROOT QA_ARTIFACT_DIR PHP_QA_INI FIXTURE_EXTENSION_DIR CIVICRM_HTTP_PORT MAILPIT_HTTP_PORT
 export CIVICFG_QA_RUN_ID COMPOSE_PROJECT_NAME
 
 source_state() {
@@ -39,8 +40,9 @@ source_state() {
 
 SOURCE_STATE_BEFORE="$(source_state)"
 
-mkdir -p "${QA_ARTIFACT_DIR}"
+mkdir -p "${QA_ARTIFACT_DIR}" "${FIXTURE_EXTENSION_DIR}"
 find "${QA_ARTIFACT_DIR}" -mindepth 1 -depth ! -name '.gitkeep' -delete
+mkdir -p "${FIXTURE_EXTENSION_DIR}"
 chmod 0777 "${QA_ARTIFACT_DIR}"
 cd "${EXTENSION_ROOT}"
 
@@ -101,6 +103,12 @@ printf 'Git SHA: %s\n' "${GITHUB_SHA:-$(git -C "${EXTENSION_ROOT}" rev-parse HEA
   | tee -a "${QA_ARTIFACT_DIR}/run-metadata.txt"
 printf 'CiviCRM image: %s\n' "${CIVICRM_IMAGE:-civicrm/civicrm:6.16-php8.3}" \
   | tee -a "${QA_ARTIFACT_DIR}/run-metadata.txt"
+printf 'Real extension fixtures: %s\n' "${RUN_REAL_EXTENSION_FIXTURES:-true}" \
+  | tee -a "${QA_ARTIFACT_DIR}/run-metadata.txt"
+
+if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
+  "${SCRIPT_DIR}/fetch-fixture-extensions.sh" | tee "${QA_ARTIFACT_DIR}/fixture-extension-fetch.log"
+fi
 
 compose pull
 compose up -d
@@ -124,12 +132,32 @@ compose exec -T -u www-data app sh -lc '
   cv api Extension.get key=civi.config.manager return=status --out=json
 ' | tee "${QA_ARTIFACT_DIR}/extension-lifecycle.log"
 
+if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
+  compose exec -T -u www-data \
+    -e FIXTURE_EXTENSION_DIR=/var/www/html/ext-fixtures \
+    -e CIVICFG_QA_FIXTURE_EXTENSION_KEYS="${CIVICFG_QA_FIXTURE_EXTENSION_KEYS:-uk.co.vedaconsulting.mosaico de.systopia.sqltasks org.civicrm.contactlayout org.civicoop.civirules}" \
+    -e CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS="${CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS:-false}" \
+    app bash /var/www/html/ext/civi.config.manager/tests/ci/install-fixture-extensions.sh \
+    | tee "${QA_ARTIFACT_DIR}/fixture-extension-install.log"
+fi
+
 compose exec -T -u www-data \
   -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
   -e CIVICFG_QA_ROOT=/tmp/civicfg-qa \
   -e CIVICFG_QA_ARTIFACTS=/qa-artifacts \
   app cv scr /var/www/html/ext/civi.config.manager/tests/integration/StandaloneRoundTrip.php \
   | tee "${QA_ARTIFACT_DIR}/standalone-round-trip.log"
+
+if [[ "${RUN_FULL_REAL_FIXTURE_SUITE:-true}" == "true" ]]; then
+  compose exec -T -u www-data \
+    -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
+    -e CIVICFG_QA_ROOT=/tmp/civicfg-qa \
+    -e CIVICFG_QA_ARTIFACTS=/qa-artifacts \
+    -e CIVICFG_QA_FIXTURE_EXTENSION_KEYS="${CIVICFG_QA_FIXTURE_EXTENSION_KEYS:-uk.co.vedaconsulting.mosaico de.systopia.sqltasks org.civicrm.contactlayout org.civicoop.civirules}" \
+    -e CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS="${CIVICFG_ALLOW_MISSING_FIXTURE_EXTENSIONS:-false}" \
+    app cv scr /var/www/html/ext/civi.config.manager/tests/integration/FullRealFixtures.php \
+    | tee "${QA_ARTIFACT_DIR}/full-real-fixtures.log"
+fi
 
 compose exec -T -u www-data app sh -lc '
   set -eu

@@ -1,0 +1,48 @@
+id: CM-FULL-REAL-FIXTURE-QA
+feature: Full CiviCRM real-fixture export/import/revert/idempotency QA
+level:
+  - integration
+fixtures:
+  factory: API4 plus real fixture extensions
+  records:
+    scheduled_job:
+      name: qa_civicfg_job_<run_id>
+    dedupe_rule_group:
+      name: qa_civicfg_dedupe_<run_id>
+    contact_type:
+      name: qa_civicfg_subtype_<run_id>
+    extension_fixtures:
+      - uk.co.vedaconsulting.mosaico
+      - de.systopia.sqltasks
+      - org.civicrm.contactlayout
+      - org.civicoop.civirules
+steps:
+  - Fetch and install the real fixture extensions before the application container is isolated.
+  - Create disposable scheduled job, dedupe rule group, contact type, settings, and extension fixtures.
+  - Export supported configuration to an isolated sync directory.
+  - Change active CiviCRM values and verify differences are detected.
+  - Revert selected YAML back to CiviCRM and verify the database value is restored.
+  - Apply import and verify the second import/export cycle is idempotent.
+expected:
+  scheduled_jobs_reverted: true
+  stale_yaml_removed: true
+  dedupe_rules_restored: true
+  contact_types_restored: true
+  settings_ignore_respected: true
+  generated_mosaico_base_templates_skipped: true
+  full_import_idempotent: true
+negative_cases:
+  - missing_required_fixture_extension
+  - generated_provider_yaml_exported
+  - ignored_field_still_reported
+  - stale_yaml_left_after_export
+  - non_idempotent_import
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true
