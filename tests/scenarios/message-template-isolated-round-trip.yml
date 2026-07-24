@@ -1,0 +1,33 @@
+id: CM-MESSAGE-TEMPLATE-ISOLATED
+feature: Message Template YAML round trip without outbound email
+level:
+  - integration
+fixtures:
+  factory: API4
+  records:
+    message_template:
+      title: QA Message Template <run_id>
+      is_reserved: false
+steps:
+  - Create a disposable Message Template with unique text and HTML markers.
+  - Export Message Templates to the isolated sync directory.
+  - Change the subject in CiviCRM and verify a focused difference.
+  - Import the YAML value and verify subject, text, and HTML are restored.
+  - Verify that no PHP mail attempt or Mailpit message exists.
+expected:
+  complete_template_content_preserved: true
+  mail_attempt_count: 0
+  mailpit_message_count: 0
+negative_cases:
+  - sensitive_content_in_artifact
+  - external_network_request
+  - accidental_php_mail_call
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

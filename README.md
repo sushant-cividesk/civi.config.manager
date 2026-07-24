@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha48-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha49-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -425,3 +425,16 @@ Wrappers are managed files. They are not written over existing non-managed files
 - Config Ignore field selection is more robust: checking a field switches to field-level ignore, while switching back to whole-file ignore clears field selections.
 - Generic extension settings discovery now also reads runtime settings stored in `civicrm_setting`, so extensions such as SQLTasks can export additional `sqltasks_*` values even when they are not fully described by setting metadata.
 - Generic API3 discovery was broadened for contributed/custom extensions that expose importable API records but do not publish `getactions` consistently. Read-only/generated entities are still skipped.
+
+## Automated QA
+
+This repository includes a fast GitHub Actions workflow for every push/pull request and a manually triggered full CiviCRM Standalone workflow. The full workflow creates an isolated database and YAML directory, blocks outbound application networking and email delivery, generates disposable API4 fixtures, tests CLI/API/service round trips, and can run Playwright UI/UX and accessibility checks.
+
+See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
+
+## Alpha 49 Notes
+
+- Added push-ready GitHub Actions workflows: `QA - Fast` for every push/pull request and `QA - Full CiviCRM Extension` for manual disposable CiviCRM Standalone runs.
+- The fast workflow runs Composer validation, PHP syntax, scenario contracts, unit tests, PHPStan, Composer audit, and advisory CiviCRM standards/PHP compatibility checks.
+- The full workflow runs the extension in an isolated CiviCRM container with disposable MariaDB, Mailpit, blocked PHP mail, sanitized artifacts, API/CLI smoke tests, integration fixtures, and optional Playwright checks.
+- The YAML sync root may now be a symlink to support dev/stage shared-config test setups; files and subdirectories inside the sync root are still protected against traversal and symlink escapes.

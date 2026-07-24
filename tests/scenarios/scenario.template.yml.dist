@@ -1,0 +1,26 @@
+id: CM-FEATURE-ID
+feature: Describe the feature or regression being verified
+level:
+  - integration
+fixtures:
+  factory: API4
+  records:
+    example:
+      name: qa_civicfg_<run_id>
+steps:
+  - Create all disposable fixture data.
+  - Perform the action under test.
+  - Verify the result through API, database, filesystem, or UI assertions.
+expected:
+  result: Describe the exact expected output
+negative_cases:
+  - invalid_input
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

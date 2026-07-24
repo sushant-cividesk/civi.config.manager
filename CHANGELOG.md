@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-alpha49-core
+
+- Added a fast GitHub Actions workflow for syntax, isolated PHPUnit unit tests, PHPStan, Composer audit, CiviCRM coding standards, and PHP 8.1 compatibility checks.
+- Added a manually triggered full QA workflow using a disposable CiviCRM Standalone, MariaDB, Mailpit, and optional Playwright environment.
+- Added isolated API4, YAML storage, handler registry, settings redaction, Option Group round-trip and reserved-value deletion, malformed handler/manifest YAML validation, Message Template, Config Ignore, UI confirmation, browser-error, and accessibility coverage.
+- Added developer-owned scenario definitions under `tests/scenarios` so future changes provide disposable fixtures, expected results, negative cases, and cleanup requirements.
+- Hardened YAML and upload storage against traversal, symbolic-link escapes, partial writes, malformed manifests, duplicate ZIP paths, oversized YAML/ZIP payloads, and empty archive downloads.
+- Prevented password, secret, token, credential, and key-like settings from being exported or imported through the settings handler.
+- Added cleanup verification, read-only source mounts, an observable PHP mail-attempt blocker, an internal-only Docker network, browser-level external request blocking, zero-message Mailpit verification, and sanitized QA artifacts.
+
+
+- Added GitHub Actions workflow files for push/pull fast QA and manually triggered full isolated CiviCRM QA.
+- Allowed the sync directory root itself to be a symlink after resolving the real path, while continuing to block symlinked files/subdirectories and path traversal inside the sync directory.
+- Added unit coverage for symlinked sync-root support in YAML storage and upload/write handling.
+
 ## 0.1.0-alpha48-core
 
 - Improved Sync, Import, and Export review screens with plain-language field summaries such as contact type label changes and option value weight/order changes.

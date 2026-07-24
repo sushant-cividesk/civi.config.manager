@@ -8,15 +8,18 @@ class SettingHandler extends AbstractHandler {
   public function getWeight(): int { return 80; }
 
   public function export(): array {
-    $allowlist = (array) \Civi::settings()->get('civicfg_settings_allowlist');
-    sort($allowlist);
+    $configuredAllowlist = (array) \Civi::settings()->get('civicfg_settings_allowlist');
+    $allowlist = [];
     $items = [];
-    foreach ($allowlist as $name) {
-      if (!is_string($name) || $name === '') {
+    foreach ($configuredAllowlist as $name) {
+      if (!is_string($name) || $name === '' || !$this->isSafeSettingName($name) || $this->isSensitiveSettingName($name)) {
         continue;
       }
+      $allowlist[] = $name;
       $items[$name] = \Civi::settings()->get($name);
     }
+    $allowlist = array_values(array_unique($allowlist));
+    sort($allowlist);
     ksort($items);
     return [[
       'filename' => 'civicrm.settings.yml',
@@ -24,7 +27,7 @@ class SettingHandler extends AbstractHandler {
         'schema_version' => 1,
         'type' => 'settings.allowlist',
         'dependencies' => [],
-        'allowlist' => array_values($allowlist),
+        'allowlist' => $allowlist,
         'items' => $items,
       ],
     ]];
@@ -39,11 +42,18 @@ class SettingHandler extends AbstractHandler {
         continue;
       }
       foreach (($file['items'] ?? []) as $name => $value) {
-        if (!$this->isSafeSettingName((string) $name)) {
+        $name = (string) $name;
+        if (!$this->isSafeSettingName($name)) {
           $errors[] = ['file' => $filename, 'message' => 'Unsafe setting name: ' . $name];
         }
-        if (preg_match('/(password|secret|key|token|credential)/i', (string) $name)) {
-          $warnings[] = ['file' => $filename, 'message' => 'Setting looks sensitive and should normally not be managed in git: ' . $name];
+        elseif ($this->isSensitiveSettingName($name)) {
+          $errors[] = ['file' => $filename, 'message' => 'Sensitive settings cannot be managed in YAML: ' . $name];
+        }
+      }
+      foreach (($file['allowlist'] ?? []) as $name) {
+        $name = (string) $name;
+        if ($this->isSensitiveSettingName($name)) {
+          $warnings[] = ['file' => $filename, 'message' => 'Sensitive setting was removed from the managed allowlist: ' . $name];
         }
       }
     }
@@ -64,6 +74,10 @@ class SettingHandler extends AbstractHandler {
           $summary['errors'][] = ['file' => $filename, 'message' => 'Unsafe setting name: ' . $name];
           continue;
         }
+        if ($this->isSensitiveSettingName($name)) {
+          $summary['errors'][] = ['file' => $filename, 'message' => 'Sensitive settings cannot be imported from YAML: ' . $name];
+          continue;
+        }
         $current = \Civi::settings()->get($name);
         if ($this->normaliseComparableValue($current) !== $this->normaliseComparableValue($value)) {
           $summary['update']++;
@@ -76,8 +90,14 @@ class SettingHandler extends AbstractHandler {
         }
       }
       if (array_key_exists('allowlist', $file) && is_array($file['allowlist'])) {
-        $allowlist = array_values(array_filter(array_map('strval', $file['allowlist'])));
+        $allowlist = array_values(array_filter(array_map('strval', $file['allowlist']), function(string $name): bool {
+          return $this->isSafeSettingName($name) && !$this->isSensitiveSettingName($name);
+        }));
+        $allowlist = array_values(array_unique($allowlist));
         $currentAllowlist = (array) \Civi::settings()->get('civicfg_settings_allowlist');
+        $currentAllowlist = array_values(array_filter(array_map('strval', $currentAllowlist), function(string $name): bool {
+          return $this->isSafeSettingName($name) && !$this->isSensitiveSettingName($name);
+        }));
         sort($allowlist);
         sort($currentAllowlist);
         if ($allowlist !== $currentAllowlist) {
@@ -94,5 +114,10 @@ class SettingHandler extends AbstractHandler {
 
   private function isSafeSettingName(string $name): bool {
     return (bool) preg_match('/^[A-Za-z0-9_.:-]+$/', $name);
+  }
+
+  private function isSensitiveSettingName(string $name): bool {
+    $normalised = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $name);
+    return (bool) preg_match('/(?:password|passwd|secret|token|credential|(?:^|[_.:-])key(?:$|[_.:-])|(?:api|private|access|auth|signing|encryption|consumer)[_-]?key)/i', (string) $normalised);
   }
 }

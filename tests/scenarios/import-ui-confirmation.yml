@@ -1,0 +1,35 @@
+id: CM-IMPORT-UI-CONFIRMATION
+feature: Destructive import review and exact confirmation protection
+level:
+  - browser
+fixtures:
+  factory: API4
+  records:
+    option_group:
+      name: qa_civicfg_ui_<run_id>
+      reserved: false
+steps:
+  - Seed and export a disposable Option Group.
+  - Change the active CiviCRM value to create a pending import.
+  - Open the Import review screen.
+  - Verify apply remains disabled until review is checked and IMPORT is typed exactly.
+  - Verify browser console, uncaught errors, accessibility, and external request isolation.
+expected:
+  lowercase_confirmation_rejected: true
+  exact_confirmation_enabled: true
+  serious_accessibility_violations: 0
+  external_requests: 0
+negative_cases:
+  - lowercase_confirmation
+  - double_submit
+  - external_asset_request
+  - browser_console_error
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

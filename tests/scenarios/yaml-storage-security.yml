@@ -1,0 +1,34 @@
+id: CM-YAML-STORAGE-SECURITY
+feature: YAML storage and upload filesystem containment
+level:
+  - unit
+fixtures:
+  factory: TemporaryDirectory
+  records:
+    safe_yaml:
+      path: nested/example.yml
+steps:
+  - Write a valid YAML file below the run-specific sync root.
+  - Read, compare, and delete the file.
+  - Attempt traversal, absolute paths, prefix collisions, and symbolic-link escapes.
+  - Verify writes use temporary files and atomic replacement.
+expected:
+  outside_root_changes: 0
+  temporary_write_files_after_completion: 0
+  unsafe_paths_rejected: true
+negative_cases:
+  - parent_directory_traversal
+  - absolute_path
+  - windows_absolute_path
+  - symlinked_directory
+  - symlinked_file
+  - root_prefix_collision
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

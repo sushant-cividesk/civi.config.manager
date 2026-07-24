@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset name="CiviCRM Configuration Manager">
+  <description>CiviCRM extension coding standards.</description>
+  <arg name="basepath" value="."/>
+  <arg name="colors"/>
+  <arg value="p"/>
+  <file>CRM</file>
+  <file>Civi</file>
+  <file>configmanager.php</file>
+  <file>settings</file>
+  <file>tests</file>
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+  <exclude-pattern>*/node_modules/*</exclude-pattern>
+  <rule ref="CiviCRM"/>
+</ruleset>

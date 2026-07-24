@@ -1,0 +1,11 @@
+parameters:
+  level: 6
+  bootstrapFiles:
+    - tests/phpunit/bootstrap.php
+  paths:
+    - Civi/ConfigManager/Util
+    - Civi/ConfigManager/Storage
+    - Civi/ConfigManager/Version.php
+    - tests/phpunit/Unit
+  tmpDir: .phpstan-cache
+  treatPhpDocTypesAsCertain: false

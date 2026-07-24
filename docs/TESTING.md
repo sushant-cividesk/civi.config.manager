@@ -104,3 +104,14 @@ Run these tests on sites where contributed/custom extensions are installed and e
 - Reverse dependencies: export SearchKit/FormBuilder or custom-data dependencies and confirm dependency target files receive `required_by` metadata. Remove a dependent file in a disposable copy and confirm Validate reports stale reverse metadata as a warning.
 - Project CLI wrappers: after install/enable, confirm `<project-root>/bin/civicfg`, `ce`, `ci`, `cdf`, and `cval` exist when the project bin directory is writable, do not overwrite non-managed files, and warn if the extension is disabled.
 - UI buttons: smoke-test Synchronize, Import, Export, and Settings action buttons in RiverLea, Shoreditch, and the base CiviCRM theme.
+
+## Automated GitHub QA
+
+Automated tests now complement the manual scenarios in this document:
+
+- `QA - Fast` runs syntax, unit, static-analysis, dependency-audit, coding-standard, and PHP-compatibility checks on pushes and pull requests.
+- `QA - Full CiviCRM Extension` is manually triggered against a selected commit and pinned CiviCRM Standalone image.
+
+The full run creates its own database, records, settings, YAML directory, Docker network, and browser fixture. It blocks outbound networking from the application stack, disables PHP mail delivery, verifies that Mailpit received no messages, restores changed settings, deletes fixture records, and removes all Docker volumes after the run.
+
+See `docs/QA_AUTOMATION.md` for commands, current coverage, isolation rules, and the developer test-scenario contract.

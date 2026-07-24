@@ -1,0 +1,40 @@
+id: CM-OPTION-GROUP-ROUND-TRIP
+feature: Option Group and Option Value YAML round trip
+level:
+  - integration
+  - browser
+fixtures:
+  factory: API4
+  records:
+    option_group:
+      name: qa_civicfg_<run_id>
+      reserved: false
+    option_value:
+      name: qa_value
+      reserved: false
+steps:
+  - Create the disposable Option Group and Option Value.
+  - Export option-groups to the isolated sync directory.
+  - Change the Option Group title in CiviCRM.
+  - Verify the difference through the service and UI.
+  - Preview the import without changing CiviCRM.
+  - Apply the YAML import.
+  - Run the preview again to verify idempotency.
+expected:
+  dry_run_changes_database: false
+  applied_import_restores_yaml_value: true
+  second_import_update_count: 0
+negative_cases:
+  - malformed_yaml
+  - reserved_record_delete
+  - missing_dependency
+  - path_traversal
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

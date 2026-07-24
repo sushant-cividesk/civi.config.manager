@@ -1,0 +1,14 @@
+{
+  "name": "civi-config-manager-qa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser QA for the CiviCRM Configuration Manager extension.",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.61.1"
+  }
+}

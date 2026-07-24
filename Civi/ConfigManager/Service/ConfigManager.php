@@ -650,7 +650,12 @@ class ConfigManager {
       }
     }
     $this->addDependencyWarnings($result, $yamlByType);
-    $this->addManifestValidation($result, $storage->readFile('manifest.yml'));
+    try {
+      $this->addManifestValidation($result, $storage->readFile('manifest.yml'));
+    }
+    catch (\Throwable $e) {
+      $result['errors'][] = ['type' => 'manifest', 'message' => $e->getMessage()];
+    }
     $result['ok'] = $result['ok'] && empty($result['errors']);
     return $result;
   }

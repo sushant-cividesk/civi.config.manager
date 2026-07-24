@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+         bootstrap="tests/phpunit/bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         failOnRisky="true"
+         failOnWarning="true"
+         beStrictAboutOutputDuringTests="true">
+  <testsuites>
+    <testsuite name="Configuration Manager unit tests">
+      <directory suffix="Test.php">tests/phpunit/Unit</directory>
+    </testsuite>
+  </testsuites>
+  <coverage processUncoveredFiles="true">
+    <include>
+      <directory suffix=".php">Civi/ConfigManager/Util</directory>
+      <directory suffix=".php">Civi/ConfigManager/Storage</directory>
+      <directory suffix=".php">Civi/ConfigManager/Handler</directory>
+      <file>Civi/ConfigManager/Version.php</file>
+    </include>
+  </coverage>
+</phpunit>

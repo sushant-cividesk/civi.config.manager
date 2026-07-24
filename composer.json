@@ -1,0 +1,47 @@
+{
+  "$schema": "https://getcomposer.org/schema.json",
+  "name": "sushant-cividesk/civi-config-manager",
+  "description": "CiviCRM Configuration Manager extension development and QA tooling.",
+  "type": "civicrm-ext",
+  "license": "AGPL-3.0-or-later",
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "michaelmcandrew/civicrm-coding-standards": "^1.1.1",
+    "phpcompatibility/php-compatibility": "^9.3.5",
+    "phpstan/phpstan": "^1.12 || ^2.0",
+    "phpunit/phpunit": "^9.6",
+    "symfony/yaml": "^5.4 || ^6.4 || ^7.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Civi\\ConfigManager\\": "Civi/ConfigManager/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Civi\\ConfigManager\\Tests\\": "tests/phpunit/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  },
+  "scripts": {
+    "lint:php": "bash tests/ci/php-lint.sh",
+    "test:scenarios": "php tests/ci/validate-scenarios.php",
+    "test:unit": "phpunit --configuration phpunit.xml.dist",
+    "analyse": "phpstan analyse --configuration phpstan.neon.dist --no-progress",
+    "standards": "phpcs --standard=phpcs.xml.dist",
+    "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.1 .",
+    "qa:fast": [
+      "@lint:php",
+      "@test:scenarios",
+      "@test:unit",
+      "@analyse"
+    ]
+  }
+}

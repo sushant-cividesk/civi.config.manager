@@ -14,6 +14,10 @@ use FilesystemIterator;
  * Handles import/export file transfers and single-file preview/downloads.
  */
 class FileTransfer {
+  private const MAX_UPLOAD_FILES = 500;
+  private const MAX_YAML_FILE_BYTES = 5242880;
+  private const MAX_ARCHIVE_BYTES = 52428800;
+
 
   public function buildExportItems(ConfigManager $manager, array $typeFilter = []): array {
     $items = [];
@@ -143,6 +147,10 @@ class FileTransfer {
     if (!$handler) {
       throw new RuntimeException('Unknown configuration type: ' . $type);
     }
+    $uploadSize = (int) ($_FILES['single_yaml']['size'] ?? 0);
+    if ($uploadSize > self::MAX_YAML_FILE_BYTES) {
+      throw new RuntimeException('The uploaded YAML file is too large.');
+    }
     $parsed = SimpleYaml::parseFile($_FILES['single_yaml']['tmp_name']);
     if (!is_array($parsed) || !$parsed) {
       throw new RuntimeException('The uploaded YAML file could not be parsed.');
@@ -160,50 +168,94 @@ class FileTransfer {
     if (empty($_FILES['zip_archive']['tmp_name']) || !is_uploaded_file($_FILES['zip_archive']['tmp_name'])) {
       throw new RuntimeException('Choose a ZIP archive to upload.');
     }
+    $uploadSize = (int) ($_FILES['zip_archive']['size'] ?? 0);
+    if ($uploadSize > self::MAX_ARCHIVE_BYTES) {
+      throw new RuntimeException('The uploaded ZIP archive is too large.');
+    }
     $zip = new ZipArchive();
     if ($zip->open($_FILES['zip_archive']['tmp_name']) !== TRUE) {
       throw new RuntimeException('Could not open the uploaded ZIP archive.');
     }
+    if ($zip->numFiles > self::MAX_UPLOAD_FILES) {
+      $zip->close();
+      throw new RuntimeException('The ZIP archive contains too many files.');
+    }
+
     $syncRoot = rtrim($manager->getSyncDir(), DIRECTORY_SEPARATOR);
     $written = 0;
     $skipped = 0;
-    for ($i = 0; $i < $zip->numFiles; $i++) {
-      $name = $zip->getNameIndex($i);
-      if (substr($name, -1) === '/') {
-        continue;
-      }
-      if (!$this->isSafeRelativeYamlPath($name)) {
-        $skipped++;
-        continue;
-      }
-      $stream = $zip->getStream($name);
-      if (!$stream) {
-        $skipped++;
-        continue;
-      }
-      $contents = stream_get_contents($stream);
-      fclose($stream);
-      $tmp = tempnam(sys_get_temp_dir(), 'civicfg-yml-');
-      file_put_contents($tmp, $contents);
-      try {
-        $parsed = SimpleYaml::parseFile($tmp);
-        if (!is_array($parsed) || !$parsed) {
-          $skipped++;
-          @unlink($tmp);
+    $totalBytes = 0;
+    $seen = [];
+    try {
+      for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = (string) $zip->getNameIndex($i);
+        if ($name === '' || substr($name, -1) === '/') {
           continue;
         }
+        $normalisedName = str_replace('\\', '/', $name);
+        $identity = strtolower($normalisedName);
+        if (isset($seen[$identity]) || !$this->isSafeRelativeYamlPath($normalisedName) || $this->zipEntryIsSymlink($zip, $i)) {
+          $skipped++;
+          continue;
+        }
+        $seen[$identity] = TRUE;
+
+        $stat = $zip->statIndex($i);
+        $declaredSize = is_array($stat) ? (int) ($stat['size'] ?? 0) : 0;
+        if ($declaredSize > self::MAX_YAML_FILE_BYTES || ($totalBytes + $declaredSize) > self::MAX_ARCHIVE_BYTES) {
+          $skipped++;
+          continue;
+        }
+
+        $stream = $zip->getStream($name);
+        if (!$stream) {
+          $skipped++;
+          continue;
+        }
+        try {
+          $contents = stream_get_contents($stream, self::MAX_YAML_FILE_BYTES + 1);
+        }
+        finally {
+          fclose($stream);
+        }
+        if ($contents === FALSE || strlen($contents) > self::MAX_YAML_FILE_BYTES) {
+          $skipped++;
+          continue;
+        }
+        $totalBytes += strlen($contents);
+        if ($totalBytes > self::MAX_ARCHIVE_BYTES) {
+          $skipped++;
+          continue;
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'civicfg-yml-');
+        if ($tmp === FALSE || file_put_contents($tmp, $contents, LOCK_EX) === FALSE) {
+          if (is_string($tmp)) {
+            @unlink($tmp);
+          }
+          throw new RuntimeException('Could not create a temporary YAML file for archive validation.');
+        }
+        try {
+          $parsed = SimpleYaml::parseFile($tmp);
+          if (!is_array($parsed) || !$parsed) {
+            $skipped++;
+            continue;
+          }
+          $target = $syncRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalisedName);
+          $this->safeWriteContents($contents, $target, $syncRoot);
+          $written++;
+        }
+        catch (Throwable $e) {
+          $skipped++;
+        }
+        finally {
+          @unlink($tmp);
+        }
       }
-      catch (Throwable $e) {
-        $skipped++;
-        @unlink($tmp);
-        continue;
-      }
-      $target = $syncRoot . DIRECTORY_SEPARATOR . $name;
-      $this->safeWriteContents($contents, $target, $syncRoot);
-      @unlink($tmp);
-      $written++;
     }
-    $zip->close();
+    finally {
+      $zip->close();
+    }
     if ($written === 0) {
       throw new RuntimeException('No YAML files were imported from the ZIP archive.');
     }
@@ -215,37 +267,59 @@ class FileTransfer {
     if (!class_exists('ZipArchive')) {
       throw new RuntimeException('ZipArchive is not available in PHP.');
     }
-    if (!is_dir($dir)) {
-      throw new RuntimeException('Sync directory does not exist. Export files first.');
+    if (!is_dir($dir) || is_link($dir)) {
+      throw new RuntimeException('Sync directory does not exist or is not a safe directory. Export files first.');
     }
-    $zipPath = tempnam(sys_get_temp_dir(), 'civicfg-') . '.zip';
+    $realRoot = realpath($dir);
+    if ($realRoot === FALSE) {
+      throw new RuntimeException('Could not resolve the sync directory.');
+    }
+
+    $temporary = tempnam(sys_get_temp_dir(), 'civicfg-');
+    if ($temporary === FALSE) {
+      throw new RuntimeException('Could not create a temporary archive path.');
+    }
+    @unlink($temporary);
+    $zipPath = $temporary . '.zip';
     $zip = new ZipArchive();
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
       throw new RuntimeException('Could not create archive.');
     }
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
-    foreach ($iterator as $file) {
-      if ($file->isFile()) {
-        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($dir) + 1));
-        if ($manager->shouldIgnorePath($relative)) {
+    $added = 0;
+    try {
+      $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($realRoot, FilesystemIterator::SKIP_DOTS));
+      foreach ($iterator as $file) {
+        if ($file->isLink() || !$file->isFile()) {
           continue;
         }
-        if (preg_match('/\.ya?ml$/i', $relative)) {
-          try {
-            $parsed = SimpleYaml::parseFile($file->getPathname());
-            $parsed = $manager->applyIgnoredValueRules($relative, (array) $parsed);
-            $zip->addFromString($relative, SimpleYaml::dump($parsed));
-          }
-          catch (Throwable $e) {
-            $zip->addFile($file->getPathname(), $relative);
+        $realFile = realpath($file->getPathname());
+        if ($realFile === FALSE || !$this->pathIsWithinRoot($realFile, $realRoot)) {
+          continue;
+        }
+        $relative = str_replace('\\', '/', substr($realFile, strlen($realRoot) + 1));
+        if (!$this->isSafeRelativeYamlPath($relative) || $manager->shouldIgnorePath($relative)) {
+          continue;
+        }
+        try {
+          $parsed = SimpleYaml::parseFile($realFile);
+          $parsed = $manager->applyIgnoredValueRules($relative, (array) $parsed);
+          if ($zip->addFromString($relative, SimpleYaml::dump($parsed))) {
+            $added++;
           }
         }
-        else {
-          $zip->addFile($file->getPathname(), $relative);
+        catch (Throwable $e) {
+          // Invalid YAML is excluded instead of copying unreviewed raw content.
         }
       }
     }
-    $zip->close();
+    finally {
+      $zip->close();
+    }
+    if ($added === 0 || !is_file($zipPath)) {
+      @unlink($zipPath);
+      throw new RuntimeException('No valid YAML files are available for download.');
+    }
+
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/zip');
     \CRM_Utils_System::setHttpHeader('Content-Disposition', 'attachment; filename="civicrm-config.zip"');
     \CRM_Utils_System::setHttpHeader('Content-Length', (string) filesize($zipPath));
@@ -275,31 +349,95 @@ class FileTransfer {
   }
 
   private function isSafeRelativeYamlPath(string $path): bool {
-    $path = str_replace('\\', '/', trim($path));
-    if ($path === '' || $path[0] === '/' || strpos($path, '..') !== FALSE) {
+    $path = trim(str_replace('\\', '/', $path));
+    if ($path === '' || strpos($path, "\0") !== FALSE || $path[0] === '/' || preg_match('/^[A-Za-z]:\//', $path)) {
       return FALSE;
     }
     if (!preg_match('/\.ya?ml$/i', $path)) {
       return FALSE;
     }
-    return (bool) preg_match('/^[A-Za-z0-9_.\/-]+$/', $path);
+    $segments = explode('/', $path);
+    foreach ($segments as $segment) {
+      if ($segment === '' || $segment === '.' || $segment === '..' || !preg_match('/^[A-Za-z0-9_.-]+$/', $segment)) {
+        return FALSE;
+      }
+    }
+    return TRUE;
   }
 
   private function safeWriteUploadedFile(string $tmp, string $target, string $root): void {
     $contents = file_get_contents($tmp);
+    if ($contents === FALSE) {
+      throw new RuntimeException('Could not read the uploaded YAML file.');
+    }
+    if (strlen($contents) > self::MAX_YAML_FILE_BYTES) {
+      throw new RuntimeException('The uploaded YAML file is too large.');
+    }
     $this->safeWriteContents($contents, $target, $root);
   }
 
   private function safeWriteContents(string $contents, string $target, string $root): void {
-    $root = rtrim(realpath($root) ?: $root, DIRECTORY_SEPARATOR);
+    $root = rtrim($root, DIRECTORY_SEPARATOR);
+    if ($root === '') {
+      throw new RuntimeException('The sync directory is not a safe filesystem root.');
+    }
+    if (!is_dir($root) && !mkdir($root, 0775, TRUE) && !is_dir($root)) {
+      throw new RuntimeException('Could not create the sync directory.');
+    }
+    $realRoot = realpath($root);
+    if ($realRoot === FALSE || !is_dir($realRoot)) {
+      throw new RuntimeException('Could not resolve the sync directory.');
+    }
+
     $dir = dirname($target);
-    if (!is_dir($dir)) {
-      mkdir($dir, 0775, TRUE);
+    if (!is_dir($dir) && !mkdir($dir, 0775, TRUE) && !is_dir($dir)) {
+      throw new RuntimeException('Could not create the target YAML directory.');
     }
     $realDir = realpath($dir);
-    if (!$realDir || strpos($realDir, $root) !== 0) {
+    if ($realDir === FALSE || !$this->pathIsWithinRoot($realDir, $realRoot)) {
       throw new RuntimeException('Refusing to write outside the sync directory.');
     }
-    file_put_contents($target, $contents);
+    if (is_link($target)) {
+      throw new RuntimeException('Refusing to overwrite a symbolic link.');
+    }
+
+    $temporary = tempnam($realDir, '.civicfg-upload-');
+    if ($temporary === FALSE) {
+      throw new RuntimeException('Could not create a temporary upload file.');
+    }
+    try {
+      if (file_put_contents($temporary, $contents, LOCK_EX) === FALSE) {
+        throw new RuntimeException('Could not stage the uploaded YAML file.');
+      }
+      @chmod($temporary, 0664);
+      if (!@rename($temporary, $target)) {
+        throw new RuntimeException('Could not atomically save the uploaded YAML file.');
+      }
+    }
+    finally {
+      if (is_file($temporary)) {
+        @unlink($temporary);
+      }
+    }
   }
+
+  private function pathIsWithinRoot(string $path, string $root): bool {
+    $path = rtrim($path, DIRECTORY_SEPARATOR);
+    $root = rtrim($root, DIRECTORY_SEPARATOR);
+    return $path === $root || strpos($path, $root . DIRECTORY_SEPARATOR) === 0;
+  }
+
+  private function zipEntryIsSymlink(ZipArchive $zip, int $index): bool {
+    $operations = 0;
+    $attributes = 0;
+    if (!$zip->getExternalAttributesIndex($index, $operations, $attributes)) {
+      return FALSE;
+    }
+    if ($operations !== ZipArchive::OPSYS_UNIX) {
+      return FALSE;
+    }
+    $mode = ($attributes >> 16) & 0170000;
+    return $mode === 0120000;
+  }
+
 }
