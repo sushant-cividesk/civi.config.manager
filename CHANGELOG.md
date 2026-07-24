@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha52-core
+
+- Fixed the GitHub Actions fast QA failure caused by advisory `composer standards` returning a non-zero PHPCS status after required QA had already passed.
+- Made coding standards and PHP compatibility advisory steps explicitly non-blocking while keeping their output visible in the Actions log.
+- Added `.github/workflows/qa-fast.yml` and `.github/workflows/qa-full.yml` back into the release ZIP.
+- Limited the PHPCS standards scan to PHP-like files so Playwright JavaScript is not parsed by PHP/CiviCRM sniffs.
+
 ## 0.1.0-alpha51-core
 
 - Added full isolated CiviCRM real-fixture QA coverage for scheduled jobs, dedupe rules, contact types, settings ignore/revert, stale YAML deletion, and full export/import idempotency.
