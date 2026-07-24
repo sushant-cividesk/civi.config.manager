@@ -1,0 +1,65 @@
+name: QA - Full CiviCRM Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      civicrm_image:
+        description: CiviCRM Docker image
+        required: true
+        default: civicrm/civicrm:6.16-php8.3
+      run_ui_tests:
+        description: Run Playwright UI tests
+        required: true
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
+
+jobs:
+  full:
+    name: Full isolated CiviCRM QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, zip, intl, json
+          tools: composer
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Fast QA gate
+        run: composer qa:fast
+
+      - name: Install browser dependencies
+        if: ${{ github.event.inputs.run_ui_tests == 'true' }}
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run full isolated CiviCRM QA
+        env:
+          CIVICRM_IMAGE: ${{ github.event.inputs.civicrm_image }}
+          RUN_UI_TESTS: ${{ github.event.inputs.run_ui_tests }}
+        run: tests/ci/run-standalone.sh
+
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civicfg-qa-artifacts
+          path: tests/ci/artifacts
