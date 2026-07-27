@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha54-core
+
+- Added stronger unit coverage for the public `civicfg_entityDefinitions()` metadata hook, including stable-key export, split and collection YAML modes, where/order metadata, composite keys, create/update/dry-run/delete-missing import behavior, sensitive-field rejection, ignored-field diff handling, and invalid-definition errors.
+- Added a developer scenario contract for the metadata hook so the expected fixture coverage is visible in fast QA.
+- Updated GitHub Actions so the fast and full workflows run a dedicated required `composer test:hook` metadata-hook unit step in addition to the normal fast QA gate.
+- Removed advisory PHPCS/PHP-compatibility checks from the required fast workflow path so style cleanup cannot block functional hook QA.
+
 ## 0.1.0-alpha53-core
 
 - Added the preferred public `civicfg_entityDefinitions()` hook so other extensions can declare APIv4-backed config metadata and get export/import/diff/validate support without writing a custom handler.

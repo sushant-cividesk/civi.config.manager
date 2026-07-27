@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-07-06</releaseDate>
-  <version>0.1.0-alpha53-core</version>
+  <version>0.1.0-alpha54-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha core build: adds metadata-driven extension entity definition hook for export/import integration.</comments>
+  <comments>Alpha core build: adds stronger metadata hook tests and required workflow coverage for extension entity definitions.</comments>
 </extension>

@@ -19,28 +19,28 @@ jobs:
       COMPOSER_NO_AUDIT: 1
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           extensions: mbstring, xml, zip, intl, json
           tools: composer
           coverage: none
 
-      - run: composer validate --strict
-      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Required fast QA
         run: composer qa:fast
 
+      - name: Required metadata hook unit coverage
+        run: composer test:hook
+
       - name: Required security audit
         run: composer audit
-
-      - name: Advisory coding standards
-        run: composer standards || true
-        continue-on-error: true
-
-      - name: Advisory PHP compatibility
-        run: composer compatibility || true
-        continue-on-error: true

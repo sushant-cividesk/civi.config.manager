@@ -20,7 +20,7 @@ jobs:
   full:
     name: Full isolated CiviCRM QA
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     env:
       COMPOSER_PROCESS_TIMEOUT: 0
@@ -28,22 +28,33 @@ jobs:
       COMPOSER_NO_AUDIT: 1
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, xml, zip, intl, json
           tools: composer
           coverage: none
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - run: composer validate --strict
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: composer qa:fast
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Required fast QA gate
+        run: composer qa:fast
+
+      - name: Required metadata hook unit coverage
+        run: composer test:hook
 
       - name: Install browser dependencies
         if: ${{ github.event.inputs.run_ui_tests == 'true' }}

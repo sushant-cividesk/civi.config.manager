@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha53-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha54-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -435,10 +435,16 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 ## Alpha 49 Notes
 
 - Added push-ready GitHub Actions workflows: `QA - Fast` for every push/pull request and `QA - Full CiviCRM Extension` for manual disposable CiviCRM Standalone runs.
-- The fast workflow runs Composer validation, PHP syntax, scenario contracts, unit tests, PHPStan, Composer audit, and advisory CiviCRM standards/PHP compatibility checks.
+- The fast workflow runs Composer validation, PHP syntax, scenario contracts, unit tests, PHPStan, a dedicated metadata-hook unit check, and Composer audit. PHPCS/PHP-compatibility cleanup is intentionally outside the required fast path until the existing style baseline is fixed.
 - The full workflow runs the extension in an isolated CiviCRM container with disposable MariaDB, Mailpit, blocked PHP mail, sanitized artifacts, API/CLI smoke tests, integration fixtures, and optional Playwright checks.
 - The YAML sync root may now be a symlink to support dev/stage shared-config test setups; files and subdirectories inside the sync root are still protected against traversal and symlink escapes.
 
+
+## Alpha 54 Notes
+
+- Added stronger automated coverage for the preferred `hook_civicfg_entityDefinitions()` integration path.
+- The metadata-hook tests now cover stable-key export, collection YAML, where/order metadata, composite keys, update/create/dry-run/delete-missing imports, import-disabled definitions, invalid YAML validation, sensitive-field blocking, and ignored-field diff behavior.
+- GitHub fast and full workflows now include a dedicated required `composer test:hook` / `EntityDefinitionHandlerTest` step so hook regressions are easy to spot in Actions.
 
 ## Extension integration hook
 

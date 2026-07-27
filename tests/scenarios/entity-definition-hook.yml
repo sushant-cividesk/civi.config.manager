@@ -1,0 +1,53 @@
+id: CM-ENTITY-DEFINITION-HOOK
+feature: Metadata-driven hook for extension-owned config export/import/diff/validate
+level:
+  - unit
+  - integration
+fixtures:
+  factory: API4 fixture stub plus hook metadata
+  records:
+    hook_definition:
+      type: myext_templates
+      entity: CivicfgHookFixture
+      key_fields:
+        - name
+      export_fields:
+        - name
+        - label
+        - is_active
+        - settings
+    fixture_rows:
+      - name: alpha_template
+        label: Alpha Template
+steps:
+  - Register metadata through hook_civicfg_entityDefinitions style definition.
+  - Export fixture API4 rows and verify stable YAML filenames and keys.
+  - Import changed YAML and verify existing records update by stable key instead of database ID.
+  - Import missing YAML and verify new records are created.
+  - Enable delete_missing and verify records absent from YAML are deleted only when explicitly configured.
+  - Compare YAML against CiviCRM and verify ignored and sensitive fields do not cause false diffs.
+  - Validate malformed YAML and verify missing keys, wrong type, wrong entity, and sensitive fields are rejected.
+expected:
+  stable_key_export: true
+  update_by_key_without_id: true
+  create_missing: true
+  delete_missing_requires_opt_in: true
+  ignored_fields_do_not_diff: true
+  sensitive_fields_rejected: true
+  invalid_definition_errors_are_clear: true
+negative_cases:
+  - unsupported_api_version
+  - missing_required_key_fields
+  - sensitive_field_in_yaml
+  - wrong_yaml_type
+  - wrong_api_entity
+  - delete_missing_enabled_accidentally
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  restore_settings: true
+  remove_temporary_files: true

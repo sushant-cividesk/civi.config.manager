@@ -99,3 +99,7 @@ Use `split_files: TRUE` for readable diffs. Keep `delete_missing: FALSE` unless 
 Use the older `civicfg_configTypes()` hook only when metadata is not enough, for example private database tables, complex ID remapping, generated files, or multi-entity import workflows.
 
 No test-specific public hook is provided. Tests should exercise the same export/import hooks used by real extensions.
+
+## QA coverage in this extension
+
+The public metadata hook is covered by `tests/phpunit/Unit/EntityDefinitionHandlerTest.php` and the scenario contract `tests/scenarios/entity-definition-hook.yml`. The required GitHub fast and full workflows both run a dedicated `composer test:hook` / `EntityDefinitionHandlerTest` step, so regressions in this hook are visible before any release ZIP is used on a real site.

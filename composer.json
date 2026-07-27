@@ -35,6 +35,7 @@
     "lint:php": "bash tests/ci/php-lint.sh",
     "test:scenarios": "php tests/ci/validate-scenarios.php",
     "test:unit": "phpunit --configuration phpunit.xml.dist",
+    "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
     "analyse": "phpstan analyse --configuration phpstan.neon.dist --no-progress",
     "standards": "phpcs --standard=phpcs.xml.dist",
     "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.1 .",
