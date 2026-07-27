@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha52-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha53-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -438,3 +438,8 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - The fast workflow runs Composer validation, PHP syntax, scenario contracts, unit tests, PHPStan, Composer audit, and advisory CiviCRM standards/PHP compatibility checks.
 - The full workflow runs the extension in an isolated CiviCRM container with disposable MariaDB, Mailpit, blocked PHP mail, sanitized artifacts, API/CLI smoke tests, integration fixtures, and optional Playwright checks.
 - The YAML sync root may now be a symlink to support dev/stage shared-config test setups; files and subdirectories inside the sync root are still protected against traversal and symlink escapes.
+
+
+## Extension integration hook
+
+Other extensions can make their own APIv4-backed configuration exportable/importable with `hook_civicfg_entityDefinitions()`. This is the preferred integration path because it only requires metadata: entity name, stable key fields, export fields, ignored runtime fields, sensitive fields, and dependencies. See `docs/EXTENSION_HOOKS.md`.

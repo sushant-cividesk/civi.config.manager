@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha53-core
+
+- Added the preferred public `civicfg_entityDefinitions()` hook so other extensions can declare APIv4-backed config metadata and get export/import/diff/validate support without writing a custom handler.
+- Added metadata-driven support for stable key fields, explicit export fields, ignored runtime fields, sensitive-field blocking, dependency metadata, split YAML files, optional delete-missing behavior, and export-only definitions.
+- Added extension hook documentation with a live example and kept `civicfg_configTypes()` available for advanced custom/private-table handlers.
+
+
 ## 0.1.0-alpha52-core
 
 - Fixed the GitHub Actions fast QA failure caused by advisory `composer standards` returning a non-zero PHPCS status after required QA had already passed.

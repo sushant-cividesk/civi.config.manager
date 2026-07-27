@@ -11,6 +11,7 @@ use Civi\ConfigManager\Handler\SettingHandler;
 use Civi\ConfigManager\Handler\SiteTokenHandler;
 use Civi\ConfigManager\Handler\CiviRulesHandler;
 use Civi\ConfigManager\Handler\GenericApi4CollectionHandler;
+use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 
 class HandlerRegistry {
   public function getHandlers(): array {
@@ -34,9 +35,33 @@ class HandlerRegistry {
       new CiviRulesHandler(),
     ];
 
+    $definitions = [];
+    $dummy = NULL;
+    \CRM_Utils_Hook::singleton()->invoke(['definitions'], $definitions, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_entityDefinitions');
+    foreach ($this->buildHandlersFromDefinitions((array) $definitions) as $handler) {
+      $handlers[] = $handler;
+    }
+
     \CRM_Utils_Hook::singleton()->invoke(['handlers'], $handlers, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_configTypes');
 
     usort($handlers, fn($a, $b) => $a->getWeight() <=> $b->getWeight());
+    return $handlers;
+  }
+
+  /**
+   * Convert metadata supplied by civicfg_entityDefinitions() into handlers.
+   *
+   * The preferred extension integration path is metadata only. The older
+   * civicfg_configTypes() hook remains available for advanced custom handlers.
+   */
+  private function buildHandlersFromDefinitions(array $definitions): array {
+    $handlers = [];
+    foreach ($definitions as $type => $definition) {
+      if (!is_string($type) || !is_array($definition)) {
+        continue;
+      }
+      $handlers[] = new EntityDefinitionHandler($type, $definition);
+    }
     return $handlers;
   }
 }
