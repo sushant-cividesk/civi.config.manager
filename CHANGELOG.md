@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-beta1
+
+- Promoted the current alpha54 feature set to an internal beta release for development-project testing.
+- Included the core Configuration Manager workflows: export, import, diff, validate, config ignore, revert/delete handling, CLI wrappers, UI review screens, GitHub fast/full QA workflows, and metadata-driven extension config hooks.
+- Marked future development as compatibility-aware: changes after this beta should be incremental, documented, and should consider existing installed beta users and exported YAML before changing behavior.
+
 ## 0.1.0-alpha54-core
 
 - Added stronger unit coverage for the public `civicfg_entityDefinitions()` metadata hook, including stable-key export, split and collection YAML modes, where/order metadata, composite keys, create/update/dry-run/delete-missing import behavior, sensitive-field rejection, ignored-field diff handling, and invalid-definition errors.

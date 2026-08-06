@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-07-06</releaseDate>
-  <version>0.1.0-alpha54-core</version>
+  <version>0.1.0-beta1</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha core build: adds stronger metadata hook tests and required workflow coverage for extension entity definitions.</comments>
+  <comments>Internal beta release for development-project testing: includes core export/import/diff/validate workflows, CLI wrappers, QA automation, and metadata-driven extension config hooks.</comments>
 </extension>

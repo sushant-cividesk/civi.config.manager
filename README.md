@@ -6,10 +6,14 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha54-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-beta1`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
+
+## Internal beta release policy
+
+This beta is intended for Cividesk/internal development-project testing before wider production use. Future changes must be incremental and compatibility-aware: preserve existing YAML formats where possible, document any behavior changes, include migration/upgrade notes for existing users, and avoid breaking current extension installs without an explicit upgrade path.
 
 ## Purpose
 
@@ -20,7 +24,7 @@ The extension is intended to provide a Drupal-style configuration workflow for C
 3. Move the YAML directory between environments.
 4. Preview and import supported YAML changes into CiviCRM.
 
-The YAML directory is treated as the deployable source of truth for supported configuration types. This extension is still alpha software. Import can now create, update, and delete supported records, but only after preview and explicit confirmation.
+The YAML directory is treated as the deployable source of truth for supported configuration types. This extension is currently an internal beta for development-project testing. Import can now create, update, and delete supported records, but only after preview and explicit confirmation.
 
 ## Current UI
 
