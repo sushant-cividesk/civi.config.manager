@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-beta1`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-beta2`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -125,6 +125,18 @@ $civicrm_setting['domain']['civicfg_sync_dir'] = '/var/www/html/civicrm-buildkit
 ```
 
 When this setting is present, the UI shows the Sync Directory as locked and does not allow UI edits to override the code-defined value.
+
+## CLI terminal access
+
+After install/enable, the extension installs managed wrappers into project/shared `bin` directories and writes `civicfg-env` / `civicfg-path` helpers. For beta testing, use project-level PATH rather than editing shell profiles automatically:
+
+```bash
+. /var/www/html/bin/civicfg-env
+command -v civicfg
+civicfg status
+```
+
+For a permanent developer setup, add the project/shared bin directory to the shell profile or project `.envrc`. See `docs/CLI.md`.
 
 ## API4 and CLI automation
 

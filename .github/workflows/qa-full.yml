@@ -56,6 +56,9 @@ jobs:
       - name: Required metadata hook unit coverage
         run: composer test:hook
 
+      - name: Required CLI wrapper unit coverage
+        run: composer test:cli
+
       - name: Install browser dependencies
         if: ${{ github.event.inputs.run_ui_tests == 'true' }}
         run: |

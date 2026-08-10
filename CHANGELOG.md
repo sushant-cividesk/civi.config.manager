@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-beta2
+
+- Improved beta CLI terminal access by installing managed wrappers into project/shared bin directories, adding safe sourceable PATH helpers (`civicfg-env` / `civicfg-path`), and supporting explicit terminal bin installs with `CIVICFG_GLOBAL_BIN_DIR`.
+- Added CLI wrapper unit coverage and made GitHub fast/full QA run the focused CLI wrapper test alongside the metadata-hook test.
+- Clarified contributed/custom extension integration: API4-backed config should use `hook_civicfg_entityDefinitions()`, while non-API4/private-table config should use the advanced custom handler hook.
+
 ## 0.1.0-beta1
 
 - Promoted the current alpha54 feature set to an internal beta release for development-project testing.

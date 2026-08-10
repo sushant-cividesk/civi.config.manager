@@ -24,6 +24,47 @@ On install/enable, the extension attempts to create managed wrappers in:
 
 Existing non-managed files are never overwritten. The wrappers check that `civi.config.manager` is enabled before running. If the extension is disabled, they stop with a warning.
 
+## Terminal PATH setup
+
+On install/enable, Configuration Manager now creates project wrappers and sourceable PATH helpers. It does **not** edit shell profile files automatically, because doing that from a CiviCRM extension would be risky and user-specific.
+
+For a one-time terminal session, source the generated helper from the project/shared bin directory:
+
+```bash
+. /var/www/html/bin/civicfg-env
+```
+
+Or from a project root:
+
+```bash
+. bin/civicfg-env
+```
+
+Then verify direct command access:
+
+```bash
+command -v civicfg
+civicfg status
+```
+
+To make direct terminal access permanent, add one of these lines to the shell profile or project `.envrc` used by the developer/site:
+
+```bash
+export PATH="/var/www/html/bin:$PATH"
+```
+
+```bash
+export PATH="$PWD/bin:$PATH"
+```
+
+For a terminal-level install, set an explicit writable bin directory before enabling or re-enabling the extension:
+
+```bash
+CIVICFG_GLOBAL_BIN_DIR="$HOME/.local/bin" cv ext:enable civi.config.manager
+```
+
+The installer also writes wrappers into known safe writable directories that are already in `PATH`, such as `/usr/local/bin`, `/opt/homebrew/bin`, `$HOME/bin`, `$HOME/.local/bin`, or `/var/www/html/bin`. Existing non-managed commands are never overwritten.
+
 ## DDEV/buildkit examples
 
 ```bash

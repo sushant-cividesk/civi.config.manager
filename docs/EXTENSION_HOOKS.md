@@ -4,7 +4,7 @@ Configuration Manager exposes one preferred public hook for other extensions tha
 
 ## Preferred hook: `hook_civicfg_entityDefinitions()`
 
-Use this hook when your extension has config records exposed through APIv4. You only describe the config metadata; Configuration Manager handles export, import, diff, validation, field ignoring, dependency metadata, stale YAML cleanup, and safe cross-site matching by stable keys.
+Use this hook when your extension has config records exposed through APIv4. You only describe the config metadata; Configuration Manager handles export, import, diff, validation, field ignoring, dependency metadata, stale YAML cleanup, and safe cross-site matching by stable keys. This is the preferred beta integration path for contributed/custom extensions with API4-backed config.
 
 ```php
 /**
@@ -96,7 +96,7 @@ Use `split_files: TRUE` for readable diffs. Keep `delete_missing: FALSE` unless 
 
 ## Advanced hook: `hook_civicfg_configTypes()`
 
-Use the older `civicfg_configTypes()` hook only when metadata is not enough, for example private database tables, complex ID remapping, generated files, or multi-entity import workflows.
+Use the older `civicfg_configTypes()` hook only when metadata is not enough, for example private database tables, config that is not exposed through API4, complex ID remapping, generated files, or multi-entity import workflows. This keeps the public metadata hook simple while still allowing any contributed/custom extension to become exportable through either metadata or a custom handler.
 
 No test-specific public hook is provided. Tests should exercise the same export/import hooks used by real extensions.
 
