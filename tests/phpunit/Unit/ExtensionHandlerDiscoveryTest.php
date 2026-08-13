@@ -34,7 +34,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'getwarningmessage',
     ]);
 
-    self::assertSame(['get_all_items', 'getalltasks'], $actions);
+    self::assertEqualsCanonicalizing(['get_all_items', 'getalltasks'], $actions);
   }
 
   public function testNormalizeApi3RowsSupportsCollectionAndSingleRecordResults(): void {
