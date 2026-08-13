@@ -36,8 +36,8 @@
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Changes{/ts}</div>
       <div>{ts}Changed{/ts}: {$summary.changed_count|escape}</div>
-      <div>{ts}Added in CiviCRM{/ts}: {$summary.new_count|escape}</div>
-      <div>{ts}Added in YAML{/ts}: {$summary.missing_count|escape}</div>
+      <div>{ts}Only in CiviCRM{/ts}: {$summary.new_count|escape}</div>
+      <div>{ts}Only in YAML{/ts}: {$summary.missing_count|escape}</div>
     </div>
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Sync Directory{/ts}</div>

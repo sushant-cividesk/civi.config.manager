@@ -4,7 +4,9 @@ Configuration Manager exposes one preferred public hook for other extensions tha
 
 ## Preferred hook: `hook_civicfg_entityDefinitions()`
 
-Use this hook when your extension has config records exposed through APIv4. You only describe the config metadata; Configuration Manager handles export, import, diff, validation, field ignoring, dependency metadata, stale YAML cleanup, and safe cross-site matching by stable keys. This is the preferred beta integration path for contributed/custom extensions with API4-backed config.
+Use this hook when your extension has config records exposed through APIv4. You only describe the config metadata; Configuration Manager handles export, import, diff, validation, field ignoring, dependency metadata, stale YAML cleanup, and safe cross-site matching by stable keys. This is the preferred integration path for contributed/custom extensions with API4-backed config.
+
+For a traditional CiviCRM extension hook, place the function in your extension's main PHP file (for example `myext.php`) or a PHP file that the main file always includes. The function prefix must be the normal hook prefix used by your extension. Configuration Manager dispatches the hook through `CRM_Utils_Hook`, so enabled extensions can contribute definitions without modifying Configuration Manager.
 
 ```php
 /**
@@ -102,4 +104,4 @@ No test-specific public hook is provided. Tests should exercise the same export/
 
 ## QA coverage in this extension
 
-The public metadata hook is covered by `tests/phpunit/Unit/EntityDefinitionHandlerTest.php` and the scenario contract `tests/scenarios/entity-definition-hook.yml`. The required GitHub fast and full workflows both run a dedicated `composer test:hook` / `EntityDefinitionHandlerTest` step, so regressions in this hook are visible before any release ZIP is used on a real site.
+`tests/phpunit/Unit/HandlerRegistryTest.php` verifies both public hook paths: a definition supplied through the actual `civicfg_entityDefinitions` hook dispatch becomes a registered `EntityDefinitionHandler`, and a handler supplied through `civicfg_configTypes` is registered through the advanced hook. `tests/phpunit/Unit/EntityDefinitionHandlerTest.php` then exercises the metadata-driven handler behavior, and `tests/scenarios/entity-definition-hook.yml` covers the scenario contract. This keeps the developer-facing hook path and the handler implementation covered separately.

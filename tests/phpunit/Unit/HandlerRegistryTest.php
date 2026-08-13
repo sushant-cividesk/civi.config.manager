@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Civi\ConfigManager\Tests\Unit;
 
+use Civi\ConfigManager\Handler\AbstractHandler;
+use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class HandlerRegistryTest extends TestCase {
+  protected function tearDown(): void {
+    \CRM_Utils_Hook::resetCallbacks();
+  }
+
   public function testBaseHandlerTypesAreUniqueAndWeightOrdered(): void {
     $handlers = (new HandlerRegistry())->getHandlers();
     $types = array_map(static fn($handler): string => $handler->getType(), $handlers);
@@ -23,5 +29,60 @@ final class HandlerRegistryTest extends TestCase {
     self::assertContains('message-templates', $types);
     self::assertContains('searchkit-saved-searches', $types);
     self::assertContains('formbuilder-afforms', $types);
+  }
+
+  public function testEntityDefinitionHookRegistersCustomDevelopmentHandler(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
+      $definitions['custom_widget_config'] = [
+        'label' => 'Custom Widget Config',
+        'api_version' => 4,
+        'entity' => 'CivicfgHookFixture',
+        'path' => 'extensions/custom-widget/config',
+        'key_fields' => ['name'],
+        'export_fields' => ['name', 'label'],
+        'weight' => 515,
+      ];
+    });
+
+    $handlers = (new HandlerRegistry())->getHandlers();
+    $matches = array_values(array_filter($handlers, static fn($handler): bool => $handler->getType() === 'custom_widget_config'));
+
+    self::assertCount(1, $matches);
+    self::assertInstanceOf(EntityDefinitionHandler::class, $matches[0]);
+    self::assertSame('Custom Widget Config', $matches[0]->getLabel());
+    self::assertSame('extensions/custom-widget/config', $matches[0]->getDirectory());
+  }
+
+  public function testAdvancedConfigTypesHookRegistersCustomHandler(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
+      $handlers[] = new class extends AbstractHandler {
+        public function getType(): string {
+          return 'custom_private_config';
+        }
+
+        public function getLabel(): string {
+          return 'Custom Private Config';
+        }
+
+        public function getDirectory(): string {
+          return 'extensions/custom-private';
+        }
+
+        public function getWeight(): int {
+          return 516;
+        }
+
+        public function export(): array {
+          return [];
+        }
+      };
+    });
+
+    $handlers = (new HandlerRegistry())->getHandlers();
+    $matches = array_values(array_filter($handlers, static fn($handler): bool => $handler->getType() === 'custom_private_config'));
+
+    self::assertCount(1, $matches);
+    self::assertSame('Custom Private Config', $matches[0]->getLabel());
+    self::assertSame('extensions/custom-private', $matches[0]->getDirectory());
   }
 }

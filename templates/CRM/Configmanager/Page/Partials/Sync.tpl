@@ -89,9 +89,9 @@
                 <div class="civicfg-type-line">
                   <strong>{$row.label|escape}</strong>
                   <code>{$row.type|escape}</code>
-                  {if $row.changedCount gt 0}<span class="civicfg-badge warn">{$row.changedCount|escape} {ts}Changed{/ts}</span>{/if}
-                  {if $row.newCount gt 0}<span class="civicfg-badge warn">{$row.newCount|escape} {ts}Added in CiviCRM{/ts}</span>{/if}
-                  {if $row.missingCount gt 0}<span class="civicfg-badge warn">{$row.missingCount|escape} {ts}Added in YAML{/ts}</span>{/if}
+                  {if $row.changedCount gt 0}<span class="civicfg-badge warn">{$row.changedCount|escape} {ts}Different{/ts}</span>{/if}
+                  {if $row.newCount gt 0}<span class="civicfg-badge warn">{$row.newCount|escape} {ts}Only in CiviCRM{/ts}</span>{/if}
+                  {if $row.missingCount gt 0}<span class="civicfg-badge warn">{$row.missingCount|escape} {ts}Only in YAML{/ts}</span>{/if}
                 </div>
               {/if}
             {/foreach}
@@ -100,9 +100,9 @@
       </details>
 
       <details class="civicfg-panel civicfg-files-panel" open="open">
-        <summary>{ts}Changed / Added / Removed Files{/ts}</summary>
+        <summary>{ts}Files with Differences{/ts}</summary>
         <div class="civicfg-panel-body">
-          <p class="description">{ts}Only files with differences are listed. Each row explains whether active CiviCRM was updated, YAML added something, or YAML is missing something. Open Diff for exact fields before exporting, importing, reverting, or ignoring.{/ts}</p>
+          <p class="description">{ts}Only files with differences are listed. Each row shows whether configuration exists only in active CiviCRM, only in YAML, or has different values on both sides. Open Diff for exact fields before exporting, importing, reverting, or ignoring.{/ts}</p>
           <div class="civicfg-file-lines">
             {foreach from=$diffFiles item=file}
               <div class="civicfg-file-card civicfg-state-{$file.status|escape}">

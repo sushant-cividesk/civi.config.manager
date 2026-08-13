@@ -36,16 +36,38 @@ class HandlerRegistry {
     ];
 
     $definitions = [];
-    $dummy = NULL;
-    \CRM_Utils_Hook::singleton()->invoke(['definitions'], $definitions, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_entityDefinitions');
-    foreach ($this->buildHandlersFromDefinitions((array) $definitions) as $handler) {
+    $this->invokeEntityDefinitionHook($definitions);
+    foreach ($this->buildHandlersFromDefinitions($definitions) as $handler) {
       $handlers[] = $handler;
     }
 
-    \CRM_Utils_Hook::singleton()->invoke(['handlers'], $handlers, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_configTypes');
+    $this->invokeConfigTypesHook($handlers);
 
     usort($handlers, fn($a, $b) => $a->getWeight() <=> $b->getWeight());
     return $handlers;
+  }
+
+  /**
+   * Invoke the public metadata hook used by custom/contributed extensions.
+   *
+   * A traditional extension hook implementation can live in the extension's
+   * main PHP file (or a file it always includes), for example:
+   * function myext_civicfg_entityDefinitions(array &$definitions): void
+   */
+  private function invokeEntityDefinitionHook(array &$definitions): void {
+    $dummy = NULL;
+    \CRM_Utils_Hook::singleton()->invoke(['definitions'], $definitions, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_entityDefinitions');
+  }
+
+  /**
+   * Invoke the advanced public hook for extensions that provide handlers.
+   *
+   * Example traditional hook:
+   * function myext_civicfg_configTypes(array &$handlers): void
+   */
+  private function invokeConfigTypesHook(array &$handlers): void {
+    $dummy = NULL;
+    \CRM_Utils_Hook::singleton()->invoke(['handlers'], $handlers, $dummy, $dummy, $dummy, $dummy, $dummy, 'civicfg_configTypes');
   }
 
   /**

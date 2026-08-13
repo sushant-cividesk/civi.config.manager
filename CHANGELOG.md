@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha55-core
+
+- Continued development from the complete `0.1.0-beta2` codebase without replacing or removing the beta1/beta2 release history.
+- Improved Synchronize summary wording to describe current state accurately (`Only in CiviCRM`, `Only in YAML`, and `Different`) instead of implying which side changed first.
+- Verified the public `civicfg_entityDefinitions()` and advanced `civicfg_configTypes()` extension hooks remain usable by custom/contributed extensions through CiviCRM's normal hook dispatch; added focused registry coverage for both hook paths.
+- Broadened generic API3 contributed-extension discovery to support `Entity/Action.php` layouts, conservative singular setting namespaces, and safe custom `get-all...` collection actions.
+- Added generic API3 row hydration through the provider's `get` action when a custom collection action returns IDs, allowing complete provider configuration to be exported without direct table access.
+- Treats common provider runtime timestamps such as `last_modified` as non-portable runtime data so cross-environment YAML does not carry stale modification timestamps into API3 updates.
+- Expanded SQL Tasks fixture coverage for its singular `sqltask_*` setting namespace and generic API3 discovery paths without adding a SQLTasks-specific production handler.
+
 ## 0.1.0-beta2
 
 - Improved beta CLI terminal access by installing managed wrappers into project/shared bin directories, adding safe sourceable PATH helpers (`civicfg-env` / `civicfg-path`), and supporting explicit terminal bin installs with `CIVICFG_GLOBAL_BIN_DIR`.

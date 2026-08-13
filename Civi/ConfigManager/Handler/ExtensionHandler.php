@@ -882,15 +882,21 @@ class ExtensionHandler extends AbstractHandler {
     catch (\Throwable $e) {
       // Keep top-level API3 files only.
     }
+    $entities = [];
     foreach ($files as $file) {
-      $entity = basename($file, '.php');
+      $entity = $this->api3EntityNameFromFile($dir, (string) $file);
       if ($entity === '' || in_array(strtolower($entity), ['utils', 'index'], TRUE)) {
         continue;
       }
+      $entities[$entity] = TRUE;
+    }
+
+    foreach (array_keys($entities) as $entity) {
       if ($this->isNonImportableLegacyExtensionConfig($extensionKey, 'api3', $entity)) {
         continue;
       }
-      if (!$this->api3EntityUsable($entity) || !$this->api3EntityHasAction($entity, 'create')) {
+      $listAction = $this->api3ListAction($entity);
+      if ($listAction === NULL || !$this->api3EntityHasAction($entity, 'create')) {
         continue;
       }
       $definitions[] = [
@@ -898,12 +904,30 @@ class ExtensionHandler extends AbstractHandler {
         'api' => 'api3',
         'entity' => $entity,
         'fields' => [],
+        'list_action' => $listAction,
         'can_create' => TRUE,
         'can_update' => TRUE,
         'can_delete' => $this->api3EntityHasAction($entity, 'delete'),
       ];
     }
     return $definitions;
+  }
+
+  /**
+   * Resolve an API3 entity from both legacy Entity.php and Entity/Action.php layouts.
+   */
+  private function api3EntityNameFromFile(string $apiDir, string $file): string {
+    $apiDir = rtrim(str_replace('\\', '/', $apiDir), '/');
+    $file = str_replace('\\', '/', $file);
+    if (strpos($file, $apiDir . '/') !== 0) {
+      return '';
+    }
+    $relative = substr($file, strlen($apiDir) + 1);
+    $parts = array_values(array_filter(explode('/', $relative), 'strlen'));
+    if (count($parts) > 1) {
+      return (string) $parts[0];
+    }
+    return $parts ? basename((string) $parts[0], '.php') : '';
   }
 
   private function api4EntityUsable(string $entity): bool {
@@ -921,36 +945,82 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function api3EntityUsable(string $entity): bool {
+    return $this->api3ListAction($entity) !== NULL;
+  }
+
+  /**
+   * Find a safe collection-read action for API3 config providers.
+   *
+   * Most entities use get. Some contributed extensions expose collection reads
+   * through GetAll/get_all instead, so probe only known read-style actions.
+   */
+  private function api3ListAction(string $entity): ?string {
+    $actions = array_merge(['get', 'get_all', 'getall'], $this->api3CollectionActionCandidates($this->api3EntityActions($entity)));
+    foreach (array_values(array_unique($actions)) as $action) {
+      try {
+        $params = ['sequential' => 1];
+        if ($action === 'get') {
+          $params['options'] = ['limit' => 1];
+        }
+        civicrm_api3($entity, $action, $params);
+        return $action;
+      }
+      catch (\Throwable $e) {
+        // Try the next read-only collection action.
+      }
+    }
+    return NULL;
+  }
+
+  /**
+   * Return API3 action names exposed by an entity.
+   */
+  private function api3EntityActions(string $entity): array {
     try {
-      civicrm_api3($entity, 'get', ['sequential' => 1, 'options' => ['limit' => 1]]);
-      return TRUE;
+      $result = civicrm_api3($entity, 'getactions', ['sequential' => 1]);
+      $actions = [];
+      foreach ((array) ($result['values'] ?? []) as $key => $value) {
+        if (is_string($key) && $key !== '') {
+          $actions[] = strtolower($key);
+        }
+        if (is_scalar($value) && (string) $value !== '') {
+          $actions[] = strtolower((string) $value);
+        }
+        elseif (is_array($value) && !empty($value['name'])) {
+          $actions[] = strtolower((string) $value['name']);
+        }
+      }
+      return array_values(array_unique($actions));
     }
     catch (\Throwable $e) {
-      return FALSE;
+      return [];
     }
   }
 
-  private function api3EntityHasAction(string $entity, string $action): bool {
-    try {
-      $result = civicrm_api3($entity, 'getactions', ['sequential' => 1]);
-      $values = [];
-      foreach ((array) ($result['values'] ?? []) as $key => $value) {
-        if (is_string($key) && $key !== '') {
-          $values[] = strtolower($key);
-        }
-        if (is_scalar($value) && (string) $value !== '') {
-          $values[] = strtolower((string) $value);
-        }
-        elseif (is_array($value) && !empty($value['name'])) {
-          $values[] = strtolower((string) $value['name']);
-        }
+  /**
+   * Keep generic custom API3 collection discovery read-only and conservative.
+   *
+   * Some contributed extensions use names such as getalltasks/get_all_items
+   * instead of the standard get/get_all actions.
+   */
+  private function api3CollectionActionCandidates(array $actions): array {
+    $candidates = [];
+    foreach ($actions as $action) {
+      $action = strtolower((string) $action);
+      if ($action !== '' && preg_match('/^get_?all[a-z0-9_]*$/', $action)) {
+        $candidates[] = $action;
       }
-      return in_array(strtolower($action), array_values(array_unique($values)), TRUE);
     }
-    catch (\Throwable $e) {
-      $function = 'civicrm_api3_' . strtolower($entity) . '_' . strtolower($action);
-      return function_exists($function);
+    sort($candidates, SORT_NATURAL | SORT_FLAG_CASE);
+    return array_values(array_unique($candidates));
+  }
+
+  private function api3EntityHasAction(string $entity, string $action): bool {
+    if (in_array(strtolower($action), $this->api3EntityActions($entity), TRUE)) {
+      return TRUE;
     }
+    $function = 'civicrm_api3_' . strtolower($entity) . '_' . strtolower($action);
+    return function_exists($function);
   }
 
 
@@ -986,12 +1056,57 @@ class ExtensionHandler extends AbstractHandler {
       }
     }
     try {
-      $result = civicrm_api3((string) $definition['entity'], 'get', ['sequential' => 1, 'options' => ['limit' => 0]]);
-      return array_values((array) ($result['values'] ?? []));
+      $entity = (string) $definition['entity'];
+      $action = (string) ($definition['list_action'] ?? 'get');
+      $params = ['sequential' => 1];
+      if ($action === 'get') {
+        $params['options'] = ['limit' => 0];
+      }
+      $result = civicrm_api3($entity, $action, $params);
+      $rows = $this->normalizeApi3Rows((array) $result);
+
+      // A custom get-all action may intentionally return a lightweight list.
+      // When the entity also has get and rows expose IDs, hydrate each row so
+      // export receives the complete configuration exposed by the provider.
+      if ($action !== 'get' && $this->api3EntityHasAction($entity, 'get')) {
+        foreach ($rows as $index => $row) {
+          $row = (array) $row;
+          if (empty($row['id']) || !is_scalar($row['id'])) {
+            continue;
+          }
+          try {
+            $detail = civicrm_api3($entity, 'get', ['sequential' => 1, 'id' => $row['id']]);
+            $detailRows = $this->normalizeApi3Rows((array) $detail);
+            if (!empty($detailRows[0])) {
+              $rows[$index] = (array) $detailRows[0];
+            }
+          }
+          catch (\Throwable $e) {
+            // Keep the collection row if detailed hydration is unavailable.
+          }
+        }
+      }
+      return array_values($rows);
     }
     catch (\Throwable $e) {
       return [];
     }
+  }
+
+  /**
+   * Normalize both standard API3 get results and custom single-record results.
+   */
+  private function normalizeApi3Rows(array $result): array {
+    $values = (array) ($result['values'] ?? []);
+    if (!$values) {
+      return [];
+    }
+    foreach ($values as $value) {
+      if (!is_array($value)) {
+        return [$values];
+      }
+    }
+    return array_values($values);
   }
 
   private function cleanEntityRowForExport(array $row, array $definition): array {
@@ -1012,7 +1127,7 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function stripRuntime(array $row): array {
-    unset($row['id'], $row['created_date'], $row['modified_date'], $row['created_id'], $row['modified_id']);
+    unset($row['id'], $row['created_date'], $row['modified_date'], $row['last_modified'], $row['created_id'], $row['modified_id']);
     foreach ($row as $key => $value) {
       if (is_array($value)) {
         $row[$key] = $this->stripRuntime($value);
@@ -1045,9 +1160,19 @@ class ExtensionHandler extends AbstractHandler {
       return $this->api4GetFirst((string) $definition['entity'], [[$identityField, '=', $identity]], ['*']);
     }
     try {
-      $result = civicrm_api3((string) $definition['entity'], 'get', ['sequential' => 1, $identityField => $identity, 'options' => ['limit' => 1]]);
-      $values = array_values((array) ($result['values'] ?? []));
-      return $values[0] ?? NULL;
+      $action = (string) ($definition['list_action'] ?? 'get');
+      if ($action === 'get') {
+        $result = civicrm_api3((string) $definition['entity'], 'get', ['sequential' => 1, $identityField => $identity, 'options' => ['limit' => 1]]);
+        $values = array_values((array) ($result['values'] ?? []));
+        return $values[0] ?? NULL;
+      }
+      foreach ($this->fetchEntityRows($definition) as $row) {
+        $row = (array) $row;
+        if (isset($row[$identityField]) && (string) $row[$identityField] === $identity) {
+          return $row;
+        }
+      }
+      return NULL;
     }
     catch (\Throwable $e) {
       return NULL;
@@ -1169,6 +1294,15 @@ class ExtensionHandler extends AbstractHandler {
     if (is_string($last) && strlen($last) >= 3) {
       $tokens[] = $last;
     }
+    // Contrib extensions sometimes use a singular setting namespace while the
+    // extension key is plural (for example `sqltask_*` vs `sqltasks`). Apply
+    // this only to namespace parts, not the fully compacted extension key.
+    foreach (array_values(array_unique($tokens)) as $token) {
+      if (strlen($token) >= 5 && substr($token, -1) === 's' && substr($token, -2) !== 'ss') {
+        $tokens[] = substr($token, 0, -1);
+      }
+    }
+
     $compact = preg_replace('/[^A-Za-z0-9]+/', '', strtolower($extensionKey));
     if ($compact !== '') {
       $tokens[] = $compact;

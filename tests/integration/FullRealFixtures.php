@@ -259,6 +259,25 @@ final class CivicfgFullRealFixtures {
     $this->seedKnownExtensionFixtures();
     $this->assertOk($manager->export(FALSE, ['extensions', 'civirules']), 'Extension configuration export must succeed.');
 
+    if (in_array($extensionStatuses['de.systopia.sqltasks'] ?? '', ['installed', 'enabled'], TRUE)) {
+      $sqltasksYaml = SimpleYaml::parseFile($this->syncDir . '/extensions/de.systopia.sqltasks.yml');
+      $this->assertTrue(
+        array_key_exists('sqltask_export_append_scripts', (array) ($sqltasksYaml['settings'] ?? [])),
+        'SQLTasks singular sqltask_* setting namespace must be exported.'
+      );
+
+      try {
+        $taskList = civicrm_api3('Sqltask', 'getalltasks', ['sequential' => 1]);
+        if (!empty($taskList['values'])) {
+          $sqltaskFiles = glob($this->syncDir . '/extensions/de.systopia.sqltasks/api3/Sqltask/*.yml') ?: [];
+          $this->assertTrue((bool) $sqltaskFiles, 'SQLTasks task configuration must be exported when Sqltask.getalltasks exposes task records.');
+        }
+      }
+      catch (Throwable $e) {
+        $this->results['sqltasks_fixture'][] = 'Sqltask.getalltasks provider check skipped: ' . $e->getMessage();
+      }
+    }
+
     $coverage = [];
     foreach ($expected as $key) {
       if (!in_array($extensionStatuses[$key] ?? '', ['installed', 'enabled'], TRUE)) {
@@ -342,7 +361,13 @@ final class CivicfgFullRealFixtures {
 
   private function seedSqltasksSettingsFixture(): void {
     try {
+      foreach (['sqltasks_default_template', 'sqltask_export_append_scripts', 'sqltasks_global_tokens'] as $setting) {
+        if (!array_key_exists($setting, $this->settingsBackup)) {
+          $this->settingsBackup[$setting] = \Civi::settings()->get($setting);
+        }
+      }
       \Civi::settings()->set('sqltasks_default_template', 'qa-template-' . $this->safeRunId());
+      \Civi::settings()->set('sqltask_export_append_scripts', TRUE);
       $tokens = (array) \Civi::settings()->get('sqltasks_global_tokens');
       $tokens['qa_civicfg_' . $this->safeRunId()] = 'qa-token-' . $this->runId;
       \Civi::settings()->set('sqltasks_global_tokens', $tokens);

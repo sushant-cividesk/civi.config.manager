@@ -6,14 +6,14 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-beta2`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha55-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
 
-## Internal beta release policy
+## Development and beta policy
 
-This beta is intended for Cividesk/internal development-project testing before wider production use. Future changes must be incremental and compatibility-aware: preserve existing YAML formats where possible, document any behavior changes, include migration/upgrade notes for existing users, and avoid breaking current extension installs without an explicit upgrade path.
+`0.1.0-alpha55-core` continues development on top of the complete `0.1.0-beta2` codebase. Existing beta releases and their history are preserved; alpha development builds do not replace them. Changes remain incremental and compatibility-aware: preserve existing YAML formats where possible, document behavior changes, include migration/upgrade notes when needed, and do not create a new beta/tag/release until explicitly requested.
 
 ## Purpose
 
@@ -24,7 +24,7 @@ The extension is intended to provide a Drupal-style configuration workflow for C
 3. Move the YAML directory between environments.
 4. Preview and import supported YAML changes into CiviCRM.
 
-The YAML directory is treated as the deployable source of truth for supported configuration types. This extension is currently an internal beta for development-project testing. Import can now create, update, and delete supported records, but only after preview and explicit confirmation.
+The YAML directory is treated as the deployable source of truth for supported configuration types. The current alpha development build continues from the latest internal beta codebase for development-project testing. Import can now create, update, and delete supported records, but only after preview and explicit confirmation.
 
 ## Current UI
 
@@ -461,6 +461,16 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - Added stronger automated coverage for the preferred `hook_civicfg_entityDefinitions()` integration path.
 - The metadata-hook tests now cover stable-key export, collection YAML, where/order metadata, composite keys, update/create/dry-run/delete-missing imports, import-disabled definitions, invalid YAML validation, sensitive-field blocking, and ignored-field diff behavior.
 - GitHub fast and full workflows now include a dedicated required `composer test:hook` / `EntityDefinitionHandlerTest` step so hook regressions are easy to spot in Actions.
+
+## Alpha 55 Notes
+
+- Continues directly from the full `0.1.0-beta2` codebase; beta1/beta2 history and beta-only functionality are retained.
+- Synchronize status text now describes the current comparison state instead of assuming a change direction.
+- The developer integration hook path is explicitly documented and regression-tested for custom/contributed extensions using normal CiviCRM hook dispatch.
+- Generic API3 extension discovery now understands nested `Entity/Action.php` layouts and safe custom `get-all...` collection actions, and can hydrate listed records through `get` for fuller export data.
+- Generic contrib exports remove common non-portable runtime timestamps such as `last_modified`, preventing source-site modification times from creating false drift or being sent back during updates on another environment.
+- Extension setting matching accepts conservative singular namespaces such as `sqltask_*` for plural extension keys such as `sqltasks`, while retaining the existing secret/sensitive-setting safeguards.
+- SQL Tasks remains a real-world QA fixture only; the production implementation stays generic and does not hard-code `de.systopia.sqltasks`.
 
 ## Extension integration hook
 

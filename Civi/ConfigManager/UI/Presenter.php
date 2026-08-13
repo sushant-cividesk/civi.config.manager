@@ -229,23 +229,23 @@ class Presenter {
 
   public function statusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('Added in YAML');
+      return ts('Only in YAML');
     }
     if ($status === 'new_in_db') {
-      return ts('Added in CiviCRM');
+      return ts('Only in CiviCRM');
     }
     if ($status === 'changed') {
-      return ts('Changed');
+      return ts('Different');
     }
     return ts('In Sync');
   }
 
   private function plainStatusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('will be created from YAML on import');
+      return ts('exists only in YAML and can be created in CiviCRM on import');
     }
     if ($status === 'new_in_db') {
-      return ts('was added in CiviCRM and is not yet exported');
+      return ts('exists only in CiviCRM and has no matching YAML file');
     }
     if ($status === 'changed') {
       return ts('has different values in YAML and CiviCRM');
@@ -258,10 +258,10 @@ class Presenter {
     $path = (string) ($file['path'] ?? $file['file'] ?? 'this file');
     $subject = $this->subjectFromFilePath($path, (string) ($file['type_label'] ?? 'Configuration'));
     if ($status === 'new_in_db') {
-      return ts('%1 was added in active CiviCRM and is not in YAML yet. Export will add this YAML file.', [1 => $subject]);
+      return ts('%1 exists in active CiviCRM but has no matching YAML file. Export will create this YAML file.', [1 => $subject]);
     }
     if ($status === 'missing_in_db') {
-      return ts('%1 exists in YAML but is missing from active CiviCRM. Import will recreate it when supported; export can remove the stale YAML.', [1 => $subject]);
+      return ts('%1 exists in YAML but has no matching record in active CiviCRM. Import can create it when supported; export can remove the unmatched YAML.', [1 => $subject]);
     }
     $details = array_values(array_filter((array) ($file['detail_sentences'] ?? [])));
     if ($details) {
@@ -278,12 +278,12 @@ class Presenter {
     $subject = $this->subjectForChange($file, $change, $label);
     $field = $this->fieldNameForChange((string) ($change['path'] ?? ''), $label);
     if ($changeType === 'added') {
-      return ts('%1 %2 was added in active CiviCRM with value "%3".', [1 => $subject, 2 => $field, 3 => $civi]);
+      return ts('%1 %2 exists only in active CiviCRM with value "%3".', [1 => $subject, 2 => $field, 3 => $civi]);
     }
     if ($changeType === 'removed') {
-      return ts('%1 %2 exists in YAML with value "%3" but is missing from active CiviCRM.', [1 => $subject, 2 => $field, 3 => $yaml]);
+      return ts('%1 %2 exists only in YAML with value "%3".', [1 => $subject, 2 => $field, 3 => $yaml]);
     }
-    return ts('%1 %2 changed from "%3" in YAML to "%4" in active CiviCRM.', [1 => $subject, 2 => $field, 3 => $yaml, 4 => $civi]);
+    return ts('%1 %2 is "%3" in YAML and "%4" in active CiviCRM.', [1 => $subject, 2 => $field, 3 => $yaml, 4 => $civi]);
   }
 
   private function subjectForChange(array $file, array $change, string $fallbackLabel): string {
