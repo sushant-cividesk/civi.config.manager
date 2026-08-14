@@ -475,6 +475,7 @@ namespace Civi\ConfigManager\Tests\Unit {
             'api_key' => 'different-secret',
             'modified_date' => '2030-01-01',
             'settings' => [
+              'id' => 'portable-setting-id',
               'format' => 'pdf',
               'secret' => 'different-nested-secret',
             ],
