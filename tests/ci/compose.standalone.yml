@@ -6,9 +6,8 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${CIVICRM_HTTP_PORT:-8760}:${CIVICRM_HTTP_PORT:-8760}"
+      - "127.0.0.1:${CIVICRM_HTTP_PORT:-8760}:80"
     environment:
-      APACHE_PORT: "${CIVICRM_HTTP_PORT:-8760}"
       CIVICRM_DB_HOST: db
       CIVICRM_DB_PORT: 3306
       CIVICRM_DB_NAME: civicrm
@@ -77,4 +76,4 @@ volumes:
 
 networks:
   isolated:
-    internal: true
+    driver: bridge
