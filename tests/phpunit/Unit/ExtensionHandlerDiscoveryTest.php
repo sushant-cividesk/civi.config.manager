@@ -52,7 +52,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     );
   }
 
-  public function testStripRuntimeRemovesPortableRuntimeFieldsRecursively(): void {
+  public function testStripRuntimeRemovesOnlyKnownTopLevelRuntimeFields(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'stripRuntime');
     $method->setAccessible(TRUE);
@@ -70,8 +70,55 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     self::assertSame([
       'name' => 'Portable task',
-      'config' => ['sql' => 'SELECT 1'],
+      'config' => [
+        'id' => 99,
+        'modified_date' => '2026-08-13 12:35:00',
+        'sql' => 'SELECT 1',
+      ],
     ], $row);
+  }
+
+  public function testStrongIdentityIsPreferredAndWeakIdentityIsAmbiguous(): void {
+    $handler = new ExtensionHandler();
+    $identityField = new ReflectionMethod($handler, 'identityField');
+    $identityField->setAccessible(TRUE);
+    $confidence = new ReflectionMethod($handler, 'identityConfidence');
+    $confidence->setAccessible(TRUE);
+
+    self::assertSame('name', $identityField->invoke($handler, [
+      'label' => 'Readable label',
+      'name' => 'machine_name',
+    ]));
+    self::assertSame('DISCOVERED_UNIQUE', $confidence->invoke($handler, 'name'));
+    self::assertSame('label', $identityField->invoke($handler, ['label' => 'Only weak identity']));
+    self::assertSame('AMBIGUOUS', $confidence->invoke($handler, 'label'));
+  }
+
+  public function testApiMatchFieldGetsVerifiedConfidenceAndDuplicateValueIsNotUnique(): void {
+    $handler = new ExtensionHandler();
+    $identityField = new ReflectionMethod($handler, 'identityField');
+    $identityField->setAccessible(TRUE);
+    $confidence = new ReflectionMethod($handler, 'identityConfidence');
+    $confidence->setAccessible(TRUE);
+    $unique = new ReflectionMethod($handler, 'identityValueIsUnique');
+    $unique->setAccessible(TRUE);
+
+    $definition = ['match_fields' => ['code']];
+    self::assertSame('code', $identityField->invoke($handler, ['name' => 'Fallback', 'code' => 'alpha'], $definition));
+    self::assertSame('API_VERIFIED', $confidence->invoke($handler, 'code', $definition));
+    self::assertTrue($unique->invoke($handler, [['code' => 'alpha'], ['code' => 'beta']], 'code', 'alpha'));
+    self::assertFalse($unique->invoke($handler, [['code' => 'alpha'], ['code' => 'alpha']], 'code', 'alpha'));
+  }
+
+  public function testIdentitySafetyRequiresRowsWithUniqueStrongKeys(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'identitySafetyForRows');
+    $method->setAccessible(TRUE);
+
+    self::assertSame('UNVERIFIED', $method->invoke($handler, [], ['match_fields' => ['code']]));
+    self::assertSame('SAFE', $method->invoke($handler, [['code' => 'a'], ['code' => 'b']], ['match_fields' => ['code']]));
+    self::assertSame('UNSAFE', $method->invoke($handler, [['code' => 'a'], ['code' => 'a']], ['match_fields' => ['code']]));
+    self::assertSame('UNSAFE', $method->invoke($handler, [['label' => 'Weak']], []));
   }
 
   public function testExtensionTokensIncludeConservativeSingularNamespace(): void {

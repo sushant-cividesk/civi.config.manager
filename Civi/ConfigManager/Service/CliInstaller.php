@@ -4,10 +4,15 @@ namespace Civi\ConfigManager\Service;
 use Civi\ConfigManager\Version;
 
 /**
- * Installs terminal CLI wrappers without requiring root access.
- * Existing non-managed files are never overwritten.
+ * Installs one project launcher and one shared global dispatcher.
+ *
+ * The extension-owned bin/civicfg remains the only CLI implementation. The
+ * launchers resolve the active site's extension path at runtime and never
+ * hard-code a project-specific extension path.
  */
 class CliInstaller {
+  private const MANAGED_MARKER = 'Managed by Configuration Manager extension';
+
   private ConfigManager $manager;
 
   public function __construct(?ConfigManager $manager = NULL) {
@@ -15,73 +20,88 @@ class CliInstaller {
   }
 
   public function install(): array {
-    $result = ['ok' => TRUE, 'bin_dirs' => [], 'installed' => [], 'path_helpers' => [], 'skipped' => [], 'errors' => []];
-    foreach ($this->getBinDirs() as $binDir) {
-      $result['bin_dirs'][] = $binDir;
-      if (!is_dir($binDir) && !@mkdir($binDir, 0775, TRUE) && !is_dir($binDir)) {
-        $result['ok'] = FALSE;
-        $result['errors'][] = 'Could not create CLI bin directory: ' . $binDir;
-        continue;
-      }
-      if (!is_writable($binDir)) {
-        $result['ok'] = FALSE;
-        $result['errors'][] = 'CLI bin directory is not writable: ' . $binDir;
-        continue;
-      }
-      foreach ($this->commands() as $name => $command) {
-        $target = $binDir . DIRECTORY_SEPARATOR . $name;
-        if (is_file($target) && !$this->isManagedWrapper($target)) {
-          $result['skipped'][] = $target . ' (existing non-managed file)';
-          continue;
+    $result = [
+      'ok' => TRUE,
+      'extension_cli' => $this->extensionRoot() . '/bin/civicfg',
+      'vendor_launcher' => NULL,
+      'global_launcher' => NULL,
+      'registry' => $this->registryFile(),
+      'installed' => [],
+      'removed_legacy' => [],
+      'skipped' => [],
+      'errors' => [],
+    ];
+
+    $this->cleanupLegacyWrappers($result);
+
+    $vendorBin = $this->composerVendorBin();
+    if ($vendorBin !== NULL) {
+      $this->installLauncher($vendorBin . DIRECTORY_SEPARATOR . 'civicfg', $result, 'vendor_launcher');
+    }
+
+    $registry = $this->readRegistry();
+    $globalTarget = $this->registeredGlobalLauncher($registry);
+    if ($globalTarget === NULL) {
+      $globalBin = $this->globalBinDirectory();
+      $globalTarget = $globalBin === NULL ? NULL : $globalBin . DIRECTORY_SEPARATOR . 'civicfg';
+    }
+
+    if ($globalTarget !== NULL) {
+      if ($this->installLauncher($globalTarget, $result, 'global_launcher')) {
+        try {
+          $this->registerSite($globalTarget);
         }
-        $script = $this->buildWrapperScript($command);
-        if (@file_put_contents($target, $script) === FALSE) {
-          $result['ok'] = FALSE;
-          $result['errors'][] = 'Could not write CLI wrapper: ' . $target;
-          continue;
+        catch (\Throwable $e) {
+          $result['errors'][] = $e->getMessage();
         }
-        @chmod($target, 0775);
-        $result['installed'][] = $target;
-      }
-      foreach ($this->pathHelpers($binDir) as $name => $script) {
-        $target = $binDir . DIRECTORY_SEPARATOR . $name;
-        if (is_file($target) && !$this->isManagedWrapper($target)) {
-          $result['skipped'][] = $target . ' (existing non-managed file)';
-          continue;
-        }
-        if (@file_put_contents($target, $script) === FALSE) {
-          $result['ok'] = FALSE;
-          $result['errors'][] = 'Could not write CLI PATH helper: ' . $target;
-          continue;
-        }
-        @chmod($target, $name === 'civicfg-env' ? 0664 : 0775);
-        $result['path_helpers'][] = $target;
       }
     }
+    else {
+      $result['skipped'][] = 'Global civicfg not installed: no safe writable directory already available in PATH. Set CIVICFG_GLOBAL_BIN_DIR to choose one explicitly.';
+    }
+
+    $result['ok'] = empty($result['errors']);
     return $result;
   }
 
+  public function status(): array {
+    $extensionCli = $this->extensionRoot() . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'civicfg';
+    $vendorBin = $this->composerVendorBin();
+    $vendorTarget = $vendorBin === NULL ? NULL : $vendorBin . DIRECTORY_SEPARATOR . 'civicfg';
+    $registry = $this->readRegistry();
+    $registeredGlobal = trim((string) ($registry['global_launcher'] ?? ''));
+    $globalTarget = $registeredGlobal !== '' ? $registeredGlobal : NULL;
+    $installationId = $this->installationIdentifier();
+
+    return [
+      'extension_cli' => $extensionCli,
+      'extension_cli_available' => is_file($extensionCli) && is_executable($extensionCli),
+      'vendor_launcher' => $vendorTarget,
+      'vendor_launcher_available' => $vendorTarget !== NULL && is_file($vendorTarget) && $this->isManagedWrapper($vendorTarget),
+      'global_launcher' => $globalTarget,
+      'global_launcher_available' => $globalTarget !== NULL && is_file($globalTarget) && $this->isManagedWrapper($globalTarget),
+      'registry' => $this->registryFile(),
+      'registered' => isset($registry['sites'][$installationId]),
+    ];
+  }
+
   public function uninstall(): array {
-    $result = ['ok' => TRUE, 'bin_dirs' => [], 'removed' => [], 'skipped' => [], 'errors' => []];
-    foreach ($this->getBinDirs() as $binDir) {
-      $result['bin_dirs'][] = $binDir;
-      foreach (array_merge(array_keys($this->commands()), array_keys($this->pathHelpers($binDir))) as $name) {
-        $target = $binDir . DIRECTORY_SEPARATOR . $name;
-        if (!is_file($target)) {
-          continue;
-        }
-        if (!$this->isManagedWrapper($target)) {
-          $result['skipped'][] = $target . ' (existing non-managed file)';
-          continue;
-        }
-        if (!@unlink($target)) {
-          $result['ok'] = FALSE;
-          $result['errors'][] = 'Could not remove CLI wrapper: ' . $target;
-          continue;
-        }
-        $result['removed'][] = $target;
-      }
+    $result = [
+      'ok' => TRUE,
+      'removed' => [],
+      'removed_legacy' => [],
+      'skipped' => [],
+      'errors' => [],
+    ];
+
+    $vendorBin = $this->composerVendorBin();
+    if ($vendorBin !== NULL) {
+      $this->removeManagedFile($vendorBin . DIRECTORY_SEPARATOR . 'civicfg', $result, 'removed');
     }
+
+    $this->cleanupLegacyWrappers($result);
+    $this->unregisterSite($result);
+    $result['ok'] = empty($result['errors']);
     return $result;
   }
 
@@ -89,42 +109,167 @@ class CliInstaller {
     return $this->manager->getSiteIdentifier();
   }
 
-  private function getBinDirs(): array {
+  private function installLauncher(string $target, array &$result, string $resultKey): bool {
+    $dir = dirname($target);
+    if (!is_dir($dir) && !@mkdir($dir, 0775, TRUE) && !is_dir($dir)) {
+      $result['errors'][] = 'Could not create CLI directory: ' . $dir;
+      return FALSE;
+    }
+    if (!is_writable($dir)) {
+      $result['errors'][] = 'CLI directory is not writable: ' . $dir;
+      return FALSE;
+    }
+    if (is_file($target) && !$this->isManagedWrapper($target)) {
+      $result['skipped'][] = $target . ' (existing non-managed file)';
+      return FALSE;
+    }
+
+    $contents = $this->buildDispatcherScript();
+    if (is_file($target) && $this->isManagedWrapper($target) && @file_get_contents($target) === $contents) {
+      $result[$resultKey] = $target;
+      return TRUE;
+    }
+
+    if (@file_put_contents($target, $contents, LOCK_EX) === FALSE) {
+      $result['errors'][] = 'Could not write CLI launcher: ' . $target;
+      return FALSE;
+    }
+    @chmod($target, 0775);
+    $result[$resultKey] = $target;
+    $result['installed'][] = $target;
+    return TRUE;
+  }
+
+  private function buildDispatcherScript(): string {
+    $extensionKey = Version::EXTENSION_KEY;
+    $template = <<<'BASH'
+#!/usr/bin/env bash
+# Managed by Configuration Manager extension. Do not edit manually.
+set -euo pipefail
+extension_key=__EXTENSION_KEY__
+
+cv_cmd="$(command -v cv || true)"
+if [[ -z "${cv_cmd}" && -x "$(dirname "$0")/cv" ]]; then
+  cv_cmd="$(dirname "$0")/cv"
+fi
+if [[ -z "${cv_cmd}" ]]; then
+  echo "Configuration Manager CLI requires the CiviCRM cv command in PATH or beside this launcher." >&2
+  exit 2
+fi
+
+extension_bin="$("${cv_cmd}" ev 'try {
+  $key = "__EXTENSION_KEY_RAW__";
+  $system = CRM_Extension_System::singleton();
+  $manager = $system->getManager();
+  $status = strtolower((string) $manager->getStatus($key));
+  if (!in_array($status, ["installed", "enabled"], true)) {
+    fwrite(STDERR, "Configuration Manager extension is not enabled on this site.\n");
+    exit(2);
+  }
+  $mapper = method_exists($system, "getMapper") ? $system->getMapper() : null;
+  $base = "";
+  if ($mapper && method_exists($mapper, "keyToBasePath")) {
+    $base = (string) $mapper->keyToBasePath($key);
+  }
+  elseif ($mapper && method_exists($mapper, "getBasePath")) {
+    $base = (string) $mapper->getBasePath($key);
+  }
+  if ($base === "") {
+    fwrite(STDERR, "Could not resolve Configuration Manager extension path.\n");
+    exit(2);
+  }
+  echo rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . "bin" . DIRECTORY_SEPARATOR . "civicfg";
+} catch (Throwable $e) {
+  fwrite(STDERR, $e->getMessage() . "\n");
+  exit(2);
+}')"
+
+if [[ -z "${extension_bin}" || ! -x "${extension_bin}" ]]; then
+  echo "Configuration Manager extension CLI could not be resolved for the current CiviCRM site." >&2
+  exit 2
+fi
+
+export CIVICFG_CV="${cv_cmd}"
+exec "${extension_bin}" "$@"
+BASH;
+
+    return strtr($template, [
+      '__EXTENSION_KEY__' => escapeshellarg($extensionKey),
+      '__EXTENSION_KEY_RAW__' => addslashes($extensionKey),
+    ]);
+  }
+
+  private function composerVendorBin(): ?string {
     $root = rtrim($this->manager->getProjectRoot(), DIRECTORY_SEPARATOR);
-    $dirs = [];
-    if ($root !== '') {
-      $dirs[] = $root . DIRECTORY_SEPARATOR . 'bin';
-      // Drupal/Backdrop usually report the CMS docroot. Add the Composer project
-      // root one level above /web so commands also work from the site root.
-      if (basename($root) === 'web') {
-        $dirs[] = dirname($root) . DIRECTORY_SEPARATOR . 'bin';
+    if ($root === '') {
+      return NULL;
+    }
+
+    $candidates = [];
+    $cursor = $root;
+    for ($i = 0; $i < 5; $i++) {
+      $candidates[] = $cursor;
+      $parent = dirname($cursor);
+      if ($parent === $cursor) {
+        break;
+      }
+      $cursor = $parent;
+    }
+
+    foreach (array_values(array_unique($candidates)) as $candidate) {
+      $vendor = $candidate . DIRECTORY_SEPARATOR . 'vendor';
+      if (!is_dir($vendor)) {
+        continue;
+      }
+      if (!is_file($vendor . DIRECTORY_SEPARATOR . 'autoload.php') && !is_dir($vendor . DIRECTORY_SEPARATOR . 'composer')) {
+        continue;
+      }
+      $bin = $vendor . DIRECTORY_SEPARATOR . 'bin';
+      if ((is_dir($bin) && is_writable($bin)) || (!is_dir($bin) && is_writable($vendor))) {
+        return $bin;
       }
     }
 
-    // Buildkit/DDEV convenience: allow a shared /var/www/html/bin when writable.
-    if ((string) getenv('CIVICFG_DISABLE_SHARED_BIN') !== '1' && is_dir('/var/www/html') && is_writable('/var/www/html')) {
-      $dirs[] = '/var/www/html/bin';
+    return NULL;
+  }
+
+  private function globalBinDirectory(): ?string {
+    $explicit = trim((string) getenv('CIVICFG_GLOBAL_BIN_DIR'));
+    if ($explicit !== '') {
+      $explicit = $this->expandHome($explicit);
+      $parent = is_dir($explicit) ? $explicit : dirname($explicit);
+      if ((is_dir($explicit) && is_writable($explicit)) || (!is_dir($explicit) && is_dir($parent) && is_writable($parent))) {
+        return $explicit;
+      }
+      return NULL;
     }
 
-    // Optional explicit terminal-level bin directory for beta/internal installs.
-    // This is safer than editing shell profiles automatically. Example:
-    // CIVICFG_GLOBAL_BIN_DIR="$HOME/.local/bin" cv ext:enable civi.config.manager
-    foreach (['CIVICFG_GLOBAL_BIN_DIR', 'CIVICFG_BIN_DIR'] as $envName) {
-      $dir = trim((string) getenv($envName));
-      if ($dir !== '') {
-        $dirs[] = $this->expandHome($dir);
+    $home = rtrim($this->expandHome((string) getenv('HOME')), DIRECTORY_SEPARATOR);
+    $preferred = [];
+    if ($home !== '') {
+      $preferred[] = $home . DIRECTORY_SEPARATOR . '.local' . DIRECTORY_SEPARATOR . 'bin';
+      $preferred[] = $home . DIRECTORY_SEPARATOR . 'bin';
+    }
+    $preferred[] = '/usr/local/bin';
+    $preferred[] = '/opt/homebrew/bin';
+
+    $pathDirs = $this->pathDirectories();
+    foreach ($preferred as $dir) {
+      if (in_array($dir, $pathDirs, TRUE) && is_dir($dir) && is_writable($dir)) {
+        return $dir;
       }
     }
 
-    // If a known safe terminal bin directory is already in PATH and writable,
-    // install there too so civicfg works directly in that terminal environment.
-    foreach ($this->pathDirectories() as $dir) {
-      if ($this->isPreferredWritablePathBin($dir)) {
-        $dirs[] = $dir;
+    foreach ($pathDirs as $dir) {
+      if (!is_dir($dir) || !is_writable($dir) || basename($dir) !== 'bin') {
+        continue;
+      }
+      if ($home !== '' && (strpos($dir, $home . DIRECTORY_SEPARATOR) === 0 || $dir === $home)) {
+        return $dir;
       }
     }
 
-    return array_values(array_unique($dirs));
+    return NULL;
   }
 
   private function pathDirectories(): array {
@@ -134,29 +279,145 @@ class CliInstaller {
     }
     $dirs = [];
     foreach (explode(PATH_SEPARATOR, $path) as $dir) {
-      $dir = trim($dir);
-      if ($dir === '') {
-        continue;
+      $dir = trim($this->expandHome($dir));
+      if ($dir !== '') {
+        $dirs[] = rtrim($dir, DIRECTORY_SEPARATOR);
       }
-      $dirs[] = $this->expandHome($dir);
     }
     return array_values(array_unique($dirs));
   }
 
-  private function isPreferredWritablePathBin(string $dir): bool {
-    if (!is_dir($dir) || !is_writable($dir)) {
-      return FALSE;
+  private function cleanupLegacyWrappers(array &$result): void {
+    $names = [
+      'cvcfg', 'config-export', 'ce', 'config-import', 'ci', 'config-diff', 'cdf',
+      'config-validate', 'cval', 'civicfg-env', 'civicfg-path',
+    ];
+    $dirs = [];
+    $root = rtrim($this->manager->getProjectRoot(), DIRECTORY_SEPARATOR);
+    if ($root !== '') {
+      $dirs[] = $root . DIRECTORY_SEPARATOR . 'bin';
+      if (basename($root) === 'web') {
+        $dirs[] = dirname($root) . DIRECTORY_SEPARATOR . 'bin';
+      }
     }
-    $real = realpath($dir) ?: $dir;
-    $home = rtrim($this->expandHome((string) getenv('HOME')), DIRECTORY_SEPARATOR);
+    $dirs[] = '/var/www/html/bin';
+    foreach ($this->pathDirectories() as $dir) {
+      $dirs[] = $dir;
+    }
 
-    if (in_array($real, ['/usr/local/bin', '/opt/homebrew/bin', '/var/www/html/bin'], TRUE)) {
-      return TRUE;
+    foreach (array_values(array_unique($dirs)) as $dir) {
+      foreach ($names as $name) {
+        $this->removeManagedFile($dir . DIRECTORY_SEPARATOR . $name, $result, 'removed_legacy');
+      }
     }
-    if ($home !== '' && (strpos($real, $home . DIRECTORY_SEPARATOR) === 0 || $real === $home)) {
-      return preg_match('#/(bin|\\.local/bin)$#', $real) === 1;
+  }
+
+  private function removeManagedFile(string $target, array &$result, string $bucket): void {
+    if (!is_file($target)) {
+      return;
     }
-    return strpos($real, '/var/www/html/') === 0 && basename($real) === 'bin';
+    if (!$this->isManagedWrapper($target)) {
+      return;
+    }
+    if (!@unlink($target)) {
+      $result['errors'][] = 'Could not remove managed CLI launcher: ' . $target;
+      return;
+    }
+    $result[$bucket][] = $target;
+  }
+
+  private function registryFile(): string {
+    $override = trim((string) getenv('CIVICFG_REGISTRY_DIR'));
+    if ($override !== '') {
+      return rtrim($this->expandHome($override), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'installations.json';
+    }
+    $xdg = trim((string) getenv('XDG_CONFIG_HOME'));
+    if ($xdg !== '') {
+      return rtrim($this->expandHome($xdg), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg' . DIRECTORY_SEPARATOR . 'installations.json';
+    }
+    $home = rtrim($this->expandHome((string) getenv('HOME')), DIRECTORY_SEPARATOR);
+    if ($home !== '') {
+      return $home . DIRECTORY_SEPARATOR . '.config' . DIRECTORY_SEPARATOR . 'civicfg' . DIRECTORY_SEPARATOR . 'installations.json';
+    }
+    return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'civicfg-' . getmyuid() . DIRECTORY_SEPARATOR . 'installations.json';
+  }
+
+  private function readRegistry(): array {
+    $file = $this->registryFile();
+    if (!is_file($file)) {
+      return ['version' => 1, 'global_launcher' => '', 'sites' => []];
+    }
+    $data = json_decode((string) @file_get_contents($file), TRUE);
+    if (!is_array($data)) {
+      return ['version' => 1, 'global_launcher' => '', 'sites' => []];
+    }
+    $data['sites'] = (array) ($data['sites'] ?? []);
+    return $data;
+  }
+
+  private function registeredGlobalLauncher(array $registry): ?string {
+    $target = trim((string) ($registry['global_launcher'] ?? ''));
+    if ($target === '' || !is_file($target) || !$this->isManagedWrapper($target) || !is_writable(dirname($target))) {
+      return NULL;
+    }
+    return $target;
+  }
+
+  private function registerSite(string $globalTarget): void {
+    $file = $this->registryFile();
+    $dir = dirname($file);
+    if (!is_dir($dir) && !@mkdir($dir, 0775, TRUE) && !is_dir($dir)) {
+      throw new \RuntimeException('Could not create Configuration Manager CLI registry directory: ' . $dir);
+    }
+    $registry = $this->readRegistry();
+    $siteId = $this->manager->getSiteIdentifier();
+    $installationId = $this->installationIdentifier();
+    $registry['version'] = 1;
+    $registry['global_launcher'] = $globalTarget;
+    $registry['sites'][$installationId] = [
+      'site_id' => $siteId,
+      'project_root' => $this->manager->getProjectRoot(),
+      'registered_at' => date(DATE_ATOM),
+    ];
+    ksort($registry['sites'], SORT_STRING);
+    $json = json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === FALSE || @file_put_contents($file, $json . PHP_EOL, LOCK_EX) === FALSE) {
+      throw new \RuntimeException('Could not write Configuration Manager CLI registry: ' . $file);
+    }
+  }
+
+  private function unregisterSite(array &$result): void {
+    $file = $this->registryFile();
+    $registry = $this->readRegistry();
+    unset($registry['sites'][$this->installationIdentifier()]);
+
+    if (!empty($registry['sites'])) {
+      $json = json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+      if ($json === FALSE || @file_put_contents($file, $json . PHP_EOL, LOCK_EX) === FALSE) {
+        $result['errors'][] = 'Could not update Configuration Manager CLI registry: ' . $file;
+      }
+      return;
+    }
+
+    $globalTarget = trim((string) ($registry['global_launcher'] ?? ''));
+    if ($globalTarget !== '') {
+      $this->removeManagedFile($globalTarget, $result, 'removed');
+    }
+    if (is_file($file) && !@unlink($file)) {
+      $result['errors'][] = 'Could not remove empty Configuration Manager CLI registry: ' . $file;
+    }
+    $dir = dirname($file);
+    if (is_dir($dir)) {
+      @rmdir($dir);
+    }
+  }
+
+
+  private function installationIdentifier(): string {
+    $root = rtrim($this->manager->getProjectRoot(), DIRECTORY_SEPARATOR);
+    $resolved = $root !== '' ? realpath($root) : FALSE;
+    $projectRoot = $resolved !== FALSE ? $resolved : $root;
+    return 'installation-' . substr(hash('sha256', $this->manager->getSiteIdentifier() . '|' . $projectRoot), 0, 24);
   }
 
   private function expandHome(string $path): string {
@@ -169,126 +430,12 @@ class CliInstaller {
     return $path;
   }
 
-  private function commands(): array {
-    return [
-      'civicfg' => '',
-      'cvcfg' => '',
-      'config-export' => 'config-export',
-      'ce' => 'ce',
-      'config-import' => 'config-import',
-      'ci' => 'ci',
-      'config-diff' => 'config-diff',
-      'cdf' => 'cdf',
-      'config-validate' => 'config-validate',
-      'cval' => 'cval',
-    ];
-  }
-
-  private function pathHelpers(string $binDir): array {
-    return [
-      'civicfg-env' => $this->buildEnvHelper($binDir),
-      'civicfg-path' => $this->buildPathHelper($binDir),
-    ];
-  }
-
-  private function buildEnvHelper(string $binDir): string {
-    $quoted = $this->shellSingleQuote($binDir);
-    return <<<SH
-# Managed by Configuration Manager extension. Do not edit manually.
-# Source this file to add Configuration Manager wrappers to this shell:
-#   . {$binDir}/civicfg-env
-civicfg_bin_dir={$quoted}
-case ":\${PATH:-}:" in
-  *":\${civicfg_bin_dir}:"*) ;;
-  *) export PATH="\${civicfg_bin_dir}:\${PATH:-}" ;;
-esac
-unset civicfg_bin_dir
-SH;
-  }
-
-  private function buildPathHelper(string $binDir): string {
-    $quoted = $this->shellSingleQuote($binDir);
-    return <<<BASH
-#!/usr/bin/env bash
-# Managed by Configuration Manager extension. Do not edit manually.
-set -euo pipefail
-bin_dir={$quoted}
-
-case "\${1:-}" in
-  --check)
-    case ":\${PATH:-}:" in
-      *":\${bin_dir}:"*) echo "Configuration Manager CLI bin is in PATH: \${bin_dir}" ;;
-      *) echo "Configuration Manager CLI bin is not in PATH: \${bin_dir}" >&2; exit 1 ;;
-    esac
-    ;;
-  --shell)
-    printf 'export PATH=%q:"\$PATH"\\n' "\${bin_dir}"
-    ;;
-  *)
-    echo "Configuration Manager CLI wrappers are installed in: \${bin_dir}"
-    echo "For this terminal session, run:"
-    echo "  . \${bin_dir}/civicfg-env"
-    echo "To make it permanent, add this line to your shell profile or project .envrc:"
-    printf '  export PATH=%q:"\$PATH"\\n' "\${bin_dir}"
-    ;;
-esac
-BASH;
-  }
-
-  private function buildWrapperScript(string $command): string {
-    $commandLine = $command === ''
-      ? 'exec "$extension_bin" "$@"'
-      : 'exec "$extension_bin" ' . escapeshellarg($command) . ' "$@"';
-    $template = <<<'BASH'
-#!/usr/bin/env bash
-# Managed by Configuration Manager extension. Do not edit manually.
-set -euo pipefail
-extension_bin=__EXTENSION_BIN__
-extension_key=__EXTENSION_KEY__
-
-if ! command -v cv >/dev/null 2>&1; then
-  echo "Configuration Manager CLI requires the CiviCRM cv command in PATH." >&2
-  exit 2
-fi
-
-status="$(cv ev 'try { $s = CRM_Extension_System::singleton()->getManager()->getStatus("__EXTENSION_KEY_RAW__"); echo $s ?: "missing"; } catch (Throwable $e) { echo "unknown"; }' 2>/dev/null || true)"
-case "${status}" in
-  installed|enabled) ;;
-  disabled)
-    echo "Configuration Manager extension is disabled. Enable ${extension_key} before running civicfg." >&2
-    exit 2
-    ;;
-  *)
-    echo "Configuration Manager extension is not installed/enabled on this site (status: ${status:-unknown})." >&2
-    exit 2
-    ;;
-esac
-
-if [[ ! -x "$extension_bin" ]]; then
-  echo "Configuration Manager extension CLI is missing or not executable: $extension_bin" >&2
-  exit 2
-fi
-
-__COMMAND_LINE__
-BASH;
-    return strtr($template, [
-      '__EXTENSION_BIN__' => escapeshellarg($this->extensionRoot() . '/bin/civicfg'),
-      '__EXTENSION_KEY__' => escapeshellarg(Version::EXTENSION_KEY),
-      '__EXTENSION_KEY_RAW__' => addslashes(Version::EXTENSION_KEY),
-      '__COMMAND_LINE__' => $commandLine,
-    ]);
-  }
-
-  private function shellSingleQuote(string $value): string {
-    return "'" . str_replace("'", "'\\''", $value) . "'";
-  }
-
   private function extensionRoot(): string {
     return dirname(__DIR__, 3);
   }
 
   private function isManagedWrapper(string $file): bool {
     $contents = @file_get_contents($file);
-    return is_string($contents) && strpos($contents, 'Managed by Configuration Manager extension') !== FALSE;
+    return is_string($contents) && strpos($contents, self::MANAGED_MARKER) !== FALSE;
   }
 }

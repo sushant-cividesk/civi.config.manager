@@ -110,6 +110,7 @@
                   <div class="civicfg-file-title"><code class="civicfg-file-code">{$file.path|escape}</code></div>
                   <div class="civicfg-file-meta">
                     <span class="civicfg-badge civicfg-badge-{$file.status|escape}">{$file.status_label|escape}</span>
+                    {if $file.sync_state_label}<span class="civicfg-badge warn">{$file.sync_state_label|escape}</span>{/if}
                     <span class="civicfg-muted">{$file.change_count|escape} {if $file.status eq 'changed'}{ts}changed field(s){/ts}{elseif $file.status eq 'new_in_db'}{ts}field(s) to export{/ts}{else}{ts}field(s) in YAML{/ts}{/if}</span>
                     <span class="civicfg-muted">{$file.type_label|escape}</span>
                   </div>

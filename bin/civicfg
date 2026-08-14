@@ -6,10 +6,10 @@ show_help() {
 Configuration Manager CLI
 
 Usage:
-  civicfg config-export|ce [options]
-  civicfg config-import|ci [options]
-  civicfg config-diff|cdf [options]
-  civicfg config-validate|cval [options]
+  civicfg export [options]
+  civicfg import [options]
+  civicfg diff [options]
+  civicfg validate [options]
   civicfg status
 
 Options:
@@ -21,18 +21,11 @@ Options:
   -h, --help        Show this help.
 
 Examples:
-  civicfg ce --write
-  civicfg ce --type searchkit-saved-searches --write
-  civicfg ci --dry-run
-  civicfg ci --yes
-  civicfg config-validate
-
-Short aliases:
-  ce = config-export
-  ci = config-import
-  cdf = config-diff
-  cval = config-validate
-  cvcfg = civicfg
+  civicfg export --write
+  civicfg export --type searchkit-saved-searches --write
+  civicfg import --dry-run
+  civicfg import --yes
+  civicfg validate
 HELP
 }
 
@@ -52,6 +45,15 @@ fi
 
 command="$1"
 shift || true
+
+cv_cmd="${CIVICFG_CV:-}"
+if [[ -z "${cv_cmd}" ]]; then
+  cv_cmd="$(command -v cv || true)"
+fi
+if [[ -z "${cv_cmd}" ]]; then
+  echo "Configuration Manager CLI requires the CiviCRM cv command." >&2
+  exit 2
+fi
 
 types=()
 dry_run=""
@@ -104,22 +106,22 @@ if [[ ${#types[@]} -gt 0 ]]; then
 fi
 
 case "$command" in
-  config-export|ce)
+  export)
     [[ -n "$dry_run" ]] || dry_run="0"
-    exec cv "${cv_args[@]}" api4 ConfigManager.export dryRun="$dry_run" type="$type_json"
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.export dryRun="$dry_run" type="$type_json"
     ;;
-  config-import|ci)
+  import)
     [[ -n "$dry_run" ]] || dry_run="1"
-    exec cv "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json"
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json"
     ;;
-  config-diff|cdf|cd)
-    exec cv "${cv_args[@]}" api4 ConfigManager.diff type="$type_json"
+  diff)
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.diff type="$type_json"
     ;;
-  config-validate|cval|cv)
-    exec cv "${cv_args[@]}" api4 ConfigManager.validate type="$type_json"
+  validate)
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.validate type="$type_json"
     ;;
   status)
-    exec cv "${cv_args[@]}" api4 ConfigManager.status
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.status
     ;;
   *)
     echo "Unknown command: $command" >&2

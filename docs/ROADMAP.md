@@ -42,17 +42,13 @@ Before treating phase 1 as complete, finish:
 - Safer generic bundled extension config classification for extension APIs that expose operational data instead of deployable config.
 - More environment override support beyond field-level Config Ignore Values.
 - Further harden destructive import dependency checks and per-record dependency ordering.
-- CLI installer hardening across more hosting layouts.
+- Expand real-world CLI smoke coverage across Drupal 7/non-Composer, modern Composer CMS builds, WordPress, and Standalone.
 
 ## CLI roadmap
 
-CLI wrapper scripts are available under `bin/` and call the existing API4 actions instead of duplicating business logic.
+The alpha56 CLI architecture is intentionally narrow: the extension owns `bin/civicfg`, Composer projects may expose one `vendor/bin/civicfg`, and a single ownership-aware global dispatcher may be shared by multiple local projects. Legacy project-bin aliases and PATH helper files are no longer part of the target architecture.
 
-Next CLI work:
-
-- Add detailed CLI documentation and examples.
-- Harden project-level CLI wrapper installation/removal across more CMS/project layouts.
-- Keep `ce`, `ci`, `cdf`, and `cval` as documented aliases.
+Remaining CLI work is compatibility testing and UX/documentation refinement rather than adding more wrapper locations or aliases.
 
 ## Asset tooling
 

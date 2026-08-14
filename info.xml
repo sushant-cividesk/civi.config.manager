@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-13</releaseDate>
-  <version>0.1.0-alpha55-core</version>
+  <releaseDate>2026-08-14</releaseDate>
+  <version>0.1.0-alpha56-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 55 development build on the full beta2 codebase: improves diff wording accuracy, verifies custom/contributed extension hooks, and broadens generic contributed-extension configuration discovery including SQL Tasks.</comments>
+  <comments>Alpha 56 development build on the full beta2 + alpha55 codebase: adds semantic configuration identity, versioned SHA-256 state/baseline tracking, safer contrib-provider metadata, conflict-aware diffing, and the finalized single-dispatcher CLI lifecycle.</comments>
 </extension>

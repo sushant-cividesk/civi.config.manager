@@ -41,6 +41,64 @@ namespace Civi\Api4 {
     }
   }
 
+  final class CivicfgReferenceFixture {
+    /** @var array<int, array<string, mixed>> */
+    public static array $rows = [];
+
+    public static function get(bool $checkPermissions = FALSE): CivicfgReferenceFixtureAction {
+      return new CivicfgReferenceFixtureAction();
+    }
+  }
+
+  final class CivicfgReferenceFixtureAction {
+    /** @var array<int, string> */
+    private array $select = [];
+
+    /** @var array<int, array<int, mixed>> */
+    private array $where = [];
+
+    public function addSelect(string ...$fields): self {
+      $this->select = array_values(array_merge($this->select, $fields));
+      return $this;
+    }
+
+    /** @param mixed $value */
+    public function addWhere(string $field, string $operator, $value): self {
+      $this->where[] = [$field, $operator, $value];
+      return $this;
+    }
+
+    public function addOrderBy(string $field, string $direction): self {
+      return $this;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function execute(): array {
+      $rows = array_values(array_filter(self::rows(), function (array $row): bool {
+        foreach ($this->where as $condition) {
+          [$field, $operator, $value] = $condition;
+          if ($operator !== '=' || !array_key_exists((string) $field, $row) || $row[(string) $field] !== $value) {
+            return FALSE;
+          }
+        }
+        return TRUE;
+      }));
+
+      if ($this->select !== [] && $this->select !== ['*']) {
+        $allowed = array_flip($this->select);
+        $rows = array_map(static function (array $row) use ($allowed): array {
+          return array_intersect_key($row, $allowed);
+        }, $rows);
+      }
+      return $rows;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function rows(): array {
+      return CivicfgReferenceFixture::$rows;
+    }
+  }
+
   final class CivicfgHookFixtureAction {
     private string $op;
 
@@ -156,6 +214,7 @@ namespace Civi\Api4 {
 
 namespace Civi\ConfigManager\Tests\Unit {
   use Civi\Api4\CivicfgHookFixture;
+  use Civi\Api4\CivicfgReferenceFixture;
   use Civi\ConfigManager\Handler\EntityDefinitionHandler;
   use PHPUnit\Framework\TestCase;
 
@@ -170,9 +229,15 @@ namespace Civi\ConfigManager\Tests\Unit {
         'api_key' => 'secret-value',
         'modified_date' => '2026-01-01',
         'settings' => [
+          'id' => 'portable-setting-id',
           'format' => 'pdf',
           'secret' => 'nested-secret',
         ],
+      ]];
+      CivicfgReferenceFixture::$rows = [[
+        'id' => 91,
+        'name' => 'parent_alpha',
+        'label' => 'Parent Alpha',
       ]];
       CivicfgHookFixture::$created = [];
       CivicfgHookFixture::$updated = [];
@@ -189,10 +254,12 @@ namespace Civi\ConfigManager\Tests\Unit {
       self::assertSame(['name'], $files[0]['data']['key_fields']);
       self::assertSame('name=alpha_template', $files[0]['data']['key']);
       self::assertSame([['type' => 'extension', 'name' => 'myext']], $files[0]['data']['dependencies']);
+      self::assertSame(['create' => TRUE, 'update' => TRUE, 'delete' => FALSE], $files[0]['data']['capabilities']);
       self::assertArrayNotHasKey('id', $files[0]['data']['item']);
       self::assertArrayNotHasKey('api_key', $files[0]['data']['item']);
       self::assertArrayNotHasKey('modified_date', $files[0]['data']['item']);
       self::assertArrayNotHasKey('secret', $files[0]['data']['item']['settings']);
+      self::assertSame('portable-setting-id', $files[0]['data']['item']['settings']['id']);
       self::assertSame('pdf', $files[0]['data']['item']['settings']['format']);
     }
 
@@ -437,6 +504,133 @@ namespace Civi\ConfigManager\Tests\Unit {
 
       self::assertSame('changed', $changed['status']);
       self::assertSame(['alpha_template.yml'], $changed['changed']);
+    }
+
+    public function testProviderCapabilitiesBlockUnsafeCreateUpdateAndDelete(): void {
+      $update = $this->buildHandler(['can_update' => FALSE])->import([
+        'alpha_template.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'alpha_template', 'label' => 'Changed'],
+        ],
+      ], FALSE);
+      self::assertFalse($update['ok']);
+      self::assertStringContainsString('Update is not allowed', $update['errors'][0]['message']);
+
+      $create = $this->buildHandler(['can_create' => FALSE])->import([
+        'new.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'new_template', 'label' => 'New'],
+        ],
+      ], FALSE);
+      self::assertFalse($create['ok']);
+      self::assertStringContainsString('Create is not allowed', $create['errors'][0]['message']);
+
+      CivicfgHookFixture::$rows[] = ['id' => 2, 'name' => 'orphan_template', 'label' => 'Orphan'];
+      $delete = $this->buildHandler(['delete_missing' => TRUE, 'can_delete' => FALSE])->import([
+        'alpha_template.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'alpha_template', 'label' => 'Alpha Template'],
+        ],
+      ], FALSE);
+      self::assertTrue($delete['ok']);
+      self::assertSame(0, $delete['delete']);
+      self::assertStringContainsString('delete is not allowed', strtolower($delete['warnings'][0]['message']));
+      self::assertSame([], CivicfgHookFixture::$deleted);
+    }
+
+    public function testReferenceFieldsExportStableKeysAndResolveLocalIdsOnImport(): void {
+      CivicfgHookFixture::$rows[0]['parent_id'] = 91;
+      $handler = $this->buildHandler([
+        'export_fields' => ['name', 'label', 'parent_id'],
+        'reference_fields' => [
+          'parent_id' => [
+            'entity' => 'CivicfgReferenceFixture',
+            'key_fields' => ['name'],
+            'dependency_type' => 'parent-fixtures',
+          ],
+        ],
+      ]);
+
+      $files = $handler->export();
+      self::assertSame([
+        'provider' => 'api4:CivicfgReferenceFixture',
+        'entity' => 'CivicfgReferenceFixture',
+        'key' => ['name' => 'parent_alpha'],
+      ], $files[0]['data']['item']['parent_id']);
+      self::assertContains([
+        'type' => 'parent-fixtures',
+        'name' => 'parent_alpha',
+        'reason' => 'Referenced by myext_templates field parent_id.',
+      ], $files[0]['data']['dependencies']);
+
+      CivicfgHookFixture::$updated = [];
+      $files[0]['data']['item']['label'] = 'Updated through stable reference';
+      $summary = $handler->import([
+        'alpha_template.yml' => $files[0]['data'],
+      ], FALSE);
+
+      self::assertTrue($summary['ok']);
+      self::assertSame(1, $summary['update']);
+      self::assertSame(91, CivicfgHookFixture::$updated[0]['values']['parent_id']);
+    }
+
+    public function testReferenceFieldsRejectLocalIdsAndUnexpectedKeys(): void {
+      $handler = $this->buildHandler([
+        'export_fields' => ['name', 'label', 'parent_id'],
+        'reference_fields' => [
+          'parent_id' => [
+            'entity' => 'CivicfgReferenceFixture',
+            'key_fields' => ['name'],
+          ],
+        ],
+      ]);
+
+      $validation = $handler->validate([
+        'alpha_template.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'alpha_template', 'parent_id' => 91],
+        ],
+      ]);
+      self::assertFalse($validation['valid']);
+      self::assertStringContainsString('semantic configuration reference', $validation['errors'][0]['message']);
+
+      $summary = $handler->import([
+        'alpha_template.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => [
+            'name' => 'alpha_template',
+            'parent_id' => [
+              'provider' => 'api4:CivicfgReferenceFixture',
+              'entity' => 'CivicfgReferenceFixture',
+              'key' => ['label' => 'Parent Alpha'],
+            ],
+          ],
+        ],
+      ], FALSE);
+      self::assertFalse($summary['ok']);
+      self::assertStringContainsString('exactly these stable key fields', $summary['errors'][0]['message']);
+    }
+
+    public function testReferenceExportFailsInsteadOfLeakingUnresolvedLocalId(): void {
+      CivicfgHookFixture::$rows[0]['parent_id'] = 999;
+      $handler = $this->buildHandler([
+        'export_fields' => ['name', 'label', 'parent_id'],
+        'reference_fields' => [
+          'parent_id' => [
+            'entity' => 'CivicfgReferenceFixture',
+            'key_fields' => ['name'],
+          ],
+        ],
+      ]);
+
+      $this->expectException(\RuntimeException::class);
+      $this->expectExceptionMessage('Could not resolve portable configuration reference parent_id');
+      $handler->export();
     }
 
     public function testInvalidDefinitionReturnsValidationError(): void {

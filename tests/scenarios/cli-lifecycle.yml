@@ -1,0 +1,40 @@
+id: CM-CLI-LIFECYCLE
+feature: Single implementation, optional Composer launcher, shared project-aware global dispatcher, and ownership-safe uninstall
+level:
+  - unit
+  - integration
+fixtures:
+  factory: temporary Composer and non-Composer project roots with isolated PATH and registry directories
+  records:
+    composer_project: qa_civicfg_composer_<run_id>
+    legacy_project: qa_civicfg_noncomposer_<run_id>
+    second_project: qa_civicfg_second_<run_id>
+steps:
+  - Install Configuration Manager in a Composer-style project and verify the extension-local bin/civicfg remains authoritative with at most one managed vendor/bin/civicfg launcher.
+  - Install in a non-Composer project and verify no project bin directory is required.
+  - Install the managed global civicfg dispatcher and verify it contains no project-specific extension path and resolves the active extension through cv at runtime.
+  - Register two local projects which share the same cloned site-family identifier and verify both remain distinct registry entries by local project root.
+  - Uninstall one project and verify the shared global dispatcher remains for the other project.
+  - Uninstall the final registered project and verify only Configuration Manager managed global files and empty registry state are removed.
+  - Place an unrelated civicfg file at a candidate destination and verify it is never overwritten or deleted.
+expected:
+  one_authoritative_cli: true
+  composer_launcher_optional: true
+  noncomposer_global_cli_supported: true
+  global_dispatcher_project_independent: true
+  multi_project_registry_safe: true
+  unrelated_commands_preserved: true
+negative_cases:
+  - project_bin_wrapper_sprawl_returns
+  - hardcoded_extension_path_in_global_dispatcher
+  - unrelated_global_civicfg_is_overwritten
+  - uninstall_first_project_removes_shared_dispatcher
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  remove_temporary_project_roots: true
+  remove_temporary_global_bin: true
+  remove_temporary_registry: true

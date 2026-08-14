@@ -9,75 +9,164 @@ use Civi\ConfigManager\Service\ConfigManager;
 use PHPUnit\Framework\TestCase;
 
 final class CliInstallerTest extends TestCase {
+  private string $sandbox;
   private string $projectRoot;
-  private string $originalPath;
-  private ?string $originalGlobalBinDir;
-  private ?string $originalBinDir;
-  private ?string $originalDisableSharedBin;
+  private string $globalBin;
+  private string $registryDir;
+
+  /** @var array<string, string|false> */
+  private array $environment = [];
 
   protected function setUp(): void {
-    $this->projectRoot = sys_get_temp_dir() . '/civicfg-cli-test-' . bin2hex(random_bytes(6));
-    $this->originalPath = (string) getenv('PATH');
-    $globalBinDir = getenv('CIVICFG_GLOBAL_BIN_DIR');
-    $binDir = getenv('CIVICFG_BIN_DIR');
-    $disableSharedBin = getenv('CIVICFG_DISABLE_SHARED_BIN');
-    $this->originalGlobalBinDir = $globalBinDir === FALSE ? NULL : (string) $globalBinDir;
-    $this->originalBinDir = $binDir === FALSE ? NULL : (string) $binDir;
-    $this->originalDisableSharedBin = $disableSharedBin === FALSE ? NULL : (string) $disableSharedBin;
-    putenv('PATH=/usr/bin:/bin');
-    putenv('CIVICFG_GLOBAL_BIN_DIR');
-    putenv('CIVICFG_BIN_DIR');
-    putenv('CIVICFG_DISABLE_SHARED_BIN=1');
-    mkdir($this->projectRoot, 0775, TRUE);
+    $this->sandbox = sys_get_temp_dir() . '/civicfg-cli-test-' . bin2hex(random_bytes(6));
+    $this->projectRoot = $this->sandbox . '/project';
+    $this->globalBin = $this->sandbox . '/global-bin';
+    $this->registryDir = $this->sandbox . '/registry';
+
+    foreach (['PATH', 'HOME', 'XDG_CONFIG_HOME', 'CIVICFG_GLOBAL_BIN_DIR', 'CIVICFG_REGISTRY_DIR'] as $name) {
+      $this->environment[$name] = getenv($name);
+    }
+
+    mkdir($this->projectRoot . '/vendor/bin', 0775, TRUE);
+    file_put_contents($this->projectRoot . '/vendor/autoload.php', "<?php\n");
+    mkdir($this->globalBin, 0775, TRUE);
+
+    putenv('HOME=' . $this->sandbox . '/home');
+    putenv('PATH=' . $this->globalBin . ':/usr/bin:/bin');
+    putenv('XDG_CONFIG_HOME');
+    putenv('CIVICFG_GLOBAL_BIN_DIR=' . $this->globalBin);
+    putenv('CIVICFG_REGISTRY_DIR=' . $this->registryDir);
   }
 
   protected function tearDown(): void {
-    putenv('PATH=' . $this->originalPath);
-    $this->originalGlobalBinDir === NULL ? putenv('CIVICFG_GLOBAL_BIN_DIR') : putenv('CIVICFG_GLOBAL_BIN_DIR=' . $this->originalGlobalBinDir);
-    $this->originalBinDir === NULL ? putenv('CIVICFG_BIN_DIR') : putenv('CIVICFG_BIN_DIR=' . $this->originalBinDir);
-    $this->originalDisableSharedBin === NULL ? putenv('CIVICFG_DISABLE_SHARED_BIN') : putenv('CIVICFG_DISABLE_SHARED_BIN=' . $this->originalDisableSharedBin);
-    $this->removeTree($this->projectRoot);
+    foreach ($this->environment as $name => $value) {
+      $value === FALSE ? putenv($name) : putenv($name . '=' . $value);
+    }
+    $this->removeTree($this->sandbox);
   }
 
-  public function testInstallCreatesProjectWrappersAndPathHelpers(): void {
-    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot));
+  public function testInstallCreatesOnlyVendorAndOneGlobalLauncher(): void {
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
 
     $result = $installer->install();
 
     self::assertTrue($result['ok']);
-    self::assertFileExists($this->projectRoot . '/bin/civicfg');
-    self::assertFileExists($this->projectRoot . '/bin/ce');
-    self::assertFileExists($this->projectRoot . '/bin/ci');
-    self::assertFileExists($this->projectRoot . '/bin/civicfg-env');
-    self::assertFileExists($this->projectRoot . '/bin/civicfg-path');
-    self::assertStringContainsString('Managed by Configuration Manager extension', file_get_contents($this->projectRoot . '/bin/civicfg'));
-    self::assertStringContainsString('export PATH=', file_get_contents($this->projectRoot . '/bin/civicfg-env'));
+    self::assertSame($this->projectRoot . '/vendor/bin/civicfg', $result['vendor_launcher']);
+    self::assertSame($this->globalBin . '/civicfg', $result['global_launcher']);
+    self::assertFileExists($this->projectRoot . '/vendor/bin/civicfg');
+    self::assertFileExists($this->globalBin . '/civicfg');
+    self::assertFileDoesNotExist($this->projectRoot . '/bin/civicfg');
+    self::assertFileDoesNotExist($this->projectRoot . '/bin/ce');
+    self::assertFileDoesNotExist($this->projectRoot . '/bin/civicfg-path');
+
+    $launcher = (string) file_get_contents($this->globalBin . '/civicfg');
+    self::assertStringContainsString('Managed by Configuration Manager extension', $launcher);
+    self::assertStringContainsString('keyToBasePath', $launcher);
+    self::assertStringContainsString('command -v cv', $launcher);
+    self::assertStringContainsString('$(dirname "$0")/cv', $launcher);
+    self::assertStringContainsString('export CIVICFG_CV="${cv_cmd}"', $launcher);
+    self::assertStringNotContainsString($this->projectRoot, $launcher);
+    self::assertStringNotContainsString(dirname(__DIR__, 3), $launcher);
   }
 
-  public function testInstallNeverOverwritesExistingNonManagedTerminalCommand(): void {
-    mkdir($this->projectRoot . '/bin', 0775, TRUE);
-    file_put_contents($this->projectRoot . '/bin/civicfg', '#!/usr/bin/env bash\necho local-custom\n');
+  public function testStatusReportsExtensionVendorAndGlobalAvailabilityWithoutWriting(): void {
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $before = $installer->status();
 
-    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot));
+    self::assertTrue($before['extension_cli_available']);
+    self::assertFalse($before['vendor_launcher_available']);
+    self::assertFalse($before['global_launcher_available']);
+    self::assertFalse($before['registered']);
+
+    self::assertTrue($installer->install()['ok']);
+    $after = $installer->status();
+
+    self::assertTrue($after['vendor_launcher_available']);
+    self::assertTrue($after['global_launcher_available']);
+    self::assertTrue($after['registered']);
+  }
+
+  public function testInstallIsIdempotentWhenManagedLauncherIsCurrent(): void {
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $first = $installer->install();
+    self::assertTrue($first['ok']);
+
+    $second = $installer->install();
+
+    self::assertTrue($second['ok']);
+    self::assertSame([], $second['installed']);
+    self::assertSame($this->projectRoot . '/vendor/bin/civicfg', $second['vendor_launcher']);
+    self::assertSame($this->globalBin . '/civicfg', $second['global_launcher']);
+  }
+
+  public function testInstallNeverOverwritesExistingNonManagedGlobalCommand(): void {
+    $custom = "#!/usr/bin/env bash\necho custom\n";
+    file_put_contents($this->globalBin . '/civicfg', $custom);
+
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
     $result = $installer->install();
 
     self::assertTrue($result['ok']);
+    self::assertSame($custom, file_get_contents($this->globalBin . '/civicfg'));
     self::assertStringContainsString('existing non-managed file', implode("\n", $result['skipped']));
-    self::assertSame('#!/usr/bin/env bash\necho local-custom\n', file_get_contents($this->projectRoot . '/bin/civicfg'));
+    self::assertFileExists($this->projectRoot . '/vendor/bin/civicfg');
+    self::assertFileDoesNotExist($this->registryDir . '/installations.json');
   }
 
-  public function testUninstallRemovesOnlyManagedWrappersAndHelpers(): void {
+  public function testNonComposerProjectStillGetsOneGlobalLauncher(): void {
+    $this->removeTree($this->projectRoot . '/vendor');
+
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'legacy-drupal-site'));
+    $result = $installer->install();
+
+    self::assertTrue($result['ok']);
+    self::assertNull($result['vendor_launcher']);
+    self::assertSame($this->globalBin . '/civicfg', $result['global_launcher']);
+    self::assertFileExists($this->globalBin . '/civicfg');
+  }
+
+  public function testSharedGlobalLauncherSurvivesUntilLastProjectUninstalls(): void {
+    $secondRoot = $this->sandbox . '/project-stage';
+    mkdir($secondRoot . '/vendor/bin', 0775, TRUE);
+    file_put_contents($secondRoot . '/vendor/autoload.php', "<?php\n");
+
+    // Same CiviCRM site-family ID deliberately models a PROD DB copied to
+    // DEV/STAGE. Local project roots must still register independently.
+    $dev = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $stage = new CliInstaller(new CliInstallerTestConfigManager($secondRoot, 'shared-site'));
+
+    self::assertTrue($dev->install()['ok']);
+    self::assertTrue($stage->install()['ok']);
+
+    $registry = json_decode((string) file_get_contents($this->registryDir . '/installations.json'), TRUE);
+    self::assertCount(2, $registry['sites']);
+    self::assertFileExists($this->globalBin . '/civicfg');
+
+    $devResult = $dev->uninstall();
+    self::assertTrue($devResult['ok']);
+    self::assertFileDoesNotExist($this->projectRoot . '/vendor/bin/civicfg');
+    self::assertFileExists($secondRoot . '/vendor/bin/civicfg');
+    self::assertFileExists($this->globalBin . '/civicfg');
+
+    $stageResult = $stage->uninstall();
+    self::assertTrue($stageResult['ok']);
+    self::assertFileDoesNotExist($secondRoot . '/vendor/bin/civicfg');
+    self::assertFileDoesNotExist($this->globalBin . '/civicfg');
+    self::assertFileDoesNotExist($this->registryDir . '/installations.json');
+  }
+
+  public function testLegacyManagedAliasesAreRemovedButUnrelatedFilesRemain(): void {
     mkdir($this->projectRoot . '/bin', 0775, TRUE);
+    file_put_contents($this->projectRoot . '/bin/ce', "#!/usr/bin/env bash\n# Managed by Configuration Manager extension\n");
     file_put_contents($this->projectRoot . '/bin/custom-tool', 'do not remove');
 
-    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot));
-    $installer->install();
-    $result = $installer->uninstall();
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $result = $installer->install();
 
     self::assertTrue($result['ok']);
-    self::assertFileDoesNotExist($this->projectRoot . '/bin/civicfg');
-    self::assertFileDoesNotExist($this->projectRoot . '/bin/civicfg-env');
+    self::assertFileDoesNotExist($this->projectRoot . '/bin/ce');
     self::assertFileExists($this->projectRoot . '/bin/custom-tool');
+    self::assertContains($this->projectRoot . '/bin/ce', $result['removed_legacy']);
   }
 
   private function removeTree(string $path): void {
@@ -102,9 +191,11 @@ final class CliInstallerTest extends TestCase {
 
 final class CliInstallerTestConfigManager extends ConfigManager {
   private string $projectRoot;
+  private string $siteId;
 
-  public function __construct(string $projectRoot) {
+  public function __construct(string $projectRoot, string $siteId) {
     $this->projectRoot = $projectRoot;
+    $this->siteId = $siteId;
   }
 
   public function getProjectRoot(): string {
@@ -112,6 +203,6 @@ final class CliInstallerTestConfigManager extends ConfigManager {
   }
 
   public function getSiteIdentifier(): string {
-    return 'civicfg-test-site';
+    return $this->siteId;
   }
 }

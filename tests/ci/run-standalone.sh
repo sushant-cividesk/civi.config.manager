@@ -165,7 +165,7 @@ compose exec -T -u www-data app sh -lc '
   cv api4 ConfigManager.status --out=json
   cv api4 ConfigManager.listTypes --out=json
   cv api4 ConfigManager.validate --out=json
-  /var/www/html/ext/civi.config.manager/bin/cval
+  /var/www/html/ext/civi.config.manager/bin/civicfg validate
 ' | tee "${QA_ARTIFACT_DIR}/api-cli-smoke.log"
 
 compose logs --no-color app > "${QA_ARTIFACT_DIR}/app-runtime.log"

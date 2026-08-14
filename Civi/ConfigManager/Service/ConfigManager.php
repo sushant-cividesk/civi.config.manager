@@ -58,6 +58,42 @@ class ConfigManager {
     return 'civicfg-' . substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20, 12);
   }
 
+  public function confirmIdentityAlias(string $providerKey, string $oldConfigKey, string $newConfigKey): array {
+    $providerKey = trim($providerKey);
+    $oldConfigKey = trim($oldConfigKey);
+    $newConfigKey = trim($newConfigKey);
+    if ($providerKey === '' || $oldConfigKey === '' || $newConfigKey === '') {
+      throw new \InvalidArgumentException('Provider key, old config key, and new config key are required.');
+    }
+    if ($oldConfigKey === $newConfigKey) {
+      throw new \InvalidArgumentException('Identity alias requires two different configuration keys.');
+    }
+    $prefix = $providerKey . '|';
+    if (strpos($oldConfigKey, $prefix) !== 0 || strpos($newConfigKey, $prefix) !== 0) {
+      throw new \InvalidArgumentException('Identity alias keys must belong to the supplied configuration provider.');
+    }
+
+    $oldIdentity = [
+      'provider_key' => $providerKey,
+      'config_key' => $oldConfigKey,
+      'identity_hash' => hash('sha256', $oldConfigKey),
+    ];
+    $newIdentity = [
+      'provider_key' => $providerKey,
+      'config_key' => $newConfigKey,
+      'identity_hash' => hash('sha256', $newConfigKey),
+    ];
+    (new StateStore())->confirmAlias($oldIdentity, $newIdentity);
+
+    return [
+      'ok' => TRUE,
+      'provider_key' => $providerKey,
+      'old_config_key' => $oldConfigKey,
+      'new_config_key' => $newConfigKey,
+      'message' => 'Configuration identity rename confirmed. The alias will preserve baseline continuity after YAML is re-exported.',
+    ];
+  }
+
   public function getProjectRoot(): string {
     foreach ($this->getProjectRootCandidates() as $candidate) {
       if ($candidate !== '' && is_dir($candidate)) {
@@ -230,6 +266,7 @@ class ConfigManager {
       'sync_dir' => $dir,
       'exists' => $exists,
       'writable' => $writable,
+      'cli' => (new CliInstaller($this))->status(),
       'types' => $types,
     ];
   }
@@ -355,6 +392,7 @@ class ConfigManager {
       'planned' => [],
       'delete_planned' => [],
       'skipped' => [],
+      'warnings' => [],
       'errors' => [],
       'message' => NULL,
     ];
@@ -435,6 +473,28 @@ class ConfigManager {
       }
     }
 
+    if (!$dryRun && empty($summary['errors'])) {
+      try {
+        $stateManager = new ConfigStateManager();
+        foreach ($successfulHandlers as $handler) {
+          $exportedForHandler = [];
+          foreach ($queue as $file) {
+            if (($file['type'] ?? '') !== $handler->getType()) {
+              continue;
+            }
+            $exportedForHandler[] = [
+              'filename' => (string) $file['filename'],
+              'data' => (array) $file['data'],
+            ];
+          }
+          $stateManager->acceptExportedBaseline($handler, $exportedForHandler, 'export');
+        }
+      }
+      catch (\Throwable $e) {
+        $summary['warnings'][] = ['type' => 'state', 'message' => 'YAML export succeeded, but local baseline state could not be updated: ' . $e->getMessage()];
+      }
+    }
+
     $summary['ok'] = empty($summary['errors']);
     if ($dryRun && !$summary['planned'] && !$summary['errors']) {
       $summary['message'] = 'No export changes. YAML files already match the active database configuration.';
@@ -470,6 +530,22 @@ class ConfigManager {
       foreach ((array) ($diff['missing_in_db'] ?? []) as $filename) {
         $filename = (string) $filename;
         if ($filename === '') {
+          continue;
+        }
+        $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+        if ($this->isIgnoredPath($relative)) {
+          continue;
+        }
+        $stale[$relative] = [
+          'directory' => $handler->getDirectory(),
+          'filename' => $filename,
+          'relative' => $relative,
+        ];
+      }
+      foreach ((array) ($diff['renamed'] ?? []) as $rename) {
+        $filename = (string) ($rename['from'] ?? '');
+        $targetFilename = (string) ($rename['to'] ?? '');
+        if ($filename === '' || $targetFilename === '' || $filename === $targetFilename) {
           continue;
         }
         $relative = $directory === '' ? $filename : $directory . '/' . $filename;
@@ -598,6 +674,20 @@ class ConfigManager {
   public function diff(array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
+    $stateManager = NULL;
+    try {
+      $stateManager = new ConfigStateManager();
+      if (!$typeFilter) {
+        // A full scan replaces the rebuildable object-state index. Filtered
+        // scans update only what they inspect and leave other provider rows.
+        $stateManager->rebuildObjectState();
+      }
+    }
+    catch (\Throwable $e) {
+      $result['state_warning'] = 'Configuration diff is available, but local state/baseline tracking could not be initialized: ' . $e->getMessage();
+      $stateManager = NULL;
+    }
+
     foreach ($this->getHandlers() as $handler) {
       $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
       $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
@@ -610,7 +700,17 @@ class ConfigManager {
         $files = $this->applyHandlerFileFilter($handler, $files);
         $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
         $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), $handler->export());
-        $item = $this->filterIgnoredDiffItem($handler->diffFromExports($exported, $files), $handler->getDirectory());
+        $item = $handler->diffFromExports($exported, $files);
+        if ($stateManager !== NULL) {
+          try {
+            $item = $stateManager->enrichDiff($handler, $exported, $files, $item);
+          }
+          catch (\Throwable $e) {
+            $result['state_warning'] = 'Configuration diff succeeded, but local state/baseline tracking could not be updated: ' . $e->getMessage();
+            $stateManager = NULL;
+          }
+        }
+        $item = $this->filterIgnoredDiffItem($item, $handler->getDirectory());
         if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files'])) {
           $result['items'][] = $item;
         }
@@ -856,6 +956,17 @@ class ConfigManager {
       $handlers[] = $handler;
     }
 
+    $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage);
+    if ($possibleRenames) {
+      $result['possible_renames'] = $possibleRenames;
+      if (!$dryRun && $yes) {
+        $result['ok'] = FALSE;
+        $result['applied'] = FALSE;
+        $result['message'] = 'Import stopped because possible configuration renames require review. Confirm the intended identity change, align YAML with the accepted identity, and preview the import again.';
+        return $result;
+      }
+    }
+
     if (!$dryRun && $yes) {
       // Apply create/update first for all types, then delete missing records in
       // reverse order. This avoids deleting a parent SavedSearch while a child
@@ -885,6 +996,20 @@ class ConfigManager {
         }
         $this->setHandlerImportPhase($handler, TRUE, TRUE);
       }
+      if (!empty($result['ok'])) {
+        try {
+          $stateManager = new ConfigStateManager();
+          foreach ($handlers as $handler) {
+            $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
+            $files = $this->applyHandlerFileFilter($handler, $files);
+            $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+            $stateManager->acceptYamlBaseline($handler, $files, 'import');
+          }
+        }
+        catch (\Throwable $e) {
+          $result['state_warning'] = 'Import was applied successfully, but local baseline state could not be updated: ' . $e->getMessage();
+        }
+      }
       $result['summary_message'] = $this->buildImportSummaryMessage($result);
       return $result;
     }
@@ -902,6 +1027,26 @@ class ConfigManager {
     }
     $result['summary_message'] = $this->buildImportSummaryMessage($result);
     return $result;
+  }
+
+  private function findPossibleRenameCandidates(array $handlers, YamlFileStorage $storage): array {
+    $candidates = [];
+    foreach ($handlers as $handler) {
+      $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
+      $files = $this->applyHandlerFileFilter($handler, $files);
+      $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+      $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), $handler->export());
+      $diff = $handler->diffFromExports($exported, $files);
+      foreach ((array) ($diff['possible_renames'] ?? []) as $candidate) {
+        if (!is_array($candidate)) {
+          continue;
+        }
+        $candidate['type'] = $handler->getType();
+        $candidate['label'] = $handler->getLabel();
+        $candidates[] = $candidate;
+      }
+    }
+    return $candidates;
   }
 
   private function buildImportSummaryMessage(array $result): string {

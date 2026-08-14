@@ -38,17 +38,22 @@ spl_autoload_register(function ($class) {
 
 
 /**
- * Runtime/install helper for site identity and optional project-level CLI wrappers.
+ * Runtime/install helper for local state schema and managed CLI launchers.
  */
 function _configmanager_lifecycle(bool $installCli = TRUE, bool $removeCli = FALSE): void {
   try {
     $installer = new \Civi\ConfigManager\Service\CliInstaller();
     $installer->ensureSiteIdentifier();
+    $stateStore = new \Civi\ConfigManager\Service\StateStore();
     if ($removeCli) {
       $installer->uninstall();
+      $stateStore->dropSchema();
     }
-    elseif ($installCli) {
-      $installer->install();
+    else {
+      $stateStore->ensureSchema();
+      if ($installCli) {
+        $installer->install();
+      }
     }
   }
   catch (\Throwable $e) {
@@ -135,7 +140,6 @@ function configmanager_civicrm_navigationMenu(&$menu) {
  */
 function configmanager_civicrm_check(&$messages) {
   try {
-    _configmanager_lifecycle(TRUE, FALSE);
     $manager = new \Civi\ConfigManager\Service\ConfigManager();
     $health = $manager->getHealth();
     $url = \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync', TRUE, NULL, FALSE, TRUE);

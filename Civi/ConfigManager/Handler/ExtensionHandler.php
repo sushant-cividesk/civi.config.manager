@@ -8,6 +8,7 @@ class ExtensionHandler extends AbstractHandler {
   private bool $deleteMissingEnabled = TRUE;
   private ?array $discoveredEntityDefinitions = NULL;
   private array $runtimeTypeFilters = [];
+  private array $identityRowsByDefinition = [];
 
   public function getType(): string { return 'extensions'; }
   public function getLabel(): string { return 'Extensions'; }
@@ -101,6 +102,117 @@ class ExtensionHandler extends AbstractHandler {
     return $files;
   }
 
+  /**
+   * Report generic contributed-extension configuration coverage.
+   *
+   * This is discovery evidence for QA. A FULL result means every discovered
+   * provider is write-capable and has verified safe identities in the current
+   * fixture; end-to-end round-trip tests remain authoritative.
+   */
+  public function getCompatibilityReport(): array {
+    $statuses = [];
+    try {
+      $statuses = (array) \CRM_Extension_System::singleton()->getManager()->getStatuses();
+    }
+    catch (\Throwable $e) {
+      return [];
+    }
+
+    $settings = $this->discoverSettingsByExtension();
+    $definitions = [];
+    foreach ($this->discoverEntityDefinitions() as $definition) {
+      $definitions[(string) $definition['extension']][] = $definition;
+    }
+
+    $report = [];
+    foreach ($statuses as $extensionKey => $status) {
+      $extensionKey = (string) $extensionKey;
+      $status = strtolower((string) $status);
+      if (!in_array($status, ['installed', 'enabled'], TRUE)) {
+        continue;
+      }
+      $providers = [];
+      $safeProviders = 0;
+      $unsafeProviders = 0;
+      $unverifiedProviders = 0;
+      $readOnly = 0;
+      $errorProviders = 0;
+      foreach ((array) ($definitions[$extensionKey] ?? []) as $definition) {
+        $definition = (array) $definition;
+        $importable = !$this->isNonImportableDefinition($definition);
+        $identityRows = [];
+        $identitySafety = 'UNVERIFIED';
+        $discoveryError = '';
+        try {
+          $identityRows = $this->identityRowsForDefinition($definition);
+          $identitySafety = $this->identitySafetyForRows($identityRows, $definition);
+        }
+        catch (\Throwable $e) {
+          $identitySafety = 'ERROR';
+          $discoveryError = $e->getMessage();
+          $errorProviders++;
+        }
+        $provider = [
+          'api' => (string) ($definition['api'] ?? ''),
+          'entity' => (string) ($definition['entity'] ?? ''),
+          'list_action' => (string) ($definition['list_action'] ?? 'get'),
+          'match_fields' => array_values((array) ($definition['match_fields'] ?? [])),
+          'can_create' => !empty($definition['can_create']),
+          'can_update' => !empty($definition['can_update']),
+          'can_delete' => !empty($definition['can_delete']),
+          'importable' => $importable,
+          'records' => count($identityRows),
+          'identity_safety' => $identitySafety,
+        ];
+        if ($discoveryError !== '') {
+          $provider['error'] = $discoveryError;
+        }
+        $providers[] = $provider;
+        if ($identitySafety === 'ERROR') {
+          continue;
+        }
+        if (!$importable) {
+          $readOnly++;
+        }
+        elseif ($identitySafety === 'SAFE') {
+          $safeProviders++;
+        }
+        elseif ($identitySafety === 'UNSAFE') {
+          $unsafeProviders++;
+        }
+        else {
+          $unverifiedProviders++;
+        }
+      }
+      $settingsCount = count((array) ($settings[$extensionKey] ?? []));
+      if ($errorProviders > 0) {
+        $classification = 'ERROR';
+      }
+      elseif (!$providers && $settingsCount === 0) {
+        $classification = 'NO_PORTABLE_CONFIG';
+      }
+      elseif ($settingsCount === 0 && $safeProviders === 0 && $unverifiedProviders === 0 && ($readOnly > 0 || $unsafeProviders > 0)) {
+        $classification = 'UNSUPPORTED';
+      }
+      elseif ($readOnly > 0 || $unsafeProviders > 0 || $unverifiedProviders > 0) {
+        $classification = 'PARTIAL';
+      }
+      else {
+        $classification = 'FULL';
+      }
+      $report[$extensionKey] = [
+        'extension' => $extensionKey,
+        'extension_status' => $status,
+        'classification' => $classification,
+        'classification_basis' => 'discovery',
+        'settings_count' => $settingsCount,
+        'providers' => $providers,
+      ];
+    }
+    ksort($report, SORT_NATURAL | SORT_FLAG_CASE);
+    return $report;
+  }
+
   public function validate(array $items): array {
     $errors = [];
     $warnings = [];
@@ -156,13 +268,17 @@ class ExtensionHandler extends AbstractHandler {
           ];
           continue;
         }
+        $definition = $definitions[$definitionKey];
         $row = (array) ($entry['item']['item'] ?? []);
         $identityField = (string) ($entry['item']['identity_field'] ?? '');
         if ($identityField === '' || empty($row[$identityField])) {
-          $identityField = (string) ($this->identityField($row) ?? '');
+          $identityField = (string) ($this->identityField($row, $definition) ?? '');
         }
         if ($identityField === '') {
           $errors[] = ['file' => $filename, 'message' => sprintf('Bundled extension config for %s %s is missing a stable identity field.', $entry['api'], $entry['entity'])];
+        }
+        elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
+          $warnings[] = ['file' => $filename, 'message' => sprintf('Bundled extension config for %s %s does not have a unique stable identity and will not be written automatically.', $entry['api'], $entry['entity'])];
         }
       }
     }
@@ -384,16 +500,25 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function deleteMissingBundledConfig(array $definition, array $desiredKeys, bool $dryRun, array &$summary): void {
-    foreach ($this->fetchEntityRows($definition) as $existing) {
-      $existing = (array) $existing;
+    $rows = array_values(array_map(fn($row) => (array) $row, $this->fetchEntityRows($definition)));
+    foreach ($rows as $existing) {
       if (empty($existing['id'])) {
         continue;
       }
-      $identityField = $this->identityField($existing);
+      $identityField = $this->identityField($existing, $definition);
       if ($identityField === NULL) {
         continue;
       }
       $identity = (string) $existing[$identityField];
+      $confidence = $this->identityConfidence($identityField, $definition);
+      if ($confidence === 'AMBIGUOUS' || !$this->identityValueIsUnique($rows, $identityField, $identity)) {
+        $summary['config']['skip']++;
+        $summary['warnings'][] = [
+          'name' => $identity,
+          'message' => sprintf('Skipped delete for extension config %s %s because %s=%s is not a unique stable identity.', $definition['api'], $definition['entity'], $identityField, $identity),
+        ];
+        continue;
+      }
       if (isset($desiredKeys[$this->identityKey($identityField, $identity)])) {
         continue;
       }
@@ -469,11 +594,18 @@ class ExtensionHandler extends AbstractHandler {
     }
     $row = (array) ($item['item'] ?? []);
     $identityField = (string) ($item['identity_field'] ?? '');
+    $definition = $definitions[$definitionKey];
     if ($identityField === '' || empty($row[$identityField])) {
-      $identityField = (string) ($this->identityField($row) ?? '');
+      $identityField = (string) ($this->identityField($row, $definition) ?? '');
     }
     if ($identityField === '') {
       $errors[] = ['file' => $filename, 'message' => sprintf('Extension config item for %s %s is missing a stable identity field.', $api, $entity)];
+    }
+    elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
+      $warnings[] = [
+        'file' => $filename,
+        'message' => sprintf('Extension config %s %s does not have a unique stable identity for %s. Export/diff are allowed, but automatic create/update/delete is blocked until the provider supplies a stable key.', $api, $entity, $identityField),
+      ];
     }
   }
 
@@ -513,13 +645,21 @@ class ExtensionHandler extends AbstractHandler {
     $row = (array) ($configItem['item'] ?? $configItem);
     $identityField = (string) ($configItem['identity_field'] ?? ($configEntry['identity_field'] ?? ''));
     if ($identityField === '' || empty($row[$identityField])) {
-      $identityField = (string) ($this->identityField($row) ?? '');
+      $identityField = (string) ($this->identityField($row, $definition) ?? '');
     }
     if ($identityField === '') {
       $summary['errors'][] = ['file' => $filename, 'message' => sprintf('Extension config for %s %s is missing a stable identity field.', $api, $entity)];
       return;
     }
     $identity = (string) $row[$identityField];
+    if ($this->runtimeIdentityConfidence($definition, $identityField, $identity) === 'AMBIGUOUS') {
+      $summary['config']['skip']++;
+      $summary['warnings'][] = [
+        'file' => $filename,
+        'message' => sprintf('Skipped automatic write for %s %s because %s=%s is not a unique stable cross-environment identity.', $api, $entity, $identityField, $identity),
+      ];
+      return;
+    }
     $desiredConfigKeys[$definitionKey][$this->identityKey($identityField, $identity)] = TRUE;
 
     if ($this->importWritesEnabled) {
@@ -571,6 +711,7 @@ class ExtensionHandler extends AbstractHandler {
         'item' => [
           'name' => $item['name'] ?? NULL,
           'identity_field' => $item['identity_field'] ?? NULL,
+          'identity_confidence' => $item['identity_confidence'] ?? NULL,
           'dependencies' => $item['dependencies'] ?? [],
           'item' => (array) ($item['item'] ?? []),
         ],
@@ -639,17 +780,20 @@ class ExtensionHandler extends AbstractHandler {
       if (!$this->definitionMatchesRuntimeFilter($definition)) {
         continue;
       }
+
+      $providerRows = $this->identityRowsForDefinition($definition);
+
       $usedNames = [];
-      foreach ($this->fetchEntityRows($definition) as $row) {
-        $row = $this->cleanEntityRowForExport((array) $row, $definition);
-        if ($this->isPackagedExtensionAssetRow($row, $definition)) {
-          continue;
-        }
-        $identityField = $this->identityField($row);
+      foreach ($providerRows as $row) {
+        $identityField = $this->identityField($row, $definition);
         if ($identityField === NULL) {
           continue;
         }
         $identity = (string) $row[$identityField];
+        $identityConfidence = $this->identityConfidence($identityField, $definition);
+        if ($identityConfidence !== 'AMBIGUOUS' && !$this->identityValueIsUnique($providerRows, $identityField, $identity)) {
+          $identityConfidence = 'AMBIGUOUS';
+        }
         $safeExtension = $this->safeName($extensionKey);
         $filename = $safeExtension . '/' . $this->safeName((string) $definition['api']) . '/' . $this->safeName((string) $definition['entity']) . '/' . $this->uniqueConfigFileName($identity, $usedNames) . '.yml';
         $dependencies = $this->dependenciesForEntityRow($row, $definition);
@@ -663,6 +807,12 @@ class ExtensionHandler extends AbstractHandler {
             'entity' => (string) $definition['entity'],
             'name' => $identity,
             'identity_field' => $identityField,
+            'identity_confidence' => $identityConfidence,
+            'capabilities' => [
+              'create' => !empty($definition['can_create']) && $identityConfidence !== 'AMBIGUOUS',
+              'update' => !empty($definition['can_update']) && $identityConfidence !== 'AMBIGUOUS',
+              'delete' => !empty($definition['can_delete']) && $identityConfidence !== 'AMBIGUOUS',
+            ],
             'dependencies' => $dependencies,
             'item' => $row,
           ],
@@ -849,12 +999,14 @@ class ExtensionHandler extends AbstractHandler {
       if (!class_exists($class) || !$this->api4EntityUsable($entity)) {
         continue;
       }
+      $info = $this->api4Info($entity);
       $definitions[] = [
         'extension' => $extensionKey,
         'api' => 'api4',
         'entity' => $entity,
         'class' => $class,
         'fields' => $this->api4Fields($entity),
+        'match_fields' => array_values(array_filter((array) ($info['match_fields'] ?? []), fn($field) => (string) $field !== 'id')),
         'can_create' => is_callable([$class, 'create']),
         'can_update' => is_callable([$class, 'update']),
         'can_delete' => is_callable([$class, 'delete']),
@@ -1024,6 +1176,20 @@ class ExtensionHandler extends AbstractHandler {
   }
 
 
+  private function api4Info(string $entity): array {
+    $class = 'Civi\\Api4\\' . $entity;
+    if (!class_exists($class) || !method_exists($class, 'getInfo')) {
+      return [];
+    }
+    try {
+      $info = $class::getInfo();
+      return is_array($info) ? $info : [];
+    }
+    catch (\Throwable $e) {
+      return [];
+    }
+  }
+
   private function api4Fields(string $entity): array {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class) || !method_exists($class, 'getFields')) {
@@ -1046,17 +1212,23 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function fetchEntityRows(array $definition): array {
-    if ($definition['api'] === 'api4') {
-      $class = (string) $definition['class'];
+    $api = (string) ($definition['api'] ?? '');
+    $entity = (string) ($definition['entity'] ?? '');
+
+    if ($api === 'api4') {
+      $class = (string) ($definition['class'] ?? '');
+      if ($class === '' || !class_exists($class)) {
+        throw new \RuntimeException('Contributed configuration provider is unavailable: API4 ' . $entity . '.');
+      }
       try {
         return (array) $class::get(FALSE)->addSelect('*')->execute();
       }
       catch (\Throwable $e) {
-        return [];
+        throw new \RuntimeException('Could not read contributed configuration provider API4 ' . $entity . ': ' . $e->getMessage(), 0, $e);
       }
     }
+
     try {
-      $entity = (string) $definition['entity'];
       $action = (string) ($definition['list_action'] ?? 'get');
       $params = ['sequential' => 1];
       if ($action === 'get') {
@@ -1082,14 +1254,17 @@ class ExtensionHandler extends AbstractHandler {
             }
           }
           catch (\Throwable $e) {
-            // Keep the collection row if detailed hydration is unavailable.
+            throw new \RuntimeException('Could not hydrate contributed configuration provider API3 ' . $entity . '.' . $action . ' row ' . (string) $row['id'] . ' through get: ' . $e->getMessage(), 0, $e);
           }
         }
       }
       return array_values($rows);
     }
     catch (\Throwable $e) {
-      return [];
+      if ($e instanceof \RuntimeException && strpos($e->getMessage(), 'Could not hydrate contributed configuration provider') === 0) {
+        throw $e;
+      }
+      throw new \RuntimeException('Could not read contributed configuration provider API3 ' . $entity . '.' . (string) ($definition['list_action'] ?? 'get') . ': ' . $e->getMessage(), 0, $e);
     }
   }
 
@@ -1127,12 +1302,9 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function stripRuntime(array $row): array {
+    // Remove only known top-level runtime metadata. Nested fields with the same
+    // names may be genuine contributed-extension configuration and must remain.
     unset($row['id'], $row['created_date'], $row['modified_date'], $row['last_modified'], $row['created_id'], $row['modified_id']);
-    foreach ($row as $key => $value) {
-      if (is_array($value)) {
-        $row[$key] = $this->stripRuntime($value);
-      }
-    }
     return $row;
   }
 
@@ -1146,13 +1318,109 @@ class ExtensionHandler extends AbstractHandler {
     return $row;
   }
 
-  private function identityField(array $row): ?string {
-    foreach (['name', 'title', 'label', 'workflow_name', 'machine_name', 'key'] as $field) {
+  private function identityField(array $row, array $definition = []): ?string {
+    foreach ((array) ($definition['match_fields'] ?? []) as $field) {
+      $field = (string) $field;
+      if ($field !== 'id' && array_key_exists($field, $row) && is_scalar($row[$field]) && (string) $row[$field] !== '') {
+        return $field;
+      }
+    }
+    foreach (['key', 'machine_name', 'name', 'workflow_name', 'name_a_b'] as $field) {
+      if (!empty($row[$field]) && is_scalar($row[$field])) {
+        return $field;
+      }
+    }
+    // Weak identities are still useful for export/diff visibility, but imports
+    // are blocked unless the provider exposes a stronger stable key.
+    foreach (['title', 'label'] as $field) {
       if (!empty($row[$field]) && is_scalar($row[$field])) {
         return $field;
       }
     }
     return NULL;
+  }
+
+  private function identityConfidence(string $field, array $definition = []): string {
+    if (in_array($field, array_map('strval', (array) ($definition['match_fields'] ?? [])), TRUE)) {
+      return 'API_VERIFIED';
+    }
+    return in_array(strtolower($field), ['key', 'machine_name', 'name', 'workflow_name', 'name_a_b'], TRUE)
+      ? 'DISCOVERED_UNIQUE'
+      : 'AMBIGUOUS';
+  }
+
+  private function identityValueIsUnique(array $rows, string $field, string $identity): bool {
+    $matches = 0;
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      if (array_key_exists($field, $row) && is_scalar($row[$field]) && (string) $row[$field] === $identity) {
+        $matches++;
+        if ($matches > 1) {
+          return FALSE;
+        }
+      }
+    }
+    return $matches === 1;
+  }
+
+  private function runtimeIdentityConfidence(array $definition, string $field, string $identity): string {
+    $confidence = $this->identityConfidence($field, $definition);
+    if ($confidence === 'AMBIGUOUS') {
+      return $confidence;
+    }
+    return $this->identityValueIsUnique($this->identityRowsForDefinition($definition), $field, $identity)
+      ? $confidence
+      : 'AMBIGUOUS';
+  }
+
+  /**
+   * Return cleaned portable rows once per provider for identity checks.
+   *
+   * Validation/import can inspect many YAML items for the same provider. Cache
+   * the provider collection for the lifetime of this handler so uniqueness
+   * checks do not repeatedly call API3/API4.
+   */
+  private function identityRowsForDefinition(array $definition): array {
+    $key = $this->definitionKey(
+      (string) ($definition['extension'] ?? ''),
+      (string) ($definition['api'] ?? ''),
+      (string) ($definition['entity'] ?? '')
+    );
+    if (array_key_exists($key, $this->identityRowsByDefinition)) {
+      return $this->identityRowsByDefinition[$key];
+    }
+
+    $rows = [];
+    foreach ($this->fetchEntityRows($definition) as $row) {
+      $row = $this->cleanEntityRowForExport((array) $row, $definition);
+      if (!$this->isPackagedExtensionAssetRow($row, $definition)) {
+        $rows[] = $row;
+      }
+    }
+    $this->identityRowsByDefinition[$key] = array_values($rows);
+    return $this->identityRowsByDefinition[$key];
+  }
+
+  /**
+   * Summarize whether current provider rows have safe cross-environment keys.
+   */
+  private function identitySafetyForRows(array $rows, array $definition): string {
+    if (!$rows) {
+      return 'UNVERIFIED';
+    }
+
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      $field = $this->identityField($row, $definition);
+      if ($field === NULL || $this->identityConfidence($field, $definition) === 'AMBIGUOUS') {
+        return 'UNSAFE';
+      }
+      if (!$this->identityValueIsUnique($rows, $field, (string) $row[$field])) {
+        return 'UNSAFE';
+      }
+    }
+
+    return 'SAFE';
   }
 
   private function findExistingEntityRow(array $definition, string $identityField, string $identity): ?array {
@@ -1175,7 +1443,7 @@ class ExtensionHandler extends AbstractHandler {
       return NULL;
     }
     catch (\Throwable $e) {
-      return NULL;
+      throw new \RuntimeException('Could not look up existing contributed configuration provider API3 ' . (string) $definition['entity'] . ': ' . $e->getMessage(), 0, $e);
     }
   }
 

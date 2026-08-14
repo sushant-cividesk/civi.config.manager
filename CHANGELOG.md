@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.0-alpha56-core
+
+- Continued from the complete beta2 + alpha55 codebase while replacing development-only identity/fingerprint internals before public release.
+- Reworked configuration matching around semantic `config_key` identities with explicit identity confidence and safe-write gating instead of treating filenames or local database IDs as authoritative identities.
+- Replaced SHA-1/type-collapsing comparison fingerprints with deterministic, type-preserving, versioned SHA-256 canonical fingerprints.
+- Added local Configuration Manager state tables for rebuildable object scan state, accepted canonical baselines, and operator-confirmed identity aliases; YAML remains the portable source of truth.
+- Added baseline-aware drift states and three-way field analysis for active drift, YAML changes, synchronized changes, non-conflicting divergence, and true conflicts.
+- Added conservative machine-identity rename suggestions and an API4 action for explicitly confirming reviewed identity aliases; renames are never auto-applied.
+- Expanded `civicfg_entityDefinitions()` metadata with exact runtime fields, semantic API4 reference fields, ordered/unordered collection metadata, and create/update/delete capabilities.
+- Tightened generic contributed-extension writes so weak `title`/`label` identities remain export/diff visible but cannot be automatically created, updated, or deleted.
+- Added contributed-extension compatibility discovery/reporting and broadened full real-fixture QA to the regular DEV/STAGE extension set, while treating extensions with no portable config as a valid classification rather than a test failure.
+- Made contributed-provider reads fail closed: API read/hydration failures are reported as `ERROR` instead of being mistaken for zero records, preventing stale YAML deletion or duplicate creation after a provider read failure.
+- Made declared semantic references fail closed when a local ID cannot resolve to the exact configured stable target key, so environment-local foreign keys never leak into portable YAML.
+- Preserved baseline direction for object deletions and baseline continuity across repeated operator-confirmed renames; duplicate semantic identities remain ambiguous in both diff and local state tracking.
+- Replaced CLI wrapper sprawl with one extension-owned `bin/civicfg`, one optional Composer `vendor/bin/civicfg`, and one ownership-aware global dispatcher that resolves the active extension path at runtime; legacy managed aliases are removed safely.
+- Added multi-project global CLI registry/uninstall behavior, Composer/non-Composer launcher tests, canonical identity/fingerprint/conflict tests, provider capability/reference tests, and updated CLI smoke checks.
+
 ## 0.1.0-alpha55-core
 
 - Continued development from the complete `0.1.0-beta2` codebase without replacing or removing the beta1/beta2 release history.

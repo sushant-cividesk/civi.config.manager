@@ -115,3 +115,24 @@ Automated tests now complement the manual scenarios in this document:
 The full run creates its own database, records, settings, YAML directory, Docker network, and browser fixture. It blocks outbound networking from the application stack, disables PHP mail delivery, verifies that Mailpit received no messages, restores changed settings, deletes fixture records, and removes all Docker volumes after the run.
 
 See `docs/QA_AUTOMATION.md` for commands, current coverage, isolation rules, and the developer test-scenario contract.
+
+
+## Alpha56 semantic identity, state, and CLI tests
+
+Before accepting alpha56 on a real development project, verify:
+
+- Two environments with different numeric database IDs export the same semantic configuration keys and canonical portable values.
+- Renaming only a YAML filename does not appear as delete/create when the semantic key is unchanged.
+- Changing a machine identity produces a possible-rename warning, does not auto-match the records, and blocks a real import while the create/delete pair remains unresolved.
+- `ConfigManager.confirmIdentityAlias` records only a reviewed same-provider identity relationship; re-export/alignment is still required before import.
+- `null`, empty string, integers, numeric strings, booleans, and floats remain distinct in canonical fingerprints.
+- Runtime/sensitive ignore paths remove only the declared path and do not recursively remove same-named nested configuration fields.
+- Ordered lists remain order-sensitive; only declared unordered paths become order-insensitive.
+- Active-only drift, YAML-only change, synchronized change, non-conflicting divergence, and same-field conflict are classified correctly against an accepted baseline.
+- `civicrm_civicfg_object_state` can be cleared and regenerated without losing portable YAML.
+- Successful real export/import advances the baseline; diff/status alone does not.
+- The extension-local `bin/civicfg` is authoritative; Composer sites get at most one managed `vendor/bin/civicfg`; non-Composer sites still work through the global dispatcher.
+- The global dispatcher resolves the current site's extension at runtime, contains no project-specific extension path, never overwrites unrelated files, and remains installed until the last registered project is uninstalled.
+- The contrib compatibility matrix explicitly reports FULL, PARTIAL, NO_PORTABLE_CONFIG, UNSUPPORTED, or ERROR rather than silently treating missing portable config as failure.
+
+The historical Alpha43 project-wrapper expectations above document that alpha's behavior only. Alpha56 intentionally replaces those development-only wrappers before public release.

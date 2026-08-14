@@ -31,12 +31,16 @@ expected:
   settings_ignore_respected: true
   generated_mosaico_base_templates_skipped: true
   full_import_idempotent: true
+  compatibility_classification_explicit: true
+  no_portable_config_is_valid: true
 negative_cases:
   - missing_required_fixture_extension
   - generated_provider_yaml_exported
   - ignored_field_still_reported
   - stale_yaml_left_after_export
   - non_idempotent_import
+  - installed_extension_without_portable_config_is_treated_as_test_failure
+  - unsafe_weak_identity_is_made_importable
 isolation:
   disposable_database: true
   temporary_sync_directory: true

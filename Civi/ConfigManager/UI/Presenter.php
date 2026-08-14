@@ -171,12 +171,27 @@ class Presenter {
     }
     $i = 0;
     foreach ($result['items'] as $item) {
+      $renameByConfigKey = [];
+      foreach ((array) ($item['possible_renames'] ?? []) as $candidate) {
+        if (!is_array($candidate)) {
+          continue;
+        }
+        foreach (['old_config_key', 'new_config_key'] as $keyField) {
+          $configKey = (string) ($candidate[$keyField] ?? '');
+          if ($configKey !== '') {
+            $renameByConfigKey[$configKey] = $candidate;
+          }
+        }
+      }
       foreach (($item['files'] ?? []) as $file) {
         $file['id'] = 'civicfg-diff-' . (++$i);
         $file['type'] = $item['type'] ?? '';
         $file['type_label'] = $item['label'] ?? ($item['type'] ?? '');
         $file['status_label'] = $this->statusLabel((string) ($file['status'] ?? 'changed'));
         $file['plain_status_label'] = $this->plainStatusLabel((string) ($file['status'] ?? 'changed'));
+        $file['sync_state_label'] = $this->syncStateLabel((string) ($file['sync_state'] ?? ''), (string) ($file['merge_state'] ?? ''));
+        $configKey = (string) ($file['config_key'] ?? '');
+        $file['possible_rename'] = $configKey !== '' ? ($renameByConfigKey[$configKey] ?? NULL) : NULL;
         $file['rows'] = [];
         foreach (($file['changes'] ?? []) as $change) {
           $label = $this->humanizeChangePath((string) ($change['path'] ?? 'value'));
@@ -207,7 +222,8 @@ class Presenter {
     foreach ($diffFiles as $file) {
       $status = (string) ($file['status'] ?? 'changed');
       $type = (string) ($file['type'] ?? '');
-      $importable = in_array($type, $this->getImportableTypes(), TRUE);
+      $possibleRename = !empty($file['possible_rename']) && is_array($file['possible_rename']) ? $file['possible_rename'] : NULL;
+      $importable = in_array($type, $this->getImportableTypes(), TRUE) && $possibleRename === NULL;
       $plan[] = [
         'file' => $file['file'] ?? '',
         'path' => $file['path'] ?? '',
@@ -218,10 +234,13 @@ class Presenter {
         'rows' => $file['rows'] ?? [],
         'detail_sentences' => $file['detail_sentences'] ?? [],
         'summary_sentence' => $file['summary_sentence'] ?? '',
+        'possible_rename' => $possibleRename,
         'importable' => $importable,
-        'action' => $this->importActionLabel($status),
+        'action' => $possibleRename ? ts('Review rename') : $this->importActionLabel($status),
         'status_label' => $this->statusLabel($status),
-        'note' => $this->importActionNote($status, $importable),
+        'note' => $possibleRename
+          ? ts('Possible identity rename detected. Configuration Manager will not apply this create/delete pair automatically; review and align the accepted identity first.')
+          : $this->importActionNote($status, $importable),
       ];
     }
     return $plan;
@@ -253,21 +272,63 @@ class Presenter {
     return ts('is in sync');
   }
 
+  private function syncStateLabel(string $state, string $mergeState = ''): string {
+    if ($state === 'ACTIVE_DRIFT') {
+      return ts('Active drift');
+    }
+    if ($state === 'YAML_CHANGE') {
+      return ts('YAML change');
+    }
+    if ($state === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
+      return ts('Conflict');
+    }
+    if ($state === 'BOTH_CHANGED') {
+      return ts('Both changed');
+    }
+    return '';
+  }
+
   private function describeFileChange(array $file): string {
     $status = (string) ($file['status'] ?? 'changed');
     $path = (string) ($file['path'] ?? $file['file'] ?? 'this file');
     $subject = $this->subjectFromFilePath($path, (string) ($file['type_label'] ?? 'Configuration'));
+    $possibleRename = !empty($file['possible_rename']) && is_array($file['possible_rename']) ? $file['possible_rename'] : NULL;
+    if ($possibleRename) {
+      $from = (string) ($possibleRename['from'] ?? '');
+      $to = (string) ($possibleRename['to'] ?? '');
+      return ts('Possible identity rename detected between %1 and %2. Review the identity change explicitly; Configuration Manager will not apply it automatically.', [1 => $from, 2 => $to]);
+    }
+    $syncState = (string) ($file['sync_state'] ?? '');
+    $mergeState = (string) ($file['merge_state'] ?? '');
+    $statePrefix = '';
+    if ($syncState === 'ACTIVE_DRIFT') {
+      $statePrefix = ts('Active CiviCRM changed from the accepted baseline while YAML still matches it.');
+    }
+    elseif ($syncState === 'YAML_CHANGE') {
+      $statePrefix = ts('YAML changed from the accepted baseline while active CiviCRM still matches it.');
+    }
+    elseif ($syncState === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
+      $statePrefix = ts('Conflict: YAML and active CiviCRM changed the same configuration field(s) differently from the accepted baseline.');
+    }
+    elseif ($syncState === 'BOTH_CHANGED' && $mergeState === 'NON_CONFLICTING_DIVERGENCE') {
+      $statePrefix = ts('YAML and active CiviCRM both changed from the accepted baseline, but no same-field conflict was detected.');
+    }
+
     if ($status === 'new_in_db') {
-      return ts('%1 exists in active CiviCRM but has no matching YAML file. Export will create this YAML file.', [1 => $subject]);
+      return trim($statePrefix . ' ' . ts('%1 exists in active CiviCRM but has no matching YAML file. Export will create this YAML file.', [1 => $subject]));
     }
     if ($status === 'missing_in_db') {
-      return ts('%1 exists in YAML but has no matching record in active CiviCRM. Import can create it when supported; export can remove the unmatched YAML.', [1 => $subject]);
+      return trim($statePrefix . ' ' . ts('%1 exists in YAML but has no matching record in active CiviCRM. Import can create it when supported; export can remove the unmatched YAML.', [1 => $subject]));
     }
+
     $details = array_values(array_filter((array) ($file['detail_sentences'] ?? [])));
     if ($details) {
       $first = (string) $details[0];
       $extra = count($details) > 1 ? ' ' . ts('Plus %1 more related change(s).', [1 => count($details) - 1]) : '';
-      return $first . $extra;
+      return trim($statePrefix . ' ' . $first . $extra);
+    }
+    if ($statePrefix !== '') {
+      return $statePrefix;
     }
     return ts('%1 has changes between YAML and active CiviCRM.', [1 => $subject]);
   }

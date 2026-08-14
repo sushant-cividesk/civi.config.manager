@@ -1,0 +1,43 @@
+id: CM-SEMANTIC-IDENTITY-BASELINE
+feature: Semantic cross-environment identity, canonical SHA-256 fingerprints, accepted baselines, and conflict-aware diffing
+level:
+  - unit
+  - integration
+fixtures:
+  factory: disposable API configuration records plus local Configuration Manager state tables
+  records:
+    stable_object:
+      key_fields:
+        - name
+      name: qa_civicfg_identity_<run_id>
+    reference_target:
+      name: qa_civicfg_reference_<run_id>
+steps:
+  - Export a fixture whose numeric database ID differs between two disposable environments and verify the semantic config key remains identical.
+  - Verify canonical SHA-256 fingerprints preserve scalar types, normalize mapping order and line endings, preserve ordered lists, and sort only explicitly unordered paths.
+  - Verify exact runtime and sensitive paths do not affect portable fingerprints while same-named nested configuration remains intact.
+  - Accept a baseline and independently change active CiviCRM and YAML values to exercise ACTIVE_DRIFT, YAML_CHANGE, SYNCED_CHANGE, and BOTH_CHANGED states.
+  - Change different fields on YAML and active sides and verify non-conflicting divergence; change the same field differently and verify a conflict.
+  - Change only a machine identity and verify Configuration Manager suggests a possible rename without auto-matching or applying it.
+  - Confirm a reviewed same-provider identity alias, align YAML to the accepted identity, and verify baseline continuity.
+expected:
+  semantic_identity_ignores_database_id: true
+  canonical_hash_algorithm: sha256
+  scalar_types_preserved: true
+  three_way_conflicts_detected: true
+  possible_renames_require_review: true
+  object_state_rebuildable: true
+negative_cases:
+  - ambiguous_label_only_identity_attempts_automatic_write
+  - runtime_field_name_is_removed_recursively_without_declared_path
+  - possible_rename_is_applied_without_review
+  - same_field_divergence_is_reported_as_non_conflicting
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  drop_or_clear_test_state: true
+  remove_temporary_files: true

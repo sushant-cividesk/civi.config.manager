@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Civi\ConfigManager\Handler\ExtensionHandler;
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Util\SimpleYaml;
 
@@ -271,28 +272,49 @@ final class CivicfgFullRealFixtures {
         if (!empty($taskList['values'])) {
           $sqltaskFiles = glob($this->syncDir . '/extensions/de.systopia.sqltasks/api3/Sqltask/*.yml') ?: [];
           $this->assertTrue((bool) $sqltaskFiles, 'SQLTasks task configuration must be exported when Sqltask.getalltasks exposes task records.');
+          $listRow = (array) (array_values((array) $taskList['values'])[0] ?? []);
+          if (!empty($listRow['id'])) {
+            $detailResult = civicrm_api3('Sqltask', 'get', ['sequential' => 1, 'id' => $listRow['id']]);
+            $detailRow = (array) (array_values((array) ($detailResult['values'] ?? []))[0] ?? []);
+            $detailOnlyKeys = array_values(array_diff(array_keys($detailRow), array_keys($listRow), [
+              'id', 'created_date', 'modified_date', 'last_modified', 'created_id', 'modified_id',
+            ]));
+            if ($detailOnlyKeys) {
+              $exportedTask = SimpleYaml::parseFile((string) $sqltaskFiles[0]);
+              $exportedRow = (array) ($exportedTask['item'] ?? []);
+              $foundHydratedField = FALSE;
+              foreach ($detailOnlyKeys as $detailKey) {
+                if (array_key_exists((string) $detailKey, $exportedRow)) {
+                  $foundHydratedField = TRUE;
+                  break;
+                }
+              }
+              $this->assertTrue($foundHydratedField, 'SQLTasks export must retain detail fields obtained by hydrating getalltasks rows through Sqltask.get.');
+            }
+          }
         }
       }
       catch (Throwable $e) {
-        $this->results['sqltasks_fixture'][] = 'Sqltask.getalltasks provider check skipped: ' . $e->getMessage();
+        throw new RuntimeException('SQLTasks provider/hydration fixture failed: ' . $e->getMessage(), 0, $e);
       }
     }
 
+    $compatibility = (new ExtensionHandler())->getCompatibilityReport();
     $coverage = [];
     foreach ($expected as $key) {
       if (!in_array($extensionStatuses[$key] ?? '', ['installed', 'enabled'], TRUE)) {
         continue;
       }
       $files = $this->findExtensionYamlFiles($key);
-      if (!$files) {
-        if ($this->allowMissingExtensions) {
-          $coverage[$key] = ['status' => 'skipped', 'reason' => 'No deployable YAML files were produced for this extension.'];
-          continue;
-        }
-        throw new RuntimeException('No deployable YAML was produced for fixture extension: ' . $key);
+      $classification = (string) ($compatibility[$key]['classification'] ?? 'ERROR');
+      if (!in_array($classification, ['FULL', 'PARTIAL', 'NO_PORTABLE_CONFIG', 'UNSUPPORTED'], TRUE)) {
+        throw new RuntimeException('Invalid contrib compatibility classification for ' . $key . ': ' . $classification);
       }
       $coverage[$key] = [
-        'status' => 'covered',
+        'classification' => $classification,
+        'classification_basis' => (string) ($compatibility[$key]['classification_basis'] ?? 'error'),
+        'settings_count' => (int) ($compatibility[$key]['settings_count'] ?? 0),
+        'providers' => array_values((array) ($compatibility[$key]['providers'] ?? [])),
         'yaml_files' => array_values($files),
       ];
     }
@@ -402,7 +424,49 @@ final class CivicfgFullRealFixtures {
   }
 
   private function expectedFixtureExtensionKeys(): array {
-    $raw = getenv('CIVICFG_QA_FIXTURE_EXTENSION_KEYS') ?: 'uk.co.vedaconsulting.mosaico de.systopia.sqltasks org.civicrm.contactlayout org.civicoop.civirules';
+    $default = implode(' ', [
+      'user_dashboard',
+      'search_kit_reports',
+      'legacydedupefinder',
+      'org.civicrm.afform',
+      'civigrant',
+      'civi_case',
+      'civi_campaign',
+      'uk.co.vedaconsulting.mosaico',
+      'org.civicoop.civirules',
+      'mjwshared',
+      'sweetalert',
+      'firewall',
+      'org.civicrm.contactlayout',
+      'com.drastikbydesign.stripe',
+      'nz.co.fuzion.csvimport',
+      'org.civicrm.module.cividiscount',
+      'org.civicrm.recentmenu',
+      'theisland',
+      'org.civicrm.cdntaxreceipts',
+      'org.wikimedia.geocoder',
+      'easycopy',
+      'com.agiliway.civimobileapi',
+      'com.ixiam.modules.reportplus',
+      'com.donordepot.authnetecheck',
+      'de.systopia.donrec',
+      'advimport',
+      'invoicehelper',
+      'org.civicrm.multisite',
+      'formprotection',
+      'com.osseed.eventcalendar',
+      'uk.co.compucorp.membershipextras',
+      'radiobuttons',
+      'com.skvare.cmsuser',
+      'ca.civicrm.contributionrecur',
+      'de.systopia.campaign',
+      'membershipreport',
+      'com.skvare.crontab',
+      'casesummary',
+      'coop.symbiotic.floodcontrol',
+      'de.systopia.sqltasks',
+    ]);
+    $raw = getenv('CIVICFG_QA_FIXTURE_EXTENSION_KEYS') ?: $default;
     return array_values(array_filter(preg_split('/[\s,]+/', trim($raw)) ?: []));
   }
 

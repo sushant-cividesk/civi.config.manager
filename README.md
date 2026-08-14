@@ -6,14 +6,14 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha55-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha56-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
 
 ## Development and beta policy
 
-`0.1.0-alpha55-core` continues development on top of the complete `0.1.0-beta2` codebase. Existing beta releases and their history are preserved; alpha development builds do not replace them. Changes remain incremental and compatibility-aware: preserve existing YAML formats where possible, document behavior changes, include migration/upgrade notes when needed, and do not create a new beta/tag/release until explicitly requested.
+`0.1.0-alpha56-core` continues development on top of the complete beta2 + alpha55 codebase. The extension is still pre-publication, so alpha56 deliberately tightens internal identity/state formats rather than carrying development-only compatibility shims. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
 
 ## Purpose
 
@@ -128,19 +128,13 @@ When this setting is present, the UI shows the Sync Directory as locked and does
 
 ## CLI terminal access
 
-After install/enable, the extension installs managed wrappers into project/shared `bin` directories and writes `civicfg-env` / `civicfg-path` helpers. For beta testing, use project-level PATH rather than editing shell profiles automatically:
+The extension owns one real CLI implementation at `bin/civicfg`. On install/enable it may create a single Composer launcher at `<vendor>/bin/civicfg` and one shared global `civicfg` dispatcher. The global dispatcher contains no project-specific extension path; it uses `cv` from `PATH` or a sibling Composer `vendor/bin/cv` launcher to bootstrap the current site and resolves the enabled extension path at runtime. Drupal 7/non-Composer sites therefore do not require a `vendor/bin` directory.
 
-```bash
-. /var/www/html/bin/civicfg-env
-command -v civicfg
-civicfg status
-```
-
-For a permanent developer setup, add the project/shared bin directory to the shell profile or project `.envrc`. See `docs/CLI.md`.
+Configuration Manager does not create project-bin aliases, `/var/www/html/bin` copies, or shell PATH helper files. Existing non-managed `civicfg` commands are never overwritten. A local ownership registry lets several projects share the global dispatcher safely; uninstall removes the global dispatcher only after the final registered project is removed. See `docs/CLI.md`.
 
 ## API4 and CLI automation
 
-The UI and CLI wrappers use the same API4 backend.
+The UI and CLI use the same API4 backend.
 
 ```bash
 cv api4 ConfigManager.status
@@ -153,30 +147,19 @@ cv api4 ConfigManager.import dryRun=1 type=option-groups
 cv api4 ConfigManager.import dryRun=0 yes=1 type=option-groups
 ```
 
-Preferred CLI commands are available under the extension `bin/` directory:
-
-| Main command | Alias | Purpose |
-|---|---|---|
-| `bin/config-export` | `bin/ce` | Export active CiviCRM configuration to YAML. |
-| `bin/config-import` | `bin/ci` | Preview or apply YAML configuration import. |
-| `bin/config-diff` | `bin/cdf` | Show YAML vs active CiviCRM differences. |
-| `bin/config-validate` | `bin/cval` | Validate YAML and dependency safety. |
-| `bin/civicfg` | `bin/cvcfg` | General wrapper for all operations. |
-
-Examples:
+Preferred CLI usage:
 
 ```bash
-ext/civi.config.manager/bin/ce --write
-ext/civi.config.manager/bin/ce --type searchkit-saved-searches --write
-ext/civi.config.manager/bin/ci --dry-run
-ext/civi.config.manager/bin/ci --yes
-ext/civi.config.manager/bin/cdf
-ext/civi.config.manager/bin/cval
-ext/civi.config.manager/bin/civicfg ce --write
-ext/civi.config.manager/bin/civicfg ci --yes
+civicfg status
+civicfg diff
+civicfg validate
+civicfg export --write
+civicfg export --type searchkit-saved-searches --write
+civicfg import --dry-run
+civicfg import --yes
 ```
 
-On install/enable, the extension attempts to create project-level wrappers in `<project-root>/bin` for `civicfg`, `cvcfg`, `config-export`, `ce`, `config-import`, `ci`, `config-diff`, `cdf`, `config-validate`, and `cval`. Existing non-managed files are never overwritten. The project-level wrappers check whether the extension is installed/enabled before delegating to the extension `bin/civicfg` script.
+The extension-local `ext/civi.config.manager/bin/civicfg` remains a direct fallback. Composer projects can additionally use `vendor/bin/civicfg`.
 
 ## Managed configuration types
 
@@ -319,20 +302,9 @@ See `docs/ARCHITECTURE.md` for the implementation structure and `docs/IMPLEMENTA
 - CiviRules has an alpha handler for common CiviRules API4 entities when the CiviRules extension exposes them. This still needs real-world testing with rule triggers, conditions, actions, and extension-provided rule components.
 
 
-### CLI wrappers
+### CLI launcher lifecycle
 
-The extension includes dedicated command wrappers in `bin/` for teams that prefer short commands over raw API4 calls. Run them from a bootstrapped CiviCRM project where `cv` is available. On install/enable, Configuration Manager also attempts to install project-level wrappers in `<project-root>/bin` so teams can run `civicfg`, `ce`, `ci`, `cdf`, and `cval` from the project without typing the extension path.
-
-```bash
-ext/civi.config.manager/bin/config-export --write
-ext/civi.config.manager/bin/ce --type searchkit-saved-searches --write
-ext/civi.config.manager/bin/config-import --dry-run
-ext/civi.config.manager/bin/ci --yes
-ext/civi.config.manager/bin/config-diff
-ext/civi.config.manager/bin/config-validate
-```
-
-The wrappers call the same API4 backend as the UI, so dependency expansion, Config Ignore, validation, and import safety rules are shared.
+`bin/civicfg` is the only implementation. Managed Composer/global launchers delegate to it dynamically; legacy generated aliases are removed only when they carry the Configuration Manager managed marker. CLI status checks are read-only. See `docs/CLI.md`.
 
 ### Config Ignore
 
@@ -366,7 +338,7 @@ The safest target workflow is one site codebase moving configuration between its
 
 - Config Ignore is applied consistently to diff, validate, import, export, single-file preview, and ZIP download. Ignored DB-only records are hidden from Synchronize when their generated YAML path matches an ignore rule.
 - Saving Config Ignore now checks for detectable non-ignored YAML files that depend on ignored YAML files and warns the administrator.
-- CLI aliases are available as `config-export`/`ce`, `config-import`/`ci`, `config-diff`/`cdf`, `config-validate`/`cval`, and `civicfg`/`cvcfg`. Use `-h` or `--help` for usage, and `-y`/`--yes` for import apply.
+- CLI uses the single `civicfg` command with `export`, `import`, `diff`, `validate`, and `status` subcommands.
 - UI compatibility styles were adjusted so buttons and panels render more consistently across CiviCRM core themes.
 
 
@@ -408,31 +380,18 @@ The safest target workflow is one site codebase moving configuration between its
 
 ## CLI usage
 
-The extension ships with `bin/civicfg` plus aliases: `ce`, `ci`, `cdf`, `cval`, `cvcfg`, `config-export`, `config-import`, `config-diff`, and `config-validate`. On install/enable, Configuration Manager attempts to install project wrappers in these locations when writable:
-
-- `<cms-docroot>/bin`
-- `<project-root>/bin` when the CMS docroot is named `web`
-- `/var/www/html/bin` in DDEV/buildkit containers when writable
-
-Examples from a CiviCRM build:
+Use the same subcommands through the global dispatcher, Composer launcher, or extension-local script:
 
 ```bash
 civicfg status
-ce --write
-ci --dry-run
-ci --yes
-cdf --type settings
-cval
+civicfg export --write
+civicfg diff
+civicfg validate
+civicfg import --dry-run
+civicfg import --yes
 ```
 
-If the wrapper is not in `PATH`, call it by path, for example:
-
-```bash
-/var/www/html/build/dcivi-dev/bin/ce --write
-/var/www/html/bin/civicfg status
-```
-
-Wrappers are managed files. They are not written over existing non-managed files. When the extension is disabled or unavailable, the wrapper stops with a clear warning instead of running stale code.
+See `docs/CLI.md` for Composer/non-Composer behavior, ownership, registry, and uninstall details.
 
 ## Alpha 48 Notes
 
@@ -461,6 +420,24 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - Added stronger automated coverage for the preferred `hook_civicfg_entityDefinitions()` integration path.
 - The metadata-hook tests now cover stable-key export, collection YAML, where/order metadata, composite keys, update/create/dry-run/delete-missing imports, import-disabled definitions, invalid YAML validation, sensitive-field blocking, and ignored-field diff behavior.
 - GitHub fast and full workflows now include a dedicated required `composer test:hook` / `EntityDefinitionHandlerTest` step so hook regressions are easy to spot in Actions.
+
+## Alpha 56 Notes
+
+Alpha56 replaces development-only identity/fingerprint internals with a stable semantic configuration model while preserving the existing export/import/diff/validate product workflows. YAML remains the portable source of truth. Database IDs and filenames are not trusted as cross-environment identities.
+
+Key changes:
+
+- semantic `config_key` identities with explicit confidence (`EXPLICIT`, `API_VERIFIED`, `DISCOVERED_UNIQUE`, `AMBIGUOUS`); ambiguous identities remain visible for export/diff but are not considered safe for automatic generic writes;
+- deterministic, type-preserving SHA-256 fingerprints with a versioned canonicalization format;
+- exact/path-aware runtime, ignored, and sensitive fields plus ordered/unordered collection metadata;
+- semantic API4 reference export/import support for metadata-hook providers;
+- local `civicrm_civicfg_object_state`, `civicrm_civicfg_baseline`, and `civicrm_civicfg_identity_alias` tables for rebuildable scan state, accepted three-way baselines, and confirmed identity renames;
+- baseline-aware states such as active drift, YAML change, synchronized change, both-changed, and field-level conflict/non-conflicting divergence;
+- conservative possible-rename suggestions which never auto-match or auto-write until explicitly confirmed;
+- contributed-extension compatibility reporting (`FULL`, `PARTIAL`, `NO_PORTABLE_CONFIG`, `UNSUPPORTED`, `ERROR`) and broader real-fixture QA;
+- the finalized single-implementation CLI lifecycle described above.
+
+Because this extension has not yet been published for client use, alpha56 intentionally does not preserve obsolete development-only CLI aliases or weak fingerprint/identity formats.
 
 ## Alpha 55 Notes
 

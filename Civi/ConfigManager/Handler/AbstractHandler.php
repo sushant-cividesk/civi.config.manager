@@ -1,6 +1,8 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
+use Civi\ConfigManager\Service\Canonicalizer;
+use Civi\ConfigManager\Service\ConfigIdentity;
 use Civi\ConfigManager\Util\SimpleYaml;
 
 abstract class AbstractHandler implements HandlerInterface {
@@ -25,60 +27,204 @@ abstract class AbstractHandler implements HandlerInterface {
   }
 
   public function diffFromExports(array $exported, array $items): array {
-    $dbItems = [];
-    foreach ($exported as $file) {
-      if (!empty($file['filename'])) {
-        $dbItems[$file['filename']] = $file['data'] ?? [];
-      }
-    }
-    ksort($dbItems);
-    ksort($items);
+    $dbItems = $this->indexDiffItems($exported, TRUE);
+    $fileItems = $this->indexDiffItems($items, FALSE);
 
-    $newInDb = array_values(array_diff(array_keys($dbItems), array_keys($items)));
-    $missingInDb = array_values(array_diff(array_keys($items), array_keys($dbItems)));
+    $newKeys = array_values(array_diff(array_keys($dbItems), array_keys($fileItems)));
+    $missingKeys = array_values(array_diff(array_keys($fileItems), array_keys($dbItems)));
+    $newInDb = array_values(array_map(fn($key) => $dbItems[$key]['filename'], $newKeys));
+    $missingInDb = array_values(array_map(fn($key) => $fileItems[$key]['filename'], $missingKeys));
     $changed = [];
+    $renamed = [];
     $files = [];
 
-    foreach (array_intersect(array_keys($dbItems), array_keys($items)) as $filename) {
-      $fileCompare = $this->normaliseDataForDiff($items[$filename]);
-      $dbCompare = $this->normaliseDataForDiff($dbItems[$filename]);
+    foreach (array_intersect(array_keys($dbItems), array_keys($fileItems)) as $configKey) {
+      $dbRow = $dbItems[$configKey];
+      $fileRow = $fileItems[$configKey];
+      $fileCompare = $this->normaliseDataForDiff($fileRow['data']);
+      $dbCompare = $this->normaliseDataForDiff($dbRow['data']);
+
+      if ($dbRow['filename'] !== $fileRow['filename']) {
+        $renamed[] = [
+          'config_key' => $configKey,
+          'from' => $fileRow['filename'],
+          'to' => $dbRow['filename'],
+        ];
+      }
+
       if ($this->fingerprint($dbCompare) !== $this->fingerprint($fileCompare)) {
         $fieldChanges = $this->structuredChanges($fileCompare, $dbCompare);
         if ($fieldChanges) {
-          $changed[] = $filename;
-          $files[] = $this->buildDiffFile($filename, 'changed', $fileCompare, $dbCompare, $fieldChanges);
+          $changed[] = $fileRow['filename'];
+          $files[] = $this->buildDiffFile(
+            $fileRow['filename'],
+            'changed',
+            $fileCompare,
+            $dbCompare,
+            $fieldChanges,
+            $fileRow['identity'],
+            $this->fingerprint($fileCompare),
+            $this->fingerprint($dbCompare)
+          );
         }
       }
     }
 
-    foreach ($newInDb as $filename) {
-      $dbCompare = $this->normaliseDataForDiff($dbItems[$filename]);
-      $files[] = $this->buildDiffFile($filename, 'new_in_db', [], $dbCompare, $this->structuredChanges([], $dbCompare));
+    foreach ($newKeys as $configKey) {
+      $row = $dbItems[$configKey];
+      $dbCompare = $this->normaliseDataForDiff($row['data']);
+      $files[] = $this->buildDiffFile(
+        $row['filename'],
+        'new_in_db',
+        [],
+        $dbCompare,
+        $this->structuredChanges([], $dbCompare),
+        $row['identity'],
+        NULL,
+        $this->fingerprint($dbCompare)
+      );
     }
 
-    foreach ($missingInDb as $filename) {
-      $fileCompare = $this->normaliseDataForDiff($items[$filename]);
-      $files[] = $this->buildDiffFile($filename, 'missing_in_db', $fileCompare, [], $this->structuredChanges($fileCompare, []));
+    foreach ($missingKeys as $configKey) {
+      $row = $fileItems[$configKey];
+      $fileCompare = $this->normaliseDataForDiff($row['data']);
+      $files[] = $this->buildDiffFile(
+        $row['filename'],
+        'missing_in_db',
+        $fileCompare,
+        [],
+        $this->structuredChanges($fileCompare, []),
+        $row['identity'],
+        $this->fingerprint($fileCompare),
+        NULL
+      );
     }
 
-    $status = 'in_sync';
-    if ($newInDb || $missingInDb || $changed) {
-      $status = 'changed';
-    }
+    $possibleRenames = $this->possibleRenameCandidates($newKeys, $missingKeys, $dbItems, $fileItems);
+    $status = ($newInDb || $missingInDb || $changed) ? 'changed' : 'in_sync';
 
     return [
       'type' => $this->getType(),
       'label' => $this->getLabel(),
       'db_count' => count($dbItems),
-      'file_count' => count($items),
+      'file_count' => count($fileItems),
       'status' => $status,
       'changed' => $changed,
       'new_in_db' => $newInDb,
       'missing_in_db' => $missingInDb,
+      'renamed' => $renamed,
+      'possible_renames' => $possibleRenames,
       'files' => $files,
     ];
   }
 
+  /**
+   * Suggest only very conservative machine-identity renames.
+   *
+   * A suggestion never changes matching/import behavior. It is informational
+   * until an operator explicitly confirms the alias.
+   */
+  private function possibleRenameCandidates(array $newKeys, array $missingKeys, array $dbItems, array $fileItems): array {
+    $allowedIdentityPaths = [
+      'key',
+      'name',
+      'item.key',
+      'item.machine_name',
+      'item.name',
+      'item.name_a_b',
+      'item.workflow_name',
+    ];
+    $candidates = [];
+
+    foreach ($missingKeys as $oldKey) {
+      $old = $fileItems[$oldKey];
+      foreach ($newKeys as $newKey) {
+        $new = $dbItems[$newKey];
+        if (($old['identity']['provider_key'] ?? '') !== ($new['identity']['provider_key'] ?? '')) {
+          continue;
+        }
+        $oldData = $this->normaliseDataForDiff((array) $old['data']);
+        $newData = $this->normaliseDataForDiff((array) $new['data']);
+        $changes = $this->structuredChanges($oldData, $newData);
+        if (!$changes || count($changes) > 3) {
+          continue;
+        }
+        foreach ($changes as $change) {
+          if (!in_array((string) ($change['path'] ?? ''), $allowedIdentityPaths, TRUE)) {
+            continue 2;
+          }
+        }
+        $candidates[] = [
+          'provider_key' => (string) ($old['identity']['provider_key'] ?? ''),
+          'old_config_key' => (string) ($old['identity']['config_key'] ?? ''),
+          'new_config_key' => (string) ($new['identity']['config_key'] ?? ''),
+          'old_identity_hash' => (string) ($old['identity']['identity_hash'] ?? ''),
+          'new_identity_hash' => (string) ($new['identity']['identity_hash'] ?? ''),
+          'from' => (string) $old['filename'],
+          'to' => (string) $new['filename'],
+          'changes' => $changes,
+          'requires_confirmation' => TRUE,
+        ];
+      }
+    }
+
+    return $candidates;
+  }
+
+  /**
+   * @param array $items Export rows or filename => YAML rows.
+   * @return array<string, array{filename:string,data:array,identity:array}>
+   */
+  private function indexDiffItems(array $items, bool $exportRows): array {
+    $identityService = new ConfigIdentity();
+    $groups = [];
+
+    foreach ($items as $key => $value) {
+      if ($exportRows) {
+        $filename = (string) ($value['filename'] ?? '');
+        $data = (array) ($value['data'] ?? []);
+      }
+      else {
+        $filename = (string) $key;
+        $data = (array) $value;
+      }
+      if ($filename === '') {
+        continue;
+      }
+
+      $identity = $identityService->identify($this->getType(), $data, $filename);
+      $configKey = (string) $identity['config_key'];
+      $groups[$configKey][] = [
+        'filename' => $filename,
+        'data' => $data,
+        'identity' => $identity,
+      ];
+    }
+
+    $indexed = [];
+    foreach ($groups as $configKey => $rows) {
+      if (count($rows) === 1) {
+        $indexed[$configKey] = $rows[0];
+        continue;
+      }
+
+      // If a semantic key occurs more than once, none of those records is safe
+      // to match automatically. Keep every duplicate visible under a stable
+      // synthetic key and mark every copy ambiguous, including the first one.
+      foreach ($rows as $row) {
+        $duplicateKey = $configKey . '|duplicate=' . rawurlencode((string) $row['filename']);
+        $row['identity']['config_key'] = $duplicateKey;
+        $row['identity']['identity_hash'] = hash('sha256', $duplicateKey);
+        $row['identity']['identity_method'] = 'duplicate_identity_fallback';
+        $row['identity']['identity_confidence'] = ConfigIdentity::AMBIGUOUS;
+        $row['identity']['write_safe'] = FALSE;
+        $indexed[$duplicateKey] = $row;
+      }
+    }
+
+    ksort($indexed, SORT_STRING);
+    return $indexed;
+  }
 
   /**
    * Normalize data only for diff display/comparison.
@@ -88,7 +234,13 @@ abstract class AbstractHandler implements HandlerInterface {
    * another database does not show false changes or imply an unsafe update.
    */
   protected function normaliseDataForDiff(array $data): array {
-    unset($data['required_by']);
+    foreach ([
+      'schema_version', 'type', 'entity', 'key', 'key_fields',
+      'identity_field', 'identity_confidence', 'capabilities',
+      'dependencies', 'required_by', 'config_index',
+    ] as $field) {
+      unset($data[$field]);
+    }
     if (isset($data['item']) && is_array($data['item'])) {
       unset($data['item']['required_by']);
     }
@@ -106,32 +258,22 @@ abstract class AbstractHandler implements HandlerInterface {
   }
 
   protected function fingerprint(array $data): string {
-    $normalised = $this->normaliseData($data);
-    return sha1(json_encode($normalised));
+    return (new Canonicalizer())->hash($data, $this->getCanonicalOptions());
   }
 
   protected function normaliseData($data) {
-    if (is_array($data)) {
-      $isList = array_keys($data) === range(0, count($data) - 1);
-      $normalised = [];
-      foreach ($data as $key => $value) {
-        $normalised[$key] = $this->normaliseData($value);
-      }
-      if (!$isList) {
-        ksort($normalised);
-      }
-      return $normalised;
-    }
-    if ($data === NULL || $data === '') {
-      return '';
-    }
-    if (is_bool($data)) {
-      return $data ? '1' : '0';
-    }
-    if (is_int($data) || is_float($data)) {
-      return (string) $data;
-    }
-    return (string) $data;
+    return (new Canonicalizer())->canonicalize($data, $this->getCanonicalOptions());
+  }
+
+  /**
+   * Handler-specific canonicalization metadata.
+   */
+  protected function getCanonicalOptions(): array {
+    return [];
+  }
+
+  public function getCanonicalizationOptions(): array {
+    return $this->getCanonicalOptions();
   }
 
   /**
@@ -220,10 +362,7 @@ abstract class AbstractHandler implements HandlerInterface {
       }
       return $result;
     }
-    if ($value === NULL || $value === '') {
-      return NULL;
-    }
-    if (is_bool($value) || is_int($value) || is_float($value)) {
+    if ($value === NULL || is_bool($value) || is_int($value) || is_float($value) || is_string($value)) {
       return $value;
     }
     return (string) $value;
@@ -291,24 +430,24 @@ abstract class AbstractHandler implements HandlerInterface {
   }
 
   private function normaliseScalar($value): string {
-    if ($value === NULL || $value === '') {
-      return '';
-    }
-    if (is_bool($value)) {
-      return $value ? '1' : '0';
-    }
-    if (is_array($value)) {
-      return json_encode($this->normaliseData($value));
-    }
-    return (string) $value;
+    $json = json_encode($this->normaliseData($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+    return $json === FALSE ? serialize($value) : $json;
   }
 
-  protected function buildDiffFile(string $filename, string $status, array $fileData, array $dbData, array $fieldChanges = []): array {
+  protected function buildDiffFile(string $filename, string $status, array $fileData, array $dbData, array $fieldChanges = [], array $identity = [], ?string $yamlHash = NULL, ?string $activeHash = NULL): array {
     $relative = trim($this->getDirectory(), '/') . '/' . $filename;
     return [
       'file' => $filename,
       'path' => $relative,
       'status' => $status,
+      'config_key' => (string) ($identity['config_key'] ?? ''),
+      'identity_hash' => (string) ($identity['identity_hash'] ?? ''),
+      'identity_method' => (string) ($identity['identity_method'] ?? ''),
+      'identity_confidence' => (string) ($identity['identity_confidence'] ?? ''),
+      'write_safe' => !empty($identity['write_safe']),
+      'yaml_hash' => $yamlHash,
+      'active_hash' => $activeHash,
+      'canonical_version' => Canonicalizer::VERSION,
       'change_count' => count($fieldChanges),
       'changes' => $fieldChanges,
       'diff' => $this->fieldDiff($relative, $fieldChanges),

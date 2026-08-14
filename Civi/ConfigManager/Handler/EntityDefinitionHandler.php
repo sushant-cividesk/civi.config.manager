@@ -17,7 +17,11 @@ class EntityDefinitionHandler extends AbstractHandler {
   private array $keyFields;
   private array $exportFields;
   private array $ignoreFields;
+  private array $runtimeFields;
   private array $sensitiveFields;
+  private array $referenceFields;
+  private array $orderedPaths;
+  private array $unorderedPaths;
   private array $orderBy;
   private array $where;
   private array $dependencies;
@@ -25,6 +29,9 @@ class EntityDefinitionHandler extends AbstractHandler {
   private bool $splitFiles;
   private bool $deleteMissing;
   private bool $importable;
+  private bool $canCreate;
+  private bool $canUpdate;
+  private bool $canDelete;
 
   public function __construct(string $type, array $definition) {
     $this->definition = $definition;
@@ -35,7 +42,11 @@ class EntityDefinitionHandler extends AbstractHandler {
     $this->keyFields = array_values((array) ($definition['key_fields'] ?? ['name']));
     $this->exportFields = array_values((array) ($definition['export_fields'] ?? ['*']));
     $this->ignoreFields = array_values(array_unique(array_merge(['id'], (array) ($definition['ignore_fields'] ?? []))));
+    $this->runtimeFields = array_values((array) ($definition['runtime_fields'] ?? []));
     $this->sensitiveFields = array_values((array) ($definition['sensitive_fields'] ?? []));
+    $this->referenceFields = (array) ($definition['reference_fields'] ?? []);
+    $this->orderedPaths = array_values((array) ($definition['ordered_paths'] ?? []));
+    $this->unorderedPaths = array_values((array) ($definition['unordered_paths'] ?? []));
     $this->orderBy = (array) ($definition['order_by'] ?? $this->defaultOrderBy());
     $this->where = array_values((array) ($definition['where'] ?? []));
     $this->dependencies = (array) ($definition['dependencies'] ?? []);
@@ -43,6 +54,9 @@ class EntityDefinitionHandler extends AbstractHandler {
     $this->splitFiles = (bool) ($definition['split_files'] ?? TRUE);
     $this->deleteMissing = (bool) ($definition['delete_missing'] ?? FALSE);
     $this->importable = (bool) ($definition['import'] ?? TRUE);
+    $this->canCreate = (bool) ($definition['can_create'] ?? TRUE);
+    $this->canUpdate = (bool) ($definition['can_update'] ?? TRUE);
+    $this->canDelete = (bool) ($definition['can_delete'] ?? $this->deleteMissing);
   }
 
   public function getType(): string {
@@ -92,6 +106,7 @@ class EntityDefinitionHandler extends AbstractHandler {
         'entity' => $this->entity,
         'key_fields' => $this->keyFields,
         'dependencies' => $this->normalizedDependencies(),
+        'capabilities' => $this->capabilities(),
         'items' => array_values(array_map(fn($item) => $item['data']['item'], $items)),
       ],
     ]];
@@ -116,6 +131,7 @@ class EntityDefinitionHandler extends AbstractHandler {
             $errors[] = ['file' => $filename, 'message' => 'Collection item at index ' . $index . ' is missing required key fields: ' . implode(', ', $this->keyFields) . '.'];
           }
           $this->validateNoSensitiveFields((array) $row, $filename, $errors);
+          $this->validateReferences((array) $row, $filename, $errors);
         }
         continue;
       }
@@ -133,6 +149,7 @@ class EntityDefinitionHandler extends AbstractHandler {
         $errors[] = ['file' => $filename, 'message' => 'Item is missing required key fields: ' . implode(', ', $this->keyFields) . '.'];
       }
       $this->validateNoSensitiveFields($row, $filename, $errors);
+      $this->validateReferences($row, $filename, $errors);
       if (!array_key_exists('dependencies', $item)) {
         $warnings[] = ['file' => $filename, 'message' => 'Dependency metadata is missing. Re-export this item before using it as a deployment source.'];
       }
@@ -192,6 +209,10 @@ class EntityDefinitionHandler extends AbstractHandler {
         $existing = $this->findExistingByKey($row);
         if ($existing) {
           if ($this->desiredDiffers($existing, $desired)) {
+            if (!$this->canUpdate) {
+              $summary['errors'][] = ['file' => $filename, 'name' => $key, 'message' => 'Update is not allowed by this configuration provider.'];
+              continue;
+            }
             $summary['update']++;
             if (!$dryRun) {
               $this->api4Update($this->entity, [['id', '=', $existing['id']]], $desired);
@@ -202,6 +223,10 @@ class EntityDefinitionHandler extends AbstractHandler {
           }
         }
         else {
+          if (!$this->canCreate) {
+            $summary['errors'][] = ['file' => $filename, 'name' => $key, 'message' => 'Create is not allowed by this configuration provider.'];
+            continue;
+          }
           $summary['create']++;
           if (!$dryRun) {
             $this->api4Create($this->entity, $desired);
@@ -214,7 +239,12 @@ class EntityDefinitionHandler extends AbstractHandler {
     }
 
     if ($this->deleteMissing) {
-      $this->deleteMissingRows($desiredKeys, $dryRun, $summary);
+      if ($this->canDelete) {
+        $this->deleteMissingRows($desiredKeys, $dryRun, $summary);
+      }
+      else {
+        $summary['warnings'][] = ['message' => 'Delete-missing is enabled, but delete is not allowed by this configuration provider.'];
+      }
     }
 
     $summary['ok'] = empty($summary['errors']);
@@ -223,6 +253,18 @@ class EntityDefinitionHandler extends AbstractHandler {
 
   protected function normaliseDataForDiff(array $data): array {
     return $this->stripIgnoredFields(parent::normaliseDataForDiff($data));
+  }
+
+  protected function getCanonicalOptions(): array {
+    return [
+      'ignored_fields' => array_values(array_unique(array_merge(
+        $this->documentPaths($this->ignoreFields),
+        $this->documentPaths($this->runtimeFields)
+      ))),
+      'sensitive_fields' => $this->documentPaths($this->sensitiveFields),
+      'ordered_paths' => $this->documentPaths($this->orderedPaths),
+      'unordered_paths' => $this->documentPaths($this->unorderedPaths),
+    ];
   }
 
   private function assertUsableDefinition(): void {
@@ -262,13 +304,19 @@ class EntityDefinitionHandler extends AbstractHandler {
 
   private function prepareExportRow(array $row): array {
     if ($this->exportFields !== ['*']) {
-      $row = array_intersect_key($row, array_flip(array_merge($this->exportFields, $this->keyFields)));
+      $topLevel = [];
+      foreach (array_merge($this->exportFields, $this->keyFields, array_keys($this->referenceFields)) as $field) {
+        $topLevel[] = explode('.', (string) $field)[0];
+      }
+      $row = array_intersect_key($row, array_flip(array_values(array_unique($topLevel))));
     }
+    $row = $this->resolveReferencesForExport($row);
     return $this->stripIgnoredFields($row);
   }
 
   private function prepareImportRow(array $row): array {
     $row = $this->stripIgnoredFields($row);
+    $row = $this->resolveReferencesForImport($row);
     foreach (array_keys($row) as $field) {
       if (strpos((string) $field, '.') !== FALSE) {
         unset($row[$field]);
@@ -278,16 +326,8 @@ class EntityDefinitionHandler extends AbstractHandler {
   }
 
   private function stripIgnoredFields(array $data): array {
-    foreach ($this->ignoreFields as $field) {
-      $this->unsetPath($data, $field);
-    }
-    foreach ($this->sensitiveFields as $field) {
-      $this->unsetPath($data, $field);
-    }
-    foreach ($data as $key => $value) {
-      if (is_array($value)) {
-        $data[$key] = $this->stripIgnoredFields($value);
-      }
+    foreach (array_values(array_unique(array_merge($this->ignoreFields, $this->runtimeFields, $this->sensitiveFields))) as $field) {
+      $this->unsetPath($data, (string) $field);
     }
     return $data;
   }
@@ -397,9 +437,157 @@ class EntityDefinitionHandler extends AbstractHandler {
       'entity' => $this->entity,
       'key_fields' => $this->keyFields,
       'key' => $key,
-      'dependencies' => $this->normalizedDependencies(),
+      'dependencies' => array_values(array_merge($this->normalizedDependencies(), $this->referenceDependencies($row))),
+      'capabilities' => $this->capabilities(),
       'item' => $row,
     ];
+  }
+
+  private function capabilities(): array {
+    return [
+      'create' => $this->importable && $this->canCreate,
+      'update' => $this->importable && $this->canUpdate,
+      'delete' => $this->importable && $this->canDelete,
+    ];
+  }
+
+  private function resolveReferencesForExport(array $row): array {
+    foreach ($this->referenceFields as $path => $definition) {
+      $definition = (array) $definition;
+      $entity = (string) ($definition['entity'] ?? '');
+      $keyFields = array_values((array) ($definition['key_fields'] ?? ['name']));
+      $idField = (string) ($definition['id_field'] ?? 'id');
+      $value = $this->getPathValue($row, (string) $path);
+      if ($entity === '' || !$keyFields || $value === NULL || $value === '' || !is_scalar($value)) {
+        continue;
+      }
+      $select = array_values(array_unique(array_merge([$idField], $keyFields)));
+      $target = $this->api4GetFirst($entity, [[$idField, '=', $value]], $select);
+      if (!$target) {
+        throw new \RuntimeException('Could not resolve portable configuration reference ' . (string) $path . ' from local ' . $idField . '=' . (string) $value . ' to ' . $entity . '.');
+      }
+      $key = [];
+      foreach ($keyFields as $keyField) {
+        $keyValue = $this->getPathValue($target, (string) $keyField);
+        if ($keyValue === NULL || $keyValue === '') {
+          $key = [];
+          break;
+        }
+        $key[(string) $keyField] = $keyValue;
+      }
+      if (!$key) {
+        throw new \RuntimeException('Could not build portable configuration reference ' . (string) $path . ' for ' . $entity . ' because one or more stable key fields are empty.');
+      }
+      $this->setPathValue($row, (string) $path, [
+        'provider' => 'api4:' . $entity,
+        'entity' => $entity,
+        'key' => $key,
+      ]);
+    }
+    return $row;
+  }
+
+  private function resolveReferencesForImport(array $row): array {
+    foreach ($this->referenceFields as $path => $definition) {
+      $definition = (array) $definition;
+      $entity = (string) ($definition['entity'] ?? '');
+      $idField = (string) ($definition['id_field'] ?? 'id');
+      $keyFields = array_values(array_map('strval', (array) ($definition['key_fields'] ?? ['name'])));
+      $reference = $this->getPathValueRaw($row, (string) $path);
+      if ($entity === '' || $reference === NULL || $reference === '') {
+        continue;
+      }
+      $this->assertSemanticReference((string) $path, $reference, $entity, $keyFields);
+      $where = [];
+      foreach ($keyFields as $field) {
+        $where[] = [$field, '=', $reference['key'][$field]];
+      }
+      $target = $this->api4GetFirst($entity, $where, [$idField]);
+      if (!$target || !array_key_exists($idField, $target)) {
+        throw new \RuntimeException('Could not resolve configuration reference ' . $path . ' to ' . $entity . '.');
+      }
+      $this->setPathValue($row, (string) $path, $target[$idField]);
+    }
+    return $row;
+  }
+
+  private function referenceDependencies(array $row): array {
+    $dependencies = [];
+    foreach ($this->referenceFields as $path => $definition) {
+      $definition = (array) $definition;
+      $dependencyType = (string) ($definition['dependency_type'] ?? '');
+      $reference = $this->getPathValueRaw($row, (string) $path);
+      if ($dependencyType === '' || !is_array($reference) || empty($reference['key']) || !is_array($reference['key'])) {
+        continue;
+      }
+      $keyValues = (array) $reference['key'];
+      $name = count($keyValues) === 1 ? (string) reset($keyValues) : $this->buildKeyForFields($keyValues, array_keys($keyValues));
+      if ($name !== '') {
+        $dependencies[] = [
+          'type' => $dependencyType,
+          'name' => $name,
+          'reason' => 'Referenced by ' . $this->type . ' field ' . (string) $path . '.',
+        ];
+      }
+    }
+    return $dependencies;
+  }
+
+  private function buildKeyForFields(array $row, array $fields): string {
+    $parts = [];
+    foreach ($fields as $field) {
+      $value = $this->getPathValue($row, (string) $field);
+      if ($value === NULL || $value === '') {
+        return '';
+      }
+      $parts[] = (string) $field . '=' . (string) $value;
+    }
+    return implode('|', $parts);
+  }
+
+  private function getPathValueRaw(array $row, string $path) {
+    if (array_key_exists($path, $row)) {
+      return $row[$path];
+    }
+    $cursor = $row;
+    foreach (explode('.', $path) as $part) {
+      if (!is_array($cursor) || !array_key_exists($part, $cursor)) {
+        return NULL;
+      }
+      $cursor = $cursor[$part];
+    }
+    return $cursor;
+  }
+
+  private function setPathValue(array &$row, string $path, $value): void {
+    $parts = array_values(array_filter(explode('.', $path), 'strlen'));
+    if (!$parts) {
+      return;
+    }
+    $cursor =& $row;
+    foreach ($parts as $index => $part) {
+      if ($index === count($parts) - 1) {
+        $cursor[$part] = $value;
+        return;
+      }
+      if (!isset($cursor[$part]) || !is_array($cursor[$part])) {
+        $cursor[$part] = [];
+      }
+      $cursor =& $cursor[$part];
+    }
+  }
+
+  private function documentPaths(array $paths): array {
+    $result = [];
+    foreach ($paths as $path) {
+      $path = trim((string) $path);
+      if ($path === '') {
+        continue;
+      }
+      $result[] = 'item.' . $path;
+      $result[] = 'items.*.' . $path;
+    }
+    return array_values(array_unique($result));
   }
 
   private function normalizedDependencies(): array {
@@ -410,6 +598,51 @@ class EntityDefinitionHandler extends AbstractHandler {
       }
     }
     return $dependencies;
+  }
+
+  private function validateReferences(array $row, string $filename, array &$errors): void {
+    foreach ($this->referenceFields as $path => $definition) {
+      $definition = (array) $definition;
+      $entity = (string) ($definition['entity'] ?? '');
+      $keyFields = array_values(array_map('strval', (array) ($definition['key_fields'] ?? ['name'])));
+      $reference = $this->getPathValueRaw($row, (string) $path);
+      if ($entity === '' || $reference === NULL || $reference === '') {
+        continue;
+      }
+      try {
+        $this->assertSemanticReference((string) $path, $reference, $entity, $keyFields);
+      }
+      catch (\Throwable $e) {
+        $errors[] = ['file' => $filename, 'message' => $e->getMessage()];
+      }
+    }
+  }
+
+  private function assertSemanticReference(string $path, $reference, string $entity, array $keyFields): void {
+    if (!is_array($reference) || empty($reference['key']) || !is_array($reference['key'])) {
+      throw new \RuntimeException('Reference field ' . $path . ' must use a semantic configuration reference, not a local database ID.');
+    }
+    if (isset($reference['entity']) && (string) $reference['entity'] !== $entity) {
+      throw new \RuntimeException('Reference field ' . $path . ' targets unexpected entity ' . (string) $reference['entity'] . '; expected ' . $entity . '.');
+    }
+    $expectedProvider = 'api4:' . $entity;
+    if (isset($reference['provider']) && (string) $reference['provider'] !== $expectedProvider) {
+      throw new \RuntimeException('Reference field ' . $path . ' targets unexpected provider ' . (string) $reference['provider'] . '; expected ' . $expectedProvider . '.');
+    }
+
+    $actualFields = array_map('strval', array_keys((array) $reference['key']));
+    $expectedFields = array_values(array_map('strval', $keyFields));
+    sort($actualFields, SORT_STRING);
+    sort($expectedFields, SORT_STRING);
+    if ($actualFields !== $expectedFields) {
+      throw new \RuntimeException('Reference field ' . $path . ' must use exactly these stable key fields for ' . $entity . ': ' . implode(', ', $keyFields) . '.');
+    }
+    foreach ($keyFields as $field) {
+      $value = $reference['key'][$field] ?? NULL;
+      if (!is_scalar($value) || (string) $value === '') {
+        throw new \RuntimeException('Reference field ' . $path . ' has an empty or invalid stable key value for ' . $field . '.');
+      }
+    }
   }
 
   private function validateNoSensitiveFields(array $row, string $filename, array &$errors): void {

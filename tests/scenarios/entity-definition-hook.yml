@@ -35,6 +35,9 @@ expected:
   ignored_fields_do_not_diff: true
   sensitive_fields_rejected: true
   invalid_definition_errors_are_clear: true
+  semantic_reference_resolution: true
+  provider_capabilities_enforced: true
+  path_aware_runtime_fields: true
 negative_cases:
   - unsupported_api_version
   - missing_required_key_fields
@@ -42,6 +45,8 @@ negative_cases:
   - wrong_yaml_type
   - wrong_api_entity
   - delete_missing_enabled_accidentally
+  - unresolved_semantic_reference
+  - provider_update_capability_disabled
 isolation:
   disposable_database: true
   temporary_sync_directory: true
