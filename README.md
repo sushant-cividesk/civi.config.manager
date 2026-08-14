@@ -283,7 +283,6 @@ Important source areas:
 
 See `docs/ARCHITECTURE.md` for the implementation structure and `docs/IMPLEMENTATION_PLAN.md` for current technical decisions.
 
-
 ## Alpha37 Notes
 
 - Added Config Ignore to skip selected YAML files from diff, validate, export, and import. This is useful for environment-specific configuration and for avoiding self-management of this extension.
@@ -301,7 +300,6 @@ See `docs/ARCHITECTURE.md` for the implementation structure and `docs/IMPLEMENTA
 - Custom Groups and Fields now support YAML-source deletes for missing custom fields and non-reserved missing custom groups. Option group references are resolved by `option_group_name` where possible.
 - CiviRules has an alpha handler for common CiviRules API4 entities when the CiviRules extension exposes them. This still needs real-world testing with rule triggers, conditions, actions, and extension-provided rule components.
 
-
 ### CLI launcher lifecycle
 
 `bin/civicfg` is the only implementation. Managed Composer/global launchers delegate to it dynamically; legacy generated aliases are removed only when they carry the Configuration Manager managed marker. CLI status checks are read-only. See `docs/CLI.md`.
@@ -315,8 +313,6 @@ Config Ignore accepts one relative YAML path or wildcard per line. Ignored files
 ### Environment workflow
 
 The safest target workflow is one site codebase moving configuration between its own environments: dev, stage, and production. Cross-site imports are possible but require extra review because extensions, sample data, IDs, and contributed-extension defaults can differ between sites.
-
-
 
 ## Alpha 41 Notes
 
@@ -341,7 +337,6 @@ The safest target workflow is one site codebase moving configuration between its
 - CLI uses the single `civicfg` command with `export`, `import`, `diff`, `validate`, and `status` subcommands.
 - UI compatibility styles were adjusted so buttons and panels render more consistently across CiviCRM core themes.
 
-
 ## Alpha 42 Notes
 
 - Extension status/settings remain in `extensions/<extension-key>.yml`. Generic extension-owned API config is split by item under the same extension directory.
@@ -362,7 +357,6 @@ The safest target workflow is one site codebase moving configuration between its
 - The Synchronize screen includes per-file Revert and Ignore actions. Revert makes the selected YAML match active CiviCRM. Ignore can save either a whole-file ignore rule or selected field-level ignore rules.
 - Extension-owned config filters are discovered dynamically from supported contributed/custom extension APIs. If an enabled extension exposes safe importable config entities, those entities can appear as separate filter/managed-type options.
 - Generic extension config export skips read-only/generated API entities that cannot be recreated or updated through API. This avoids broken cross-environment imports for provider-generated records.
-
 
 ## Alpha 46 Notes
 
@@ -413,7 +407,6 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - The fast workflow runs Composer validation, PHP syntax, scenario contracts, unit tests, PHPStan, a dedicated metadata-hook unit check, and Composer audit. PHPCS/PHP-compatibility cleanup is intentionally outside the required fast path until the existing style baseline is fixed.
 - The full workflow runs the extension in an isolated CiviCRM container with disposable MariaDB, Mailpit, blocked PHP mail, sanitized artifacts, API/CLI smoke tests, integration fixtures, and optional Playwright checks.
 - The YAML sync root may now be a symlink to support dev/stage shared-config test setups; files and subdirectories inside the sync root are still protected against traversal and symlink escapes.
-
 
 ## Alpha 54 Notes
 
