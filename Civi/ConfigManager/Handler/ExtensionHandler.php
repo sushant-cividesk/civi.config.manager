@@ -9,6 +9,8 @@ class ExtensionHandler extends AbstractHandler {
   private ?array $discoveredEntityDefinitions = NULL;
   private array $runtimeTypeFilters = [];
   private array $identityRowsByDefinition = [];
+  private static array $api3ActionsByEntity = [];
+  private static array $api3ListActionByEntity = [];
 
   public function getType(): string { return 'extensions'; }
   public function getLabel(): string { return 'Extensions'; }
@@ -1107,6 +1109,11 @@ class ExtensionHandler extends AbstractHandler {
    * through GetAll/get_all instead, so probe only known read-style actions.
    */
   private function api3ListAction(string $entity): ?string {
+    $cacheKey = strtolower($entity);
+    if (array_key_exists($cacheKey, self::$api3ListActionByEntity)) {
+      return self::$api3ListActionByEntity[$cacheKey];
+    }
+
     $actions = array_merge(['get', 'get_all', 'getall'], $this->api3CollectionActionCandidates($this->api3EntityActions($entity)));
     foreach (array_values(array_unique($actions)) as $action) {
       try {
@@ -1115,19 +1122,26 @@ class ExtensionHandler extends AbstractHandler {
           $params['options'] = ['limit' => 1];
         }
         civicrm_api3($entity, $action, $params);
-        return $action;
+        self::$api3ListActionByEntity[$cacheKey] = $action;
+        return self::$api3ListActionByEntity[$cacheKey];
       }
       catch (\Throwable $e) {
         // Try the next read-only collection action.
       }
     }
-    return NULL;
+    self::$api3ListActionByEntity[$cacheKey] = NULL;
+    return self::$api3ListActionByEntity[$cacheKey];
   }
 
   /**
    * Return API3 action names exposed by an entity.
    */
   private function api3EntityActions(string $entity): array {
+    $cacheKey = strtolower($entity);
+    if (array_key_exists($cacheKey, self::$api3ActionsByEntity)) {
+      return self::$api3ActionsByEntity[$cacheKey];
+    }
+
     try {
       $result = civicrm_api3($entity, 'getactions', ['sequential' => 1]);
       $actions = [];
@@ -1142,11 +1156,13 @@ class ExtensionHandler extends AbstractHandler {
           $actions[] = strtolower((string) $value['name']);
         }
       }
-      return array_values(array_unique($actions));
+      self::$api3ActionsByEntity[$cacheKey] = array_values(array_unique($actions));
     }
     catch (\Throwable $e) {
-      return [];
+      self::$api3ActionsByEntity[$cacheKey] = [];
     }
+
+    return self::$api3ActionsByEntity[$cacheKey];
   }
 
   /**
@@ -1781,6 +1797,10 @@ class ExtensionHandler extends AbstractHandler {
       throw new \RuntimeException('Extension manager does not support method ' . $method . ' on this CiviCRM version.');
     }
     $manager->{$method}($keys);
+    self::$api3ActionsByEntity = [];
+    self::$api3ListActionByEntity = [];
+    $this->discoveredEntityDefinitions = NULL;
+    $this->identityRowsByDefinition = [];
   }
 
   private function safeName(string $name): string {
