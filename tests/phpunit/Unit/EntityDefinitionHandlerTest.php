@@ -567,7 +567,6 @@ namespace Civi\ConfigManager\Tests\Unit {
         'reason' => 'Referenced by myext_templates field parent_id.',
       ], $files[0]['data']['dependencies']);
 
-      CivicfgHookFixture::$updated = [];
       $files[0]['data']['item']['label'] = 'Updated through stable reference';
       $summary = $handler->import([
         'alpha_template.yml' => $files[0]['data'],
