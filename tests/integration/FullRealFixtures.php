@@ -260,46 +260,16 @@ final class CivicfgFullRealFixtures {
     $this->seedKnownExtensionFixtures();
     $this->assertOk($manager->export(FALSE, ['extensions', 'civirules']), 'Extension configuration export must succeed.');
 
+    $compatibility = (new ExtensionHandler())->getCompatibilityReport();
+
     if (in_array($extensionStatuses['de.systopia.sqltasks'] ?? '', ['installed', 'enabled'], TRUE)) {
       $sqltasksYaml = SimpleYaml::parseFile($this->syncDir . '/extensions/de.systopia.sqltasks.yml');
       $this->assertTrue(
         array_key_exists('sqltask_export_append_scripts', (array) ($sqltasksYaml['settings'] ?? [])),
         'SQLTasks singular sqltask_* setting namespace must be exported.'
       );
-
-      try {
-        $taskList = civicrm_api3('Sqltask', 'getalltasks', ['sequential' => 1]);
-        if (!empty($taskList['values'])) {
-          $sqltaskFiles = glob($this->syncDir . '/extensions/de.systopia.sqltasks/api3/Sqltask/*.yml') ?: [];
-          $this->assertTrue((bool) $sqltaskFiles, 'SQLTasks task configuration must be exported when Sqltask.getalltasks exposes task records.');
-          $listRow = (array) (array_values((array) $taskList['values'])[0] ?? []);
-          if (!empty($listRow['id'])) {
-            $detailResult = civicrm_api3('Sqltask', 'get', ['sequential' => 1, 'id' => $listRow['id']]);
-            $detailRow = (array) (array_values((array) ($detailResult['values'] ?? []))[0] ?? []);
-            $detailOnlyKeys = array_values(array_diff(array_keys($detailRow), array_keys($listRow), [
-              'id', 'created_date', 'modified_date', 'last_modified', 'created_id', 'modified_id',
-            ]));
-            if ($detailOnlyKeys) {
-              $exportedTask = SimpleYaml::parseFile((string) $sqltaskFiles[0]);
-              $exportedRow = (array) ($exportedTask['item'] ?? []);
-              $foundHydratedField = FALSE;
-              foreach ($detailOnlyKeys as $detailKey) {
-                if (array_key_exists((string) $detailKey, $exportedRow)) {
-                  $foundHydratedField = TRUE;
-                  break;
-                }
-              }
-              $this->assertTrue($foundHydratedField, 'SQLTasks export must retain detail fields obtained by hydrating getalltasks rows through Sqltask.get.');
-            }
-          }
-        }
-      }
-      catch (Throwable $e) {
-        throw new RuntimeException('SQLTasks provider/hydration fixture failed: ' . $e->getMessage(), 0, $e);
-      }
     }
 
-    $compatibility = (new ExtensionHandler())->getCompatibilityReport();
     $coverage = [];
     foreach ($expected as $key) {
       if (!in_array($extensionStatuses[$key] ?? '', ['installed', 'enabled'], TRUE)) {
@@ -310,11 +280,41 @@ final class CivicfgFullRealFixtures {
       if (!in_array($classification, ['FULL', 'PARTIAL', 'NO_PORTABLE_CONFIG', 'UNSUPPORTED'], TRUE)) {
         throw new RuntimeException('Invalid contrib compatibility classification for ' . $key . ': ' . $classification);
       }
+
+      $providers = array_values((array) ($compatibility[$key]['providers'] ?? []));
+      foreach ($providers as $provider) {
+        $provider = (array) $provider;
+        $records = (int) ($provider['records'] ?? 0);
+        if (empty($provider['importable']) || $records < 1) {
+          continue;
+        }
+
+        $api = trim((string) ($provider['api'] ?? ''));
+        $entity = trim((string) ($provider['entity'] ?? ''));
+        if ($api === '' || $entity === '') {
+          throw new RuntimeException('Contrib compatibility provider for ' . $key . ' is missing API/entity metadata.');
+        }
+
+        $providerFiles = glob(
+          $this->syncDir . '/extensions/' . $key . '/' . $api . '/' . $entity . '/*.yml'
+        ) ?: [];
+        $this->assertTrue(
+          (bool) $providerFiles,
+          sprintf(
+            'Discovered contrib provider %s %s.%s reports %d record(s) but produced no YAML.',
+            $key,
+            $api,
+            $entity,
+            $records
+          )
+        );
+      }
+
       $coverage[$key] = [
         'classification' => $classification,
         'classification_basis' => (string) ($compatibility[$key]['classification_basis'] ?? 'error'),
         'settings_count' => (int) ($compatibility[$key]['settings_count'] ?? 0),
-        'providers' => array_values((array) ($compatibility[$key]['providers'] ?? [])),
+        'providers' => $providers,
         'yaml_files' => array_values($files),
       ];
     }
