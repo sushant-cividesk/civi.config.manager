@@ -3,16 +3,20 @@ namespace Civi\ConfigManager\Util;
 
 /**
  * Small YAML helper.
- * Uses Symfony YAML when available; otherwise writes a readable YAML subset.
- * Avoid yaml_emit() for exports because ext-yaml renders null as '~', which is less clear for config review.
- * The fallback parser is intentionally limited; reading prefers Symfony YAML or ext-yaml.
+ *
+ * Symfony YAML is the preferred parser/dumper and is a runtime dependency of
+ * this extension. The extension explicitly loads its own Composer autoloader
+ * when CiviCRM/CMS has not already loaded Symfony YAML. ext-yaml remains a
+ * supported read fallback. Reading without a real YAML parser fails closed.
  */
 class SimpleYaml {
+  private static bool $runtimeAutoloadAttempted = FALSE;
+
   /**
    * @param array<string|int, mixed> $data
    */
   public static function dump(array $data): string {
-    if (class_exists('Symfony\\Component\\Yaml\\Yaml')) {
+    if (self::loadSymfonyYaml()) {
       return self::normaliseYamlOutput(\Symfony\Component\Yaml\Yaml::dump($data, 8, 2));
     }
     return self::normaliseYamlOutput(self::dumpValue($data, 0) . "\n");
@@ -34,7 +38,7 @@ class SimpleYaml {
    * @return array<string|int, mixed>
    */
   public static function parseFile(string $file): array {
-    if (class_exists('Symfony\\Component\\Yaml\\Yaml')) {
+    if (self::loadSymfonyYaml()) {
       $data = \Symfony\Component\Yaml\Yaml::parseFile($file);
       return is_array($data) ? $data : [];
     }
@@ -42,8 +46,30 @@ class SimpleYaml {
       $data = yaml_parse_file($file);
       return is_array($data) ? $data : [];
     }
-    // Fallback: retain raw file for diff/status. Import should require a real YAML parser.
-    return ['__raw_yaml' => file_get_contents($file)];
+
+    throw new \RuntimeException(
+      'No YAML parser is available. Configuration Manager requires its bundled Symfony YAML runtime dependency or the PHP yaml extension.'
+    );
+  }
+
+  /**
+   * Load the extension-local Composer autoloader when the host application has
+   * not already made Symfony YAML available.
+   */
+  private static function loadSymfonyYaml(): bool {
+    if (class_exists('Symfony\\Component\\Yaml\\Yaml')) {
+      return TRUE;
+    }
+
+    if (!self::$runtimeAutoloadAttempted) {
+      self::$runtimeAutoloadAttempted = TRUE;
+      $autoload = dirname(__DIR__, 3) . '/vendor/autoload.php';
+      if (is_file($autoload)) {
+        require_once $autoload;
+      }
+    }
+
+    return class_exists('Symfony\\Component\\Yaml\\Yaml');
   }
 
   /**

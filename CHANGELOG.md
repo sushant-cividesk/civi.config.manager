@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-alpha57-core
+
+- Fixed Standalone/WordPress-style runtime YAML parsing when the host application does not already autoload Symfony YAML.
+- Promoted `symfony/yaml` from a development-only dependency to a runtime dependency and explicitly load the extension-local Composer autoloader before parsing YAML.
+- Removed the unsafe raw-text parse fallback: YAML reads now fail closed with a clear error if neither bundled Symfony YAML nor ext-yaml is available.
+- Updated packaging policy so release/development ZIPs include production Composer dependencies while still excluding development-only dependencies and QA artifacts.
+- Retained the existing manifest site-family safety check; the failing standalone assertion was exposing the missing parser rather than an incorrect site identifier.
+
 ## 0.1.0-alpha56-core
 
 - Continued from the complete beta2 + alpha55 codebase while replacing development-only identity/fingerprint internals before public release.

@@ -20,4 +20,5 @@ Before tagging a beta/release candidate:
 2. Run fast QA: `composer validate --strict`, `composer install`, `composer qa:fast`, `composer test:hook`, and `composer audit`.
 3. Run full QA where possible: GitHub Actions `QA - Full CiviCRM Extension`.
 4. Test at least one DDEV development-to-stage round trip before broader production use.
-5. Package the ZIP without `.git`, `__MACOSX`, `vendor`, `node_modules`, or QA artifacts.
+5. Run `composer install --no-dev --prefer-dist --no-progress --optimize-autoloader` so runtime dependencies are present.
+6. Package the ZIP without `.git`, `__MACOSX`, `node_modules`, or QA artifacts. Include the production `vendor/` directory because Standalone/WordPress-style hosts may not provide the YAML runtime dependency.

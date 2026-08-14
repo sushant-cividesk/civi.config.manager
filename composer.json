@@ -5,14 +5,14 @@
   "type": "civicrm-ext",
   "license": "AGPL-3.0-or-later",
   "require": {
-    "php": ">=7.4"
+    "php": ">=7.4",
+    "symfony/yaml": "^5.4 || ^6.4 || ^7.0"
   },
   "require-dev": {
     "michaelmcandrew/civicrm-coding-standards": "^1.1.1",
     "phpcompatibility/php-compatibility": "^9.3.5",
     "phpstan/phpstan": "^1.12 || ^2.0",
-    "phpunit/phpunit": "^9.6",
-    "symfony/yaml": "^5.4 || ^6.4 || ^7.0"
+    "phpunit/phpunit": "^9.6"
   },
   "autoload": {
     "psr-4": {

@@ -46,6 +46,14 @@ final class SimpleYamlTest extends TestCase {
     self::assertSame($data, SimpleYaml::parseFile($file));
   }
 
+  public function testSymfonyYamlIsRuntimeDependency(): void {
+    $composer = json_decode((string) file_get_contents(dirname(__DIR__, 3) . '/composer.json'), TRUE);
+
+    self::assertIsArray($composer);
+    self::assertArrayHasKey('symfony/yaml', (array) ($composer['require'] ?? []));
+    self::assertArrayNotHasKey('symfony/yaml', (array) ($composer['require-dev'] ?? []));
+  }
+
   public function testParsingScalarYamlReturnsEmptyArray(): void {
     $directory = $this->createTemporaryDirectory();
     $file = $directory . '/scalar.yml';

@@ -6,14 +6,16 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha56-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha57-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
 
+Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when the host CMS/CiviCRM stack does not already provide it. ZIP builds must therefore include production Composer dependencies.
+
 ## Development and beta policy
 
-`0.1.0-alpha56-core` continues development on top of the complete beta2 + alpha55 codebase. The extension is still pre-publication, so alpha56 deliberately tightens internal identity/state formats rather than carrying development-only compatibility shims. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha57-core` continues development on top of the complete alpha56 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
 
 ## Purpose
 
