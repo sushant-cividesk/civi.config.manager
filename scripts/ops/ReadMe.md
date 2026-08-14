@@ -1,14 +1,14 @@
-## Configuration Manager install automation
+# Configuration Manager install automation
 
 Use this script after a site rebuild to install the latest Configuration Manager release and create the first YAML baseline export.
 
-### Script
+## Script
 
 ```bash
 scripts/ops/install-civicfg-latest.sh
 ```
 
-### What it does
+## What it does
 
 - Downloads the latest `civi.config.manager` release ZIP from GitHub.
 - Installs it into the CiviCRM extensions directory.
@@ -19,7 +19,7 @@ scripts/ops/install-civicfg-latest.sh
 - Runs initial validation.
 - Runs the first YAML baseline export.
 
-### What it does not do
+## What it does not do
 
 - It does not import configuration.
 - It does not commit or push YAML files.
@@ -27,7 +27,7 @@ scripts/ops/install-civicfg-latest.sh
 - It does not send alerts.
 - It does not take database/files backups.
 
-### Required environment variables
+## Required environment variables
 
 ```bash
 export CIVICRM_ROOT=/var/www/html/web/wp-content/plugins/civicrm/civicrm/
@@ -38,21 +38,21 @@ export APP_URL=cividesk.com,cividesk.ca
 export APP=cividesk
 ```
 
-### Run
+## Run
 
 ```bash
 bash -n scripts/ops/install-civicfg-latest.sh
 scripts/ops/install-civicfg-latest.sh
 ```
 
-### Optional: pin a release
+## Optional: pin a release
 
 ```bash
 export CIVICFG_RELEASE_TAG=0.1.0-beta2
 scripts/ops/install-civicfg-latest.sh
 ```
 
-### Reports
+## Reports
 
 Reports are saved under:
 
