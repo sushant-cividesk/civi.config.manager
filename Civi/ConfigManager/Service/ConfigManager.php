@@ -9,6 +9,7 @@ class ConfigManager {
   private ConfigScope $scope;
   private ?array $allHandlersCache = NULL;
   private ?array $managedTypeOptionsCache = NULL;
+  private array $activeDependencyNamesCache = [];
 
   public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL) {
     $this->registry = $registry ?: new HandlerRegistry();
@@ -299,6 +300,7 @@ class ConfigManager {
   public function getScopeTypeOptions(): array {
     $rows = [];
     foreach ($this->getAllHandlers() as $handler) {
+      $capability = $this->scopeCapabilityForHandler($handler);
       $rows[] = [
         'type' => (string) $handler->getType(),
         'base_type' => (string) $handler->getType(),
@@ -307,6 +309,9 @@ class ConfigManager {
         'weight' => (int) $handler->getWeight(),
         'virtual' => FALSE,
         'provider' => '',
+        'capability' => $capability['key'],
+        'capability_label' => $capability['label'],
+        'capability_help' => $capability['help'],
       ];
     }
     usort($rows, static function($a, $b) {
@@ -314,6 +319,186 @@ class ConfigManager {
       return $cmp !== 0 ? $cmp : strcmp((string) $a['label'], (string) $b['label']);
     });
     return $rows;
+  }
+
+  /**
+   * Lazily enumerate active items for one scope type. Settings never calls this
+   * until an administrator opens that type's item picker.
+   */
+  public function getScopePickerItems(string $type): array {
+    if (!preg_match('/^[A-Za-z0-9_.-]+$/', $type)) {
+      throw new \RuntimeException('Invalid Configuration Scope type.');
+    }
+
+    $handler = NULL;
+    foreach ($this->getAllHandlers() as $candidate) {
+      if ((string) $candidate->getType() === $type) {
+        $handler = $candidate;
+        break;
+      }
+    }
+    if ($handler === NULL) {
+      throw new \RuntimeException('Unknown Configuration Scope type: ' . $type);
+    }
+
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $exported = $this->attachScopeRelativePaths($handler, $handler->export());
+    $partition = $this->scopePartition($handler, $exported, $storage, FALSE);
+    $selectedKeys = array_fill_keys(array_map('strval', (array) ($partition['managed_config_keys'] ?? [])), TRUE);
+    $identityService = new ConfigIdentity();
+    $items = [];
+
+    foreach ($exported as $file) {
+      $file = (array) $file;
+      $filename = (string) ($file['filename'] ?? '');
+      $data = (array) ($file['data'] ?? []);
+      if ($filename === '') {
+        continue;
+      }
+      $identity = $identityService->identify($type, $data, $filename);
+      $configKey = (string) ($identity['config_key'] ?? '');
+      $relative = (string) ($file['relative_path'] ?? (trim((string) $handler->getDirectory(), '/') . '/' . $filename));
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $items[] = [
+        'selector' => 'key:' . $configKey,
+        'config_key' => $configKey,
+        'label' => $this->displayLabelForConfigFile($type, $file),
+        'path' => $relative,
+        'source_id' => isset($file['source_id']) && is_scalar($file['source_id']) ? (string) $file['source_id'] : '',
+        'selected' => isset($selectedKeys[$configKey]),
+        'write_safe' => !empty($identity['write_safe']),
+        'identity_confidence' => (string) ($identity['identity_confidence'] ?? ''),
+      ];
+    }
+
+    // Keep configured selectors visible even when the active record is missing.
+    // This prevents opening/saving the picker from silently losing a managed
+    // backup that is intentionally waiting to be restored.
+    $presentSelectors = array_fill_keys(array_map(static fn($item) => (string) ($item['selector'] ?? ''), $items), TRUE);
+    foreach ((array) ($partition['selector_config_keys'] ?? []) as $selector => $configKey) {
+      $stableSelector = 'key:' . trim((string) $configKey);
+      if ($stableSelector === 'key:' || isset($presentSelectors[$stableSelector])) {
+        continue;
+      }
+      $items[] = [
+        'selector' => $stableSelector,
+        'config_key' => (string) $configKey,
+        'label' => 'Managed item currently missing from CiviCRM',
+        'path' => '',
+        'source_id' => '',
+        'selected' => TRUE,
+        'write_safe' => FALSE,
+        'identity_confidence' => '',
+        'missing' => TRUE,
+        'source_selector' => (string) $selector,
+      ];
+    }
+    foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
+      $selector = trim((string) $selector);
+      if ($selector === '') {
+        continue;
+      }
+      $items[] = [
+        'selector' => $selector,
+        'config_key' => '',
+        'label' => 'Configured selector not found yet',
+        'path' => '',
+        'source_id' => '',
+        'selected' => TRUE,
+        'write_safe' => FALSE,
+        'identity_confidence' => '',
+        'missing' => TRUE,
+        'source_selector' => $selector,
+      ];
+    }
+
+    usort($items, static function($a, $b) {
+      $missingCmp = ((int) !empty($a['missing'])) <=> ((int) !empty($b['missing']));
+      if ($missingCmp !== 0) {
+        return $missingCmp;
+      }
+      return strnatcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+    });
+
+    return [
+      'type' => $type,
+      'label' => (string) $handler->getLabel(),
+      'policy' => $this->scope->getPolicy($type),
+      'items' => $items,
+    ];
+  }
+
+  /**
+   * Generate a deployable civicrm.settings.php example from effective scope.
+   */
+  public function getScopeSettingsExample(): string {
+    $lines = [
+      'global $civicrm_setting;',
+      '',
+      '$civicrm_setting[\'domain\'][\'civicfg_scope\'] = [',
+    ];
+    foreach ($this->getScopeTypeOptions() as $row) {
+      $type = (string) ($row['type'] ?? '');
+      if ($type === '') {
+        continue;
+      }
+      $policy = $this->scope->getPolicy($type);
+      $mode = (string) ($policy['mode'] ?? ConfigScope::MODE_ALL);
+      if ($mode === ConfigScope::MODE_ALL && empty($policy['selectors']) && empty($policy['watch_unmanaged'])) {
+        continue;
+      }
+      $lines[] = '  ' . var_export($type, TRUE) . ' => [';
+      $lines[] = '    \'mode\' => ' . var_export($mode, TRUE) . ',';
+      if ($mode === ConfigScope::MODE_SELECTED) {
+        $lines[] = '    \'selectors\' => [';
+        foreach ((array) ($policy['selectors'] ?? []) as $selector) {
+          $lines[] = '      ' . var_export((string) $selector, TRUE) . ',';
+        }
+        $lines[] = '    ],';
+        if (!empty($policy['watch_unmanaged'])) {
+          $lines[] = '    \'watch_unmanaged\' => TRUE,';
+        }
+      }
+      $lines[] = '  ],';
+    }
+    $lines[] = '];';
+    return implode("\n", $lines);
+  }
+
+  private function scopeCapabilityForHandler($handler): array {
+    if ($handler instanceof \Civi\ConfigManager\Handler\ExtensionHandler) {
+      return [
+        'key' => 'mixed',
+        'label' => 'Mixed provider capabilities',
+        'help' => 'Extension status and safe provider config can be managed. Providers without a safe portable identity stay export/monitor-only.',
+      ];
+    }
+    try {
+      $method = new \ReflectionMethod($handler, 'import');
+      if ($method->getDeclaringClass()->getName() === \Civi\ConfigManager\Handler\AbstractHandler::class) {
+        return [
+          'key' => 'export_only',
+          'label' => 'Export + compare',
+          'help' => 'This handler can be exported, compared, watched, and backed up, but automatic restore/import is not implemented.',
+        ];
+      }
+    }
+    catch (\ReflectionException $e) {
+      // Registered handlers implement HandlerInterface; use the conservative
+      // export/compare label if a custom implementation is unusual.
+      return [
+        'key' => 'export_only',
+        'label' => 'Export + compare',
+        'help' => 'Automatic restore/import capability could not be confirmed for this handler.',
+      ];
+    }
+    return [
+      'key' => 'full',
+      'label' => 'Full management',
+      'help' => "Supports managed YAML plus the handler's safe import/restore behavior.",
+    ];
   }
 
   public function status(): array {
@@ -468,7 +653,19 @@ class ConfigManager {
     $manifest = $this->readManifest($storage);
     $type = (string) $handler->getType();
     $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, $type);
-    return $this->scope->partition($type, $files, $forExport, $selectorMap);
+    return $this->scope->partition($type, $this->attachScopeRelativePaths($handler, $files), $forExport, $selectorMap);
+  }
+
+  private function attachScopeRelativePaths($handler, array $files): array {
+    $directory = trim((string) $handler->getDirectory(), '/');
+    foreach ($files as &$file) {
+      if (!is_array($file) || empty($file['filename'])) {
+        continue;
+      }
+      $file['relative_path'] = ($directory !== '' ? $directory . '/' : '') . ltrim((string) $file['filename'], '/');
+    }
+    unset($file);
+    return $files;
   }
 
   private function filterYamlByScope($handler, array $files, array $partition, YamlFileStorage $storage): array {
@@ -501,6 +698,7 @@ class ConfigManager {
     foreach ($files as $filename => $data) {
       $exportLikeFiles[] = [
         'filename' => (string) $filename,
+        'relative_path' => trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/'),
         'data' => (array) $data,
       ];
     }
@@ -1000,6 +1198,10 @@ class ConfigManager {
   }
 
   public function validate(array $typeFilter = []): array {
+    // Active dependency lookups are cached only for one validation pass. A
+    // long-lived ConfigManager instance may have applied configuration since a
+    // previous validation, so never reuse target-state fingerprints here.
+    $this->activeDependencyNamesCache = [];
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
     $yamlByType = [];
@@ -1037,6 +1239,10 @@ class ConfigManager {
 
   private function addDependencyWarnings(array &$result, array $yamlByType): void {
     $available = $this->collectManagedYamlNames($yamlByType);
+    $registeredTypes = [];
+    foreach ($this->getAllHandlers() as $handler) {
+      $registeredTypes[$handler->getType()] = $handler->getLabel();
+    }
     $managedTypes = [];
     foreach ($this->getHandlers() as $handler) {
       $managedTypes[$handler->getType()] = $handler->getLabel();
@@ -1059,20 +1265,31 @@ class ConfigManager {
           if ($dependencyType === '' || $dependencyName === '') {
             continue;
           }
-          if (!isset($managedTypes[$dependencyType])) {
+          if (!isset($registeredTypes[$dependencyType])) {
             // Non-managed runtime dependencies such as api-entity are informational.
             continue;
           }
-          if (!isset($available[$dependencyType][$dependencyName])) {
-            $result['ok'] = FALSE;
-            $reason = (string) ($dependency['reason'] ?? 'This YAML item references another managed config item.');
-            $ignoredHint = $this->ignoredDependencyHint($dependencyType, $dependencyName);
-            $message = $this->formatMissingDependencyMessage($filename, $type, $dependencyType, $dependencyName, $reason, $ignoredHint);
-            $result['items'][$itemIndex[$type]]['errors'][] = [
-              'file' => $filename,
-              'message' => $message,
-            ];
+          if (isset($available[$dependencyType][$dependencyName])) {
+            continue;
           }
+
+          // Selective configuration is allowed to depend on existing target
+          // configuration that is intentionally outside the managed YAML set.
+          // This is safe because handlers resolve these references by stable
+          // semantic names during import. Only block when the dependency is
+          // absent from both the import bundle and active CiviCRM.
+          if ($this->activeDependencyExists($dependencyType, $dependencyName)) {
+            continue;
+          }
+
+          $result['ok'] = FALSE;
+          $reason = (string) ($dependency['reason'] ?? 'This YAML item references another managed config item.');
+          $ignoredHint = $this->ignoredDependencyHint($dependencyType, $dependencyName);
+          $message = $this->formatMissingDependencyMessage($filename, $type, $dependencyType, $dependencyName, $reason, $ignoredHint);
+          $result['items'][$itemIndex[$type]]['errors'][] = [
+            'file' => $filename,
+            'message' => $message,
+          ];
         }
         foreach ($this->extractRequiredByFromYamlFile((array) $file) as $requiredBy) {
           $requiredByType = (string) ($requiredBy['type'] ?? '');
@@ -1092,8 +1309,35 @@ class ConfigManager {
   }
 
 
+  private function activeDependencyExists(string $type, string $name): bool {
+    if (!array_key_exists($type, $this->activeDependencyNamesCache)) {
+      $names = [];
+      foreach ($this->getAllHandlers() as $handler) {
+        if ((string) $handler->getType() !== $type) {
+          continue;
+        }
+        try {
+          foreach ($handler->export() as $file) {
+            $file = (array) $file;
+            foreach ($this->namesFromYamlFile((array) ($file['data'] ?? [])) as $activeName) {
+              $names[(string) $activeName] = TRUE;
+            }
+          }
+        }
+        catch (\Throwable $e) {
+          // Fail closed: if active state cannot be verified, validation should
+          // continue to report the missing portable dependency below.
+          $names = [];
+        }
+        break;
+      }
+      $this->activeDependencyNamesCache[$type] = $names;
+    }
+    return isset($this->activeDependencyNamesCache[$type][$name]);
+  }
+
   private function formatMissingDependencyMessage(string $filename, string $ownerType, string $dependencyType, string $dependencyName, string $reason, string $ignoredHint = ''): string {
-    $prefix = sprintf('Cannot import %s/%s: missing dependency %s "%s".', $ownerType, $filename, $dependencyType, $dependencyName);
+    $prefix = sprintf('Cannot import %s/%s: dependency %s "%s" is not available in the managed YAML set or active CiviCRM.', $ownerType, $filename, $dependencyType, $dependencyName);
     if ($dependencyType === 'contact-types' && preg_match('/^[0-9]+$/', $dependencyName)) {
       $prefix .= ' The dependency name is numeric, which usually means this YAML was exported by an older alpha using a local database ID instead of the Contact Type machine name.';
       $prefix .= ' Re-export Custom Groups and Fields together with Contact Types using the current build, or update the YAML dependency to the stable contact type name before importing.';
@@ -1212,7 +1456,10 @@ class ConfigManager {
     $storage = new YamlFileStorage($this->getSyncDir());
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
-    $validation = $this->validate($requestedTypes);
+    // Validate the complete import closure, not only the types that happened
+    // to have visible differences. Related dependency types are imported in
+    // the same operation and must therefore participate in validation.
+    $validation = $this->validate($effectiveTypes);
     if (!$validation['ok']) {
       return [
         'ok' => FALSE,

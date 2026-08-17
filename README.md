@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha58-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha59-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -15,7 +15,7 @@ Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when t
 
 ## Development and beta policy
 
-`0.1.0-alpha58-core` continues development on top of the complete alpha57 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha59-core` continues development on top of the complete alpha58 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
 
 ## Purpose
 
@@ -78,14 +78,14 @@ Controls the sync directory and the universal Configuration Scope policy.
 Settings include:
 
 - Sync Directory
-- Configuration Scope: `Manage all`, `Manage selected`, `Watch only`, or `Ignore` for each supported configuration type
-- Per-type selectors for `Manage selected`, with optional `Watch unselected`
+- Configuration Scope: `Manage everything`, `Manage selected items`, `Monitor only`, or `Ignore` for each supported configuration type
+- Lazy item pickers for `Manage selected items`, with optional monitoring of everything else
 - Settings Allowlist as the safety boundary for CiviCRM settings that are eligible for scope/export
 - Config Ignore
 
-`Manage selected` accepts one selector per line. A numeric ID or `id:123` is a local source selector used to choose the initial object; exported item YAML never uses that numeric ID as the cross-environment identity. Configuration Manager records the resulting semantic config key in `manifest.yml`, so the same selected object can be matched on another environment even when its local database ID differs. Stable names/keys, `key:<portable-config-key>`, and `path:<relative-yaml-path>` may also be used as selectors.
+`Manage selected items` normally uses the Settings item picker: Configuration Manager lazily loads only the chosen configuration type, shows current CiviCRM labels, and stores a stable semantic selector automatically. Advanced selectors remain available for automation or missing items. A numeric ID or `id:123` is a local source selector only; exported YAML never uses that ID as the cross-environment identity. Stable names/keys, `key:<portable-config-key>`, and `path:<full-relative-yaml-path>` are also supported.
 
-`Watch only` and `Watch unselected` are deliberately non-destructive. Watched objects are fingerprinted only during an explicit watch scan; they are not exported to YAML and cannot be imported, restored, or deleted until they are moved into managed scope.
+`Monitor only` and `Monitor everything else` are deliberately non-destructive. Watched objects are fingerprinted only during an explicit watch scan; they are not exported to YAML and cannot be imported, restored, or deleted until they are moved into managed scope.
 
 Config Ignore accepts one relative YAML path or wildcard per line. Ignored files are skipped during diff, validate, export, and import. `extensions/civi.config.manager.yml` and legacy self-extension YAML keys are ignored by default to avoid self-management loops; remove it only if you intentionally want this extension to manage its own extension status.
 
@@ -465,6 +465,22 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - Added stronger automated coverage for the preferred `hook_civicfg_entityDefinitions()` integration path.
 - The metadata-hook tests now cover stable-key export, collection YAML, where/order metadata, composite keys, update/create/dry-run/delete-missing imports, import-disabled definitions, invalid YAML validation, sensitive-field blocking, and ignored-field diff behavior.
 - GitHub fast and full workflows now include a dedicated required `composer test:hook` / `EntityDefinitionHandlerTest` step so hook regressions are easy to spot in Actions.
+
+
+## Alpha 59 Notes
+
+Alpha59 refines the alpha58 universal scope foundation for day-to-day administrator use:
+
+- Settings now uses plain-language, mode-aware scope cards instead of showing an always-visible raw selector textarea for every type.
+- `Manage selected items` provides a lazy searchable picker. Opening Settings does not enumerate configuration records; only the requested type is exported/discovered when its picker opens.
+- Picker selections are stored as semantic `key:` selectors automatically. Local numeric IDs remain available only as advanced bootstrap selectors.
+- The Settings page generates a copyable `civicrm.settings.php` example from the current scope choices, and code-owned scope remains read-only in the UI.
+- Each registered handler shows a cheap capability label: full management, export/compare only, or mixed provider capabilities for contributed-extension configuration.
+- Expected contributed-provider identity limitations are reported as compatibility information rather than YAML validation warnings; genuinely invalid or unsafe YAML still produces warnings/errors.
+- Extension status changes now explain both sides in plain language, e.g. `YAML Installed but disabled → CiviCRM Enabled`.
+- Large change lists stay collapsed by default after the summary when many individual items need review.
+- Full relative `path:` selectors are now consistent between Settings help and runtime matching.
+- Added service, static-analysis, and browser coverage for lazy scope discovery, mode-dependent controls, portable picker selectors, missing selected records, settings-file examples, and compatibility reporting.
 
 ## Alpha 58 Notes
 

@@ -341,7 +341,7 @@ class ConfigScope {
   }
 
   public function selectorHelp(): string {
-    return 'One selector per line. Use a local numeric ID (for initial source selection), id:123, a stable name/key, key:<portable config key>, or path:<relative YAML filename>.';
+    return 'Choose items by name in the UI. Advanced selectors accept a local numeric ID (source-site bootstrap only), id:123, a stable name/key, key:<portable config key>, or path:<full relative YAML path>.';
   }
 
   private function normalisePolicy(array $policy): array {
@@ -427,7 +427,8 @@ class ConfigScope {
     };
 
     $add((string) ($identity['config_key'] ?? ''), 'key');
-    $add((string) ($file['filename'] ?? ''), 'path');
+    $relativePath = (string) ($file['relative_path'] ?? ($file['filename'] ?? ''));
+    $add($relativePath, 'path');
     if (array_key_exists('source_id', $file)) {
       $add($file['source_id'], 'id');
     }

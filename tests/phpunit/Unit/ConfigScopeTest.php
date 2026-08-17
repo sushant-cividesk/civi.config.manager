@@ -161,6 +161,51 @@ final class ConfigScopeTest extends TestCase {
     self::assertArrayNotHasKey('job_two.yml', $filtered);
   }
 
+  public function testPathSelectorUsesFullRelativeYamlPath(): void {
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => [
+        'mode' => 'selected',
+        'selectors' => ['path:scheduled-jobs/job_two.yml'],
+      ],
+    ]);
+
+    $files = [
+      $this->jobFile(10, 'job_one'),
+      $this->jobFile(20, 'job_two'),
+    ];
+    foreach ($files as &$file) {
+      $file['relative_path'] = 'scheduled-jobs/' . $file['filename'];
+    }
+    unset($file);
+
+    $partition = (new ConfigScope())->partition('scheduled-jobs', $files, TRUE);
+
+    self::assertCount(1, $partition['managed']);
+    self::assertSame('job_two.yml', $partition['managed'][0]['filename']);
+  }
+
+  public function testStableConfigKeySelectorIsPortableWithoutSourceId(): void {
+    $files = [$this->jobFile(10, 'job_one')];
+    $identity = (new \Civi\ConfigManager\Service\ConfigIdentity())->identify(
+      'scheduled-jobs',
+      $files[0]['data'],
+      $files[0]['filename']
+    );
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => [
+        'mode' => 'selected',
+        'selectors' => ['key:' . $identity['config_key']],
+      ],
+    ]);
+
+    $partition = (new ConfigScope())->partition('scheduled-jobs', [
+      $this->jobFile(999, 'job_one'),
+    ], TRUE);
+
+    self::assertCount(1, $partition['managed']);
+    self::assertSame('job_one.yml', $partition['managed'][0]['filename']);
+  }
+
   public function testSelectedScopeCanSelectAnIndividualSettingByStableName(): void {
     \Civi::settings()->set('civicfg_scope', [
       'settings' => [

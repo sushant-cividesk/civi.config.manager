@@ -117,6 +117,20 @@ The full run creates its own database, records, settings, YAML directory, Docker
 See `docs/QA_AUTOMATION.md` for commands, current coverage, isolation rules, and the developer test-scenario contract.
 
 
+## Alpha59 scope UI and compatibility tests
+
+In addition to the alpha58 scope safety checks, verify:
+
+- Opening Settings does not enumerate active configuration records or extension-provider records.
+- Changing a scope row to `Manage selected items` reveals the item controls; switching to `Monitor only` or `Ignore` hides them.
+- Opening `Choose items` makes exactly one lazy request for that type and displays current human-readable CiviCRM items.
+- Applying picker selections stores semantic `key:` selectors instead of local numeric IDs.
+- A configured selected item that is temporarily missing stays visible/preserved rather than being silently dropped by the picker.
+- The `civicrm.settings.php` example updates from current scope choices and a code-owned `civicfg_scope` override remains read-only.
+- Full relative `path:` selectors match the same item as the UI picker.
+- Healthy extension-provider YAML with an ambiguous provider identity shows compatibility information, not a validation warning; automatic writes remain blocked.
+- A real extension status drift clearly shows the YAML state and active CiviCRM state.
+
 ## Alpha58 scope, watch, and performance tests
 
 Before accepting alpha58 on a real development project, verify:

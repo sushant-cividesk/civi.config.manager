@@ -18,9 +18,24 @@
   {if $result.error}<div class="messages error no-popup">{$result.error|escape}</div>{/if}
   {if $summary.error_count gt 0}<div class="messages error no-popup">{ts 1=$summary.error_count}%1 Error(s) Reported. Review the page messages and logs for details.{/ts}</div>{/if}
 
-  {foreach from=$importMessages item=message}
-    <div class="messages {if $message.type eq 'error'}error{else}warning{/if} no-popup"><strong>{$message.title|escape}:</strong> {$message.message|escape}</div>
-  {/foreach}
+  {if $importMessages|@count gt 0}
+    <details class="messages {if $importErrorCount gt 0}error{else}warning{/if} no-popup civicfg-import-message-summary">
+      <summary>
+        <strong>
+          {if $importErrorCount gt 0}
+            {ts 1=$importErrorCount 2=$importMessages|@count}Import has %1 blocking error(s). %2 distinct message(s) are available below.{/ts}
+          {else}
+            {ts 1=$importMessages|@count}Import completed with %1 warning(s).{/ts}
+          {/if}
+        </strong>
+      </summary>
+      <ul class="civicfg-import-message-list">
+        {foreach from=$importMessages item=message}
+          <li><strong>{$message.title|escape}:</strong> {$message.message|escape}</li>
+        {/foreach}
+      </ul>
+    </details>
+  {/if}
 
   <div class="civicfg-cards">
     <div class="civicfg-card">

@@ -16,6 +16,10 @@ The current alpha focuses on a safe, reviewable configuration workflow:
 - CiviCRM status report integration.
 - Dependency-free UI assets.
 
+## Alpha59 scope usability hardening
+
+The current alpha adds lazy human-readable item selection, generated deployment override examples, provider capability labels, compatibility-not-warning reporting, and clearer extension-state diffs. Remaining scope work should focus on additional handler-specific labels/dependencies and real-project compatibility data rather than exposing more raw selector syntax to administrators.
+
 ## Alpha58 scope foundation
 
 The current alpha now includes a universal managed/watch/ignored scope layer, portable selected-item identities, explicit watch scans, cached system health, and a no-delete guarantee for unselected records. Message Templates are the first strongly identity-aware example, but the scope layer is handler-generic and split-file support has been expanded across other core configuration types.

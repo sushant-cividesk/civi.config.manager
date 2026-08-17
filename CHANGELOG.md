@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0-alpha59-core
+
+- Reworked Configuration Scope Settings into plain-language, mode-aware cards with `Manage everything`, `Manage selected items`, `Monitor only`, and `Ignore`.
+- Added a lazy searchable item picker that scans only the requested handler when opened, preserving the no-scan performance rule for ordinary Settings/page requests.
+- Picker selections save portable semantic `key:` selectors automatically while advanced numeric/name/key/path selectors remain available for automation and temporarily missing records.
+- Added handler capability labels without running exports: full management, export/compare only, and mixed contributed-provider capabilities.
+- Added a generated, copyable `civicrm.settings.php` scope example based on the current UI choices; code-owned overrides remain locked in the UI.
+- Moved site identity, cross-site import, raw settings allowlist, and Config Ignore controls under Advanced settings to reduce normal-page complexity.
+- Corrected `path:` selector matching to use full relative YAML paths consistently.
+- Reclassified expected contributed-provider weak-identity limitations as compatibility information rather than YAML validation warnings, while automatic writes remain blocked.
+- Improved extension status diffs to explain YAML and CiviCRM states in plain language and collapse large change-detail lists by default.
+- Added unit/browser coverage for lazy picker behavior, capability rendering, portable selectors, missing managed selectors, settings-file examples, path selectors, compatibility reporting, and mode-dependent UI.
+
 ## 0.1.0-alpha58-core
 
 - Added universal Configuration Scope with `Manage all`, `Manage selected`, `Watch only`, and `Ignore` modes for registered configuration handlers, plus optional watch-unmanaged behavior for selected scope.

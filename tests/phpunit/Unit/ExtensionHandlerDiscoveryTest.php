@@ -121,6 +121,38 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertSame('UNSAFE', $method->invoke($handler, [['label' => 'Weak']], []));
   }
 
+  public function testAmbiguousProviderIdentityIsCompatibilityInformationNotValidationWarning(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'validateExtensionConfigItem');
+    $method->setAccessible(TRUE);
+    $errors = [];
+    $warnings = [];
+    $compatibility = [];
+    $definition = [
+      'extension' => 'example.ext',
+      'api' => 'api4',
+      'entity' => 'ExampleConfig',
+      'match_fields' => [],
+    ];
+    $definitions = [
+      'example.ext|api4|exampleconfig' => $definition,
+    ];
+    $item = [
+      'type' => 'extension_config.item',
+      'extension' => 'example.ext',
+      'api' => 'api4',
+      'entity' => 'ExampleConfig',
+      'identity_field' => 'label',
+      'item' => ['label' => 'Readable title'],
+    ];
+
+    $method->invokeArgs($handler, ['example.yml', $item, $definitions, &$errors, &$warnings, &$compatibility]);
+
+    self::assertSame([], $errors);
+    self::assertSame([], $warnings);
+    self::assertCount(1, $compatibility);
+  }
+
   public function testExtensionTokensIncludeConservativeSingularNamespace(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'extensionTokens');

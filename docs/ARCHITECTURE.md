@@ -203,6 +203,12 @@ For example, an environment-local `custom_group_id` should be represented by a s
 
 Reference definitions may also declare a `dependency_type`, allowing the existing dependency validation and ordering system to reason about the referenced configuration. Create/update operations run before delete operations, and deletes run in reverse handler order to reduce parent/child removal hazards.
 
+## Scope UI and discovery
+
+Configuration Scope is stored as handler-level policy, but the normal Settings UI does not require administrators to write selector syntax. `Manage selected items` opens a lazy picker for one handler at a time. The picker enumerates that handler only, displays human labels/local IDs for orientation, and saves semantic `key:` selectors. Advanced numeric/name/key/path selectors remain available for automation and temporarily missing objects. Normal Settings rendering never calls handler `export()` merely to populate choices.
+
+Capability labels are derived without active-record discovery. Built-in handlers with an import implementation are shown as full management, export-only handlers as export/compare, and generic contributed-extension configuration as mixed capability because individual discovered providers may be write-safe or backup/monitor-only. Provider identity limitations are compatibility information, not YAML-format failures.
+
 ## YAML file strategy
 
 Handlers use split item files wherever practical so universal Configuration Scope can manage or watch individual objects safely. Current split-file handlers include Contact Types, Relationship Types, Location Types, Financial Types, Payment Processors, Dedupe Rules, Scheduled Jobs, SearchKit Saved Searches, SearchKit Displays, FormBuilder Afforms, Message Templates, allowlisted CiviCRM Settings, Custom Groups, Site Tokens, Extensions, and safely discovered extension-owned configuration. Aggregate objects such as an Option Group and its Option Values remain together where that relationship is the useful portable unit.

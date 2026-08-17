@@ -17,7 +17,9 @@ fixtures:
       stable_identity: qa_civicfg_watched_<run_id>
 steps:
   - Open Synchronize before the first export and verify a single initial-export prompt is shown instead of treating every active CiviCRM record as a pending difference.
-  - Configure a type as Manage selected using a local numeric source selector, enable Watch unselected, and export the initial managed YAML.
+  - Open Settings and verify configuration records are not enumerated until Choose items is opened for one type.
+  - Switch one row to Manage selected items, use the lazy picker, and verify the saved selector is a portable semantic key rather than the displayed local numeric ID.
+  - Also configure a type using a local numeric source selector through Advanced selection, enable monitoring of unselected items, and export the initial managed YAML.
   - Verify manifest managed_scope records the portable config key and selector-to-portable-key mapping while the individual YAML document contains no source database ID.
   - On a target fixture with a different numeric ID, verify diff, import, and a later export still select the same object by its portable semantic identity.
   - Verify unselected active records are excluded from YAML and from destructive import while remaining eligible for explicit watch scans.
@@ -40,6 +42,10 @@ expected:
   watched_records_never_enter_yaml: true
   watch_scan_is_explicit_and_cached: true
   settings_php_scope_override_wins: true
+  lazy_picker_does_not_scan_on_settings_load: true
+  picker_saves_portable_semantic_selectors: true
+  mode_dependent_scope_controls_are_clear: true
+  compatibility_limitations_are_not_yaml_warnings: true
   normal_status_check_does_not_scan_handlers: true
 negative_cases:
   - selected_source_database_id_is_written_as_cross_environment_identity

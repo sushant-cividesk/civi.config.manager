@@ -97,6 +97,267 @@
 
 
 
+    function parseScopeSelectors(textarea) {
+      if (!textarea) { return []; }
+      var seen = {};
+      return (textarea.value || '').split(/[\r\n,]+/).map(function(value) {
+        return value.trim();
+      }).filter(function(value) {
+        if (!value || seen[value]) { return false; }
+        seen[value] = true;
+        return true;
+      });
+    }
+
+    function updateScopeCount(row) {
+      if (!row) { return; }
+      var textarea = row.querySelector('[data-civicfg-scope-selectors]');
+      var count = parseScopeSelectors(textarea).length;
+      var target = row.querySelector('[data-civicfg-scope-count]');
+      if (target) {
+        target.textContent = count ? (count + ' selected') : 'None selected yet';
+      }
+    }
+
+    function renderScopeChips(row, selectedItems) {
+      if (!row) { return; }
+      var host = row.querySelector('[data-civicfg-selected-chips]');
+      if (!host) { return; }
+      host.innerHTML = '';
+      (selectedItems || []).slice(0, 8).forEach(function(item) {
+        var chip = document.createElement('span');
+        chip.className = 'civicfg-selected-chip';
+        chip.textContent = item.label || item.path || item.selector || 'Selected item';
+        host.appendChild(chip);
+      });
+      if ((selectedItems || []).length > 8) {
+        var more = document.createElement('span');
+        more.className = 'civicfg-muted';
+        more.textContent = '+' + ((selectedItems || []).length - 8) + ' more';
+        host.appendChild(more);
+      }
+    }
+
+    function refreshScopeRow(row) {
+      if (!row) { return; }
+      var mode = row.querySelector('[data-civicfg-scope-mode]');
+      var value = mode ? mode.value : 'all';
+      var controls = row.querySelector('[data-civicfg-selected-controls]');
+      if (controls) { controls.hidden = value !== 'selected'; }
+      row.querySelectorAll('[data-civicfg-mode-help]').forEach(function(help) {
+        help.hidden = help.getAttribute('data-civicfg-mode-help') !== value;
+      });
+      updateScopeCount(row);
+    }
+
+    document.querySelectorAll('[data-civicfg-scope-row]').forEach(function(row) {
+      refreshScopeRow(row);
+      var mode = row.querySelector('[data-civicfg-scope-mode]');
+      if (mode) {
+        mode.addEventListener('change', function() { refreshScopeRow(row); renderScopeSettingsExample(); });
+      }
+      var textarea = row.querySelector('[data-civicfg-scope-selectors]');
+      if (textarea) {
+        textarea.addEventListener('input', function() { updateScopeCount(row); renderScopeSettingsExample(); });
+      }
+      var watch = row.querySelector('input[name^="scope_watch_unmanaged"]');
+      if (watch) { watch.addEventListener('change', renderScopeSettingsExample); }
+    });
+
+    function ensureScopePickerModal() {
+      var existing = document.getElementById('civicfg-scope-picker-modal');
+      if (existing) { return existing; }
+      var modal = document.createElement('div');
+      modal.id = 'civicfg-scope-picker-modal';
+      modal.className = 'civicfg-modal civicfg-scope-picker-modal';
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+      modal.innerHTML = '' +
+        '<div class="civicfg-modal-box civicfg-scope-picker-box" role="dialog" aria-modal="true" aria-labelledby="civicfg-scope-picker-title">' +
+          '<div class="civicfg-modal-header"><strong id="civicfg-scope-picker-title">Choose managed items</strong><button type="button" class="civicfg-close" data-civicfg-scope-picker-close aria-label="Close">×</button></div>' +
+          '<div class="civicfg-modal-body">' +
+            '<p class="description" id="civicfg-scope-picker-help">Choose the items Configuration Manager should manage. Stable portable identities are saved automatically.</p>' +
+            '<input type="search" class="crm-form-text civicfg-scope-search" id="civicfg-scope-picker-search" placeholder="Search items..." />' +
+            '<div class="civicfg-scope-picker-status" id="civicfg-scope-picker-status" aria-live="polite"></div>' +
+            '<div class="civicfg-scope-picker-list" id="civicfg-scope-picker-list"></div>' +
+            '<div class="civicfg-actions"><button type="button" class="button" data-civicfg-scope-picker-apply><span>Use selected items</span></button><button type="button" class="button" data-civicfg-scope-picker-close><span>Cancel</span></button></div>' +
+          '</div>' +
+        '</div>';
+      var host = document.querySelector('.crm-configmanager-block') || document.body;
+      host.appendChild(modal);
+      modal.querySelectorAll('[data-civicfg-scope-picker-close]').forEach(function(btn) {
+        btn.addEventListener('click', function() { closeScopePicker(modal); });
+      });
+      modal.addEventListener('click', function(ev) { if (ev.target === modal) { closeScopePicker(modal); } });
+      return modal;
+    }
+
+    function closeScopePicker(modal) {
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.hidden = true;
+      modal._civicfgRow = null;
+    }
+
+    function renderScopePickerItems(modal, items, currentSelectors) {
+      var list = modal.querySelector('#civicfg-scope-picker-list');
+      var status = modal.querySelector('#civicfg-scope-picker-status');
+      list.innerHTML = '';
+      var hasCurrentSelectors = currentSelectors.length > 0;
+      var current = {};
+      currentSelectors.forEach(function(selector) { current[selector] = true; });
+
+      items.forEach(function(item, index) {
+        var option = document.createElement('label');
+        option.className = 'civicfg-scope-picker-item' + (item.missing ? ' is-missing' : '') + (!item.write_safe && !item.missing ? ' is-readonly' : '');
+        option.setAttribute('data-search', ((item.label || '') + ' ' + (item.path || '') + ' ' + (item.source_id || '')).toLowerCase());
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = item.selector || '';
+        checkbox.setAttribute('data-civicfg-scope-option', '1');
+        checkbox.checked = !!current[checkbox.value] || (hasCurrentSelectors && !!item.selected);
+        var body = document.createElement('span');
+        body.className = 'civicfg-scope-picker-item-body';
+        var title = document.createElement('strong');
+        title.textContent = item.label || item.path || ('Item ' + (index + 1));
+        var meta = document.createElement('span');
+        meta.className = 'civicfg-muted civicfg-scope-picker-meta';
+        var parts = [];
+        if (item.path) { parts.push(item.path); }
+        if (item.source_id) { parts.push('Local ID ' + item.source_id); }
+        if (item.missing) { parts.push('Currently missing'); }
+        else if (!item.write_safe) { parts.push('Backup/monitor only: automatic writes blocked'); }
+        meta.textContent = parts.join(' • ');
+        body.appendChild(title);
+        if (parts.length) { body.appendChild(meta); }
+        option.appendChild(checkbox);
+        option.appendChild(body);
+        list.appendChild(option);
+      });
+      status.textContent = items.length ? (items.length + ' item(s) available') : 'No selectable items were found for this configuration type.';
+    }
+
+    function openScopePicker(row) {
+      var form = row.closest('form');
+      var endpoint = form ? form.getAttribute('data-civicfg-scope-options-url') : '';
+      var type = row.getAttribute('data-civicfg-scope-row') || '';
+      var label = row.getAttribute('data-scope-label') || type;
+      var textarea = row.querySelector('[data-civicfg-scope-selectors]');
+      var currentSelectors = parseScopeSelectors(textarea);
+      var modal = ensureScopePickerModal();
+      modal._civicfgRow = row;
+      modal.querySelector('#civicfg-scope-picker-title').textContent = 'Choose ' + label;
+      modal.querySelector('#civicfg-scope-picker-search').value = '';
+      modal.querySelector('#civicfg-scope-picker-list').innerHTML = '';
+      modal.querySelector('#civicfg-scope-picker-status').textContent = 'Loading current CiviCRM items...';
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('is-open');
+
+      fetch(endpoint + '&scope_type=' + encodeURIComponent(type), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (!data || !data.ok) { throw new Error((data && data.error) ? data.error : 'Could not load configuration items.'); }
+          var loadedItems = data.items || [];
+          renderScopePickerItems(modal, loadedItems, currentSelectors);
+          var current = {};
+          currentSelectors.forEach(function(selector) { current[selector] = true; });
+          var hasCurrent = currentSelectors.length > 0;
+          renderScopeChips(row, loadedItems.filter(function(item) {
+            return !!current[item.selector || ''] || (hasCurrent && !!item.selected);
+          }));
+        })
+        .catch(function(error) {
+          modal.querySelector('#civicfg-scope-picker-status').textContent = error.message || 'Could not load configuration items.';
+        });
+    }
+
+    document.querySelectorAll('[data-civicfg-scope-picker]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        var row = button.closest('[data-civicfg-scope-row]');
+        if (row) { openScopePicker(row); }
+      });
+    });
+
+    var scopePickerTrigger = document.querySelector('[data-civicfg-scope-picker]');
+    if (scopePickerTrigger) {
+      var scopePickerModal = ensureScopePickerModal();
+      scopePickerModal.querySelector('#civicfg-scope-picker-search').addEventListener('input', function(ev) {
+        var query = (ev.target.value || '').trim().toLowerCase();
+        scopePickerModal.querySelectorAll('.civicfg-scope-picker-item').forEach(function(item) {
+          item.hidden = !!query && (item.getAttribute('data-search') || '').indexOf(query) === -1;
+        });
+      });
+      scopePickerModal.querySelector('[data-civicfg-scope-picker-apply]').addEventListener('click', function() {
+        var row = scopePickerModal._civicfgRow;
+        if (!row) { closeScopePicker(scopePickerModal); return; }
+        var textarea = row.querySelector('[data-civicfg-scope-selectors]');
+        var selectors = [];
+        var selectedItems = [];
+        scopePickerModal.querySelectorAll('[data-civicfg-scope-option]:checked').forEach(function(box) {
+          if (box.value) { selectors.push(box.value); }
+          var option = box.closest('.civicfg-scope-picker-item');
+          var title = option ? option.querySelector('strong') : null;
+          selectedItems.push({selector: box.value, label: title ? title.textContent : box.value});
+        });
+        if (textarea) {
+          textarea.value = selectors.join('\n');
+          textarea.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        renderScopeChips(row, selectedItems);
+        closeScopePicker(scopePickerModal);
+      });
+    }
+
+    function phpQuote(value) {
+      return "'" + String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+    }
+
+    function renderScopeSettingsExample() {
+      var code = document.getElementById('civicfg-scope-settings-example');
+      if (!code) { return; }
+      var lines = ['global $civicrm_setting;', '', "$civicrm_setting['domain']['civicfg_scope'] = ["];
+      document.querySelectorAll('[data-civicfg-scope-row]').forEach(function(row) {
+        var type = row.getAttribute('data-civicfg-scope-row') || '';
+        var modeField = row.querySelector('[data-civicfg-scope-mode]');
+        var mode = modeField ? modeField.value : 'all';
+        var selectors = parseScopeSelectors(row.querySelector('[data-civicfg-scope-selectors]'));
+        var watch = row.querySelector('input[name^="scope_watch_unmanaged"]');
+        if (mode === 'all') { return; }
+        lines.push('  ' + phpQuote(type) + ' => [');
+        lines.push('    \'mode\' => ' + phpQuote(mode) + ',');
+        if (mode === 'selected') {
+          lines.push('    \'selectors\' => [');
+          selectors.forEach(function(selector) { lines.push('      ' + phpQuote(selector) + ','); });
+          lines.push('    ],');
+          if (watch && watch.checked) { lines.push('    \'watch_unmanaged\' => TRUE,'); }
+        }
+        lines.push('  ],');
+      });
+      lines.push('];');
+      code.textContent = lines.join('\n');
+    }
+    renderScopeSettingsExample();
+
+    var copyScopeButton = document.querySelector('[data-civicfg-copy-scope-example]');
+    if (copyScopeButton) {
+      copyScopeButton.addEventListener('click', function() {
+        var code = document.getElementById('civicfg-scope-settings-example');
+        var status = document.querySelector('[data-civicfg-copy-status]');
+        var text = code ? code.textContent : '';
+        if (!text || !navigator.clipboard) {
+          if (status) { status.textContent = 'Select and copy the example manually.'; }
+          return;
+        }
+        navigator.clipboard.writeText(text).then(function() {
+          if (status) { status.textContent = 'Copied.'; }
+        }).catch(function() {
+          if (status) { status.textContent = 'Could not copy automatically.'; }
+        });
+      });
+    }
+
+
     function showProgress(title, text) {
       var host = document.querySelector('.crm-configmanager-block') || document.body;
       if (document.getElementById('civicfg-progress-overlay')) { return; }

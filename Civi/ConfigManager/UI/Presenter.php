@@ -332,7 +332,15 @@ class Presenter {
   }
 
   private function describeFieldChange(array $file, array $change, string $label, string $changeType, string $yamlValue, string $civiValue): string {
-    $field = $this->friendlyFieldLabel((string) ($change['path'] ?? ''), $label);
+    $path = (string) ($change['path'] ?? '');
+    if ($path === 'extension.status' && $changeType === 'changed') {
+      return ts('Extension state: YAML %1 → CiviCRM %2.', [
+        1 => $this->friendlyExtensionStatus($yamlValue),
+        2 => $this->friendlyExtensionStatus($civiValue),
+      ]);
+    }
+
+    $field = $this->friendlyFieldLabel($path, $label);
     if ($changeType === 'added') {
       return ts('%1 was added in CiviCRM.', [1 => $field]);
     }
@@ -340,6 +348,18 @@ class Presenter {
       return ts('%1 exists in YAML but is missing from CiviCRM.', [1 => $field]);
     }
     return ts('%1 changed.', [1 => $field]);
+  }
+
+  private function friendlyExtensionStatus(string $status): string {
+    $status = strtolower(trim($status));
+    $map = [
+      'enabled' => ts('Enabled'),
+      'installed' => ts('Installed but disabled'),
+      'disabled' => ts('Installed but disabled'),
+      'uninstalled' => ts('Not installed'),
+      'missing' => ts('Not available'),
+    ];
+    return (string) ($map[$status] ?? ucfirst($status));
   }
 
   private function isTechnicalChangePath(string $path): bool {
@@ -364,11 +384,13 @@ class Presenter {
       'item.run_frequency' => 'Run frequency',
       'item.scheduled_run_date' => 'Next scheduled run',
       'item.parameters' => 'Parameters',
+      'extension.status' => 'Extension state',
       'item.value' => 'Value',
       'item.description' => 'Description',
       'item.label' => 'Label',
       'item.title' => 'Title',
       'item.name' => 'Name',
+      'extension.status' => 'Extension state',
     ];
     if (isset($map[$path])) {
       return $map[$path];
@@ -621,10 +643,7 @@ class Presenter {
         }
       }
     }
-    if (empty($importResult['items']) || !is_array($importResult['items'])) {
-      return $messages;
-    }
-    foreach ($importResult['items'] as $item) {
+    foreach ((array) ($importResult['items'] ?? []) as $item) {
       foreach (($item['warnings'] ?? []) as $warning) {
         $messages[] = [
           'type' => 'warning',
@@ -640,7 +659,20 @@ class Presenter {
         ];
       }
     }
-    return $messages;
+
+    // One provider can surface the same compatibility/import warning through
+    // several YAML records. Repeating the same banner makes the actual blocker
+    // difficult to find, so show each distinct message only once.
+    $unique = [];
+    foreach ($messages as $message) {
+      $key = implode("\0", [
+        (string) ($message['type'] ?? ''),
+        (string) ($message['title'] ?? ''),
+        (string) ($message['message'] ?? ''),
+      ]);
+      $unique[$key] = $message;
+    }
+    return array_values($unique);
   }
 
   public function humanizeType(string $type): string {

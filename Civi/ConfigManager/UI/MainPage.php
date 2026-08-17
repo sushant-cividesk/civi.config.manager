@@ -48,6 +48,9 @@ class MainPage {
       if ($op === 'single-export-json') {
         $this->files->jsonSingleExport($this->manager);
       }
+      elseif ($op === 'scope-options-json') {
+        $this->jsonScopeOptions();
+      }
       elseif ($op === 'download-archive') {
         $this->files->downloadArchive($this->manager);
       }
@@ -315,8 +318,8 @@ class MainPage {
         $selectorList = array_values(array_unique(array_filter(array_map('trim', $selectorList), 'strlen')));
         $policies[$type] = [
           'mode' => $mode,
-          'selectors' => $selectorList,
-          'watch_unmanaged' => !empty($watchUnmanaged[$type]),
+          'selectors' => $mode === 'selected' ? $selectorList : [],
+          'watch_unmanaged' => $mode === 'selected' && !empty($watchUnmanaged[$type]),
         ];
       }
       $this->manager->saveScopePolicies($policies);
@@ -351,6 +354,26 @@ class MainPage {
 
   private function getSyncDirLockMessage(): string {
     return ts('This value is set in civicrm.settings.php and cannot be edited from the UI.');
+  }
+
+  private function jsonScopeOptions(): void {
+    try {
+      $type = isset($_REQUEST['scope_type']) ? trim((string) $_REQUEST['scope_type']) : '';
+      if ($type === '') {
+        throw new RuntimeException('Choose a configuration type.');
+      }
+      $payload = ['ok' => TRUE] + $this->manager->getScopePickerItems($type);
+    }
+    catch (\Throwable $e) {
+      $payload = [
+        'ok' => FALSE,
+        'error' => $e->getMessage(),
+      ];
+    }
+
+    \CRM_Utils_System::setHttpHeader('Content-Type', 'application/json; charset=utf-8');
+    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    \CRM_Utils_System::civiExit();
   }
 
   private function assignTemplate(string $op, array $types, array $result, $notice, $validationResult, $importResult): void {
@@ -461,6 +484,7 @@ class MainPage {
         'mode_watch' => $mode === 'watch',
         'mode_ignore' => $mode === 'ignore',
         'selectors_text' => implode("\n", array_map('strval', (array) ($policy['selectors'] ?? []))),
+        'selector_count' => count((array) ($policy['selectors'] ?? [])),
         'watch_unmanaged' => !empty($policy['watch_unmanaged']),
       ];
     }
@@ -507,7 +531,15 @@ class MainPage {
     $this->page->assign('notice', $notice);
     $this->page->assign('result', $result);
     $this->page->assign('importResult', $importResult);
-    $this->page->assign('importMessages', $this->presenter->extractImportMessages($importResult));
+    $importMessages = $this->presenter->extractImportMessages($importResult);
+    $importErrorCount = 0;
+    foreach ($importMessages as $importMessage) {
+      if (($importMessage['type'] ?? '') === 'error') {
+        $importErrorCount++;
+      }
+    }
+    $this->page->assign('importMessages', $importMessages);
+    $this->page->assign('importErrorCount', $importErrorCount);
     $this->page->assign('validationResult', $validationResult);
     $this->page->assign('status', $status);
     $this->page->assign('allTypes', $allTypes);
@@ -516,7 +548,8 @@ class MainPage {
     $this->page->assign('scopeRows', $scopeRows);
     $this->page->assign('scopeOverridden', $this->manager->isScopePolicyOverridden());
     $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
-    $this->page->assign('scopeSettingsExample', "global \$civicrm_setting;\n\$civicrm_setting['domain']['civicfg_scope'] = [\n  'message-templates' => [\n    'mode' => 'selected',\n    'selectors' => ['12', '25'],\n    'watch_unmanaged' => TRUE,\n  ],\n];");
+    $this->page->assign('scopeSettingsExample', $this->manager->getScopeSettingsExample());
+    $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json'));
     $this->page->assign('initialExportRequired', $initialExportRequired);
     $this->page->assign('watchSummary', $watchSummary);
     $this->page->assign('settingsAllowlist', implode("\n", $settingsAllowlist));

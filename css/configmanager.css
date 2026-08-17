@@ -292,3 +292,54 @@
 .crm-configmanager-block .civicfg-settings-example pre {max-width: 900px; overflow: auto; padding: .7rem; background: #f5f7f9; border: 1px solid #dfe5eb; border-radius: 4px;}
 .crm-configmanager-block .civicfg-initial-export-panel h3 {margin-top: 0;}
 .crm-configmanager-block .civicfg-watch-panel code {font-size: .85em;}
+
+/* Alpha59: plain-language scope cards and lazy item picker. */
+.crm-configmanager-block .civicfg-settings-section {margin: 1rem 0; padding: 1rem; border: 1px solid #d7dce2; border-radius: 5px; background: var(--crm-c-page-background, #fff);}
+.crm-configmanager-block .civicfg-settings-section > h4 {margin: 0 0 .6rem; font-size: 1.05rem;}
+.crm-configmanager-block .civicfg-settings-field {display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: .75rem 1rem; align-items: start; margin: .75rem 0;}
+.crm-configmanager-block .civicfg-settings-field input[type=text],
+.crm-configmanager-block .civicfg-settings-field textarea {width: 100%; max-width: 100%;}
+.crm-configmanager-block .civicfg-scope-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .8rem; margin-top: 1rem;}
+.crm-configmanager-block .civicfg-scope-card {border: 1px solid #d7dce2; border-radius: 5px; padding: .85rem; background: var(--crm-c-background2, #fbfcfd); min-width: 0;}
+.crm-configmanager-block .civicfg-scope-card-header {display: flex; justify-content: space-between; gap: .75rem; align-items: flex-start; margin-bottom: .7rem;}
+.crm-configmanager-block .civicfg-scope-title {font-size: 1rem;}
+.crm-configmanager-block .civicfg-capability {display: inline-block; border-radius: 999px; padding: .18rem .5rem; font-size: .78rem; white-space: nowrap; background: #e8edf3; color: #344054;}
+.crm-configmanager-block .civicfg-capability-full {background: #dff0d8; color: #245724;}
+.crm-configmanager-block .civicfg-capability-export_only {background: #fff3cd; color: #664d03;}
+.crm-configmanager-block .civicfg-capability-mixed {background: #e7f1ff; color: #084298;}
+.crm-configmanager-block .civicfg-scope-mode-label {display: block; font-weight: 600; margin-bottom: .3rem;}
+.crm-configmanager-block .civicfg-scope-mode {width: 100%; max-width: 100%;}
+.crm-configmanager-block .civicfg-mode-help {margin: .45rem 0 0; color: #5f6b7a; font-size: .9rem; line-height: 1.4;}
+.crm-configmanager-block .civicfg-selected-controls {margin-top: .8rem; padding-top: .75rem; border-top: 1px solid #dfe5eb;}
+.crm-configmanager-block .civicfg-selected-summary {display: flex; justify-content: space-between; gap: .75rem; align-items: center; margin-bottom: .5rem;}
+.crm-configmanager-block .civicfg-scope-picker-button {margin: 0 0 .55rem !important;}
+.crm-configmanager-block .civicfg-watch-rest {display: flex; gap: .4rem; align-items: flex-start; margin: .35rem 0 .65rem;}
+.crm-configmanager-block .civicfg-advanced-selection {margin-top: .5rem;}
+.crm-configmanager-block .civicfg-advanced-selection summary {cursor: pointer; font-weight: 600;}
+.crm-configmanager-block .civicfg-settings-form textarea.civicfg-scope-selectors {min-height: 6rem; height: 6rem; margin-top: .5rem;}
+.crm-configmanager-block .civicfg-code-example-actions {display: flex; gap: .6rem; align-items: center; margin: .5rem 0;}
+.crm-configmanager-block .civicfg-advanced-settings > summary {cursor: pointer; font-weight: 600; font-size: 1rem;}
+.crm-configmanager-block .civicfg-advanced-settings-body {padding-top: .7rem;}
+.crm-configmanager-block .civicfg-scope-picker-box {width: min(860px, 92vw);}
+.crm-configmanager-block .civicfg-scope-search {width: 100%; margin: 0 0 .65rem;}
+.crm-configmanager-block .civicfg-scope-picker-status {margin: .35rem 0 .6rem; color: #5f6b7a;}
+.crm-configmanager-block .civicfg-scope-picker-list {display: grid; gap: .35rem; max-height: 52vh; overflow: auto; border: 1px solid #d7dce2; border-radius: 4px; padding: .35rem;}
+.crm-configmanager-block .civicfg-scope-picker-item {display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; align-items: start; padding: .55rem; margin: 0; border-radius: 3px; cursor: pointer;}
+.crm-configmanager-block .civicfg-scope-picker-item:hover {background: #f3f6f8;}
+.crm-configmanager-block .civicfg-scope-picker-item.is-missing {background: #fff8e5;}
+.crm-configmanager-block .civicfg-scope-picker-item.is-readonly {border-left: 3px solid #8aa4c2;}
+.crm-configmanager-block .civicfg-scope-picker-item-body {display: flex; flex-direction: column; min-width: 0;}
+.crm-configmanager-block .civicfg-scope-picker-meta {font-size: .84rem; overflow-wrap: anywhere; margin-top: .15rem;}
+@media (max-width: 720px) {
+  .crm-configmanager-block .civicfg-settings-field {grid-template-columns: 1fr;}
+  .crm-configmanager-block .civicfg-scope-grid {grid-template-columns: 1fr;}
+  .crm-configmanager-block .civicfg-scope-card-header {display: block;}
+  .crm-configmanager-block .civicfg-capability {margin-top: .35rem;}
+}
+.crm-configmanager-block .civicfg-selected-chips {display:flex; flex-wrap:wrap; gap:.3rem; margin:.25rem 0 .55rem;}
+.crm-configmanager-block .civicfg-selected-chip {display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:.18rem .45rem; border-radius:999px; background:#e7f1ff; color:#084298; font-size:.82rem;}
+
+/* Alpha59 hotfix: keep import failures readable when several items report issues. */
+.crm-configmanager-block .civicfg-import-message-summary summary {cursor: pointer;}
+.crm-configmanager-block .civicfg-import-message-list {margin: .65rem 0 0 1.25rem;}
+.crm-configmanager-block .civicfg-import-message-list li {margin: .35rem 0;}

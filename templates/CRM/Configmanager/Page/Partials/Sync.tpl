@@ -54,7 +54,7 @@
             {/if}
 
             {foreach from=$validationResult.items item=item}
-              {if $item.errors|@count gt 0 || $item.warnings|@count gt 0}
+              {if $item.errors|@count gt 0 || $item.warnings|@count gt 0 || $item.compatibility|@count gt 0}
                 <div class="civicfg-change-card">
                   <h4>{$item.type|escape}</h4>
                   {if $item.errors|@count gt 0}
@@ -67,6 +67,13 @@
                     <div class="messages warning no-popup">
                       <strong>{ts}Warnings{/ts}</strong>
                       <ul>{foreach from=$item.warnings item=warning}<li>{if $warning.file}<code>{$warning.file|escape}</code>: {/if}{$warning.message|escape}</li>{/foreach}</ul>
+                    </div>
+                  {/if}
+                  {if $item.compatibility|@count gt 0}
+                    <div class="messages status no-popup civicfg-compatibility-note">
+                      <strong>{ts}Compatibility information{/ts}</strong>
+                      <p>{ts}These items are valid YAML. Configuration Manager keeps them safe by limiting automatic writes where the provider does not expose a reliable portable identity.{/ts}</p>
+                      <ul>{foreach from=$item.compatibility item=note}<li>{if $note.file}<code>{$note.file|escape}</code>: {/if}{$note.message|escape}</li>{/foreach}</ul>
                     </div>
                   {/if}
                 </div>
@@ -98,8 +105,8 @@
           </div>
         </details>
 
-        <details class="civicfg-panel civicfg-files-panel" open="open">
-          <summary>{ts}Changes to Review{/ts}</summary>
+        <details class="civicfg-panel civicfg-files-panel" {if $diffFiles|@count lt 6}open="open"{/if}>
+          <summary>{ts}Changes to Review{/ts}{if $diffFiles|@count gt 5} <span class="civicfg-muted">({$diffFiles|@count|escape} {ts}items{/ts})</span>{/if}</summary>
           <div class="civicfg-panel-body">
             <p class="description">{ts}Only managed configuration with a real difference is listed here. The short explanation highlights useful changes; technical metadata and the complete field comparison stay under Details.{/ts}</p>
             <div class="civicfg-file-lines">

@@ -108,3 +108,64 @@ test.describe('Configuration Manager isolated UI', () => {
     expect(blocking).toEqual([]);
   });
 });
+
+test.describe('Configuration Manager scope settings', () => {
+  test.beforeEach(async ({ page }) => {
+    const blocked = [];
+    blockedRequests.set(page, blocked);
+    await page.route('**/*', async route => {
+      const requestUrl = new URL(route.request().url());
+      if (
+        (requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:') &&
+        requestUrl.origin !== baseUrl.origin
+      ) {
+        blocked.push(route.request().url());
+        await route.abort('blockedbyclient');
+        return;
+      }
+      await route.continue();
+    });
+    await login(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    expect(blockedRequests.get(page) || [], 'UI tests attempted external network requests.').toEqual([]);
+  });
+
+  test('shows mode-dependent controls and keeps item discovery lazy', async ({ page }) => {
+    let pickerRequests = 0;
+    page.on('request', request => {
+      if (request.url().includes('op=scope-options-json')) pickerRequests += 1;
+    });
+
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('[data-civicfg-scope-row="scheduled-jobs"]');
+    await expect(row).toBeVisible();
+    expect(pickerRequests).toBe(0);
+
+    const mode = row.locator('[data-civicfg-scope-mode]');
+    const selectedControls = row.locator('[data-civicfg-selected-controls]');
+    await mode.selectOption('selected');
+    await expect(selectedControls).toBeVisible();
+    await expect(row.getByText('Monitor everything else in this type')).toBeVisible();
+
+    await row.getByRole('button', { name: 'Choose items' }).click();
+    await expect(page.locator('#civicfg-scope-picker-modal')).toBeVisible();
+    await expect(page.locator('[data-civicfg-scope-option]').first()).toBeVisible();
+    await expect(page.locator('#civicfg-scope-picker-status')).not.toContainText('Loading current CiviCRM items...');
+    expect(pickerRequests).toBe(1);
+
+    await mode.selectOption('watch');
+    await expect(selectedControls).toBeHidden();
+  });
+
+  test('updates the civicrm.settings.php example from current choices', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('[data-civicfg-scope-row="message-templates"]');
+    await row.locator('[data-civicfg-scope-mode]').selectOption('watch');
+
+    const example = page.locator('#civicfg-scope-settings-example');
+    await expect(example).toContainText("'message-templates' => [");
+    await expect(example).toContainText("'mode' => 'watch'");
+  });
+});

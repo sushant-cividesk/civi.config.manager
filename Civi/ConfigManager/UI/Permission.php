@@ -55,7 +55,7 @@ class Permission {
       self::require(self::IMPORT);
     }
 
-    if ($op === 'settings' || in_array($postAction, ['save_settings', 'ignore_config', 'scan_watch'], TRUE)) {
+    if (in_array($op, ['settings', 'scope-options-json'], TRUE) || in_array($postAction, ['save_settings', 'ignore_config', 'scan_watch'], TRUE)) {
       self::require(self::ADMINISTER);
     }
   }

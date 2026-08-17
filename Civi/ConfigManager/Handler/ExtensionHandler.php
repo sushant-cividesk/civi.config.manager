@@ -218,6 +218,7 @@ class ExtensionHandler extends AbstractHandler {
   public function validate(array $items): array {
     $errors = [];
     $warnings = [];
+    $compatibility = [];
     $definitions = $this->entityDefinitionsByKey();
 
     foreach ($items as $filename => $item) {
@@ -231,7 +232,7 @@ class ExtensionHandler extends AbstractHandler {
         continue;
       }
       if ($type === 'extension_config.item') {
-        $this->validateExtensionConfigItem($filename, $item, $definitions, $errors, $warnings);
+        $this->validateExtensionConfigItem($filename, $item, $definitions, $errors, $warnings, $compatibility);
         continue;
       }
       if ($type !== 'extension.item') {
@@ -280,7 +281,7 @@ class ExtensionHandler extends AbstractHandler {
           $errors[] = ['file' => $filename, 'message' => sprintf('Bundled extension config for %s %s is missing a stable identity field.', $entry['api'], $entry['entity'])];
         }
         elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
-          $warnings[] = ['file' => $filename, 'message' => sprintf('Bundled extension config for %s %s does not have a unique stable identity and will not be written automatically.', $entry['api'], $entry['entity'])];
+          $compatibility[] = ['file' => $filename, 'message' => sprintf('%s %s is backup/monitor-only because the provider does not expose a unique portable identity. Automatic create/update/delete stays blocked.', $entry['api'], $entry['entity'])];
         }
       }
     }
@@ -290,6 +291,7 @@ class ExtensionHandler extends AbstractHandler {
       'valid' => empty($errors),
       'errors' => $errors,
       'warnings' => $warnings,
+      'compatibility' => $compatibility,
       'count' => count($items),
     ];
   }
@@ -571,7 +573,7 @@ class ExtensionHandler extends AbstractHandler {
     return $rows;
   }
 
-  private function validateExtensionConfigItem(string $filename, array $item, array $definitions, array &$errors, array &$warnings): void {
+  private function validateExtensionConfigItem(string $filename, array $item, array $definitions, array &$errors, array &$warnings, array &$compatibility): void {
     $extensionKey = (string) ($item['extension'] ?? '');
     $api = (string) ($item['api'] ?? '');
     $entity = (string) ($item['entity'] ?? '');
@@ -604,9 +606,9 @@ class ExtensionHandler extends AbstractHandler {
       $errors[] = ['file' => $filename, 'message' => sprintf('Extension config item for %s %s is missing a stable identity field.', $api, $entity)];
     }
     elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
-      $warnings[] = [
+      $compatibility[] = [
         'file' => $filename,
-        'message' => sprintf('Extension config %s %s does not have a unique stable identity for %s. Export/diff are allowed, but automatic create/update/delete is blocked until the provider supplies a stable key.', $api, $entity, $identityField),
+        'message' => sprintf('%s %s is backup/monitor-only because %s is not a unique portable identity. Export/diff remain available; automatic create/update/delete stays blocked.', $api, $entity, $identityField),
       ];
     }
   }
