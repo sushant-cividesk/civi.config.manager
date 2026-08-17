@@ -1,0 +1,41 @@
+id: CM-CONTRIB-PROVIDER-CREATE
+feature: Write-safe contributed extension configuration can be created on a target where the semantic identity does not exist yet
+level:
+  - unit
+  - integration
+fixtures:
+  factory: disposable contributed-provider rows with strong semantic names plus the isolated SQLTasks extension fixture when available
+  records:
+    source_provider_item:
+      stable_identity: qa_contrib_<run_id>
+      nested_configuration: preserved
+    target_provider:
+      matching_records_before_import: 0
+steps:
+  - Export a contributed provider row with a strong semantic identity and nested provider configuration.
+  - Verify top-level runtime IDs are removed while nested provider-owned values remain intact in YAML.
+  - Validate the YAML against a target where zero rows match the stable identity and verify zero matches is treated as the normal CREATE case rather than an ambiguous identity.
+  - Import the YAML and verify the provider create action is used when create capability is exposed.
+  - Read the created row back by the same stable identity and fail the import if the provider reported success but the row is not readable.
+  - Repeat with exactly one matching target row and verify update/skip remains safe.
+  - Repeat with duplicate matching target rows and verify automatic writes are blocked as ambiguous.
+  - In the SQLTasks real fixture, verify the Sqltask API3 provider is discovered with a readable list action and create capability; a DEV-exported SQL task should therefore be restorable on STAGE when its name is absent there.
+expected:
+  zero_target_matches_is_safe_create: true
+  one_target_match_is_safe_update: true
+  duplicate_target_matches_block_write: true
+  nested_provider_values_are_preserved: true
+  successful_create_is_read_back: true
+negative_cases:
+  - zero_target_matches_is_treated_as_ambiguous
+  - duplicate_target_identity_is_written_automatically
+  - nested_provider_configuration_is_stripped_as_runtime_metadata
+  - provider_create_reports_success_but_missing_row_is_silently_accepted
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  remove_temporary_files: true

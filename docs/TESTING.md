@@ -130,6 +130,12 @@ In addition to the alpha58 scope safety checks, verify:
 - Full relative `path:` selectors match the same item as the UI picker.
 - Healthy extension-provider YAML with an ambiguous provider identity shows compatibility information, not a validation warning; automatic writes remain blocked.
 - A real extension status drift clearly shows the YAML state and active CiviCRM state.
+- Typing a picker search hides non-matching rows, updates the visible count, and clearing the search restores the full list.
+- The reviewed cross-site import switch is blocked by default for a foreign manifest, can be enabled deliberately, and blocks again after being disabled; the same policy is available through API4 and `civicfg cross-site-import`.
+- `civicfg scope`, `scope-items`, and `scope-set` use the same effective policy as the Settings UI, including rejection of selectors outside selected mode and settings-file-owned scope.
+- A contributed provider with a strong identity and zero matching target rows is treated as a create candidate; one match is update-safe and duplicate matches block automatic writes.
+- Nested contributed-provider configuration survives export/import cleaning while only top-level runtime IDs/timestamps are removed.
+- The SQLTasks real fixture discovers `Sqltask` as an API3 provider with a readable collection action and create capability; a write-safe task YAML missing on the target must not be downgraded to ambiguous merely because the target currently has zero matches.
 
 ## Alpha58 scope, watch, and performance tests
 

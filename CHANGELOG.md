@@ -12,6 +12,14 @@
 - Reclassified expected contributed-provider weak-identity limitations as compatibility information rather than YAML validation warnings, while automatic writes remain blocked.
 - Improved extension status diffs to explain YAML and CiviCRM states in plain language and collapse large change-detail lists by default.
 - Added unit/browser coverage for lazy picker behavior, capability rendering, portable selectors, missing managed selectors, settings-file examples, path selectors, compatibility reporting, and mode-dependent UI.
+- Hotfixed the lazy picker search so filtered rows are reliably hidden even with the grid display rule, with visible-result counts and browser regression coverage.
+- Hotfixed the alpha59 unit-test bootstrap with a test-only CiviCRM `ts()` fallback so translated Presenter wording is testable outside a bootstrapped CiviCRM runtime.
+- Added first-class API4/CLI management for Configuration Scope and reviewed cross-site import policy, with validation and command regression tests.
+- Fixed contributed-provider CREATE safety: zero target matches is now treated as the normal create case for a strong portable identity, while duplicate target matches still block automatic writes. This fixes write-safe SQLTasks-style records being skipped on a fresh target.
+- Added post-create read-back verification for contributed provider records and preserved nested provider-owned configuration values while stripping only known top-level runtime metadata.
+- Reclassified expected backup/monitor-only provider skips as compatibility information instead of import warnings, and stopped the UI from offering Restore for extension-provider YAML whose identity is not write-safe.
+- Added direct cross-site policy tests, contributed-provider create/duplicate tests, SQLTasks provider capability assertions, expanded CLI command tests, and additional Playwright scope-search/settings coverage.
+- Improved Message Template picker labels to prefer the human template title while keeping workflow/default identity portable, and stopped normal extension enable/disable/install actions from being counted as warnings.
 
 ## 0.1.0-alpha58-core
 

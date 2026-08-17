@@ -1,0 +1,38 @@
+id: CM-CROSS-SITE-IMPORT-POLICY
+feature: Reviewed cross-site import remains blocked by default and can be explicitly controlled from UI, API4, and civicfg CLI
+level:
+  - unit
+  - integration
+  - browser
+fixtures:
+  factory: disposable local site identifier plus temporary YAML manifests with same-site, foreign-site, and legacy no-site identifiers
+  records:
+    local_site:
+      site_id: qa_local_<run_id>
+    foreign_manifest:
+      site_id: qa_foreign_<run_id>
+steps:
+  - Validate a manifest with the local site identifier while cross-site import is disabled and verify it is accepted.
+  - Validate a manifest with a different site identifier while cross-site import is disabled and verify import is blocked before writes.
+  - Enable reviewed cross-site import from Settings and verify the foreign manifest passes the site-family gate while normal YAML/dependency validation still runs.
+  - Disable the switch again and verify the same foreign manifest is blocked again.
+  - Run civicfg cross-site-import, civicfg cross-site-import --allow, and civicfg cross-site-import --deny and verify they route through the same API4 policy service used by the UI.
+  - Validate a legacy manifest without site_id and verify it is not falsely rejected only because that old metadata is absent.
+expected:
+  same_site_allowed_without_override: true
+  foreign_site_blocked_by_default: true
+  reviewed_override_allows_only_site_gate: true
+  disabling_override_restores_block: true
+  ui_api4_and_cli_share_policy: true
+negative_cases:
+  - foreign_site_import_succeeds_when_override_is_disabled
+  - enabling_cross_site_import_bypasses_yaml_or_dependency_validation
+  - cross_site_setting_remains_enabled_after_explicit_cli_deny
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  restore_cross_site_setting: true
+  remove_temporary_files: true

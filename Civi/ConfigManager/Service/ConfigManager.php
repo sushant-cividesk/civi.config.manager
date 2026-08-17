@@ -467,6 +467,79 @@ class ConfigManager {
     return implode("\n", $lines);
   }
 
+  /**
+   * Return effective scope configuration without enumerating active records.
+   */
+  public function getScopeConfiguration(): array {
+    $types = [];
+    foreach ($this->getScopeTypeOptions() as $row) {
+      $type = (string) ($row['type'] ?? '');
+      if ($type === '') {
+        continue;
+      }
+      $types[] = $row + ['policy' => $this->scope->getPolicy($type)];
+    }
+    return [
+      'ok' => TRUE,
+      'overridden' => $this->scope->isPolicyOverridden(),
+      'types' => $types,
+    ];
+  }
+
+  /**
+   * Change one scope policy while preserving all other type policies.
+   */
+  public function setScopePolicy(string $type, string $mode, array $selectors = [], bool $watchUnmanaged = FALSE): array {
+    $type = trim($type);
+    $mode = strtolower(trim($mode));
+    $validTypes = [];
+    foreach ($this->getScopeTypeOptions() as $row) {
+      $validTypes[(string) $row['type']] = TRUE;
+    }
+    if ($type === '' || !isset($validTypes[$type])) {
+      throw new \RuntimeException('Unknown Configuration Scope type: ' . $type);
+    }
+    if (!in_array($mode, [ConfigScope::MODE_ALL, ConfigScope::MODE_SELECTED, ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
+      throw new \RuntimeException('Invalid Configuration Scope mode: ' . $mode);
+    }
+
+    $selectors = array_values(array_unique(array_filter(array_map(static function($selector) {
+      return trim((string) $selector);
+    }, $selectors), 'strlen')));
+    if ($mode !== ConfigScope::MODE_SELECTED) {
+      $selectors = [];
+      $watchUnmanaged = FALSE;
+    }
+
+    $policies = $this->scope->getPolicies();
+    $policies[$type] = [
+      'mode' => $mode,
+      'selectors' => $selectors,
+      'watch_unmanaged' => $watchUnmanaged,
+    ];
+    $this->saveScopePolicies($policies);
+
+    return [
+      'ok' => TRUE,
+      'type' => $type,
+      'policy' => $this->scope->getPolicy($type),
+      'overridden' => $this->scope->isPolicyOverridden(),
+    ];
+  }
+
+  public function getCrossSiteImportPolicy(): array {
+    return [
+      'ok' => TRUE,
+      'allowed' => (bool) \Civi::settings()->get('civicfg_allow_cross_site_import'),
+      'site_id' => $this->getSiteIdentifier(),
+    ];
+  }
+
+  public function setCrossSiteImportAllowed(bool $allowed): array {
+    \Civi::settings()->set('civicfg_allow_cross_site_import', $allowed ? 1 : 0);
+    return $this->getCrossSiteImportPolicy();
+  }
+
   private function scopeCapabilityForHandler($handler): array {
     if ($handler instanceof \Civi\ConfigManager\Handler\ExtensionHandler) {
       return [
@@ -2335,6 +2408,18 @@ class ConfigManager {
 
   private function displayLabelForConfigFile(string $type, array $file): string {
     $data = (array) ($file['data'] ?? []);
+
+    // Message Template workflow names are machine identifiers (for example
+    // case_activity). Prefer the administrator-facing template title in scope
+    // pickers/watch summaries while retaining the stable workflow identity
+    // internally for cross-environment matching.
+    if ($type === 'message-templates') {
+      $template = (array) ($data['template'] ?? []);
+      if (!empty($template['msg_title']) && is_scalar($template['msg_title'])) {
+        return (string) $template['msg_title'];
+      }
+    }
+
     foreach (['name', 'label', 'title', 'key'] as $field) {
       if (!empty($data[$field]) && is_scalar($data[$field])) {
         return (string) $data[$field];

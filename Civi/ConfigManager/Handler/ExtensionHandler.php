@@ -309,6 +309,7 @@ class ExtensionHandler extends AbstractHandler {
       'config' => ['create' => 0, 'update' => 0, 'delete' => 0, 'skip' => 0],
       'skip' => 0,
       'warnings' => [],
+      'compatibility' => [],
       'errors' => [],
     ];
 
@@ -395,14 +396,12 @@ class ExtensionHandler extends AbstractHandler {
         }
         if (in_array($actual, ['uninstalled', 'not installed', 'not_installed'], TRUE)) {
           $summary['install']++;
-          $summary['warnings'][] = ['file' => $filename, 'extension' => $key, 'message' => 'Extension will be installed: ' . $key];
           if (!$dryRun) {
             $this->callManager($manager, 'install', [$key]);
           }
         }
         else {
           $summary['enable']++;
-          $summary['warnings'][] = ['file' => $filename, 'extension' => $key, 'message' => 'Extension will be enabled: ' . $key];
           if (!$dryRun) {
             $this->callManager($manager, 'enable', [$key]);
           }
@@ -415,7 +414,6 @@ class ExtensionHandler extends AbstractHandler {
           return;
         }
         $summary['disable']++;
-        $summary['warnings'][] = ['file' => $filename, 'extension' => $key, 'message' => 'Extension will be disabled: ' . $key];
         if (!$dryRun) {
           $this->callManager($manager, 'disable', [$key]);
         }
@@ -467,12 +465,13 @@ class ExtensionHandler extends AbstractHandler {
         if ($this->desiredDiffers($existing, $desired)) {
           if (empty($definition['can_update']) && array_key_exists('can_update', $definition)) {
             $summary['config']['skip']++;
-            $summary['warnings'][] = ['file' => $filename, 'name' => $identity, 'message' => sprintf('Skipped update for read-only extension config %s %s.', $definition['api'], $definition['entity'])];
+            $summary['compatibility'][] = ['file' => $filename, 'name' => $identity, 'message' => sprintf('%s %s is read-only on this site, so the YAML backup was not applied automatically.', $definition['api'], $definition['entity'])];
             return;
           }
           $summary['config']['update']++;
           if (!$dryRun) {
             $this->updateEntityRow($definition, (array) $existing, $desired);
+            $this->invalidateIdentityRowsForDefinition($definition);
           }
         }
         else {
@@ -482,12 +481,22 @@ class ExtensionHandler extends AbstractHandler {
       else {
         if (empty($definition['can_create']) && array_key_exists('can_create', $definition)) {
           $summary['config']['skip']++;
-          $summary['warnings'][] = ['file' => $filename, 'name' => $identity, 'message' => sprintf('Skipped create for read-only extension config %s %s.', $definition['api'], $definition['entity'])];
+          $summary['compatibility'][] = ['file' => $filename, 'name' => $identity, 'message' => sprintf('%s %s is read-only on this site, so the YAML backup was not created automatically.', $definition['api'], $definition['entity'])];
           return;
         }
         $summary['config']['create']++;
         if (!$dryRun) {
           $this->createEntityRow($definition, $desired);
+          $this->invalidateIdentityRowsForDefinition($definition);
+          if ($this->findExistingEntityRow($definition, $identityField, $identity) === NULL) {
+            throw new \RuntimeException(sprintf(
+              'Provider %s %s accepted create but the new record could not be read back by %s=%s.',
+              $definition['api'],
+              $definition['entity'],
+              $identityField,
+              $identity
+            ));
+          }
         }
       }
     }
@@ -517,9 +526,9 @@ class ExtensionHandler extends AbstractHandler {
       $confidence = $this->identityConfidence($identityField, $definition);
       if ($confidence === 'AMBIGUOUS' || !$this->identityValueIsUnique($rows, $identityField, $identity)) {
         $summary['config']['skip']++;
-        $summary['warnings'][] = [
+        $summary['compatibility'][] = [
           'name' => $identity,
-          'message' => sprintf('Skipped delete for extension config %s %s because %s=%s is not a unique stable identity.', $definition['api'], $definition['entity'], $identityField, $identity),
+          'message' => sprintf('%s %s cannot be deleted automatically because %s=%s is not a unique portable identity.', $definition['api'], $definition['entity'], $identityField, $identity),
         ];
         continue;
       }
@@ -528,9 +537,9 @@ class ExtensionHandler extends AbstractHandler {
       }
       if (empty($definition['can_delete']) && array_key_exists('can_delete', $definition)) {
         $summary['config']['skip']++;
-        $summary['warnings'][] = [
+        $summary['compatibility'][] = [
           'name' => $identity,
-          'message' => sprintf('Skipped delete for extension config %s %s because the provider API does not expose delete.', $definition['api'], $definition['entity']),
+          'message' => sprintf('%s %s does not expose a delete action, so Configuration Manager leaves the active record in place.', $definition['api'], $definition['entity']),
         ];
         continue;
       }
@@ -658,9 +667,9 @@ class ExtensionHandler extends AbstractHandler {
     $identity = (string) $row[$identityField];
     if ($this->runtimeIdentityConfidence($definition, $identityField, $identity) === 'AMBIGUOUS') {
       $summary['config']['skip']++;
-      $summary['warnings'][] = [
+      $summary['compatibility'][] = [
         'file' => $filename,
-        'message' => sprintf('Skipped automatic write for %s %s because %s=%s is not a unique stable cross-environment identity.', $api, $entity, $identityField, $identity),
+        'message' => sprintf('%s %s remains backup/monitor-only because %s=%s cannot be matched safely on this site. Automatic create/update/delete was not attempted.', $api, $entity, $identityField, $identity),
       ];
       return;
     }
@@ -1386,9 +1395,40 @@ class ExtensionHandler extends AbstractHandler {
     if ($confidence === 'AMBIGUOUS') {
       return $confidence;
     }
-    return $this->identityValueIsUnique($this->identityRowsForDefinition($definition), $field, $identity)
-      ? $confidence
-      : 'AMBIGUOUS';
+
+    // Source/export identity validation requires exactly one matching row, but
+    // target import is different: zero matches is the normal CREATE case. A
+    // strong semantic identity is unsafe only when the target already contains
+    // more than one matching record and Configuration Manager cannot choose.
+    return $this->identityValueHasDuplicateConflict(
+      $this->identityRowsForDefinition($definition),
+      $field,
+      $identity
+    ) ? 'AMBIGUOUS' : $confidence;
+  }
+
+  private function identityValueHasDuplicateConflict(array $rows, string $field, string $identity): bool {
+    $matches = 0;
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      if (!array_key_exists($field, $row) || !is_scalar($row[$field]) || (string) $row[$field] !== $identity) {
+        continue;
+      }
+      $matches++;
+      if ($matches > 1) {
+        return TRUE;
+      }
+    }
+    return FALSE;
+  }
+
+  private function invalidateIdentityRowsForDefinition(array $definition): void {
+    $key = $this->definitionKey(
+      (string) ($definition['extension'] ?? ''),
+      (string) ($definition['api'] ?? ''),
+      (string) ($definition['entity'] ?? '')
+    );
+    unset($this->identityRowsByDefinition[$key]);
   }
 
   /**

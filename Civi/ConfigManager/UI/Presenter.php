@@ -231,7 +231,11 @@ class Presenter {
       $type = (string) ($file['type'] ?? '');
       $possibleRename = !empty($file['possible_rename']) && is_array($file['possible_rename']) ? $file['possible_rename'] : NULL;
       $deleteBlocked = $status === 'new_in_db' && empty($file['delete_allowed']);
-      $importable = in_array($type, $this->getImportableTypes(), TRUE) && $possibleRename === NULL && !$deleteBlocked;
+      $providerWriteBlocked = $type === 'extensions' && empty($file['write_safe']);
+      $importable = in_array($type, $this->getImportableTypes(), TRUE)
+        && $possibleRename === NULL
+        && !$deleteBlocked
+        && !$providerWriteBlocked;
       $plan[] = [
         'file' => $file['file'] ?? '',
         'path' => $file['path'] ?? '',
@@ -246,13 +250,17 @@ class Presenter {
         'importable' => $importable,
         'action' => $possibleRename
           ? ts('Review rename')
-          : ($deleteBlocked ? ts('Export to YAML') : $this->importActionLabel($status)),
+          : ($providerWriteBlocked
+            ? ts('Backup only')
+            : ($deleteBlocked ? ts('Export to YAML') : $this->importActionLabel($status))),
         'status_label' => $this->statusLabel($status),
         'note' => $possibleRename
           ? ts('Possible identity rename detected. Configuration Manager will not apply this create/delete pair automatically; review and align the accepted identity first.')
-          : ($deleteBlocked
-            ? ts('This item is in selected scope but has no managed YAML yet. Selective scope never treats missing YAML as permission to delete it; export it if you want to keep managing it.')
-            : $this->importActionNote($status, $importable)),
+          : ($providerWriteBlocked
+            ? ts('This contributed configuration is safe to back up and compare, but its provider does not expose a write-safe portable identity on this site. Automatic restore is disabled.')
+            : ($deleteBlocked
+              ? ts('This item is in selected scope but has no managed YAML yet. Selective scope never treats missing YAML as permission to delete it; export it if you want to keep managing it.')
+              : $this->importActionNote($status, $importable))),
       ];
     }
     return $plan;

@@ -300,7 +300,7 @@ class MainPage {
     }
 
     $this->manager->getSiteIdentifier();
-    \Civi::settings()->set('civicfg_allow_cross_site_import', !empty($_POST['allow_cross_site_import']) ? 1 : 0);
+    $this->manager->setCrossSiteImportAllowed(!empty($_POST['allow_cross_site_import']));
 
     if (!$this->manager->isScopePolicyOverridden()) {
       $modes = is_array($_POST['scope_mode'] ?? NULL) ? $_POST['scope_mode'] : [];

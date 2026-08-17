@@ -139,6 +139,8 @@ test.describe('Configuration Manager scope settings', () => {
     });
 
     await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('How should each configuration type be handled?', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('How should this configuration be handled?', { exact: true })).toHaveCount(0);
     const row = page.locator('[data-civicfg-scope-row="scheduled-jobs"]');
     await expect(row).toBeVisible();
     expect(pickerRequests).toBe(0);
@@ -155,8 +157,42 @@ test.describe('Configuration Manager scope settings', () => {
     await expect(page.locator('#civicfg-scope-picker-status')).not.toContainText('Loading current CiviCRM items...');
     expect(pickerRequests).toBe(1);
 
+    const pickerItems = page.locator('.civicfg-scope-picker-item');
+    const total = await pickerItems.count();
+    expect(total).toBeGreaterThan(0);
+    const search = page.locator('#civicfg-scope-picker-search');
+    await search.fill('__civicfg_no_such_item__');
+    await expect(page.locator('.civicfg-scope-picker-item:not(.is-filtered)')).toHaveCount(0);
+    await expect(page.locator('#civicfg-scope-picker-status')).toContainText('0 of ' + total + ' item(s) shown');
+    await search.fill('');
+    await expect(page.locator('.civicfg-scope-picker-item:not(.is-filtered)')).toHaveCount(total);
+    await expect(page.locator('#civicfg-scope-picker-status')).toContainText(total + ' item(s) available');
+
+    await page.locator('[data-civicfg-scope-picker-close]').first().click();
     await mode.selectOption('watch');
     await expect(selectedControls).toBeHidden();
+  });
+
+  test('persists the reviewed cross-site import switch and can turn it back off', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const advanced = page.locator('details.civicfg-advanced-settings');
+    await advanced.locator('summary').click();
+    const checkbox = advanced.locator('input[name="allow_cross_site_import"]');
+    await expect(checkbox).toBeVisible();
+
+    if (!(await checkbox.isChecked())) {
+      await checkbox.check();
+      await page.getByRole('button', { name: 'Save settings' }).click();
+      await page.waitForLoadState('domcontentloaded');
+    }
+    await page.locator('details.civicfg-advanced-settings summary').click();
+    await expect(page.locator('input[name="allow_cross_site_import"]')).toBeChecked();
+
+    await page.locator('input[name="allow_cross_site_import"]').uncheck();
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('details.civicfg-advanced-settings summary').click();
+    await expect(page.locator('input[name="allow_cross_site_import"]')).not.toBeChecked();
   });
 
   test('updates the civicrm.settings.php example from current choices', async ({ page }) => {

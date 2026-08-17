@@ -274,6 +274,19 @@ final class CivicfgFullRealFixtures {
         array_key_exists('sqltask_export_append_scripts', (array) ($sqltasksYaml['settings'] ?? [])),
         'SQLTasks singular sqltask_* setting namespace must be exported.'
       );
+
+      $sqltaskProvider = NULL;
+      foreach ((array) ($compatibility['de.systopia.sqltasks']['providers'] ?? []) as $provider) {
+        $provider = (array) $provider;
+        if (strtolower((string) ($provider['api'] ?? '')) === 'api3' && strtolower((string) ($provider['entity'] ?? '')) === 'sqltask') {
+          $sqltaskProvider = $provider;
+          break;
+        }
+      }
+      $this->assertTrue(is_array($sqltaskProvider), 'SQLTasks Sqltask API3 provider must be discovered.');
+      $this->assertTrue(!empty($sqltaskProvider['can_create']), 'SQLTasks Sqltask provider must expose create for cross-environment task restore.');
+      $this->assertTrue(!empty($sqltaskProvider['importable']), 'SQLTasks Sqltask provider must remain importable when its portable identity is safe.');
+      $this->assertTrue(trim((string) ($sqltaskProvider['list_action'] ?? '')) !== '', 'SQLTasks Sqltask provider must expose a readable collection action.');
     }
 
     $coverage = [];

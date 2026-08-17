@@ -75,6 +75,35 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('20', $result['items'][1]['source_id']);
   }
 
+  public function testMessageTemplatePickerPrefersHumanTemplateTitle(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+
+    $templates = new ScopeUiFixtureHandler('message-templates', 'Message Templates', TRUE, [[
+      'filename' => 'system/case_activity_default.yml',
+      'source_id' => 1,
+      'data' => [
+        'schema_version' => 1,
+        'type' => 'message_template',
+        'name' => 'case_activity',
+        'identity_key' => 'workflow_name=case_activity|is_default=1',
+        'identity_confidence' => 'API_VERIFIED',
+        'template' => [
+          'workflow_name' => 'case_activity',
+          'msg_title' => 'Case Activity Notification',
+          'is_default' => TRUE,
+        ],
+      ],
+    ]]);
+
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$templates]));
+    $result = $manager->getScopePickerItems('message-templates');
+
+    self::assertCount(1, $result['items']);
+    self::assertSame('Case Activity Notification', $result['items'][0]['label']);
+    self::assertStringStartsWith('key:', $result['items'][0]['selector']);
+  }
+
   public function testPickerPreservesMissingSelectedPortableIdentity(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);
@@ -196,6 +225,63 @@ final class ConfigManagerScopeUiTest extends TestCase {
       'is not available in the managed YAML set or active CiviCRM',
       implode("\n", $messages)
     );
+  }
+
+  public function testScopePolicyCanBeChangedWithoutTouchingOtherTypes(): void {
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE),
+      new ScopeUiFixtureHandler('message-templates', 'Message Templates', TRUE),
+    ]));
+    \Civi::settings()->set('civicfg_scope', [
+      'message-templates' => ['mode' => 'watch'],
+    ]);
+
+    $result = $manager->setScopePolicy(
+      'scheduled-jobs',
+      'selected',
+      ['key:scheduled-jobs|Job|name=job_one', 'key:scheduled-jobs|Job|name=job_one'],
+      TRUE
+    );
+
+    self::assertSame('selected', $result['policy']['mode']);
+    self::assertSame(['key:scheduled-jobs|Job|name=job_one'], $result['policy']['selectors']);
+    self::assertTrue($result['policy']['watch_unmanaged']);
+    self::assertSame('watch', $manager->getScopePolicies()['message-templates']['mode']);
+  }
+
+  public function testScopePolicyRejectsUnknownTypeAndInvalidMode(): void {
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE),
+    ]));
+
+    try {
+      $manager->setScopePolicy('missing-type', 'all');
+      self::fail('Unknown scope type should throw.');
+    }
+    catch (\RuntimeException $e) {
+      self::assertStringContainsString('Unknown Configuration Scope type', $e->getMessage());
+    }
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('Invalid Configuration Scope mode');
+    $manager->setScopePolicy('scheduled-jobs', 'dangerous');
+  }
+
+  public function testScopePolicyCannotBeChangedWhenSettingsPhpOwnsIt(): void {
+    $GLOBALS['civicrm_setting'] = [
+      'domain' => [
+        'civicfg_scope' => [
+          'scheduled-jobs' => ['mode' => 'watch'],
+        ],
+      ],
+    ];
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE),
+    ]));
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('overridden in civicrm.settings.php');
+    $manager->setScopePolicy('scheduled-jobs', 'all');
   }
 
   public function testSettingsExampleContainsOnlyNonDefaultPolicies(): void {

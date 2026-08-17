@@ -97,7 +97,7 @@ Large contributed/custom extension API records are exported as split files under
 
 Generated/read-only provider records are intentionally skipped. For example, Mosaico base templates are derived from packaged extension files and contain local site URLs, so `MosaicoBaseTemplate` YAML is not exported/imported; user-created `MosaicoTemplate` records remain managed. If old `api3/MosaicoBaseTemplate/*.yml` files exist from an earlier alpha, run Export once to remove them from the sync directory.
 
-The default scope is `Manage all`, preserving the existing full-export workflow. In `Manage selected`, only selected portable config keys participate in export/diff/validate/import. Existing YAML for a selector that is temporarily missing in CiviCRM is preserved and reported rather than silently removed. YAML for unselected objects is never interpreted as permission to delete those objects from CiviCRM.
+The default scope is `Manage everything`, preserving the existing full-export workflow. In `Manage selected items`, only selected portable config keys participate in export/diff/validate/import. Existing YAML for a selector that is temporarily missing in CiviCRM is preserved and reported rather than silently removed. YAML for unselected objects is never interpreted as permission to delete those objects from CiviCRM.
 
 Managed ZIP and single-file downloads also enforce the effective scope. A stale YAML backup left behind after deselecting an object may remain on disk for safety, but it is omitted from the managed archive; an unselected active object cannot be fetched by crafting a single-export request.
 
@@ -175,6 +175,11 @@ cv api4 ConfigManager.listTypes
 cv api4 ConfigManager.diff
 cv api4 ConfigManager.validate
 cv api4 ConfigManager.watch
+cv api4 ConfigManager.scopeGet
+cv api4 ConfigManager.scopeItems type=message-templates
+cv api4 ConfigManager.scopeSet type=message-templates mode=selected selectors='["key:..."]' watchUnmanaged=1
+cv api4 ConfigManager.crossSiteStatus
+cv api4 ConfigManager.crossSiteSet allowed=1
 cv api4 ConfigManager.export dryRun=1
 cv api4 ConfigManager.export dryRun=0
 cv api4 ConfigManager.import dryRun=1 type=option-groups
@@ -188,6 +193,12 @@ civicfg status
 civicfg diff
 civicfg validate
 civicfg watch
+civicfg scope --json
+civicfg scope-items --type message-templates --json
+civicfg scope-set --type message-templates --mode selected --selector 'key:<portable-config-key>' --watch-unmanaged
+civicfg cross-site-import
+civicfg cross-site-import --allow
+civicfg cross-site-import --deny
 civicfg export --write
 civicfg export --type searchkit-saved-searches --write
 civicfg import --dry-run
@@ -198,7 +209,7 @@ The extension-local `ext/civi.config.manager/bin/civicfg` remains a direct fallb
 
 ## Managed configuration types
 
-Configuration Scope applies generically to every registered handler. Item-level `Manage selected` is strongest for handlers that export one YAML file per object. CiviCRM Settings now export one YAML file per allowlisted setting, so the Settings Allowlist remains the safety boundary while Configuration Scope can manage/watch/ignore eligible settings just like other split-file configuration. Extension-owned providers can also be selected by stable key or YAML path when their discovered configuration is safely portable.
+Configuration Scope applies generically to every registered handler. Item-level `Manage selected items` is strongest for handlers that export one YAML file per object. CiviCRM Settings now export one YAML file per allowlisted setting, so the Settings Allowlist remains the safety boundary while Configuration Scope can manage/watch/ignore eligible settings just like other split-file configuration. Extension-owned providers can also be selected by stable key or YAML path when their discovered configuration is safely portable.
 
 Current export/diff/validate support includes:
 
@@ -480,7 +491,12 @@ Alpha59 refines the alpha58 universal scope foundation for day-to-day administra
 - Extension status changes now explain both sides in plain language, e.g. `YAML Installed but disabled → CiviCRM Enabled`.
 - Large change lists stay collapsed by default after the summary when many individual items need review.
 - Full relative `path:` selectors are now consistent between Settings help and runtime matching.
-- Added service, static-analysis, and browser coverage for lazy scope discovery, mode-dependent controls, portable picker selectors, missing selected records, settings-file examples, and compatibility reporting.
+- The alpha59 hotfix makes picker search deterministic, adds API4/CLI scope and cross-site policy controls, and verifies the reviewed cross-site switch from UI/service/CLI tests.
+- Contributed-provider target matching now correctly allows a strong identity with zero existing target matches to proceed to CREATE; only duplicate target identities are ambiguous. Created provider records are read back immediately so a provider cannot silently report success without producing restorable configuration.
+- Expected backup/monitor-only provider limitations no longer inflate import warning counts, and non-write-safe contributed provider files are shown as backup-only rather than offering an impossible Restore action.
+- Normal extension install/enable/disable plans are treated as expected import actions rather than warnings, and Message Template pickers prefer administrator-facing titles while retaining stable workflow identities underneath.
+- SQLTasks remains handled through the generic contributed-provider engine: its documented API3 provider is expected to expose a collection read action and create capability, while exported nested task configuration is preserved rather than flattened or stripped.
+- Added service, static-analysis, unit, CLI, integration-fixture, and browser coverage for lazy scope discovery, picker search, mode-dependent controls, portable selectors, cross-site policy, target create identity safety, missing selected records, settings-file examples, and compatibility reporting.
 
 ## Alpha 58 Notes
 

@@ -326,6 +326,7 @@
 .crm-configmanager-block .civicfg-scope-picker-list {display: grid; gap: .35rem; max-height: 52vh; overflow: auto; border: 1px solid #d7dce2; border-radius: 4px; padding: .35rem;}
 .crm-configmanager-block .civicfg-scope-picker-item {display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; align-items: start; padding: .55rem; margin: 0; border-radius: 3px; cursor: pointer;}
 .crm-configmanager-block .civicfg-scope-picker-item:hover {background: #f3f6f8;}
+.crm-configmanager-block .civicfg-scope-picker-item.is-filtered {display: none !important;}
 .crm-configmanager-block .civicfg-scope-picker-item.is-missing {background: #fff8e5;}
 .crm-configmanager-block .civicfg-scope-picker-item.is-readonly {border-left: 3px solid #8aa4c2;}
 .crm-configmanager-block .civicfg-scope-picker-item-body {display: flex; flex-direction: column; min-width: 0;}

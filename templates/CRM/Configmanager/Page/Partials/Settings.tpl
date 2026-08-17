@@ -22,7 +22,8 @@
 
       <div class="civicfg-settings-section">
         <h4>{ts}What should Configuration Manager manage?{/ts}</h4>
-        <p class="description">{ts}Every registered configuration type is listed below. Choose full management, selected-item management, monitoring only, or ignore. Third-party providers that do not expose a safe portable identity remain backup/monitor-only instead of being written automatically.{/ts}</p>
+        <p class="description">{ts}Every registered configuration type is listed below. Third-party providers that do not expose a safe portable identity remain backup/monitor-only instead of being written automatically.{/ts}</p>
+        <p class="civicfg-scope-question"><strong>{ts}How should each configuration type be handled?{/ts}</strong> {ts}Choose one mode on each card. Additional controls appear only when they are needed.{/ts}</p>
         <div class="civicfg-mode-help civicfg-mode-help-all" data-civicfg-mode-help="all">
           {ts}All supported items are part of managed YAML and the normal export, diff, validation, and safe restore/import workflow.{/ts}
         </div>
@@ -44,8 +45,7 @@
                 <span class="civicfg-capability civicfg-capability-{$row.capability|escape}" title="{$row.capability_help|escape}">{$row.capability_label|escape}</span>
               </div>
 
-              <label class="civicfg-scope-mode-label" for="scope-mode-{$row.type|escape}">{ts}How should this configuration be handled?{/ts}</label>
-              <select id="scope-mode-{$row.type|escape}" name="scope_mode[{$row.type|escape}]" class="crm-form-select civicfg-scope-mode" data-civicfg-scope-mode {if $scopeOverridden}disabled="disabled"{/if}>
+              <select id="scope-mode-{$row.type|escape}" name="scope_mode[{$row.type|escape}]" class="crm-form-select civicfg-scope-mode" data-civicfg-scope-mode aria-label="{ts 1=$row.label}How should %1 be handled?{/ts}" {if $scopeOverridden}disabled="disabled"{/if}>
                 <option value="all" {if $row.mode_all}selected="selected"{/if}>{ts}Manage everything{/ts}</option>
                 <option value="selected" {if $row.mode_selected}selected="selected"{/if}>{ts}Manage selected items{/ts}</option>
                 <option value="watch" {if $row.mode_watch}selected="selected"{/if}>{ts}Monitor only{/ts}</option>

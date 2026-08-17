@@ -27,6 +27,11 @@ class ConfigManager extends AbstractEntity {
       'import' => [Permission::IMPORT],
       'confirmIdentityAlias' => [Permission::IMPORT],
       'watch' => [Permission::ADMINISTER],
+      'scopeGet' => [Permission::ADMINISTER],
+      'scopeItems' => [Permission::ADMINISTER],
+      'scopeSet' => [Permission::ADMINISTER],
+      'crossSiteStatus' => [Permission::ADMINISTER],
+      'crossSiteSet' => [Permission::ADMINISTER],
       'getFields' => [Permission::ACCESS],
     ];
   }
@@ -80,6 +85,31 @@ class ConfigManager extends AbstractEntity {
 
   public static function watch($checkPermissions = TRUE) {
     return (new Action\ConfigManager\Watch(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function scopeGet($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\ScopeGet(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function scopeItems($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\ScopeItems(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function scopeSet($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\ScopeSet(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function crossSiteStatus($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\CrossSiteStatus(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function crossSiteSet($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\CrossSiteSet(__CLASS__, __FUNCTION__))
       ->setCheckPermissions($checkPermissions);
   }
 

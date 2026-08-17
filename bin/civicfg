@@ -12,27 +12,49 @@ Usage:
   civicfg validate [options]
   civicfg watch [options]
   civicfg status
+  civicfg scope [--json]
+  civicfg scope-items --type TYPE [--json]
+  civicfg scope-set --type TYPE --mode MODE [scope options]
+  civicfg cross-site-import [--allow|--deny] [--json]
 
-Options:
-  --type TYPE       Limit to a config type. Repeat for multiple types.
+Common options:
+  --type TYPE       Limit to a config type. Repeat for export/import/diff/validate/watch.
   --dry-run         Preview only. Default for import; optional for export.
   --write           Write YAML files for export.
   --yes, -y         Apply import or answer yes where supported.
   --json            Ask cv for JSON output when supported.
   -h, --help        Show this help.
 
+Scope options:
+  --mode MODE       all, selected, watch, or ignore.
+  --selector VALUE  Selected-scope selector. Repeat for multiple items.
+  --watch-unmanaged Monitor unselected items when mode=selected.
+
+Cross-site options:
+  --allow           Enable reviewed cross-site import.
+  --deny            Disable cross-site import.
+
 Examples:
   civicfg export --write
-  civicfg export --type searchkit-saved-searches --write
   civicfg import --dry-run
   civicfg import --yes
   civicfg validate
   civicfg watch
+  civicfg scope --json
+  civicfg scope-items --type message-templates --json
+  civicfg scope-set --type message-templates --mode selected --selector 'key:message-templates|workflow_name=contribution_online_receipt|is_default=0' --watch-unmanaged
+  civicfg cross-site-import
+  civicfg cross-site-import --allow
 HELP
 }
 
 json_array() {
   php -r 'echo json_encode(array_slice($argv, 1));' "$@"
+}
+
+fail() {
+  echo "$1" >&2
+  exit 2
 }
 
 if [[ $# -eq 0 ]]; then
@@ -53,24 +75,53 @@ if [[ -z "${cv_cmd}" ]]; then
   cv_cmd="$(command -v cv || true)"
 fi
 if [[ -z "${cv_cmd}" ]]; then
-  echo "Configuration Manager CLI requires the CiviCRM cv command." >&2
-  exit 2
+  fail "Configuration Manager CLI requires the CiviCRM cv command."
 fi
 
 types=()
+selectors=()
 dry_run=""
 yes="0"
 json="0"
+mode=""
+watch_unmanaged="0"
+cross_allow="0"
+cross_deny="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --type)
       shift
-      [[ $# -gt 0 ]] || { echo "Missing value for --type" >&2; exit 2; }
+      [[ $# -gt 0 ]] || fail "Missing value for --type"
       types+=("$1")
       ;;
     --type=*)
       types+=("${1#--type=}")
+      ;;
+    --selector)
+      shift
+      [[ $# -gt 0 ]] || fail "Missing value for --selector"
+      selectors+=("$1")
+      ;;
+    --selector=*)
+      selectors+=("${1#--selector=}")
+      ;;
+    --mode)
+      shift
+      [[ $# -gt 0 ]] || fail "Missing value for --mode"
+      mode="$1"
+      ;;
+    --mode=*)
+      mode="${1#--mode=}"
+      ;;
+    --watch-unmanaged)
+      watch_unmanaged="1"
+      ;;
+    --allow)
+      cross_allow="1"
+      ;;
+    --deny)
+      cross_deny="1"
       ;;
     --dry-run)
       dry_run="1"
@@ -90,8 +141,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "Unknown option: $1" >&2
-      exit 2
+      fail "Unknown option: $1"
       ;;
   esac
   shift || true
@@ -107,26 +157,66 @@ if [[ ${#types[@]} -gt 0 ]]; then
   type_json=$(json_array "${types[@]}")
 fi
 
+selector_json="[]"
+if [[ ${#selectors[@]} -gt 0 ]]; then
+  selector_json=$(json_array "${selectors[@]}")
+fi
+
 case "$command" in
   export)
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for export."
     [[ -n "$dry_run" ]] || dry_run="0"
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.export dryRun="$dry_run" type="$type_json"
     ;;
   import)
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for import."
     [[ -n "$dry_run" ]] || dry_run="1"
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json"
     ;;
   diff)
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for diff."
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.diff type="$type_json"
     ;;
   validate)
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for validate."
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.validate type="$type_json"
     ;;
   watch)
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for watch."
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.watch type="$type_json"
     ;;
   status)
+    [[ ${#types[@]} -eq 0 && -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" && -z "$dry_run" && "$yes" == "0" ]] || fail "status accepts only --json."
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.status
+    ;;
+  scope)
+    [[ ${#types[@]} -eq 0 && -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" && -z "$dry_run" && "$yes" == "0" ]] || fail "scope accepts only --json."
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.scopeGet
+    ;;
+  scope-items)
+    [[ ${#types[@]} -eq 1 ]] || fail "scope-items requires exactly one --type."
+    [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" && -z "$dry_run" && "$yes" == "0" ]] || fail "scope-items accepts only --type and --json."
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.scopeItems type="${types[0]}"
+    ;;
+  scope-set)
+    [[ ${#types[@]} -eq 1 ]] || fail "scope-set requires exactly one --type."
+    [[ "$mode" == "all" || "$mode" == "selected" || "$mode" == "watch" || "$mode" == "ignore" ]] || fail "scope-set requires --mode all|selected|watch|ignore."
+    [[ "$cross_allow" == "0" && "$cross_deny" == "0" && -z "$dry_run" && "$yes" == "0" ]] || fail "scope-set does not accept import/export options."
+    if [[ "$mode" != "selected" && ( ${#selectors[@]} -gt 0 || "$watch_unmanaged" == "1" ) ]]; then
+      fail "--selector and --watch-unmanaged require --mode selected."
+    fi
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.scopeSet type="${types[0]}" mode="$mode" selectors="$selector_json" watchUnmanaged="$watch_unmanaged"
+    ;;
+  cross-site-import)
+    [[ ${#types[@]} -eq 0 && -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && -z "$dry_run" && "$yes" == "0" ]] || fail "cross-site-import accepts only --allow, --deny, and --json."
+    [[ "$cross_allow" == "0" || "$cross_deny" == "0" ]] || fail "Choose either --allow or --deny, not both."
+    if [[ "$cross_allow" == "1" ]]; then
+      exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.crossSiteSet allowed=1
+    fi
+    if [[ "$cross_deny" == "1" ]]; then
+      exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.crossSiteSet allowed=0
+    fi
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.crossSiteStatus
     ;;
   *)
     echo "Unknown command: $command" >&2

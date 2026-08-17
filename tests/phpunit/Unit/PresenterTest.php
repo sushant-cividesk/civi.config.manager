@@ -48,4 +48,51 @@ final class PresenterTest extends TestCase {
     self::assertStringContainsString('YAML Installed but disabled', $sentence);
     self::assertStringContainsString('CiviCRM Enabled', $sentence);
   }
+
+  public function testBackupOnlyExtensionProviderDoesNotOfferRestoreAction(): void {
+    $presenter = new Presenter();
+    $plan = $presenter->buildImportPlan([[
+      'type' => 'extensions',
+      'type_label' => 'Extensions',
+      'status' => 'missing_in_db',
+      'path' => 'extensions/org.wikimedia.geocoder/api4/Geocoder/Addok.yml',
+      'write_safe' => FALSE,
+    ]]);
+
+    self::assertCount(1, $plan);
+    self::assertFalse($plan[0]['importable']);
+    self::assertSame('Backup only', $plan[0]['action']);
+    self::assertStringContainsString('Automatic restore is disabled', $plan[0]['note']);
+  }
+
+  public function testWriteSafeExtensionProviderStillOffersCreate(): void {
+    $presenter = new Presenter();
+    $plan = $presenter->buildImportPlan([[
+      'type' => 'extensions',
+      'type_label' => 'Extensions',
+      'status' => 'missing_in_db',
+      'path' => 'extensions/de.systopia.sqltasks/api3/Sqltask/hii.yml',
+      'write_safe' => TRUE,
+    ]]);
+
+    self::assertTrue($plan[0]['importable']);
+    self::assertSame('Create in CiviCRM', $plan[0]['action']);
+  }
+
+  public function testCompatibilityInformationDoesNotInflateImportWarningCount(): void {
+    $presenter = new Presenter();
+    $messages = $presenter->extractImportMessages([
+      'items' => [[
+        'type' => 'extensions',
+        'warnings' => [],
+        'compatibility' => [
+          ['message' => 'Provider is backup/monitor-only.'],
+          ['message' => 'Provider is backup/monitor-only.'],
+        ],
+        'errors' => [],
+      ]],
+    ]);
+
+    self::assertSame([], $messages);
+  }
 }

@@ -235,6 +235,30 @@
         list.appendChild(option);
       });
       status.textContent = items.length ? (items.length + ' item(s) available') : 'No selectable items were found for this configuration type.';
+      status.setAttribute('data-civicfg-total-items', String(items.length));
+    }
+
+    function filterScopePickerItems(modal, query) {
+      query = (query || '').trim().toLowerCase();
+      var items = Array.prototype.slice.call(modal.querySelectorAll('.civicfg-scope-picker-item'));
+      var visible = 0;
+      items.forEach(function(item) {
+        var matches = !query || (item.getAttribute('data-search') || '').indexOf(query) !== -1;
+        item.classList.toggle('is-filtered', !matches);
+        item.setAttribute('aria-hidden', matches ? 'false' : 'true');
+        if (matches) { visible++; }
+      });
+      var status = modal.querySelector('#civicfg-scope-picker-status');
+      if (!status) { return; }
+      if (!items.length) {
+        status.textContent = 'No selectable items were found for this configuration type.';
+      }
+      else if (query) {
+        status.textContent = visible + ' of ' + items.length + ' item(s) shown';
+      }
+      else {
+        status.textContent = items.length + ' item(s) available';
+      }
     }
 
     function openScopePicker(row) {
@@ -283,10 +307,7 @@
     if (scopePickerTrigger) {
       var scopePickerModal = ensureScopePickerModal();
       scopePickerModal.querySelector('#civicfg-scope-picker-search').addEventListener('input', function(ev) {
-        var query = (ev.target.value || '').trim().toLowerCase();
-        scopePickerModal.querySelectorAll('.civicfg-scope-picker-item').forEach(function(item) {
-          item.hidden = !!query && (item.getAttribute('data-search') || '').indexOf(query) === -1;
-        });
+        filterScopePickerItems(scopePickerModal, ev.target.value || '');
       });
       scopePickerModal.querySelector('[data-civicfg-scope-picker-apply]').addEventListener('click', function() {
         var row = scopePickerModal._civicfgRow;

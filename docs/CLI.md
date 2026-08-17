@@ -12,6 +12,13 @@ The supported commands are:
 civicfg status
 civicfg diff
 civicfg validate
+civicfg watch
+civicfg scope
+civicfg scope-items --type message-templates
+civicfg scope-set --type message-templates --mode selected --selector 'key:<portable-config-key>' --watch-unmanaged
+civicfg cross-site-import
+civicfg cross-site-import --allow
+civicfg cross-site-import --deny
 civicfg export --write
 civicfg import --dry-run
 civicfg import --yes
@@ -99,6 +106,32 @@ On uninstall:
 - unrelated administrator-created files are never removed.
 
 The installer also removes obsolete Configuration Manager-managed alias wrappers created by older development builds. It never removes a same-named file without the managed marker.
+
+## Configuration Scope and cross-site policy
+
+The CLI uses the same API4 services as Settings, so deployment automation does not need to edit Configuration Manager's database settings directly.
+
+```bash
+# Read effective scope without scanning active records.
+civicfg scope --json
+
+# Lazily enumerate one type's current items and portable selectors.
+civicfg scope-items --type message-templates --json
+
+# Change one policy while preserving all other type policies.
+civicfg scope-set --type scheduled-jobs --mode selected \
+  --selector 'key:scheduled-jobs|Job|name=process_mailing' \
+  --watch-unmanaged
+
+# Inspect or explicitly change the reviewed cross-site import gate.
+civicfg cross-site-import
+civicfg cross-site-import --allow
+civicfg cross-site-import --deny
+```
+
+`scope-set` accepts `all`, `selected`, `watch`, or `ignore`. `--selector` and `--watch-unmanaged` are valid only with `--mode selected`. A `civicrm.settings.php` scope override remains authoritative and prevents CLI/UI writes to the database-owned scope policy.
+
+Cross-site import is disabled by default. Enabling it removes only the site-family mismatch gate; YAML validation, dependency checks, preview, permissions, and explicit import confirmation still apply.
 
 ## Status
 

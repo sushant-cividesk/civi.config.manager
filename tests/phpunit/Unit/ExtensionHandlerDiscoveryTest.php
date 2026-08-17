@@ -7,6 +7,7 @@ namespace Civi\ConfigManager\Tests\Unit;
 use Civi\ConfigManager\Handler\ExtensionHandler;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use ReflectionProperty;
 
 final class ExtensionHandlerDiscoveryTest extends TestCase {
   public function testApi3EntityNameSupportsTopLevelAndActionDirectoryLayouts(): void {
@@ -151,6 +152,156 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertSame([], $errors);
     self::assertSame([], $warnings);
     self::assertCount(1, $compatibility);
+  }
+
+  public function testRuntimeStrongIdentityAllowsCreateWhenTargetHasNoMatch(): void {
+    $handler = new ExtensionHandler();
+    $definition = [
+      'extension' => 'de.systopia.sqltasks',
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'match_fields' => [],
+    ];
+    $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', []);
+
+    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method->setAccessible(TRUE);
+
+    self::assertSame('DISCOVERED_UNIQUE', $method->invoke($handler, $definition, 'name', 'hii'));
+  }
+
+  public function testRuntimeStrongIdentityAllowsOneTargetMatchButBlocksDuplicates(): void {
+    $handler = new ExtensionHandler();
+    $definition = [
+      'extension' => 'de.systopia.sqltasks',
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'match_fields' => [],
+    ];
+    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method->setAccessible(TRUE);
+
+    $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', [['name' => 'hii']]);
+    self::assertSame('DISCOVERED_UNIQUE', $method->invoke($handler, $definition, 'name', 'hii'));
+
+    $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', [['name' => 'hii'], ['name' => 'hii']]);
+    self::assertSame('AMBIGUOUS', $method->invoke($handler, $definition, 'name', 'hii'));
+  }
+
+  public function testRuntimeWeakIdentityStaysAmbiguousEvenWithNoTargetMatch(): void {
+    $handler = new ExtensionHandler();
+    $definition = [
+      'extension' => 'example.ext',
+      'api' => 'api4',
+      'entity' => 'ExampleConfig',
+      'match_fields' => [],
+    ];
+    $this->setIdentityRows($handler, 'example.ext|api4|exampleconfig', []);
+    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method->setAccessible(TRUE);
+
+    self::assertSame('AMBIGUOUS', $method->invoke($handler, $definition, 'title', 'Readable title'));
+  }
+
+  public function testStrongNewProviderItemValidatesAsWriteSafeCreateCandidate(): void {
+    $handler = new ExtensionHandler();
+    $definition = [
+      'extension' => 'de.systopia.sqltasks',
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'match_fields' => [],
+      'can_create' => TRUE,
+      'can_update' => TRUE,
+    ];
+    $definitions = ['de.systopia.sqltasks|api3|sqltask' => $definition];
+    $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', []);
+    $method = new ReflectionMethod($handler, 'validateExtensionConfigItem');
+    $method->setAccessible(TRUE);
+    $errors = [];
+    $warnings = [];
+    $compatibility = [];
+    $item = [
+      'type' => 'extension_config.item',
+      'extension' => 'de.systopia.sqltasks',
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'identity_field' => 'name',
+      'item' => [
+        'name' => 'hii',
+        'description' => 'Portable SQL task',
+        'actions' => [['type' => 'sql', 'configuration' => ['query' => 'SELECT 1']]],
+      ],
+    ];
+
+    $method->invokeArgs($handler, ['hii.yml', $item, $definitions, &$errors, &$warnings, &$compatibility]);
+
+    self::assertSame([], $errors);
+    self::assertSame([], $warnings);
+    self::assertSame([], $compatibility);
+  }
+
+  public function testNormalExtensionStateChangesArePlannedWithoutWarningNoise(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'applyExtensionStatus');
+    $method->setAccessible(TRUE);
+
+    foreach ([
+      ['current' => ['example.ext' => 'installed'], 'desired' => 'enabled', 'counter' => 'enable'],
+      ['current' => ['example.ext' => 'enabled'], 'desired' => 'disabled', 'counter' => 'disable'],
+      ['current' => ['example.ext' => 'uninstalled'], 'desired' => 'installed', 'counter' => 'install'],
+    ] as $case) {
+      $summary = [
+        'install' => 0,
+        'enable' => 0,
+        'disable' => 0,
+        'skip' => 0,
+        'warnings' => [],
+        'errors' => [],
+      ];
+      $method->invokeArgs($handler, [new \stdClass(), $case['current'], 'example.yml', 'example.ext', $case['desired'], TRUE, &$summary]);
+      self::assertSame(1, $summary[$case['counter']]);
+      self::assertSame([], $summary['warnings']);
+      self::assertSame([], $summary['errors']);
+    }
+  }
+
+  public function testContributedProviderCleaningPreservesNestedConfigurationValues(): void {
+    $handler = new ExtensionHandler();
+    $definition = ['api' => 'api3', 'entity' => 'Sqltask'];
+    $row = [
+      'id' => 42,
+      'name' => 'hii',
+      'description' => 'Portable SQL task',
+      'actions' => [[
+        'id' => 7,
+        'type' => 'sql',
+        'configuration' => [
+          'id' => 99,
+          'query' => "SELECT 'all values'",
+          'options' => ['abort_on_error' => TRUE, 'tags' => ['one', 'two']],
+        ],
+      ]],
+    ];
+
+    $export = new ReflectionMethod($handler, 'cleanEntityRowForExport');
+    $export->setAccessible(TRUE);
+    $import = new ReflectionMethod($handler, 'cleanEntityRowForImport');
+    $import->setAccessible(TRUE);
+
+    $exported = (array) $export->invoke($handler, $row, $definition);
+    $imported = (array) $import->invoke($handler, $exported, $definition);
+
+    self::assertArrayNotHasKey('id', $exported);
+    self::assertSame(7, $exported['actions'][0]['id']);
+    self::assertSame(99, $exported['actions'][0]['configuration']['id']);
+    self::assertSame("SELECT 'all values'", $exported['actions'][0]['configuration']['query']);
+    self::assertSame(['one', 'two'], $imported['actions'][0]['configuration']['options']['tags']);
+  }
+
+  private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {
+    $property = new ReflectionProperty($handler, 'identityRowsByDefinition');
+    $property->setAccessible(TRUE);
+    $property->setValue($handler, [$key => $rows]);
   }
 
   public function testExtensionTokensIncludeConservativeSingularNamespace(): void {
