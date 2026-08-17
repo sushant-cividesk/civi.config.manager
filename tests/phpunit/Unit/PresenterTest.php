@@ -79,6 +79,37 @@ final class PresenterTest extends TestCase {
     self::assertSame('Create in CiviCRM', $plan[0]['action']);
   }
 
+  public function testVirtualExtensionSubtypeIsPreservedForUiImportApply(): void {
+    $presenter = new Presenter();
+    $plan = [[
+      'type' => 'extensions',
+      'importable' => TRUE,
+    ]];
+
+    $types = $presenter->getImportApplyTypes($plan, [
+      'extensions:de.systopia.sqltasks:api3:Sqltask',
+    ]);
+
+    self::assertSame([
+      'extensions:de.systopia.sqltasks:api3:Sqltask',
+    ], $types);
+  }
+
+  public function testExplicitBaseExtensionsSelectionKeepsBroadUiImport(): void {
+    $presenter = new Presenter();
+    $plan = [[
+      'type' => 'extensions',
+      'importable' => TRUE,
+    ]];
+
+    $types = $presenter->getImportApplyTypes($plan, [
+      'extensions',
+      'extensions:de.systopia.sqltasks:api3:Sqltask',
+    ]);
+
+    self::assertSame(['extensions'], $types);
+  }
+
   public function testCompatibilityInformationDoesNotInflateImportWarningCount(): void {
     $presenter = new Presenter();
     $messages = $presenter->extractImportMessages([

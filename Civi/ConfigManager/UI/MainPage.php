@@ -411,7 +411,7 @@ class MainPage {
     }
     unset($diffFile);
     $importPlan = $this->presenter->buildImportPlan($diffFiles);
-    $importApplyTypes = $this->presenter->getImportApplyTypes($importPlan);
+    $importApplyTypes = $this->presenter->getImportApplyTypes($importPlan, $types);
 
     if ($op === 'import' && $importResult === NULL && $importApplyTypes) {
       try {

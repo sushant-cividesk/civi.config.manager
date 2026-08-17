@@ -14,23 +14,37 @@ fixtures:
 steps:
   - Export a contributed provider row with a strong semantic identity and nested provider configuration.
   - Verify top-level runtime IDs are removed while nested provider-owned values remain intact in YAML.
+  - For API3 providers with a create getfields specification, verify read-only/computed collection fields are excluded from portable YAML and create/update payloads while writable nested configuration remains intact.
   - Validate the YAML against a target where zero rows match the stable identity and verify zero matches is treated as the normal CREATE case rather than an ambiguous identity.
   - Import the YAML and verify the provider create action is used when create capability is exposed.
   - Read the created row back by the same stable identity and fail the import if the provider reported success but the row is not readable.
   - Repeat with exactly one matching target row and verify update/skip remains safe.
   - Repeat with duplicate matching target rows and verify automatic writes are blocked as ambiguous.
   - In the SQLTasks real fixture, verify the Sqltask API3 provider is discovered with a readable list action and create capability; a DEV-exported SQL task should therefore be restorable on STAGE when its name is absent there.
+  - Run import with only the SQLTasks virtual subtype selected and verify unrelated extension-provider YAML is neither validated as part of that subtype nor applied by the import.
+  - Verify API3 write results that return one associative provider row are normalized without a return-type error.
+  - Delete the final SQLTasks task on DEV, export again, and verify the zero-count provider index remains so STAGE can plan and apply the matching delete.
+  - Verify SQLTasks uses its single-record `deletetask` API3 action for delete-missing import.
 expected:
   zero_target_matches_is_safe_create: true
   one_target_match_is_safe_update: true
   duplicate_target_matches_block_write: true
   nested_provider_values_are_preserved: true
   successful_create_is_read_back: true
+  api3_create_spec_filters_runtime_fields: true
+  virtual_provider_import_is_isolated: true
+  associative_api3_write_result_is_normalized: true
+  zero_count_provider_index_is_preserved: true
+  sqltasks_delete_action_is_supported: true
 negative_cases:
   - zero_target_matches_is_treated_as_ambiguous
   - duplicate_target_identity_is_written_automatically
   - nested_provider_configuration_is_stripped_as_runtime_metadata
   - provider_create_reports_success_but_missing_row_is_silently_accepted
+  - sqltasks_create_payload_contains_read_only_runtime_fields
+  - sqltasks_only_import_is_blocked_by_unrelated_provider_yaml
+  - sqltasks_last_record_delete_is_lost_when_no_split_yaml_remains
+  - sqltasks_create_returns_string_type_error_after_provider_success
 isolation:
   disposable_database: true
   temporary_sync_directory: true

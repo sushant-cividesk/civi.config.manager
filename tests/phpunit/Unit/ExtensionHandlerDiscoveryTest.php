@@ -53,6 +53,45 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     );
   }
 
+  public function testApi3WriteResultKeepsAssociativeProviderRow(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'firstApi3ResultRow');
+    $method->setAccessible(TRUE);
+
+    self::assertSame(
+      ['id' => 7, 'name' => 'Portable task'],
+      $method->invoke($handler, ['values' => ['id' => 7, 'name' => 'Portable task']])
+    );
+    self::assertSame(
+      ['id' => 8, 'name' => 'Normal row'],
+      $method->invoke($handler, ['values' => [['id' => 8, 'name' => 'Normal row']]])
+    );
+  }
+
+  public function testProviderSubtypeSeedsEmptyDesiredSetForLastRecordDelete(): void {
+    $handler = new ExtensionHandler();
+    $handler->setRuntimeTypeFilters(['extensions:de.systopia.sqltasks:api3:Sqltask']);
+    $method = new ReflectionMethod($handler, 'desiredConfigKeysForRuntimeFilter');
+    $method->setAccessible(TRUE);
+
+    $desired = (array) $method->invoke($handler, [
+      'de.systopia.sqltasks|api3|sqltask' => [
+        'extension' => 'de.systopia.sqltasks',
+        'api' => 'api3',
+        'entity' => 'Sqltask',
+      ],
+      'example.ext|api4|exampleconfig' => [
+        'extension' => 'example.ext',
+        'api' => 'api4',
+        'entity' => 'ExampleConfig',
+      ],
+    ]);
+
+    self::assertSame([
+      'de.systopia.sqltasks|api3|sqltask' => [],
+    ], $desired);
+  }
+
   public function testStripRuntimeRemovesOnlyKnownTopLevelRuntimeFields(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'stripRuntime');
@@ -267,20 +306,27 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testContributedProviderCleaningPreservesNestedConfigurationValues(): void {
     $handler = new ExtensionHandler();
-    $definition = ['api' => 'api3', 'entity' => 'Sqltask'];
+    $definition = [
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'write_fields' => ['name', 'description', 'config'],
+    ];
     $row = [
       'id' => 42,
       'name' => 'hii',
       'description' => 'Portable SQL task',
-      'actions' => [[
-        'id' => 7,
-        'type' => 'sql',
-        'configuration' => [
-          'id' => 99,
-          'query' => "SELECT 'all values'",
-          'options' => ['abort_on_error' => TRUE, 'tags' => ['one', 'two']],
-        ],
-      ]],
+      'last_runtime' => '0.002s',
+      'config' => [
+        'actions' => [[
+          'id' => 7,
+          'type' => 'CRM_Sqltasks_Action_RunSQL',
+          'script' => "SELECT 'all values'",
+          'configuration' => [
+            'id' => 99,
+            'options' => ['abort_on_error' => TRUE, 'tags' => ['one', 'two']],
+          ],
+        ]],
+      ],
     ];
 
     $export = new ReflectionMethod($handler, 'cleanEntityRowForExport');
@@ -292,10 +338,82 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     $imported = (array) $import->invoke($handler, $exported, $definition);
 
     self::assertArrayNotHasKey('id', $exported);
-    self::assertSame(7, $exported['actions'][0]['id']);
-    self::assertSame(99, $exported['actions'][0]['configuration']['id']);
-    self::assertSame("SELECT 'all values'", $exported['actions'][0]['configuration']['query']);
-    self::assertSame(['one', 'two'], $imported['actions'][0]['configuration']['options']['tags']);
+    self::assertArrayNotHasKey('last_runtime', $exported);
+    self::assertSame(7, $exported['config']['actions'][0]['id']);
+    self::assertSame(99, $exported['config']['actions'][0]['configuration']['id']);
+    self::assertSame("SELECT 'all values'", $exported['config']['actions'][0]['script']);
+    self::assertSame(['one', 'two'], $imported['config']['actions'][0]['configuration']['options']['tags']);
+  }
+
+  public function testApi3ProviderCleaningDropsSqltaskReadOnlyRuntimeFields(): void {
+    $handler = new ExtensionHandler();
+    $definition = [
+      'api' => 'api3',
+      'entity' => 'Sqltask',
+      'write_fields' => [
+        'id' => ['name' => 'id'],
+        'name' => ['name' => 'name'],
+        'description' => ['name' => 'description'],
+        'run_permissions' => ['name' => 'run_permissions'],
+        'category' => ['name' => 'category'],
+        'weight' => ['name' => 'weight'],
+        'scheduled' => ['name' => 'scheduled'],
+        'parallel_exec' => ['name' => 'parallel_exec'],
+        'input_required' => ['name' => 'input_required'],
+        'enabled' => ['name' => 'enabled'],
+        'config' => ['name' => 'config'],
+        'abort_on_error' => ['name' => 'abort_on_error'],
+        'last_modified' => ['name' => 'last_modified'],
+      ],
+    ];
+    $row = [
+      'id' => 55,
+      'name' => 'hii',
+      'description' => 'Default template for new tasks',
+      'run_permissions' => '',
+      'category' => '',
+      'weight' => 1,
+      'scheduled' => 'always',
+      'parallel_exec' => '0',
+      'input_required' => '0',
+      'enabled' => '0',
+      'config' => [
+        'actions' => [[
+          'type' => 'CRM_Sqltasks_Action_RunSQL',
+          'enabled' => '1',
+          'script' => 'show tables;',
+        ]],
+        'version' => '2',
+      ],
+      'abort_on_error' => '1',
+      'last_modified' => '2026-08-17 17:18:35',
+      'archive_date' => '',
+      'is_archived' => '0',
+      'last_executed' => '2026-08-17 17:18:35',
+      'last_runtime' => '0.002s',
+      'next_execution' => 'TODO',
+      'schedule' => 'always',
+      'schedule_label' => 'always (warning: dispatcher currently disabled)',
+      'short_desc' => 'Default template for new tasks',
+    ];
+
+    $method = new ReflectionMethod($handler, 'cleanEntityRowForImport');
+    $method->setAccessible(TRUE);
+    $clean = (array) $method->invoke($handler, $row, $definition);
+
+    self::assertSame('hii', $clean['name']);
+    self::assertSame('always', $clean['scheduled']);
+    self::assertSame('show tables;', $clean['config']['actions'][0]['script']);
+    self::assertArrayNotHasKey('id', $clean);
+    self::assertArrayNotHasKey('last_modified', $clean);
+    self::assertArrayNotHasKey('archive_date', $clean);
+    self::assertArrayNotHasKey('is_archived', $clean);
+    self::assertArrayNotHasKey('last_executed', $clean);
+    self::assertArrayNotHasKey('last_runtime', $clean);
+    self::assertArrayNotHasKey('next_execution', $clean);
+    self::assertArrayNotHasKey('schedule', $clean);
+    self::assertArrayNotHasKey('schedule_label', $clean);
+    self::assertArrayNotHasKey('short_desc', $clean);
   }
 
   private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {

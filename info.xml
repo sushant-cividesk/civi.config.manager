@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-08-17</releaseDate>
-  <version>0.1.0-alpha59-core</version>
+  <version>0.1.0-alpha60-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 59 development build on the full alpha58 codebase: adds lazy human-friendly scope item selection, mode-aware settings UX, generated civicrm.settings.php scope examples, capability labels, compatibility-not-warning reporting, and clearer extension-state diffs while preserving no-scan normal-site performance.</comments>
+  <comments>Alpha 60 hotfix on the full alpha59 codebase: fixes SQLTasks and generic API3 provider restore by filtering create/update payloads to writable create-spec fields, preserves nested provider configuration, and isolates virtual contributed-provider imports from unrelated extension YAML validation/apply.</comments>
 </extension>

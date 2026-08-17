@@ -1525,14 +1525,61 @@ class ConfigManager {
     return $requiredBy;
   }
 
+  /**
+   * Preserve virtual provider filters while validating imports.
+   *
+   * A virtual type such as extensions:de.systopia.sqltasks:api3:Sqltask
+   * selects one contributed provider inside the Extensions handler. Replacing
+   * it with the base `extensions` type would make validation inspect every
+   * contributed provider YAML file and allow an unrelated provider failure to
+   * block the requested import.
+   */
+  private function getImportValidationTypeFilter(array $requestedTypes, array $effectiveTypes): array {
+    if (!$requestedTypes) {
+      return [];
+    }
+    if ($this->isExtensionSubtypeOnlyFilter($requestedTypes)) {
+      return $requestedTypes;
+    }
+    return array_values(array_unique(array_merge($effectiveTypes, $requestedTypes)));
+  }
+
+  /**
+   * A provider-subtype-only import applies only the Extensions handler.
+   *
+   * Related-type expansion is useful for normal grouped imports, but a user
+   * explicitly selecting one contributed extension provider must not also
+   * apply unrelated Message Templates, Custom Data, Contact Types, etc.
+   */
+  private function getImportApplyTypeFilter(array $requestedTypes, array $effectiveTypes): array {
+    if ($this->isExtensionSubtypeOnlyFilter($requestedTypes)) {
+      return ['extensions'];
+    }
+    return $effectiveTypes;
+  }
+
+  private function isExtensionSubtypeOnlyFilter(array $requestedTypes): bool {
+    if (!$requestedTypes) {
+      return FALSE;
+    }
+    foreach ($requestedTypes as $type) {
+      if (strpos((string) $type, 'extensions:') !== 0) {
+        return FALSE;
+      }
+    }
+    return TRUE;
+  }
+
   public function import(bool $dryRun = TRUE, bool $yes = FALSE, array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
-    // Validate the complete import closure, not only the types that happened
-    // to have visible differences. Related dependency types are imported in
-    // the same operation and must therefore participate in validation.
-    $validation = $this->validate($effectiveTypes);
+    $validationTypes = $this->getImportValidationTypeFilter($requestedTypes, $effectiveTypes);
+    $applyTypes = $this->getImportApplyTypeFilter($requestedTypes, $effectiveTypes);
+    // Validate the complete import closure for normal type filters. Virtual
+    // extension-provider subtypes must retain their original filter so a
+    // SQLTasks-only import cannot be blocked by unrelated provider YAML.
+    $validation = $this->validate($validationTypes);
     if (!$validation['ok']) {
       return [
         'ok' => FALSE,
@@ -1544,7 +1591,7 @@ class ConfigManager {
     $result = ['ok' => TRUE, 'dry_run' => $dryRun, 'applied' => !$dryRun && $yes, 'items' => []];
     $handlers = [];
     foreach ($this->getHandlers() as $handler) {
-      if ($effectiveTypes && !in_array($handler->getType(), $effectiveTypes, TRUE)) {
+      if ($applyTypes && !in_array($handler->getType(), $applyTypes, TRUE)) {
         continue;
       }
       $this->prepareHandlerForTypeFilter($handler, $requestedTypes);

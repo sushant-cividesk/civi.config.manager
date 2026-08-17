@@ -81,6 +81,8 @@ Alpha59 adds regression coverage for lazy per-handler scope discovery, semantic 
 
 The alpha59 hotfix additionally covers picker filtering/clear behavior, the test-runtime `ts()` fallback, scope and cross-site API4/CLI commands, same-site/foreign-site manifest policy, zero/one/duplicate target identity semantics for contributed provider writes, nested provider-value preservation, backup-only import UX, and SQLTasks provider discovery/create capability in the full real fixture.
 
+The alpha60 hotfix adds regression coverage for API3 create-spec writable-field filtering and virtual contributed-provider import isolation, including SQLTasks runtime-field cleanup and preservation of the selected subtype through UI preview/apply and service validation/apply behavior.
+
 ## Alpha58 scope and performance coverage
 
 Alpha58 adds focused coverage for universal scope policy, portable selected-item mappings, explicit watch-only state, Message Template identities, operational identity metadata, API4 watch permissions, and the requirement that cached system health must not discover configuration handlers. The full isolated workflow should also exercise first-export UX, selected-scope safety, cross-environment IDs, watch scans, and repeat export/import idempotency.

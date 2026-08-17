@@ -564,14 +564,30 @@ class Presenter {
     return '';
   }
 
-  public function getImportApplyTypes(array $importPlan): array {
+  public function getImportApplyTypes(array $importPlan, array $selectedTypes = []): array {
     $types = [];
     foreach ($importPlan as $item) {
       if (!empty($item['importable']) && !empty($item['type'])) {
         $types[] = (string) $item['type'];
       }
     }
-    return array_values(array_unique($types));
+    $types = array_values(array_unique($types));
+
+    // Diff rows use the base `extensions` handler type, but the UI filter may
+    // have selected one or more virtual contributed-provider subtypes. Keep
+    // those subtype selectors through preview/apply so a SQLTasks-only import
+    // does not expand back to every extension-owned provider at submit time.
+    if (in_array('extensions', $types, TRUE) && !in_array('extensions', $selectedTypes, TRUE)) {
+      $providerTypes = array_values(array_unique(array_filter(array_map('strval', $selectedTypes), static function($type) {
+        return strpos($type, 'extensions:') === 0;
+      })));
+      if ($providerTypes) {
+        $types = array_values(array_filter($types, static fn($type) => $type !== 'extensions'));
+        $types = array_values(array_unique(array_merge($types, $providerTypes)));
+      }
+    }
+
+    return $types;
   }
 
   public function countDiffChanges(array $result): int {

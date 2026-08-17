@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha60-core
+
+- Follow-up hotfix: normalized custom API3 write responses that return one associative row directly under `values`, preventing a successful SQLTasks create/update from being reported as `Return value must be of type array, string returned`.
+- Follow-up hotfix: SQLTasks delete-missing now uses its provider-specific `deletetask` API3 action, and zero-count provider indexes preserve the explicit empty desired set so deleting the final task on DEV can delete the matching task on STAGE. Explicit SQLTasks-only imports also seed an empty desired provider set for compatibility with pre-hotfix YAML.
+- Fixed generic API3 contributed-provider restore by filtering portable export/import values to the provider's `create` action field specification when `getfields` is available. This prevents computed/read-only collection fields from being sent back to provider create/update APIs.
+- Fixed SQLTasks restore specifically: fields such as `last_executed`, `last_runtime`, `next_execution`, `schedule`, `schedule_label`, `short_desc`, archive state, and stale modification metadata are excluded from create/update payloads while writable task fields and nested `config` actions remain intact.
+- Fixed virtual extension-provider import isolation. Selecting only a provider subtype such as `extensions:de.systopia.sqltasks:api3:Sqltask` now stays scoped through CLI and UI preview/apply, validates and applies only that contributed provider, and is not blocked by unrelated extension-provider YAML.
+- Normalized contributed-provider diff comparison through the same API3 writable-field cleaning so older YAML containing provider runtime fields does not create false SQLTasks drift after restore.
+- Added unit and scenario regression coverage for API3 writable-field filtering, nested SQLTasks configuration preservation, and subtype-only import validation/apply isolation.
+
 ## 0.1.0-alpha59-core
 
 - Reworked Configuration Scope Settings into plain-language, mode-aware cards with `Manage everything`, `Manage selected items`, `Monitor only`, and `Ignore`.

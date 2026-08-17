@@ -11,6 +11,8 @@ class ExtensionHandler extends AbstractHandler {
   private array $identityRowsByDefinition = [];
   private static array $api3ActionsByEntity = [];
   private static array $api3ListActionByEntity = [];
+  private static array $api3WritableFieldsByEntity = [];
+  private static array $api3DeleteActionByEntity = [];
 
   public function getType(): string { return 'extensions'; }
   public function getLabel(): string { return 'Extensions'; }
@@ -317,7 +319,7 @@ class ExtensionHandler extends AbstractHandler {
     $current = (array) $manager->getStatuses();
     $desiredKeys = [];
     $definitions = $this->entityDefinitionsByKey();
-    $desiredConfigKeys = [];
+    $desiredConfigKeys = $this->desiredConfigKeysForRuntimeFilter($definitions);
 
     foreach ($this->expandConfigIndexes($items) as $index) {
       $definitionKey = $this->definitionKey($index['extension'], $index['api'], $index['entity']);
@@ -377,6 +379,17 @@ class ExtensionHandler extends AbstractHandler {
     unset($data['required_by']);
     if (isset($data['item']) && is_array($data['item'])) {
       unset($data['item']['required_by']);
+      if (($data['type'] ?? '') === 'extension_config.item') {
+        $definitionKey = $this->definitionKey(
+          (string) ($data['extension'] ?? ''),
+          (string) ($data['api'] ?? ''),
+          (string) ($data['entity'] ?? '')
+        );
+        $definitions = $this->entityDefinitionsByKey();
+        if (isset($definitions[$definitionKey])) {
+          $data['item'] = $this->cleanEntityRowForImport($data['item'], $definitions[$definitionKey]);
+        }
+      }
     }
     return $data;
   }
@@ -680,6 +693,25 @@ class ExtensionHandler extends AbstractHandler {
     }
   }
 
+  /**
+   * An explicit provider-subtype import represents the complete desired set
+   * for that provider, even when the selected YAML set contains zero records.
+   * This also makes pre-hotfix exports deletable when the user explicitly
+   * selects that provider during import.
+   */
+  private function desiredConfigKeysForRuntimeFilter(array $definitions): array {
+    $desired = [];
+    if (!$this->hasRuntimeSubtypeFilter()) {
+      return $desired;
+    }
+    foreach ($definitions as $definitionKey => $definition) {
+      if ($this->definitionMatchesRuntimeFilter((array) $definition)) {
+        $desired[(string) $definitionKey] = [];
+      }
+    }
+    return $desired;
+  }
+
   private function expandConfigIndexes(array $items): array {
     $indexes = [];
     foreach ($items as $item) {
@@ -831,14 +863,15 @@ class ExtensionHandler extends AbstractHandler {
           ],
         ];
       }
-      if (!empty($usedNames)) {
-        $index[$extensionKey][] = [
-          'api' => (string) $definition['api'],
-          'entity' => (string) $definition['entity'],
-          'directory' => $this->safeName($extensionKey) . '/' . $this->safeName((string) $definition['api']) . '/' . $this->safeName((string) $definition['entity']),
-          'count' => count($usedNames),
-        ];
-      }
+      // Keep a zero-count provider index as an explicit empty-set marker.
+      // Without it, deleting the final DEV record removes the last split YAML
+      // file and STAGE cannot know that the provider should now be empty.
+      $index[$extensionKey][] = [
+        'api' => (string) $definition['api'],
+        'entity' => (string) $definition['entity'],
+        'directory' => $this->safeName($extensionKey) . '/' . $this->safeName((string) $definition['api']) . '/' . $this->safeName((string) $definition['entity']),
+        'count' => count($usedNames),
+      ];
     }
     foreach ($index as &$rows) {
       usort($rows, fn($a, $b) => strcmp($a['api'] . ':' . $a['entity'], $b['api'] . ':' . $b['entity']));
@@ -1072,7 +1105,8 @@ class ExtensionHandler extends AbstractHandler {
         'list_action' => $listAction,
         'can_create' => TRUE,
         'can_update' => TRUE,
-        'can_delete' => $this->api3EntityHasAction($entity, 'delete'),
+        'delete_action' => $this->api3DeleteAction($entity),
+        'can_delete' => $this->api3DeleteAction($entity) !== NULL,
       ];
     }
     return $definitions;
@@ -1202,6 +1236,37 @@ class ExtensionHandler extends AbstractHandler {
     return function_exists($function);
   }
 
+  /**
+   * Resolve the provider action used to delete one API3 record.
+   *
+   * Standard API3 entities use `delete`. SQLTasks exposes the same single-row
+   * behavior as `deletetask`, so keep that provider alias explicit rather than
+   * guessing at arbitrary destructive action names.
+   */
+  private function api3DeleteAction(string $entity): ?string {
+    $cacheKey = strtolower($entity);
+    if (array_key_exists($cacheKey, self::$api3DeleteActionByEntity)) {
+      return self::$api3DeleteActionByEntity[$cacheKey];
+    }
+
+    if ($this->api3EntityHasAction($entity, 'delete')) {
+      self::$api3DeleteActionByEntity[$cacheKey] = 'delete';
+      return 'delete';
+    }
+
+    $aliases = [
+      'sqltask' => 'deletetask',
+    ];
+    $alias = $aliases[$cacheKey] ?? NULL;
+    if ($alias !== NULL && $this->api3EntityHasAction($entity, $alias)) {
+      self::$api3DeleteActionByEntity[$cacheKey] = $alias;
+      return $alias;
+    }
+
+    self::$api3DeleteActionByEntity[$cacheKey] = NULL;
+    return NULL;
+  }
+
 
   private function api4Info(string $entity): array {
     $class = 'Civi\\Api4\\' . $entity;
@@ -1316,6 +1381,9 @@ class ExtensionHandler extends AbstractHandler {
     if ($definition['api'] === 'api4') {
       $row = $this->stripReadOnlyFields($row, (array) ($definition['fields'] ?? []));
     }
+    elseif ($definition['api'] === 'api3') {
+      $row = $this->stripApi3NonWritableFields($row, $definition);
+    }
     ksort($row, SORT_NATURAL | SORT_FLAG_CASE);
     return $row;
   }
@@ -1325,7 +1393,84 @@ class ExtensionHandler extends AbstractHandler {
     if ($definition['api'] === 'api4') {
       $row = $this->stripReadOnlyFields($row, (array) ($definition['fields'] ?? []));
     }
+    elseif ($definition['api'] === 'api3') {
+      $row = $this->stripApi3NonWritableFields($row, $definition);
+    }
     return $row;
+  }
+
+  /**
+   * Keep only fields accepted by an API3 provider's create action when the
+   * provider exposes a usable getfields specification.
+   *
+   * Collection/read APIs often return calculated runtime fields which cannot
+   * be passed back to create/update. SQLTasks is a concrete example: its read
+   * result contains fields such as last_executed, last_runtime, next_execution,
+   * schedule_label, short_desc, and archive state, while Sqltask.create accepts
+   * only the task's writable configuration fields. Nested provider-owned data
+   * such as config.actions is deliberately preserved unchanged.
+   */
+  private function stripApi3NonWritableFields(array $row, array $definition): array {
+    $fields = $this->api3WritableFields($definition);
+    if (!$fields) {
+      // Fail open for portability when a third-party API does not expose a
+      // trustworthy create spec. Existing identity/write-safety checks still
+      // decide whether the provider can be managed automatically.
+      return $row;
+    }
+    return array_intersect_key($row, array_fill_keys($fields, TRUE));
+  }
+
+  private function api3WritableFields(array $definition): array {
+    if (!empty($definition['write_fields'])) {
+      return $this->normaliseApi3WritableFields((array) $definition['write_fields']);
+    }
+
+    $entity = (string) ($definition['entity'] ?? '');
+    if ($entity === '' || !function_exists('civicrm_api3')) {
+      return [];
+    }
+    $cacheKey = strtolower($entity);
+    if (array_key_exists($cacheKey, self::$api3WritableFieldsByEntity)) {
+      return self::$api3WritableFieldsByEntity[$cacheKey];
+    }
+
+    try {
+      $result = civicrm_api3($entity, 'getfields', [
+        'sequential' => 1,
+        'action' => 'create',
+      ]);
+      self::$api3WritableFieldsByEntity[$cacheKey] = $this->normaliseApi3WritableFields((array) ($result['values'] ?? []));
+    }
+    catch (\Throwable $e) {
+      self::$api3WritableFieldsByEntity[$cacheKey] = [];
+    }
+
+    return self::$api3WritableFieldsByEntity[$cacheKey];
+  }
+
+  /**
+   * @return string[]
+   */
+  private function normaliseApi3WritableFields(array $fields): array {
+    $names = [];
+    foreach ($fields as $key => $field) {
+      if (is_string($field)) {
+        $name = $field;
+      }
+      else {
+        $field = (array) $field;
+        $name = (string) ($field['name'] ?? (is_string($key) ? $key : ''));
+      }
+      $name = trim($name);
+      if ($name === '' || $name === 'id') {
+        continue;
+      }
+      $names[$name] = TRUE;
+    }
+    $names = array_keys($names);
+    sort($names, SORT_NATURAL | SORT_FLAG_CASE);
+    return $names;
   }
 
   private function stripRuntime(array $row): array {
@@ -1510,8 +1655,7 @@ class ExtensionHandler extends AbstractHandler {
       return $this->api4Create((string) $definition['entity'], $values);
     }
     $result = civicrm_api3((string) $definition['entity'], 'create', $values + ['sequential' => 1]);
-    $values = array_values((array) ($result['values'] ?? []));
-    return $values[0] ?? [];
+    return $this->firstApi3ResultRow((array) $result);
   }
 
   private function updateEntityRow(array $definition, array $existing, array $values): array {
@@ -1523,8 +1667,16 @@ class ExtensionHandler extends AbstractHandler {
     }
     $values['id'] = (int) $existing['id'];
     $result = civicrm_api3((string) $definition['entity'], 'create', $values + ['sequential' => 1]);
-    $rows = array_values((array) ($result['values'] ?? []));
-    return $rows[0] ?? [];
+    return $this->firstApi3ResultRow((array) $result);
+  }
+
+  /**
+   * Normalize API3 write responses which may return either a row list or one
+   * associative row directly under `values`.
+   */
+  private function firstApi3ResultRow(array $result): array {
+    $rows = $this->normalizeApi3Rows($result);
+    return !empty($rows[0]) && is_array($rows[0]) ? (array) $rows[0] : [];
   }
 
   private function deleteEntityRow(array $definition, int $id): void {
@@ -1532,7 +1684,8 @@ class ExtensionHandler extends AbstractHandler {
       $this->api4Delete((string) $definition['entity'], [['id', '=', $id]]);
       return;
     }
-    civicrm_api3((string) $definition['entity'], 'delete', ['id' => $id]);
+    $action = (string) ($definition['delete_action'] ?? 'delete');
+    civicrm_api3((string) $definition['entity'], $action, ['id' => $id]);
   }
 
   private function dependenciesForEntityRow(array $row, array $definition): array {
@@ -1841,6 +1994,7 @@ class ExtensionHandler extends AbstractHandler {
     $manager->{$method}($keys);
     self::$api3ActionsByEntity = [];
     self::$api3ListActionByEntity = [];
+    self::$api3DeleteActionByEntity = [];
     $this->discoveredEntityDefinitions = NULL;
     $this->identityRowsByDefinition = [];
   }
