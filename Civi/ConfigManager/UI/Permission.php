@@ -29,7 +29,7 @@ class Permission {
       ],
       self::ADMINISTER => [
         'label' => ts('Administer Configuration Manager'),
-        'description' => ts('Change Configuration Manager sync directory, enabled config types, and settings allowlist.'),
+        'description' => ts('Change Configuration Manager sync directory, managed/watch/ignored scope, selectors, and settings allowlist.'),
       ],
     ];
   }
@@ -55,7 +55,7 @@ class Permission {
       self::require(self::IMPORT);
     }
 
-    if ($op === 'settings' || in_array($postAction, ['save_settings', 'ignore_config'], TRUE)) {
+    if ($op === 'settings' || in_array($postAction, ['save_settings', 'ignore_config', 'scan_watch'], TRUE)) {
       self::require(self::ADMINISTER);
     }
   }

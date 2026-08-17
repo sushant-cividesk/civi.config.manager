@@ -25,13 +25,16 @@ class SiteTokenHandler extends AbstractHandler {
     $rows = $this->api4Get('SiteToken', [], ['*'], ['name' => 'ASC']);
     $files = [];
     foreach ($rows as $row) {
-      $row = $this->cleanValues((array) $row);
+      $row = (array) $row;
+      $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
+      $row = $this->cleanValues($row);
       $name = (string) ($row['name'] ?? $row['token_name'] ?? $row['label'] ?? '');
       if ($name === '') {
         continue;
       }
       $files[] = [
         'filename' => $this->safeName($name) . '.yml',
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => 'site_token.item',

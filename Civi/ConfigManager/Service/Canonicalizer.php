@@ -34,6 +34,7 @@ class Canonicalizer {
       'key',
       'key_fields',
       'identity_field',
+      'identity_key',
       'identity_confidence',
       'capabilities',
       'dependencies',

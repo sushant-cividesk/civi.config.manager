@@ -19,6 +19,37 @@ class FileTransfer {
   private const MAX_ARCHIVE_BYTES = 52428800;
 
 
+
+  /**
+   * Build the single-file chooser from an export preview already performed in
+   * this request. This avoids exporting every handler a second time merely to
+   * populate the UI select list.
+   */
+  public function buildExportItemsFromPreview(array $preview): array {
+    $items = [];
+    foreach ((array) ($preview['available'] ?? []) as $file) {
+      $file = (array) $file;
+      $type = (string) ($file['type'] ?? '');
+      $filename = (string) ($file['file'] ?? '');
+      $path = (string) ($file['path'] ?? '');
+      if ($type === '' || $filename === '' || $path === '') {
+        continue;
+      }
+      $items[] = [
+        'key' => $type . '::' . $filename,
+        'type' => $type,
+        'label' => (string) ($file['label'] ?? $type),
+        'directory' => (string) ($file['directory'] ?? ''),
+        'file' => $filename,
+        'path' => $path,
+      ];
+    }
+    usort($items, static function($a, $b) {
+      return strcmp((string) $a['path'], (string) $b['path']);
+    });
+    return $items;
+  }
+
   public function buildExportItems(ConfigManager $manager, array $typeFilter = []): array {
     $items = [];
     $effectiveTypes = $manager->getEffectiveExportTypeFilter($typeFilter);
@@ -58,32 +89,18 @@ class FileTransfer {
 
   public function loadSingleExport(ConfigManager $manager, string $key): array {
     [$type, $filename] = $this->splitExportKey($key);
-    foreach ($manager->getHandlers() as $handler) {
-      if ($handler->getType() !== $type) {
-        continue;
-      }
-      foreach ($handler->export() as $file) {
-        if (($file['filename'] ?? '') === $filename) {
-          $relativePath = trim($handler->getDirectory(), '/') . '/' . $filename;
-          if ($manager->shouldIgnorePath($relativePath)) {
-            throw new RuntimeException('Selected export item is ignored by Config Ignore: ' . $relativePath);
-          }
-          $data = $manager->applyIgnoredValueRules($relativePath, (array) ($file['data'] ?? []));
-          $yaml = SimpleYaml::dump($data);
-          return [
-            'key' => $key,
-            'type' => $type,
-            'label' => $handler->getLabel(),
-            'directory' => $handler->getDirectory(),
-            'file' => $filename,
-            'path' => $relativePath,
-            'yaml' => $yaml,
-            'download_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=download-single&export_item=' . rawurlencode($key)),
-          ];
-        }
-      }
-    }
-    throw new RuntimeException('Selected export item was not found.');
+    $file = $manager->getManagedActiveExportFile($type, $filename);
+    $yaml = SimpleYaml::dump((array) ($file['data'] ?? []));
+    return [
+      'key' => $key,
+      'type' => $type,
+      'label' => (string) ($file['label'] ?? $type),
+      'directory' => (string) ($file['directory'] ?? ''),
+      'file' => $filename,
+      'path' => (string) ($file['relative'] ?? ''),
+      'yaml' => $yaml,
+      'download_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=download-single&export_item=' . rawurlencode($key)),
+    ];
   }
 
   public function jsonSingleExport(ConfigManager $manager): void {
@@ -263,16 +280,17 @@ class FileTransfer {
   }
 
   public function downloadArchive(ConfigManager $manager): void {
-    $dir = $manager->getSyncDir();
     if (!class_exists('ZipArchive')) {
       throw new RuntimeException('ZipArchive is not available in PHP.');
     }
-    if (!is_dir($dir) || is_link($dir)) {
-      throw new RuntimeException('Sync directory does not exist or is not a safe directory. Export files first.');
-    }
-    $realRoot = realpath($dir);
-    if ($realRoot === FALSE) {
-      throw new RuntimeException('Could not resolve the sync directory.');
+
+    // Build the archive from the *effective managed YAML set*, not by blindly
+    // copying every YAML file left on disk. Selected-scope backups may be kept
+    // locally after deselection for safety, but they must not leak back into a
+    // managed export archive.
+    $managedFiles = $manager->getManagedYamlArchiveFiles();
+    if (!$managedFiles) {
+      throw new RuntimeException('No managed YAML files are available for download.');
     }
 
     $temporary = tempnam(sys_get_temp_dir(), 'civicfg-');
@@ -287,28 +305,16 @@ class FileTransfer {
     }
     $added = 0;
     try {
-      $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($realRoot, FilesystemIterator::SKIP_DOTS));
-      foreach ($iterator as $file) {
-        if ($file->isLink() || !$file->isFile()) {
+      foreach ($managedFiles as $relative => $data) {
+        $relative = str_replace('\\', '/', (string) $relative);
+        if (!$this->isSafeRelativeYamlPath($relative) && $relative !== 'manifest.yml') {
           continue;
         }
-        $realFile = realpath($file->getPathname());
-        if ($realFile === FALSE || !$this->pathIsWithinRoot($realFile, $realRoot)) {
+        if ($relative !== 'manifest.yml' && $manager->shouldIgnorePath($relative)) {
           continue;
         }
-        $relative = str_replace('\\', '/', substr($realFile, strlen($realRoot) + 1));
-        if (!$this->isSafeRelativeYamlPath($relative) || $manager->shouldIgnorePath($relative)) {
-          continue;
-        }
-        try {
-          $parsed = SimpleYaml::parseFile($realFile);
-          $parsed = $manager->applyIgnoredValueRules($relative, (array) $parsed);
-          if ($zip->addFromString($relative, SimpleYaml::dump($parsed))) {
-            $added++;
-          }
-        }
-        catch (Throwable $e) {
-          // Invalid YAML is excluded instead of copying unreviewed raw content.
+        if ($zip->addFromString($relative, SimpleYaml::dump((array) $data))) {
+          $added++;
         }
       }
     }
@@ -317,7 +323,7 @@ class FileTransfer {
     }
     if ($added === 0 || !is_file($zipPath)) {
       @unlink($zipPath);
-      throw new RuntimeException('No valid YAML files are available for download.');
+      throw new RuntimeException('No valid managed YAML files are available for download.');
     }
 
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/zip');

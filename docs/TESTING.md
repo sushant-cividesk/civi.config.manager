@@ -26,7 +26,7 @@ Run the standard test for:
 - Location Types
 - Financial Types
 - Custom Groups and Fields
-- CiviCRM Settings Allowlist
+- CiviCRM Settings (one YAML file per allowlisted setting)
 - Message Templates
 - Dedupe Rules
 - Scheduled Jobs
@@ -116,6 +116,23 @@ The full run creates its own database, records, settings, YAML directory, Docker
 
 See `docs/QA_AUTOMATION.md` for commands, current coverage, isolation rules, and the developer test-scenario contract.
 
+
+## Alpha58 scope, watch, and performance tests
+
+Before accepting alpha58 on a real development project, verify:
+
+- Synchronize before the first export shows one setup prompt and does not scan/render every active record as a difference.
+- `Manage selected` exports only selected objects and writes semantic `config_keys` plus selector mappings to `manifest.yml`.
+- A selected object still matches on another environment when its numeric database ID differs.
+- Unselected objects are never deleted by bulk import in selected mode.
+- `Watch only` and `Watch unselected` objects stay out of YAML and are changed only in local watch-state fingerprints.
+- `civicfg watch` and API4 `ConfigManager.watch` refresh watch state explicitly.
+- `$civicrm_setting['domain']['civicfg_scope']` overrides UI scope settings and is shown as locked.
+- Message Template system variants match by workflow/default identity, while duplicate user-template titles are blocked from automatic writes.
+- `hook_civicrm_check()` reads cached health without discovering/exporting handlers or running a full diff.
+- Export-page single-file choices reuse the current export preview instead of triggering a duplicate all-handler export.
+
+The developer-owned scenario is `tests/scenarios/selective-scope-watch.yml`. Run the full isolated suite after fast QA so real CiviCRM behavior covers scope, manifest, watch state, Message Templates, split-file handlers, and idempotency together.
 
 ## Alpha56 semantic identity, state, and CLI tests
 

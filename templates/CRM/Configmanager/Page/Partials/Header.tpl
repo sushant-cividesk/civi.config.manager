@@ -11,7 +11,7 @@
   {elseif $op eq 'export'}
     <p class="civicfg-help">{ts}Export the active CiviCRM configuration as a ZIP archive or preview one YAML file before saving it.{/ts}</p>
   {elseif $op eq 'settings'}
-    <p class="civicfg-help">{ts}Choose the sync directory and which config types are managed by this site.{/ts}</p>
+    <p class="civicfg-help">{ts}Choose what Configuration Manager manages, watches, or ignores, and configure the sync directory.{/ts}</p>
   {/if}
 
   {if $notice}<div class="messages status no-popup">{$notice|escape}</div>{/if}
@@ -26,7 +26,9 @@
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Status{/ts}</div>
       <div class="civicfg-card-value">
-        {if $summary.total_changes gt 0}
+        {if $initialExportRequired}
+          <span class="civicfg-badge warn">{ts}Initial Export Required{/ts}</span>
+        {elseif $summary.total_changes gt 0}
           <span class="civicfg-badge warn">{ts 1=$summary.total_changes}%1 Difference(s){/ts}</span>
         {else}
           <span class="civicfg-badge good">{ts}In Sync{/ts}</span>
@@ -35,9 +37,13 @@
     </div>
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Changes{/ts}</div>
-      <div>{ts}Changed{/ts}: {$summary.changed_count|escape}</div>
-      <div>{ts}Only in CiviCRM{/ts}: {$summary.new_count|escape}</div>
-      <div>{ts}Only in YAML{/ts}: {$summary.missing_count|escape}</div>
+      {if $initialExportRequired}
+        <div>{ts}Differences will be shown after the initial managed YAML export.{/ts}</div>
+      {else}
+        <div>{ts}Changed{/ts}: {$summary.changed_count|escape}</div>
+        <div>{ts}New in CiviCRM{/ts}: {$summary.new_count|escape}</div>
+        <div>{ts}Missing from CiviCRM{/ts}: {$summary.missing_count|escape}</div>
+      {/if}
     </div>
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Sync Directory{/ts}</div>

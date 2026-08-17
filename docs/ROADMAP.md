@@ -16,6 +16,10 @@ The current alpha focuses on a safe, reviewable configuration workflow:
 - CiviCRM status report integration.
 - Dependency-free UI assets.
 
+## Alpha58 scope foundation
+
+The current alpha now includes a universal managed/watch/ignored scope layer, portable selected-item identities, explicit watch scans, cached system health, and a no-delete guarantee for unselected records. Message Templates are the first strongly identity-aware example, but the scope layer is handler-generic and split-file support has been expanded across other core configuration types.
+
 ## Phase 1 completion
 
 Before treating phase 1 as complete, finish:
@@ -28,7 +32,7 @@ Before treating phase 1 as complete, finish:
 
 ## Phase 1.1 hardening
 
-- Improve diff summaries for large files.
+- Continue refining handler-specific human diff summaries after alpha58 introduced concise post-baseline change wording.
 - Add more handler-specific validation.
 - Expand dependency detection for SearchKit, Afform, custom fields, option values, and future CiviRules.
 - Improve status report wording after real-world testing.
@@ -40,7 +44,7 @@ Before treating phase 1 as complete, finish:
 - Mosaico/contact-layout/base-template asset deployment review through the generic bundled bundled extension config support.
 - More complete CiviRules rule-component dependency ordering.
 - Safer generic bundled extension config classification for extension APIs that expose operational data instead of deployable config.
-- More environment override support beyond field-level Config Ignore Values.
+- Expand environment override documentation and provider-specific selector UX on top of alpha58 `civicfg_scope` settings-file overrides.
 - Further harden destructive import dependency checks and per-record dependency ordering.
 - Expand real-world CLI smoke coverage across Drupal 7/non-Composer, modern Composer CMS builds, WordPress, and Standalone.
 

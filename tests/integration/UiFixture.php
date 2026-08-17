@@ -43,7 +43,10 @@ final class CivicfgUiFixture {
     $backup = [];
     foreach ([
       'civicfg_sync_dir',
-      'civicfg_enabled_types',
+      'civicfg_scope',
+      'civicfg_scope_resolved',
+      'civicfg_last_health',
+      'civicfg_watch_summary',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_allow_cross_site_import',
@@ -52,7 +55,10 @@ final class CivicfgUiFixture {
     }
 
     \Civi::settings()->set('civicfg_sync_dir', $this->root . '/sync');
-    \Civi::settings()->set('civicfg_enabled_types', ['option-groups']);
+    \Civi::settings()->set('civicfg_scope', []);
+    \Civi::settings()->set('civicfg_scope_resolved', []);
+    \Civi::settings()->set('civicfg_last_health', []);
+    \Civi::settings()->set('civicfg_watch_summary', []);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);

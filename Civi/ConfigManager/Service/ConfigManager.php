@@ -6,9 +6,13 @@ use Civi\ConfigManager\Version;
 
 class ConfigManager {
   private HandlerRegistry $registry;
+  private ConfigScope $scope;
+  private ?array $allHandlersCache = NULL;
+  private ?array $managedTypeOptionsCache = NULL;
 
-  public function __construct(?HandlerRegistry $registry = NULL) {
+  public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL) {
     $this->registry = $registry ?: new HandlerRegistry();
+    $this->scope = $scope ?: new ConfigScope();
   }
 
   public function getSyncDir(): string {
@@ -192,23 +196,22 @@ class ConfigManager {
   }
 
   public function getHandlers(): array {
-    $handlers = $this->registry->getHandlers();
-    $enabled = (array) \Civi::settings()->get('civicfg_enabled_types');
-    $enabled = array_values(array_filter(array_map('strval', $enabled)));
-    if (!$enabled) {
-      return $handlers;
-    }
-    $enabledBase = $this->baseTypesFromFilter($enabled);
-    return array_values(array_filter($handlers, function($handler) use ($enabledBase) {
-      return in_array($handler->getType(), $enabledBase, TRUE);
+    return array_values(array_filter($this->getAllHandlers(), function($handler) {
+      return $this->scope->isManagedType((string) $handler->getType());
     }));
   }
 
   public function getAllHandlers(): array {
-    return $this->registry->getHandlers();
+    if ($this->allHandlersCache === NULL) {
+      $this->allHandlersCache = $this->registry->getHandlers();
+    }
+    return $this->allHandlersCache;
   }
 
   public function getManagedTypeOptions(): array {
+    if ($this->managedTypeOptionsCache !== NULL) {
+      return $this->managedTypeOptionsCache;
+    }
     $rows = [];
     foreach ($this->getAllHandlers() as $handler) {
       $rows[] = [
@@ -243,6 +246,72 @@ class ConfigManager {
         return $cmp;
       }
       return strcmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+    });
+    $this->managedTypeOptionsCache = $rows;
+    return $this->managedTypeOptionsCache;
+  }
+
+  public function getScopePolicies(): array {
+    return $this->scope->getPolicies();
+  }
+
+  public function saveScopePolicies(array $policies): void {
+    if ($this->scope->isPolicyOverridden()) {
+      throw new \RuntimeException('Configuration scope is overridden in civicrm.settings.php and cannot be changed from the UI.');
+    }
+    $this->scope->savePolicies($policies);
+
+    // Watch state is local and disposable. Scope changes must still save even
+    // if this optional cleanup cannot run (for example during an upgrade before
+    // the operational tables have been repaired).
+    try {
+      $store = new StateStore();
+      foreach ($this->getScopeTypeOptions() as $row) {
+        $type = (string) ($row['type'] ?? '');
+        if ($type !== '' && !$this->scope->isWatchedType($type)) {
+          $store->clearWatchStatesByType($type);
+        }
+      }
+    }
+    catch (\Throwable $e) {
+      // Do not roll back a successfully saved scope because disposable watch
+      // fingerprints could not be cleaned up. The next watch scan can rebuild
+      // this state safely.
+    }
+    // Scope changes invalidate both cached managed health and watched status.
+    // The next explicit Synchronize/watch scan will rebuild them.
+    \Civi::settings()->set('civicfg_last_health', []);
+    \Civi::settings()->set('civicfg_watch_summary', []);
+  }
+
+  public function isScopePolicyOverridden(): bool {
+    return $this->scope->isPolicyOverridden();
+  }
+
+  public function getScopeSelectorHelp(): string {
+    return $this->scope->selectorHelp();
+  }
+
+  public function allowsDeleteMissingForType(string $type): bool {
+    return $this->scope->allowsDeleteMissing($type);
+  }
+
+  public function getScopeTypeOptions(): array {
+    $rows = [];
+    foreach ($this->getAllHandlers() as $handler) {
+      $rows[] = [
+        'type' => (string) $handler->getType(),
+        'base_type' => (string) $handler->getType(),
+        'label' => (string) $handler->getLabel(),
+        'directory' => (string) $handler->getDirectory(),
+        'weight' => (int) $handler->getWeight(),
+        'virtual' => FALSE,
+        'provider' => '',
+      ];
+    }
+    usort($rows, static function($a, $b) {
+      $cmp = ((int) $a['weight']) <=> ((int) $b['weight']);
+      return $cmp !== 0 ? $cmp : strcmp((string) $a['label'], (string) $b['label']);
     });
     return $rows;
   }
@@ -375,6 +444,74 @@ class ConfigManager {
     ];
   }
 
+  public function isInitialExportRequired(): bool {
+    return !$this->hasManagedYamlFiles($this->getSyncDir());
+  }
+
+  /**
+   * Cheap current-format marker check for non-Synchronize UI/status rendering.
+   */
+  public function hasCurrentManifest(): bool {
+    return is_file(rtrim($this->getSyncDir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'manifest.yml');
+  }
+
+  private function readManifest(YamlFileStorage $storage): array {
+    try {
+      return $storage->readFile('manifest.yml');
+    }
+    catch (\Throwable $e) {
+      return [];
+    }
+  }
+
+  private function scopePartition($handler, array $files, YamlFileStorage $storage, bool $forExport = FALSE): array {
+    $manifest = $this->readManifest($storage);
+    $type = (string) $handler->getType();
+    $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, $type);
+    return $this->scope->partition($type, $files, $forExport, $selectorMap);
+  }
+
+  private function filterYamlByScope($handler, array $files, array $partition, YamlFileStorage $storage): array {
+    $keys = array_map('strval', (array) ($partition['managed_config_keys'] ?? []));
+    return $this->scope->filterYamlFiles((string) $handler->getType(), $files, $keys);
+  }
+
+  /**
+   * Load only YAML that belongs to the effective managed scope.
+   *
+   * Selected scope is portable through manifest config keys. It deliberately
+   * does not fall back to "all YAML" when the manifest lacks selected keys,
+   * because that could turn an incomplete scope definition into an unsafe
+   * bulk import.
+   */
+  private function loadManagedYamlFiles($handler, YamlFileStorage $storage): array {
+    $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
+    $files = $this->applyHandlerFileFilter($handler, $files);
+    $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+    $policy = $this->scope->getPolicy((string) $handler->getType());
+    if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL) {
+      return $files;
+    }
+    if (($policy['mode'] ?? '') !== ConfigScope::MODE_SELECTED) {
+      return [];
+    }
+    $manifest = $this->readManifest($storage);
+    $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, (string) $handler->getType());
+    $exportLikeFiles = [];
+    foreach ($files as $filename => $data) {
+      $exportLikeFiles[] = [
+        'filename' => (string) $filename,
+        'data' => (array) $data,
+      ];
+    }
+    $partition = $this->scope->partition((string) $handler->getType(), $exportLikeFiles, FALSE, $selectorMap);
+    return $this->scope->filterYamlFiles(
+      (string) $handler->getType(),
+      $files,
+      array_map('strval', (array) ($partition['managed_config_keys'] ?? []))
+    );
+  }
+
   public function export(bool $dryRun = TRUE, array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
@@ -391,31 +528,57 @@ class ConfigManager {
       'deleted' => [],
       'planned' => [],
       'delete_planned' => [],
+      'available' => [],
       'skipped' => [],
       'warnings' => [],
       'errors' => [],
       'message' => NULL,
     ];
 
-    if (!$dryRun) {
-      $manifest = $this->getManifestData();
-      if (!$storage->isSame('', 'manifest.yml', $manifest)) {
-        $summary['written'][] = $storage->write('', 'manifest.yml', $manifest);
-      }
-      else {
-        $summary['skipped'][] = 'manifest.yml';
-      }
-    }
-
     $queue = [];
     $successfulHandlers = [];
+    $scopeManifestUpdates = [];
+
+    // Keep non-managed modes explicit in manifest.yml as well. This prevents a
+    // type that was changed from managed to watch/ignore from retaining stale
+    // managed-scope metadata from a previous export. Managed handlers below
+    // replace these entries with their resolved portable keys where needed.
+    foreach ($this->getScopeTypeOptions() as $scopeType) {
+      $type = (string) ($scopeType['type'] ?? '');
+      if ($type === '') {
+        continue;
+      }
+      $policy = $this->scope->getPolicy($type);
+      if (!in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
+        continue;
+      }
+      $scopeManifestUpdates[$type] = $this->scope->manifestEntry($type, ['policy' => $policy]);
+    }
+
     foreach ($this->getHandlers() as $handler) {
       if ($effectiveTypes && !in_array($handler->getType(), $effectiveTypes, TRUE)) {
         continue;
       }
       $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
       try {
-        foreach ($handler->export() as $file) {
+        $partition = $this->scopePartition($handler, $handler->export(), $storage, TRUE);
+        $scopeManifestUpdates[(string) $handler->getType()] = $this->scope->manifestEntry((string) $handler->getType(), $partition);
+        if (!$dryRun) {
+          $this->scope->persistResolvedMatches((string) $handler->getType(), $partition);
+        }
+        foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
+          $summary['warnings'][] = [
+            'type' => $handler->getType(),
+            'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.',
+          ];
+        }
+        foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
+          $summary['warnings'][] = [
+            'type' => $handler->getType(),
+            'message' => 'Configured managed object is currently missing from CiviCRM: ' . (string) $selector . '. Existing YAML backup is preserved for review or restore.',
+          ];
+        }
+        foreach ((array) ($partition['managed'] ?? []) as $file) {
           $relative = trim($handler->getDirectory(), '/') . '/' . $file['filename'];
           if ($this->isIgnoredPath($relative)) {
             $summary['skipped'][] = $relative . ' (ignored)';
@@ -423,6 +586,7 @@ class ConfigManager {
           }
           $queue[] = [
             'type' => $handler->getType(),
+            'label' => $handler->getLabel(),
             'directory' => $handler->getDirectory(),
             'filename' => $file['filename'],
             'relative' => $relative,
@@ -441,6 +605,31 @@ class ConfigManager {
 
     $queue = $this->pruneExtensionIndexesForIgnoredOrFilteredConfig($queue);
     $queue = $this->addReverseDependencyMetadataToExportQueue($queue);
+    foreach ($queue as $file) {
+      $summary['available'][] = [
+        'type' => (string) ($file['type'] ?? ''),
+        'label' => (string) ($file['label'] ?? $file['type'] ?? ''),
+        'directory' => (string) ($file['directory'] ?? ''),
+        'file' => (string) ($file['filename'] ?? ''),
+        'path' => (string) ($file['relative'] ?? ''),
+      ];
+    }
+
+    if (!$dryRun) {
+      $existingManifest = $this->readManifest($storage);
+      $existingScope = (array) ($existingManifest['managed_scope'] ?? []);
+      foreach ($scopeManifestUpdates as $type => $scopeEntry) {
+        $existingScope[$type] = $scopeEntry;
+      }
+      ksort($existingScope, SORT_NATURAL | SORT_FLAG_CASE);
+      $manifest = $this->getManifestData($existingScope);
+      if (!$storage->isSame('', 'manifest.yml', $manifest)) {
+        $summary['written'][] = $storage->write('', 'manifest.yml', $manifest);
+      }
+      else {
+        $summary['skipped'][] = 'manifest.yml';
+      }
+    }
 
     foreach ($this->findStaleYamlFilesForExport($storage, $successfulHandlers, $queue) as $staleFile) {
       if ($dryRun) {
@@ -505,6 +694,68 @@ class ConfigManager {
     return $summary;
   }
 
+  /**
+   * Return one currently managed active export item.
+   *
+   * This is used by the single-file preview/download endpoints so a crafted
+   * request cannot bypass selected/watch/ignore scope.
+   */
+  public function getManagedActiveExportFile(string $type, string $filename): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    foreach ($this->getHandlers() as $handler) {
+      if ((string) $handler->getType() !== $type) {
+        continue;
+      }
+      $partition = $this->scopePartition($handler, $handler->export(), $storage, TRUE);
+      foreach ((array) ($partition['managed'] ?? []) as $file) {
+        $file = (array) $file;
+        if ((string) ($file['filename'] ?? '') !== $filename) {
+          continue;
+        }
+        $relative = trim((string) $handler->getDirectory(), '/') . '/' . $filename;
+        if ($this->isIgnoredPath($relative)) {
+          throw new \RuntimeException('Selected export item is ignored by Config Ignore: ' . $relative);
+        }
+        return [
+          'type' => $type,
+          'label' => (string) $handler->getLabel(),
+          'directory' => (string) $handler->getDirectory(),
+          'filename' => $filename,
+          'relative' => $relative,
+          'data' => $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? [])),
+        ];
+      }
+      throw new \RuntimeException('Selected export item is outside the current managed scope or was not found: ' . $filename);
+    }
+    throw new \RuntimeException('Unknown or unmanaged configuration type: ' . $type);
+  }
+
+  /**
+   * Read the current portable YAML set for ZIP download without scanning active
+   * CiviCRM. Stale backups from deselected/watch/ignored scope stay on disk for
+   * safety but are not part of the managed archive.
+   *
+   * @return array<string,array<string,mixed>> Relative path => YAML document.
+   */
+  public function getManagedYamlArchiveFiles(): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $files = [];
+    $manifest = $this->readManifest($storage);
+    if ($manifest) {
+      $files['manifest.yml'] = $manifest;
+    }
+    foreach ($this->getHandlers() as $handler) {
+      foreach ($this->loadManagedYamlFiles($handler, $storage) as $filename => $data) {
+        $relative = trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/');
+        if ($relative !== '' && !$this->isIgnoredPath($relative)) {
+          $files[$relative] = (array) $data;
+        }
+      }
+    }
+    ksort($files, SORT_NATURAL | SORT_FLAG_CASE);
+    return $files;
+  }
+
   private function findStaleYamlFilesForExport(YamlFileStorage $storage, array $handlers, array $queue): array {
     $stale = [];
     $exportedByType = [];
@@ -521,6 +772,9 @@ class ConfigManager {
     }
 
     foreach ($handlers as $handler) {
+      if (!$this->scope->allowsDeleteMissing((string) $handler->getType())) {
+        continue;
+      }
       $directory = trim((string) $handler->getDirectory(), '/');
       $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
       $files = $this->applyHandlerFileFilter($handler, $files);
@@ -674,12 +928,25 @@ class ConfigManager {
   public function diff(array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
+
+    // Before the first managed export there is no useful YAML comparison. Do
+    // not scan the whole CiviCRM installation simply to report every active
+    // record as "Only in CiviCRM".
+    if ($this->isInitialExportRequired()) {
+      $result['initial_export_required'] = TRUE;
+      $result['message'] = 'Initial YAML export required before configuration differences can be calculated.';
+      $this->cacheHealthFromDiff($result);
+      return $result;
+    }
+
+    $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
+    $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
     $stateManager = NULL;
     try {
       $stateManager = new ConfigStateManager();
       if (!$typeFilter) {
-        // A full scan replaces the rebuildable object-state index. Filtered
-        // scans update only what they inspect and leave other provider rows.
+        // A full managed scan replaces the rebuildable object-state index.
+        // Watch-only state lives in its own table and is not cleared here.
         $stateManager->rebuildObjectState();
       }
     }
@@ -689,8 +956,6 @@ class ConfigManager {
     }
 
     foreach ($this->getHandlers() as $handler) {
-      $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
-      $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
       if ($baseFilter && !in_array($handler->getType(), $baseFilter, TRUE)) {
         continue;
       }
@@ -699,8 +964,18 @@ class ConfigManager {
         $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
         $files = $this->applyHandlerFileFilter($handler, $files);
         $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
-        $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), $handler->export());
+
+        $activeFiles = $handler->export();
+        $partition = $this->scopePartition($handler, $activeFiles, $storage, FALSE);
+        $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), (array) ($partition['managed'] ?? []));
+        $files = $this->filterYamlByScope($handler, $files, $partition, $storage);
+
         $item = $handler->diffFromExports($exported, $files);
+        if (!empty($partition['unresolved_selectors'])) {
+          $item['scope_warnings'] = array_values(array_map(static function($selector) {
+            return 'Configured managed selector is not present in active CiviCRM: ' . (string) $selector . '. YAML backup remains managed.';
+          }, (array) $partition['unresolved_selectors']));
+        }
         if ($stateManager !== NULL) {
           try {
             $item = $stateManager->enrichDiff($handler, $exported, $files, $item);
@@ -711,7 +986,7 @@ class ConfigManager {
           }
         }
         $item = $this->filterIgnoredDiffItem($item, $handler->getDirectory());
-        if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files'])) {
+        if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files']) || !empty($item['scope_warnings'])) {
           $result['items'][] = $item;
         }
       }
@@ -720,6 +995,7 @@ class ConfigManager {
       }
     }
     $result['ok'] = empty($result['errors']);
+    $this->cacheHealthFromDiff($result);
     return $result;
   }
 
@@ -727,17 +1003,16 @@ class ConfigManager {
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
     $yamlByType = [];
+    $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
+    $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
+
     foreach ($this->getHandlers() as $handler) {
-      $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
-      $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
       if ($baseFilter && !in_array($handler->getType(), $baseFilter, TRUE)) {
         continue;
       }
       $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
       try {
-        $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-        $files = $this->applyHandlerFileFilter($handler, $files);
-        $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+        $files = $this->loadManagedYamlFiles($handler, $storage);
         $yamlByType[$handler->getType()] = $files;
         $validation = $handler->validate($files);
         $result['items'][] = $validation;
@@ -969,13 +1244,11 @@ class ConfigManager {
 
     if (!$dryRun && $yes) {
       // Apply create/update first for all types, then delete missing records in
-      // reverse order. This avoids deleting a parent SavedSearch while a child
-      // SearchDisplay still exists and is scheduled for deletion in the same run.
+      // reverse order. Selected scope disables bulk delete-missing centrally:
+      // absence from a selective YAML set must never delete unselected config.
       foreach ($handlers as $handler) {
         $this->setHandlerImportPhase($handler, TRUE, FALSE);
-        $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-        $files = $this->applyHandlerFileFilter($handler, $files);
-        $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+        $files = $this->loadManagedYamlFiles($handler, $storage);
         $item = $handler->import($files, FALSE);
         $item['phase'] = 'create_update';
         $result['items'][] = $item;
@@ -985,9 +1258,7 @@ class ConfigManager {
       }
       foreach (array_reverse($handlers) as $handler) {
         $this->setHandlerImportPhase($handler, FALSE, TRUE);
-        $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-        $files = $this->applyHandlerFileFilter($handler, $files);
-        $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+        $files = $this->loadManagedYamlFiles($handler, $storage);
         $item = $handler->import($files, FALSE);
         $item['phase'] = 'delete_missing';
         $result['items'][] = $item;
@@ -1000,9 +1271,7 @@ class ConfigManager {
         try {
           $stateManager = new ConfigStateManager();
           foreach ($handlers as $handler) {
-            $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-            $files = $this->applyHandlerFileFilter($handler, $files);
-            $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+            $files = $this->loadManagedYamlFiles($handler, $storage);
             $stateManager->acceptYamlBaseline($handler, $files, 'import');
           }
         }
@@ -1016,9 +1285,7 @@ class ConfigManager {
 
     foreach ($handlers as $handler) {
       $this->setHandlerImportPhase($handler, TRUE, TRUE);
-      $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-      $files = $this->applyHandlerFileFilter($handler, $files);
-      $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
+      $files = $this->loadManagedYamlFiles($handler, $storage);
       $item = $handler->import($files, $dryRun || !$yes);
       $result['items'][] = $item;
       if (!empty($item['errors'])) {
@@ -1032,10 +1299,9 @@ class ConfigManager {
   private function findPossibleRenameCandidates(array $handlers, YamlFileStorage $storage): array {
     $candidates = [];
     foreach ($handlers as $handler) {
-      $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-      $files = $this->applyHandlerFileFilter($handler, $files);
-      $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
-      $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), $handler->export());
+      $files = $this->loadManagedYamlFiles($handler, $storage);
+      $partition = $this->scopePartition($handler, $handler->export(), $storage, FALSE);
+      $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), (array) ($partition['managed'] ?? []));
       $diff = $handler->diffFromExports($exported, $files);
       foreach ((array) ($diff['possible_renames'] ?? []) as $candidate) {
         if (!is_array($candidate)) {
@@ -1091,7 +1357,7 @@ class ConfigManager {
       $handler->setImportWriteEnabled($writeEnabled);
     }
     if (method_exists($handler, 'setDeleteMissingEnabled')) {
-      $handler->setDeleteMissingEnabled($deleteEnabled);
+      $handler->setDeleteMissingEnabled($deleteEnabled && $this->scope->allowsDeleteMissing((string) $handler->getType()));
     }
   }
 
@@ -1582,17 +1848,19 @@ class ConfigManager {
   }
 
 
+  /**
+   * Return cached health without scanning handlers or calling diff().
+   *
+   * This method is safe for hook_civicrm_check() and ordinary page requests.
+   * Expensive comparison work happens only in explicit diff/watch operations.
+   */
   public function getHealth(): array {
-    $status = $this->status();
-    $syncDir = (string) ($status['sync_dir'] ?? $this->getSyncDir());
-    $exists = !empty($status['exists']);
-    $hasYaml = $exists && $this->hasYamlFiles($syncDir);
-
-    if (!$exists) {
+    $syncDir = $this->getSyncDir();
+    if (!is_dir($syncDir)) {
       return [
         'level' => 'warning',
         'title' => 'Configuration Manager: Initial export required',
-        'message' => 'The sync directory does not exist yet. Run an export from Configuration Manager to create the initial YAML source files.',
+        'message' => 'Create the initial YAML export before using Configuration Manager as a configuration source.',
         'sync_dir' => $syncDir,
         'changed' => 0,
         'in_civicrm' => 0,
@@ -1600,11 +1868,17 @@ class ConfigManager {
       ];
     }
 
-    if (!$hasYaml) {
+    // Keep hook_civicrm_check() cheap. A current alpha58 export always writes
+    // manifest.yml, so checking this one marker file avoids recursively walking
+    // a large YAML tree from an ordinary CiviCRM status request. Check the
+    // marker before cached health so deleting/moving the YAML tree cannot leave
+    // a stale "In sync" status visible indefinitely.
+    $manifestPath = rtrim($syncDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'manifest.yml';
+    if (!is_file($manifestPath)) {
       return [
         'level' => 'warning',
         'title' => 'Configuration Manager: Initial export required',
-        'message' => 'The sync directory exists but no YAML files were found. Run an export from Configuration Manager before using import as a source of truth.',
+        'message' => 'Create the initial YAML export, or run Synchronize to inspect an older configuration tree.',
         'sync_dir' => $syncDir,
         'changed' => 0,
         'in_civicrm' => 0,
@@ -1612,38 +1886,257 @@ class ConfigManager {
       ];
     }
 
-    $diff = $this->diff();
-    $changed = 0;
-    $inCivicrm = 0;
-    $inYaml = 0;
-    foreach (($diff['items'] ?? []) as $item) {
-      $changed += !empty($item['changed']) ? count($item['changed']) : 0;
-      $inCivicrm += !empty($item['new_in_db']) ? count($item['new_in_db']) : 0;
-      $inYaml += !empty($item['missing_in_db']) ? count($item['missing_in_db']) : 0;
-    }
-
-    $total = $changed + $inCivicrm + $inYaml;
-    if ($total > 0) {
-      return [
-        'level' => 'warning',
-        'title' => 'Configuration Manager: Pending export/import changes',
-        'message' => sprintf('There are %d pending configuration difference(s): %d changed, %d in CiviCRM, and %d in YAML. Review Configuration Manager and either export the CiviCRM changes to YAML or import YAML to CiviCRM.', $total, $changed, $inCivicrm, $inYaml),
-        'sync_dir' => $syncDir,
-        'changed' => $changed,
-        'in_civicrm' => $inCivicrm,
-        'in_yaml' => $inYaml,
-      ];
+    $cached = \Civi::settings()->get('civicfg_last_health');
+    if (is_array($cached) && !empty($cached['title'])) {
+      $cached['sync_dir'] = $syncDir;
+      return $cached;
     }
 
     return [
       'level' => 'info',
-      'title' => 'Configuration Manager: In sync',
-      'message' => 'CiviCRM configuration matches the YAML files in the sync directory.',
+      'title' => 'Configuration Manager: Status not scanned yet',
+      'message' => 'YAML configuration exists. Run Synchronize or civicfg diff to refresh the last-known configuration status.',
       'sync_dir' => $syncDir,
       'changed' => 0,
       'in_civicrm' => 0,
       'in_yaml' => 0,
     ];
+  }
+
+  private function cacheHealthFromDiff(array $diff): void {
+    $syncDir = (string) ($diff['sync_dir'] ?? $this->getSyncDir());
+    if (!empty($diff['initial_export_required'])) {
+      $health = [
+        'level' => 'warning',
+        'title' => 'Configuration Manager: Initial export required',
+        'message' => 'Create the initial YAML export before configuration differences can be calculated.',
+        'sync_dir' => $syncDir,
+        'changed' => 0,
+        'in_civicrm' => 0,
+        'in_yaml' => 0,
+        'scanned_at' => date('c'),
+      ];
+      \Civi::settings()->set('civicfg_last_health', $health);
+      return;
+    }
+
+    $changed = 0;
+    $inCivicrm = 0;
+    $inYaml = 0;
+    foreach ((array) ($diff['items'] ?? []) as $item) {
+      $changed += count((array) ($item['changed'] ?? []));
+      $inCivicrm += count((array) ($item['new_in_db'] ?? []));
+      $inYaml += count((array) ($item['missing_in_db'] ?? []));
+    }
+    $total = $changed + $inCivicrm + $inYaml;
+    $health = [
+      'level' => $total > 0 ? 'warning' : 'info',
+      'title' => $total > 0 ? 'Configuration Manager: Pending configuration changes' : 'Configuration Manager: In sync',
+      'message' => $total > 0
+        ? sprintf('Last scan found %d pending difference(s): %d changed, %d only in CiviCRM, and %d only in YAML.', $total, $changed, $inCivicrm, $inYaml)
+        : 'The last Configuration Manager scan found no differences between managed YAML and active CiviCRM.',
+      'sync_dir' => $syncDir,
+      'changed' => $changed,
+      'in_civicrm' => $inCivicrm,
+      'in_yaml' => $inYaml,
+      'scanned_at' => date('c'),
+    ];
+    \Civi::settings()->set('civicfg_last_health', $health);
+  }
+
+  /**
+   * Explicitly scan watch-only configuration and persist local fingerprints.
+   */
+  public function scanWatched(array $typeFilter = []): array {
+    $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
+    $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
+    $store = new StateStore();
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $manifest = $this->readManifest($storage);
+    $summary = [
+      'ok' => TRUE,
+      'scanned_at' => date('c'),
+      'watched' => 0,
+      'baseline' => 0,
+      'new' => 0,
+      'changed' => 0,
+      'missing' => 0,
+      'items' => [],
+      'errors' => [],
+    ];
+
+    foreach ($this->getAllHandlers() as $handler) {
+      $type = (string) $handler->getType();
+      if ($baseFilter && !in_array($type, $baseFilter, TRUE)) {
+        continue;
+      }
+      if (!$this->scope->isWatchedType($type)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
+      try {
+        $exported = $handler->export();
+        $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, $type);
+        $partition = $this->scope->partition($type, $exported, FALSE, $selectorMap);
+        $watched = (array) ($partition['watched'] ?? []);
+        $allActiveHashes = [];
+        foreach ($exported as $file) {
+          $file = (array) $file;
+          $filename = (string) ($file['filename'] ?? '');
+          if ($filename === '') {
+            continue;
+          }
+          $identity = $identityService->identify($type, (array) ($file['data'] ?? []), $filename);
+          $allActiveHashes[(string) $identity['identity_hash']] = TRUE;
+        }
+
+        $previousRows = $store->getWatchStatesByType($type);
+        $previousByHash = [];
+        foreach ($previousRows as $row) {
+          $previousByHash[(string) ($row['identity_hash'] ?? '')] = $row;
+        }
+        $firstTypeScan = !$previousRows;
+        $seenWatched = [];
+
+        foreach ($watched as $file) {
+          $file = (array) $file;
+          $filename = (string) ($file['filename'] ?? '');
+          $data = (array) ($file['data'] ?? []);
+          if ($filename === '') {
+            continue;
+          }
+          $identity = $identityService->identify($type, $data, $filename);
+          $hash = $canonicalizer->hash($data, $handler->getCanonicalizationOptions());
+          $identityHash = (string) $identity['identity_hash'];
+          $previous = $previousByHash[$identityHash] ?? NULL;
+          $status = 'unchanged';
+          if ($previous === NULL) {
+            $status = $firstTypeScan ? 'baseline' : 'new';
+          }
+          elseif ((string) ($previous['active_hash'] ?? '') !== $hash || ($previous['watch_status'] ?? '') === 'missing') {
+            $status = 'changed';
+          }
+          $label = $this->displayLabelForConfigFile($type, $file);
+          $store->upsertWatchState($type, $identity, $filename, $label, $hash, $data, $status);
+          $seenWatched[$identityHash] = TRUE;
+          $summary['watched']++;
+          if (isset($summary[$status])) {
+            $summary[$status]++;
+          }
+          if (in_array($status, ['new', 'changed'], TRUE)) {
+            $summary['items'][] = [
+              'type' => $type,
+              'label' => $label,
+              'path' => trim((string) $handler->getDirectory(), '/') . '/' . $filename,
+              'status' => $status,
+            ];
+          }
+        }
+
+        foreach ($previousRows as $previous) {
+          $identityHash = (string) ($previous['identity_hash'] ?? '');
+          if ($identityHash === '' || isset($seenWatched[$identityHash])) {
+            continue;
+          }
+          if (isset($allActiveHashes[$identityHash])) {
+            // The object still exists but is no longer watched (for example it
+            // was promoted into managed scope). Remove stale watch state.
+            $store->deleteWatchState((string) $previous['provider_key'], $identityHash);
+            continue;
+          }
+          $identity = [
+            'provider_key' => (string) $previous['provider_key'],
+            'config_key' => (string) $previous['config_key'],
+            'identity_hash' => $identityHash,
+          ];
+          $store->upsertWatchState(
+            $type,
+            $identity,
+            (string) ($previous['filename'] ?? ''),
+            (string) ($previous['display_label'] ?? ''),
+            NULL,
+            (array) ($previous['active_data'] ?? []),
+            'missing'
+          );
+          if (($previous['watch_status'] ?? '') !== 'missing') {
+            $summary['missing']++;
+            $summary['items'][] = [
+              'type' => $type,
+              'label' => (string) ($previous['display_label'] ?? $previous['filename'] ?? $type),
+              'path' => trim((string) $handler->getDirectory(), '/') . '/' . (string) ($previous['filename'] ?? ''),
+              'status' => 'missing',
+            ];
+          }
+        }
+      }
+      catch (\Throwable $e) {
+        $summary['ok'] = FALSE;
+        $summary['errors'][] = ['type' => $type, 'message' => $e->getMessage()];
+      }
+    }
+
+    \Civi::settings()->set('civicfg_watch_summary', $summary);
+    return $summary;
+  }
+
+  public function getWatchSummary(): array {
+    $summary = \Civi::settings()->get('civicfg_watch_summary');
+    return is_array($summary) ? $summary : [];
+  }
+
+  private function displayLabelForConfigFile(string $type, array $file): string {
+    $data = (array) ($file['data'] ?? []);
+    foreach (['name', 'label', 'title', 'key'] as $field) {
+      if (!empty($data[$field]) && is_scalar($data[$field])) {
+        return (string) $data[$field];
+      }
+    }
+    foreach (['item', 'template', 'group', 'extension', 'processor', 'financial_type', 'rule', 'token'] as $container) {
+      $row = (array) ($data[$container] ?? []);
+      foreach (['label', 'title', 'msg_title', 'name', 'workflow_name', 'key', 'name_a_b'] as $field) {
+        if (!empty($row[$field]) && is_scalar($row[$field])) {
+          return (string) $row[$field];
+        }
+      }
+    }
+    $filename = (string) ($file['filename'] ?? $type);
+    return ucwords(str_replace(['_', '-', '.yml', '.yaml'], [' ', ' ', '', ''], basename($filename)));
+  }
+
+  private function hasManagedYamlFiles(string $dir): bool {
+    if (!is_dir($dir)) {
+      return FALSE;
+    }
+
+    $manifestPath = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'manifest.yml';
+    if (is_file($manifestPath)) {
+      try {
+        $manifest = \Civi\ConfigManager\Storage\SimpleYaml::parseFile($manifestPath);
+        if (($manifest['extension'] ?? '') === Version::EXTENSION_KEY && array_key_exists('managed_scope', $manifest)) {
+          return TRUE;
+        }
+      }
+      catch (\Throwable $e) {
+        // Fall through to legacy YAML detection. Validation will report a
+        // malformed manifest when the operator explicitly runs it.
+      }
+    }
+
+    $iterator = new \RecursiveIteratorIterator(
+      new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($iterator as $file) {
+      if (!$file->isFile() || !preg_match('/\.ya?ml$/i', $file->getFilename())) {
+        continue;
+      }
+      $relative = ltrim(str_replace('\\', '/', substr($file->getPathname(), strlen(rtrim($dir, DIRECTORY_SEPARATOR)))), '/');
+      if ($relative !== 'manifest.yml') {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   private function hasYamlFiles(string $dir): bool {
@@ -1661,7 +2154,7 @@ class ConfigManager {
     return FALSE;
   }
 
-  private function getManifestData(): array {
+  private function getManifestData(array $managedScope = []): array {
     $siteId = $this->getSiteIdentifier();
     $manifest = [
       'schema_version' => 1,
@@ -1671,10 +2164,15 @@ class ConfigManager {
       'civicrm_min_version' => '5.0',
       'created_by' => 'Configuration Manager',
     ];
+    if ($managedScope) {
+      ksort($managedScope, SORT_NATURAL | SORT_FLAG_CASE);
+      $manifest['managed_scope'] = $managedScope;
+    }
     if ($siteId !== '') {
       $manifest['site_id'] = $siteId;
       $manifest['site_policy'] = 'same-site-environments';
     }
     return $manifest;
   }
+
 }

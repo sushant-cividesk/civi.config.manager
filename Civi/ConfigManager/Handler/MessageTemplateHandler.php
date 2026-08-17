@@ -22,23 +22,48 @@ class MessageTemplateHandler extends AbstractHandler {
 
   public function export(): array {
     $rows = $this->api4Get('MessageTemplate', [], ['id', 'msg_title', 'msg_subject', 'msg_text', 'msg_html', 'workflow_name', 'is_default', 'is_reserved', 'is_active'], ['workflow_name' => 'ASC', 'msg_title' => 'ASC', 'id' => 'ASC']);
+    $userTitleCounts = [];
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      if (empty($row['workflow_name']) && !empty($row['msg_title'])) {
+        $title = (string) $row['msg_title'];
+        $userTitleCounts[$title] = ($userTitleCounts[$title] ?? 0) + 1;
+      }
+    }
+
     $files = [];
     $used = [];
     foreach ($rows as $row) {
+      $row = (array) $row;
+      $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
       $folder = !empty($row['workflow_name']) || !empty($row['is_reserved']) ? 'system' : 'user';
-      $name = $row['workflow_name'] ?: $row['msg_title'];
+      $name = (string) ($row['workflow_name'] ?: $row['msg_title']);
       $base = $name;
       if (!empty($row['workflow_name']) && array_key_exists('is_default', $row)) {
         $base .= !empty($row['is_default']) ? '_default' : '_custom';
       }
+
+      if (!empty($row['workflow_name'])) {
+        $identityKey = 'workflow_name=' . (string) $row['workflow_name'] . '|is_default=' . (!empty($row['is_default']) ? '1' : '0');
+        $identityConfidence = 'API_VERIFIED';
+      }
+      else {
+        $title = (string) ($row['msg_title'] ?? '');
+        $identityKey = 'msg_title=' . $title;
+        $identityConfidence = ($title !== '' && ($userTitleCounts[$title] ?? 0) === 1) ? 'DISCOVERED_UNIQUE' : 'AMBIGUOUS';
+      }
+
       unset($row['id']);
       $filename = $folder . '/' . $this->uniqueFileName($base, $used) . '.yml';
       $files[] = [
         'filename' => $filename,
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => 'message_template',
           'name' => $name,
+          'identity_key' => $identityKey,
+          'identity_confidence' => $identityConfidence,
           'dependencies' => [],
           'template' => $row,
         ],
@@ -56,6 +81,9 @@ class MessageTemplateHandler extends AbstractHandler {
         continue;
       }
       $template = (array) ($file['template'] ?? []);
+      if (($file['identity_confidence'] ?? '') === 'AMBIGUOUS') {
+        $errors[] = ['file' => $filename, 'message' => 'Message template identity is ambiguous. Use a unique user template title or a system workflow identity before importing.'];
+      }
       if (empty($template['workflow_name']) && empty($template['msg_title'])) {
         $errors[] = ['file' => $filename, 'message' => 'Message template needs workflow_name or msg_title.'];
       }
@@ -77,6 +105,10 @@ class MessageTemplateHandler extends AbstractHandler {
         continue;
       }
       $template = $this->cleanValues((array) ($file['template'] ?? []));
+      if (($file['identity_confidence'] ?? '') === 'AMBIGUOUS') {
+        $summary['errors'][] = ['file' => $filename, 'message' => 'Message template identity is ambiguous. Import will not choose between duplicate user template titles.'];
+        continue;
+      }
       if (!$template) {
         $summary['errors'][] = ['file' => $filename, 'message' => 'No template data found.'];
         continue;
@@ -92,7 +124,7 @@ class MessageTemplateHandler extends AbstractHandler {
       }
 
       try {
-        $existing = $this->api4GetFirst('MessageTemplate', $where, ['*']);
+        $existing = $this->findExistingTemplate($template, $where);
         if ($existing) {
           if ($this->desiredDiffers($existing, $template)) {
             $summary['update']++;
@@ -141,7 +173,7 @@ class MessageTemplateHandler extends AbstractHandler {
       if (!$where) {
         continue;
       }
-      $existing = $this->api4GetFirst('MessageTemplate', $where, ['id', 'msg_title', 'workflow_name', 'is_default']);
+      $existing = $this->findExistingTemplate($template, $where, ['id', 'msg_title', 'workflow_name', 'is_default']);
       if (!$existing || empty($existing['id'])) {
         continue;
       }
@@ -161,6 +193,26 @@ class MessageTemplateHandler extends AbstractHandler {
         }
       }
     }
+  }
+
+  private function findExistingTemplate(array $template, array $where, array $select = ['*']): ?array {
+    if (!empty($template['workflow_name'])) {
+      return $this->api4GetFirst('MessageTemplate', $where, $select);
+    }
+
+    $title = trim((string) ($template['msg_title'] ?? ''));
+    if ($title === '') {
+      return NULL;
+    }
+    $matches = $this->api4Get('MessageTemplate', [['msg_title', '=', $title]], $select, ['id' => 'ASC']);
+    $matches = array_values(array_filter($matches, static function($row) {
+      $row = (array) $row;
+      return empty($row['workflow_name']);
+    }));
+    if (count($matches) > 1) {
+      throw new \RuntimeException('Multiple user Message Templates have the same title "' . $title . '". Automatic matching is unsafe until the titles are made unique.');
+    }
+    return $matches[0] ?? NULL;
   }
 
   private function identityWhere(array $template): array {

@@ -86,6 +86,18 @@ class MainPage {
         }
         \CRM_Utils_System::redirect(\CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=settings'));
       }
+      elseif ($postAction === 'scan_watch') {
+        $watchResult = $this->manager->scanWatched($types);
+        $notice = !empty($watchResult['ok'])
+          ? ts('Watch scan complete. %1 watched item(s), %2 new, %3 changed, %4 missing.', [
+              1 => (int) ($watchResult['watched'] ?? 0),
+              2 => (int) ($watchResult['new'] ?? 0),
+              3 => (int) ($watchResult['changed'] ?? 0),
+              4 => (int) ($watchResult['missing'] ?? 0),
+            ])
+          : ts('Watch scan completed with errors. Review the Configuration Manager watch summary.');
+        $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'warning');
+      }
       elseif ($postAction === 'revert_file') {
         $path = trim((string) ($_POST['path'] ?? ''));
         $result = $this->manager->revertCiviFromYaml($path);
@@ -287,16 +299,28 @@ class MainPage {
     $this->manager->getSiteIdentifier();
     \Civi::settings()->set('civicfg_allow_cross_site_import', !empty($_POST['allow_cross_site_import']) ? 1 : 0);
 
-    $enabled = $_POST['enabled_types'] ?? [];
-    if (!is_array($enabled)) {
-      $enabled = [];
+    if (!$this->manager->isScopePolicyOverridden()) {
+      $modes = is_array($_POST['scope_mode'] ?? NULL) ? $_POST['scope_mode'] : [];
+      $selectors = is_array($_POST['scope_selectors'] ?? NULL) ? $_POST['scope_selectors'] : [];
+      $watchUnmanaged = is_array($_POST['scope_watch_unmanaged'] ?? NULL) ? $_POST['scope_watch_unmanaged'] : [];
+      $policies = [];
+      foreach ($this->manager->getScopeTypeOptions() as $row) {
+        $type = (string) $row['type'];
+        $mode = strtolower(trim((string) ($modes[$type] ?? 'all')));
+        if (!in_array($mode, ['all', 'selected', 'watch', 'ignore'], TRUE)) {
+          $mode = 'all';
+        }
+        $rawSelectors = (string) ($selectors[$type] ?? '');
+        $selectorList = preg_split('/[\r\n,]+/', $rawSelectors) ?: [];
+        $selectorList = array_values(array_unique(array_filter(array_map('trim', $selectorList), 'strlen')));
+        $policies[$type] = [
+          'mode' => $mode,
+          'selectors' => $selectorList,
+          'watch_unmanaged' => !empty($watchUnmanaged[$type]),
+        ];
+      }
+      $this->manager->saveScopePolicies($policies);
     }
-    $valid = [];
-    foreach ($this->manager->getManagedTypeOptions() as $row) {
-      $valid[] = (string) $row['type'];
-    }
-    $enabled = array_values(array_intersect($valid, array_map('strval', $enabled)));
-    \Civi::settings()->set('civicfg_enabled_types', $enabled);
 
     $allowlistRaw = (string) ($_POST['settings_allowlist'] ?? '');
     $allowlist = preg_split('/[\r\n,]+/', $allowlistRaw);
@@ -316,6 +340,12 @@ class MainPage {
       return trim(str_replace('\\', '/', (string) $value));
     }, $ignoreValues))));
     \Civi::settings()->set('civicfg_ignore_values', $ignoreValues);
+
+    // Settings/scope/ignore changes alter what a future comparison means.
+    // Never keep presenting a stale cached health/watch result after they are
+    // changed; explicit Synchronize/watch scans will rebuild these summaries.
+    \Civi::settings()->set('civicfg_last_health', []);
+    \Civi::settings()->set('civicfg_watch_summary', []);
   }
 
 
@@ -324,22 +354,22 @@ class MainPage {
   }
 
   private function assignTemplate(string $op, array $types, array $result, $notice, $validationResult, $importResult): void {
-    $status = $this->manager->status();
-    $diffResult = $result;
-    if (empty($diffResult['items']) || !is_array($diffResult['items'])) {
-      try {
-        $diffResult = $this->manager->diff($types);
-      }
-      catch (Exception $e) {
-        $diffResult = [
-          'ok' => FALSE,
-          'error' => $e->getMessage(),
-          'items' => [],
-        ];
-      }
+    // Settings already fetched status in run(); reuse it instead of doing the
+    // same filesystem/handler status work twice in one page request.
+    $status = ($op === 'settings' && isset($result['types']))
+      ? $result
+      : $this->manager->status();
+    $diffResult = in_array($op, ['sync', 'import'], TRUE)
+      ? $result
+      : ['ok' => TRUE, 'items' => []];
+    if (!isset($diffResult['items']) || !is_array($diffResult['items'])) {
+      $diffResult['items'] = [];
     }
-    $allTypes = $this->presenter->buildTypeRows($this->manager, $diffResult);
-    $enabledTypes = (array) \Civi::settings()->get('civicfg_enabled_types');
+    // Settings needs only base scope types; do not discover extension-owned
+    // virtual providers just to render the settings form.
+    $allTypes = $op === 'settings'
+      ? []
+      : $this->presenter->buildTypeRows($this->manager, $diffResult);
     $settingsAllowlist = (array) \Civi::settings()->get('civicfg_settings_allowlist');
     foreach (['menubar_color', 'menubar_position'] as $recommendedSetting) {
       if (!in_array($recommendedSetting, $settingsAllowlist, TRUE)) {
@@ -352,6 +382,11 @@ class MainPage {
     $siteId = $this->manager->getSiteIdentifier();
     $allowCrossSiteImport = (bool) \Civi::settings()->get('civicfg_allow_cross_site_import');
     $diffFiles = $this->presenter->extractDiffFiles($diffResult);
+    foreach ($diffFiles as &$diffFile) {
+      $diffType = (string) ($diffFile['type'] ?? '');
+      $diffFile['delete_allowed'] = $diffType !== '' && $this->manager->allowsDeleteMissingForType($diffType);
+    }
+    unset($diffFile);
     $importPlan = $this->presenter->buildImportPlan($diffFiles);
     $importApplyTypes = $this->presenter->getImportApplyTypes($importPlan);
 
@@ -370,12 +405,19 @@ class MainPage {
     $effectiveExportTypes = $this->manager->getEffectiveExportTypeFilter($types);
     $exportDependencyTypes = $types ? array_values(array_diff($effectiveExportTypes, $types)) : [];
     $exportDeletePlanned = [];
-    try {
-      $exportPreview = $this->manager->export(TRUE, $types);
-      $exportDeletePlanned = array_values(array_map('strval', (array) ($exportPreview['delete_planned'] ?? [])));
-    }
-    catch (Exception $e) {
-      $exportDeletePlanned = [];
+    if ($op === 'sync') {
+      foreach ((array) ($diffResult['items'] ?? []) as $diffItem) {
+        $diffType = (string) ($diffItem['type'] ?? '');
+        if ($diffType === '' || !$this->manager->allowsDeleteMissingForType($diffType)) {
+          continue;
+        }
+        foreach ((array) ($diffItem['files'] ?? []) as $diffFile) {
+          if (($diffFile['status'] ?? '') === 'missing_in_db' && !empty($diffFile['path'])) {
+            $exportDeletePlanned[] = (string) $diffFile['path'];
+          }
+        }
+      }
+      $exportDeletePlanned = array_values(array_unique($exportDeletePlanned));
     }
     $exportNeedsConfirmation = !empty($exportDependencyTypes) || !empty($exportDeletePlanned);
     $exportConfirmMessage = !empty($exportDeletePlanned)
@@ -384,10 +426,10 @@ class MainPage {
     $exportConfirmWarning = !empty($exportDeletePlanned)
       ? ts('Stale YAML files to delete: %1', [1 => implode(', ', array_slice($exportDeletePlanned, 0, 10)) . (count($exportDeletePlanned) > 10 ? ' ...' : '')])
       : ts('Export writes active CiviCRM configuration to YAML. Related dependency files will also be exported so the exported set stays deployable.');
-    $exportItems = $this->files->buildExportItems($this->manager, $types);
-    $selectedExportItem = $this->request->getSingleExportKey();
+    $exportItems = $op === 'export' ? $this->files->buildExportItemsFromPreview($result) : [];
+    $selectedExportItem = $op === 'export' ? $this->request->getSingleExportKey() : '';
     $singleExport = NULL;
-    if ($selectedExportItem !== '') {
+    if ($op === 'export' && $selectedExportItem !== '') {
       try {
         $singleExport = $this->files->loadSingleExport($this->manager, $selectedExportItem);
         $singleExport['has_value'] = TRUE;
@@ -402,20 +444,40 @@ class MainPage {
     foreach ($types as $type) {
       $selectedTypesMap[(string) $type] = TRUE;
     }
-    $enabledTypesMap = array_fill_keys($allTypeKeys, FALSE);
-    foreach ($enabledTypes as $type) {
-      $enabledTypesMap[(string) $type] = TRUE;
-    }
     $importApplyTypesMap = array_fill_keys($allTypeKeys, FALSE);
     foreach ($importApplyTypes as $type) {
       $importApplyTypesMap[(string) $type] = TRUE;
     }
+    $scopePolicies = $this->manager->getScopePolicies();
+    $scopeRows = [];
+    foreach ($this->manager->getScopeTypeOptions() as $row) {
+      $type = (string) $row['type'];
+      $policy = (array) ($scopePolicies[$type] ?? []);
+      $mode = (string) ($policy['mode'] ?? 'all');
+      $scopeRows[] = $row + [
+        'mode' => $mode,
+        'mode_all' => $mode === 'all',
+        'mode_selected' => $mode === 'selected',
+        'mode_watch' => $mode === 'watch',
+        'mode_ignore' => $mode === 'ignore',
+        'selectors_text' => implode("\n", array_map('strval', (array) ($policy['selectors'] ?? []))),
+        'watch_unmanaged' => !empty($policy['watch_unmanaged']),
+      ];
+    }
+    // Synchronize/import already performed an explicit diff, which owns the
+    // legacy-tree check. Other tabs use only the cheap current manifest marker
+    // and never recursively walk the YAML tree just to render the header.
+    $initialExportRequired = in_array($op, ['sync', 'import'], TRUE)
+      ? !empty($diffResult['initial_export_required'])
+      : !$this->manager->hasCurrentManifest();
+    $watchSummary = $this->manager->getWatchSummary();
     $result += [
       'error' => NULL,
       'errors' => [],
       'items' => [],
       'planned' => [],
       'delete_planned' => [],
+      'available' => [],
       'written' => [],
       'deleted' => [],
       'skipped' => [],
@@ -451,8 +513,12 @@ class MainPage {
     $this->page->assign('allTypes', $allTypes);
     $this->page->assign('selectedTypes', $types);
     $this->page->assign('selectedTypesMap', $selectedTypesMap);
-    $this->page->assign('enabledTypes', $enabledTypes);
-    $this->page->assign('enabledTypesMap', $enabledTypesMap);
+    $this->page->assign('scopeRows', $scopeRows);
+    $this->page->assign('scopeOverridden', $this->manager->isScopePolicyOverridden());
+    $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
+    $this->page->assign('scopeSettingsExample', "global \$civicrm_setting;\n\$civicrm_setting['domain']['civicfg_scope'] = [\n  'message-templates' => [\n    'mode' => 'selected',\n    'selectors' => ['12', '25'],\n    'watch_unmanaged' => TRUE,\n  ],\n];");
+    $this->page->assign('initialExportRequired', $initialExportRequired);
+    $this->page->assign('watchSummary', $watchSummary);
     $this->page->assign('settingsAllowlist', implode("\n", $settingsAllowlist));
     $this->page->assign('ignorePaths', implode("\n", $ignorePaths));
     $this->page->assign('ignoreValues', implode("\n", array_map(fn($rule) => (string) ($rule['raw'] ?? ''), $ignoreValues)));

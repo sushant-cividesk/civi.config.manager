@@ -153,6 +153,9 @@ class Presenter {
 
 
   public function labelsForTypes(ConfigManager $manager, array $types): array {
+    if (!$types) {
+      return [];
+    }
     $wanted = array_fill_keys(array_map('strval', $types), TRUE);
     $labels = [];
     foreach ($manager->getManagedTypeOptions() as $row) {
@@ -192,12 +195,16 @@ class Presenter {
         $file['sync_state_label'] = $this->syncStateLabel((string) ($file['sync_state'] ?? ''), (string) ($file['merge_state'] ?? ''));
         $configKey = (string) ($file['config_key'] ?? '');
         $file['possible_rename'] = $configKey !== '' ? ($renameByConfigKey[$configKey] ?? NULL) : NULL;
+        $file['display_title'] = $this->displayTitleForFile($file);
         $file['rows'] = [];
         foreach (($file['changes'] ?? []) as $change) {
-          $label = $this->humanizeChangePath((string) ($change['path'] ?? 'value'));
+          $changePath = (string) ($change['path'] ?? 'value');
+          $label = $this->humanizeChangePath($changePath);
           $oldText = $this->formatChangeValue($change['old'] ?? NULL, $change['new'] ?? NULL);
           $newText = $this->formatChangeValue($change['new'] ?? NULL, $change['old'] ?? NULL);
-          $sentence = $this->describeFieldChange($file, (array) $change, $label, (string) ($change['type'] ?? 'changed'), $oldText, $newText);
+          $sentence = $this->isTechnicalChangePath($changePath)
+            ? ''
+            : $this->describeFieldChange($file, (array) $change, $label, (string) ($change['type'] ?? 'changed'), $oldText, $newText);
           $file['rows'][] = [
             'label' => $label,
             'path' => (string) ($change['path'] ?? 'value'),
@@ -209,7 +216,7 @@ class Presenter {
             'sentence' => $sentence,
           ];
         }
-        $file['detail_sentences'] = array_slice(array_values(array_unique(array_filter(array_map(static fn($row) => (string) ($row['sentence'] ?? ''), $file['rows'])))), 0, 4);
+        $file['detail_sentences'] = array_slice(array_values(array_unique(array_filter(array_map(static fn($row) => (string) ($row['sentence'] ?? ''), $file['rows'])))), 0, 3);
         $file['summary_sentence'] = $this->describeFileChange($file);
         $files[] = $file;
       }
@@ -223,7 +230,8 @@ class Presenter {
       $status = (string) ($file['status'] ?? 'changed');
       $type = (string) ($file['type'] ?? '');
       $possibleRename = !empty($file['possible_rename']) && is_array($file['possible_rename']) ? $file['possible_rename'] : NULL;
-      $importable = in_array($type, $this->getImportableTypes(), TRUE) && $possibleRename === NULL;
+      $deleteBlocked = $status === 'new_in_db' && empty($file['delete_allowed']);
+      $importable = in_array($type, $this->getImportableTypes(), TRUE) && $possibleRename === NULL && !$deleteBlocked;
       $plan[] = [
         'file' => $file['file'] ?? '',
         'path' => $file['path'] ?? '',
@@ -236,11 +244,15 @@ class Presenter {
         'summary_sentence' => $file['summary_sentence'] ?? '',
         'possible_rename' => $possibleRename,
         'importable' => $importable,
-        'action' => $possibleRename ? ts('Review rename') : $this->importActionLabel($status),
+        'action' => $possibleRename
+          ? ts('Review rename')
+          : ($deleteBlocked ? ts('Export to YAML') : $this->importActionLabel($status)),
         'status_label' => $this->statusLabel($status),
         'note' => $possibleRename
           ? ts('Possible identity rename detected. Configuration Manager will not apply this create/delete pair automatically; review and align the accepted identity first.')
-          : $this->importActionNote($status, $importable),
+          : ($deleteBlocked
+            ? ts('This item is in selected scope but has no managed YAML yet. Selective scope never treats missing YAML as permission to delete it; export it if you want to keep managing it.')
+            : $this->importActionNote($status, $importable)),
       ];
     }
     return $plan;
@@ -248,26 +260,26 @@ class Presenter {
 
   public function statusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('Only in YAML');
+      return ts('Missing from CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('Only in CiviCRM');
+      return ts('New in CiviCRM');
     }
     if ($status === 'changed') {
-      return ts('Different');
+      return ts('Changed');
     }
     return ts('In Sync');
   }
 
   private function plainStatusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('exists only in YAML and can be created in CiviCRM on import');
+      return ts('is managed in YAML but is missing from CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('exists only in CiviCRM and has no matching YAML file');
+      return ts('is new in CiviCRM and is not in managed YAML');
     }
     if ($status === 'changed') {
-      return ts('has different values in YAML and CiviCRM');
+      return ts('has changed between YAML and CiviCRM');
     }
     return ts('is in sync');
   }
@@ -290,61 +302,90 @@ class Presenter {
 
   private function describeFileChange(array $file): string {
     $status = (string) ($file['status'] ?? 'changed');
-    $path = (string) ($file['path'] ?? $file['file'] ?? 'this file');
-    $subject = $this->subjectFromFilePath($path, (string) ($file['type_label'] ?? 'Configuration'));
+    $title = (string) ($file['display_title'] ?? $this->displayTitleForFile($file));
     $possibleRename = !empty($file['possible_rename']) && is_array($file['possible_rename']) ? $file['possible_rename'] : NULL;
     if ($possibleRename) {
-      $from = (string) ($possibleRename['from'] ?? '');
-      $to = (string) ($possibleRename['to'] ?? '');
-      return ts('Possible identity rename detected between %1 and %2. Review the identity change explicitly; Configuration Manager will not apply it automatically.', [1 => $from, 2 => $to]);
+      return ts('Possible identity rename detected. Review the old and new identities before applying anything automatically.');
     }
+
     $syncState = (string) ($file['sync_state'] ?? '');
     $mergeState = (string) ($file['merge_state'] ?? '');
-    $statePrefix = '';
-    if ($syncState === 'ACTIVE_DRIFT') {
-      $statePrefix = ts('Active CiviCRM changed from the accepted baseline while YAML still matches it.');
-    }
-    elseif ($syncState === 'YAML_CHANGE') {
-      $statePrefix = ts('YAML changed from the accepted baseline while active CiviCRM still matches it.');
-    }
-    elseif ($syncState === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
-      $statePrefix = ts('Conflict: YAML and active CiviCRM changed the same configuration field(s) differently from the accepted baseline.');
-    }
-    elseif ($syncState === 'BOTH_CHANGED' && $mergeState === 'NON_CONFLICTING_DIVERGENCE') {
-      $statePrefix = ts('YAML and active CiviCRM both changed from the accepted baseline, but no same-field conflict was detected.');
-    }
-
     if ($status === 'new_in_db') {
-      return trim($statePrefix . ' ' . ts('%1 exists in active CiviCRM but has no matching YAML file. Export will create this YAML file.', [1 => $subject]));
+      return ts('%1 is new in CiviCRM and is not in managed YAML yet.', [1 => $title]);
     }
     if ($status === 'missing_in_db') {
-      return trim($statePrefix . ' ' . ts('%1 exists in YAML but has no matching record in active CiviCRM. Import can create it when supported; export can remove the unmatched YAML.', [1 => $subject]));
+      return ts('%1 is managed in YAML but is currently missing from CiviCRM.', [1 => $title]);
     }
-
-    $details = array_values(array_filter((array) ($file['detail_sentences'] ?? [])));
-    if ($details) {
-      $first = (string) $details[0];
-      $extra = count($details) > 1 ? ' ' . ts('Plus %1 more related change(s).', [1 => count($details) - 1]) : '';
-      return trim($statePrefix . ' ' . $first . $extra);
+    if ($syncState === 'ACTIVE_DRIFT') {
+      return ts('%1 changed in CiviCRM since the last accepted sync.', [1 => $title]);
     }
-    if ($statePrefix !== '') {
-      return $statePrefix;
+    if ($syncState === 'YAML_CHANGE') {
+      return ts('%1 changed in YAML since the last accepted sync.', [1 => $title]);
     }
-    return ts('%1 has changes between YAML and active CiviCRM.', [1 => $subject]);
+    if ($syncState === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
+      return ts('%1 changed in both CiviCRM and YAML, with at least one conflicting field.', [1 => $title]);
+    }
+    if ($syncState === 'BOTH_CHANGED') {
+      return ts('%1 changed in both CiviCRM and YAML.', [1 => $title]);
+    }
+    return ts('%1 has configuration changes to review.', [1 => $title]);
   }
 
   private function describeFieldChange(array $file, array $change, string $label, string $changeType, string $yamlValue, string $civiValue): string {
-    $yaml = $this->shortInlineValue($yamlValue);
-    $civi = $this->shortInlineValue($civiValue);
-    $subject = $this->subjectForChange($file, $change, $label);
-    $field = $this->fieldNameForChange((string) ($change['path'] ?? ''), $label);
+    $field = $this->friendlyFieldLabel((string) ($change['path'] ?? ''), $label);
     if ($changeType === 'added') {
-      return ts('%1 %2 exists only in active CiviCRM with value "%3".', [1 => $subject, 2 => $field, 3 => $civi]);
+      return ts('%1 was added in CiviCRM.', [1 => $field]);
     }
     if ($changeType === 'removed') {
-      return ts('%1 %2 exists only in YAML with value "%3".', [1 => $subject, 2 => $field, 3 => $yaml]);
+      return ts('%1 exists in YAML but is missing from CiviCRM.', [1 => $field]);
     }
-    return ts('%1 %2 is "%3" in YAML and "%4" in active CiviCRM.', [1 => $subject, 2 => $field, 3 => $yaml, 4 => $civi]);
+    return ts('%1 changed.', [1 => $field]);
+  }
+
+  private function isTechnicalChangePath(string $path): bool {
+    $root = preg_replace('/[.\[].*$/', '', trim($path));
+    return in_array($root, [
+      'api', 'capabilities', 'dependencies', 'schema_version', 'type', 'entity',
+      'identity_field', 'identity_key', 'identity_confidence', 'required_by',
+      'config_index',
+    ], TRUE);
+  }
+
+  private function friendlyFieldLabel(string $path, string $fallback): string {
+    $map = [
+      'template.msg_subject' => 'Subject',
+      'template.msg_html' => 'HTML message',
+      'template.msg_text' => 'Plain-text message',
+      'template.msg_title' => 'Template title',
+      'template.is_active' => 'Enabled',
+      'template.is_default' => 'Default template',
+      'template.is_reserved' => 'System template',
+      'item.is_active' => 'Enabled',
+      'item.run_frequency' => 'Run frequency',
+      'item.scheduled_run_date' => 'Next scheduled run',
+      'item.parameters' => 'Parameters',
+      'item.value' => 'Value',
+      'item.description' => 'Description',
+      'item.label' => 'Label',
+      'item.title' => 'Title',
+      'item.name' => 'Name',
+    ];
+    if (isset($map[$path])) {
+      return $map[$path];
+    }
+    return ucfirst($this->fieldNameForChange($path, $fallback));
+  }
+
+  private function displayTitleForFile(array $file): string {
+    $path = (string) ($file['path'] ?? $file['file'] ?? '');
+    $typeLabel = (string) ($file['type_label'] ?? $file['type'] ?? 'Configuration');
+    $subject = $this->subjectFromFilePath($path, '');
+    if ($subject !== '') {
+      return $subject;
+    }
+    $base = preg_replace('/\.ya?ml$/i', '', basename($path));
+    $base = $this->humanizeMachineName((string) $base);
+    return $base !== '' ? $base : $typeLabel;
   }
 
   private function subjectForChange(array $file, array $change, string $fallbackLabel): string {
@@ -408,7 +449,28 @@ class Presenter {
     if (preg_match('#^custom-data/groups/([^/]+)\.yml$#', $path, $m)) {
       return ts('Custom data group "%1"', [1 => $this->humanizeMachineName($m[1])]);
     }
-    return $fallback ?: ts('Configuration file');
+    if (preg_match('#^message-templates/(?:system|user)/([^/]+)\.yml$#', $path, $m)) {
+      return $this->humanizeMachineName($m[1]);
+    }
+    if (preg_match('#^(?:scheduled-jobs|contact-types|relationship-types|location-types|dedupe-rules|site-tokens)/([^/]+)\.yml$#', $path, $m)) {
+      return $this->humanizeMachineName($m[1]);
+    }
+    if (preg_match('#^financial/([^/]+)\.yml$#', $path, $m)) {
+      return ts('Financial type "%1"', [1 => $this->humanizeMachineName($m[1])]);
+    }
+    if (preg_match('#^payment-processors/([^/]+)\.yml$#', $path, $m)) {
+      return ts('Payment processor "%1"', [1 => $this->humanizeMachineName($m[1])]);
+    }
+    if (preg_match('#^settings/([^/]+)\.yml$#', $path, $m)) {
+      return ts('CiviCRM setting "%1"', [1 => $this->humanizeMachineName($m[1])]);
+    }
+    if (preg_match('#^civirules/([^/]+)/([^/]+)\.yml$#', $path, $m)) {
+      return ts('CiviRules %1 "%2"', [1 => $this->humanizeMachineName($m[1]), 2 => $this->humanizeMachineName($m[2])]);
+    }
+    if (preg_match('#^(?:searchkit/(?:saved-searches|displays)|formbuilder/afforms)/([^/]+)\.yml$#', $path, $m)) {
+      return $this->humanizeMachineName($m[1]);
+    }
+    return $fallback;
   }
 
   private function fieldNameForChange(string $path, string $label): string {
@@ -590,6 +652,19 @@ class Presenter {
   }
 
   private function humanizeChangePath(string $path): string {
+    $friendly = [
+      'template.msg_subject' => 'Subject',
+      'template.msg_html' => 'HTML message',
+      'template.msg_text' => 'Plain-text message',
+      'template.msg_title' => 'Template title',
+      'template.is_active' => 'Enabled',
+      'item.run_frequency' => 'Run frequency',
+      'item.scheduled_run_date' => 'Next scheduled run',
+      'item.parameters' => 'Parameters',
+    ];
+    if (isset($friendly[$path])) {
+      return $friendly[$path];
+    }
     $label = $path;
     $label = preg_replace('/^values\[([^\]]+)\]\./', 'Values > $1 > ', $label);
     $label = preg_replace('/^values\[([^\]]+)\]$/', 'Values > $1', $label);

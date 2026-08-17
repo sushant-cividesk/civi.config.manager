@@ -34,13 +34,16 @@ class CiviRulesHandler extends AbstractHandler {
         continue;
       }
       foreach ($this->api4Get($def['entity'], [], ['*'], $def['order']) as $row) {
-        $row = $this->cleanRow((array) $row, $def);
+        $row = (array) $row;
+        $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
+        $row = $this->cleanRow($row, $def);
         $identity = $this->identityValue($row, $def);
         if ($identity === '') {
           continue;
         }
         $files[] = [
           'filename' => $bucket . '/' . $this->safeName($identity) . '.yml',
+          'source_id' => $sourceId,
           'data' => [
             'schema_version' => 1,
             'type' => 'civirules.item',

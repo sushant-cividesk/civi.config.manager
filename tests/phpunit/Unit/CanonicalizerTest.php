@@ -95,4 +95,18 @@ final class CanonicalizerTest extends TestCase {
       $canonicalizer->hash(['body' => "one\r\ntwo\r\n"])
     );
   }
+
+  public function testIdentityMetadataDoesNotChangePortableContentHash(): void {
+    $service = new Canonicalizer();
+    $first = [
+      'type' => 'message_template',
+      'identity_key' => 'workflow_name=receipt|is_default=0',
+      'identity_confidence' => 'API_VERIFIED',
+      'template' => ['workflow_name' => 'receipt', 'msg_subject' => 'Hello'],
+    ];
+    $second = $first;
+    $second['identity_key'] = 'different-operational-identity-metadata';
+
+    self::assertSame($service->hash($first), $service->hash($second));
+  }
 }

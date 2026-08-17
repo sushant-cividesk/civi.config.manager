@@ -11,13 +11,16 @@ class StateStore {
   public const OBJECT_TABLE = 'civicrm_civicfg_object_state';
   public const BASELINE_TABLE = 'civicrm_civicfg_baseline';
   public const ALIAS_TABLE = 'civicrm_civicfg_identity_alias';
+  public const WATCH_TABLE = 'civicrm_civicfg_watch_state';
+
+  private static bool $schemaEnsured = FALSE;
 
   public function isAvailable(): bool {
     return class_exists('CRM_Core_DAO');
   }
 
   public function ensureSchema(): void {
-    if (!$this->isAvailable()) {
+    if (!$this->isAvailable() || self::$schemaEnsured) {
       return;
     }
 
@@ -66,15 +69,38 @@ class StateStore {
       UNIQUE KEY civicfg_alias_identity (provider_key, old_identity_hash),
       KEY civicfg_alias_target (provider_key, new_identity_hash)
     ) ENGINE=InnoDB');
+
+
+    \CRM_Core_DAO::executeQuery('CREATE TABLE IF NOT EXISTS ' . self::WATCH_TABLE . ' (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      handler_type VARCHAR(191) NOT NULL,
+      provider_key VARCHAR(191) NOT NULL,
+      config_key TEXT NOT NULL,
+      identity_hash CHAR(64) NOT NULL,
+      filename TEXT NOT NULL,
+      display_label VARCHAR(255) NOT NULL,
+      active_hash CHAR(64) NULL,
+      active_data LONGTEXT NULL,
+      watch_status VARCHAR(32) NOT NULL,
+      canonical_version SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+      last_scanned_at DATETIME NOT NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY civicfg_watch_identity (provider_key, identity_hash),
+      KEY civicfg_watch_type_status (handler_type, watch_status)
+    ) ENGINE=InnoDB');
+
+    self::$schemaEnsured = TRUE;
   }
 
   public function dropSchema(): void {
     if (!$this->isAvailable()) {
       return;
     }
+    \CRM_Core_DAO::executeQuery('DROP TABLE IF EXISTS ' . self::WATCH_TABLE);
     \CRM_Core_DAO::executeQuery('DROP TABLE IF EXISTS ' . self::ALIAS_TABLE);
     \CRM_Core_DAO::executeQuery('DROP TABLE IF EXISTS ' . self::BASELINE_TABLE);
     \CRM_Core_DAO::executeQuery('DROP TABLE IF EXISTS ' . self::OBJECT_TABLE);
+    self::$schemaEnsured = FALSE;
   }
 
   public function clearObjectState(): void {
@@ -115,6 +141,118 @@ class StateStore {
         sync_state = VALUES(sync_state),
         canonical_version = VALUES(canonical_version),
         last_scanned_at = VALUES(last_scanned_at)', $params);
+  }
+
+  public function getWatchState(string $providerKey, string $identityHash): ?array {
+    if (!$this->isAvailable()) {
+      return NULL;
+    }
+    $this->ensureSchema();
+    $dao = \CRM_Core_DAO::executeQuery('SELECT * FROM ' . self::WATCH_TABLE . ' WHERE provider_key = %1 AND identity_hash = %2 LIMIT 1', [
+      1 => [$providerKey, 'String'],
+      2 => [$identityHash, 'String'],
+    ]);
+    if (!$dao->fetch()) {
+      return NULL;
+    }
+    $data = json_decode((string) $dao->active_data, TRUE);
+    return [
+      'handler_type' => (string) $dao->handler_type,
+      'provider_key' => (string) $dao->provider_key,
+      'config_key' => (string) $dao->config_key,
+      'identity_hash' => (string) $dao->identity_hash,
+      'filename' => (string) $dao->filename,
+      'display_label' => (string) $dao->display_label,
+      'active_hash' => $dao->active_hash !== NULL ? (string) $dao->active_hash : NULL,
+      'active_data' => is_array($data) ? $data : [],
+      'watch_status' => (string) $dao->watch_status,
+      'last_scanned_at' => (string) $dao->last_scanned_at,
+    ];
+  }
+
+  public function getWatchStatesByType(string $handlerType): array {
+    if (!$this->isAvailable()) {
+      return [];
+    }
+    $this->ensureSchema();
+    $dao = \CRM_Core_DAO::executeQuery('SELECT * FROM ' . self::WATCH_TABLE . ' WHERE handler_type = %1 ORDER BY id ASC', [
+      1 => [$handlerType, 'String'],
+    ]);
+    $rows = [];
+    while ($dao->fetch()) {
+      $data = json_decode((string) $dao->active_data, TRUE);
+      $rows[] = [
+        'handler_type' => (string) $dao->handler_type,
+        'provider_key' => (string) $dao->provider_key,
+        'config_key' => (string) $dao->config_key,
+        'identity_hash' => (string) $dao->identity_hash,
+        'filename' => (string) $dao->filename,
+        'display_label' => (string) $dao->display_label,
+        'active_hash' => $dao->active_hash !== NULL ? (string) $dao->active_hash : NULL,
+        'active_data' => is_array($data) ? $data : [],
+        'watch_status' => (string) $dao->watch_status,
+        'last_scanned_at' => (string) $dao->last_scanned_at,
+      ];
+    }
+    return $rows;
+  }
+
+  public function upsertWatchState(string $handlerType, array $identity, string $filename, string $label, ?string $activeHash, array $activeData, string $status): void {
+    if (!$this->isAvailable()) {
+      return;
+    }
+    $this->ensureSchema();
+    $encoded = json_encode($activeData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+    if ($encoded === FALSE) {
+      throw new \RuntimeException('Could not encode Configuration Manager watch state.');
+    }
+    \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::WATCH_TABLE . '
+      (handler_type, provider_key, config_key, identity_hash, filename, display_label, active_hash, active_data, watch_status, canonical_version, last_scanned_at)
+      VALUES (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11)
+      ON DUPLICATE KEY UPDATE
+        handler_type = VALUES(handler_type),
+        config_key = VALUES(config_key),
+        filename = VALUES(filename),
+        display_label = VALUES(display_label),
+        active_hash = VALUES(active_hash),
+        active_data = VALUES(active_data),
+        watch_status = VALUES(watch_status),
+        canonical_version = VALUES(canonical_version),
+        last_scanned_at = VALUES(last_scanned_at)', [
+      1 => [$handlerType, 'String'],
+      2 => [(string) $identity['provider_key'], 'String'],
+      3 => [(string) $identity['config_key'], 'String'],
+      4 => [(string) $identity['identity_hash'], 'String'],
+      5 => [$filename, 'String'],
+      6 => [$label, 'String'],
+      7 => [$activeHash, 'String'],
+      8 => [$encoded, 'String'],
+      9 => [$status, 'String'],
+      10 => [Canonicalizer::VERSION, 'Integer'],
+      11 => [date('Y-m-d H:i:s'), 'String'],
+    ]);
+  }
+
+  public function deleteWatchState(string $providerKey, string $identityHash): void {
+    if (!$this->isAvailable()) {
+      return;
+    }
+    $this->ensureSchema();
+    \CRM_Core_DAO::executeQuery('DELETE FROM ' . self::WATCH_TABLE . ' WHERE provider_key = %1 AND identity_hash = %2', [
+      1 => [$providerKey, 'String'],
+      2 => [$identityHash, 'String'],
+    ]);
+  }
+
+
+  public function clearWatchStatesByType(string $handlerType): void {
+    if (!$this->isAvailable()) {
+      return;
+    }
+    $this->ensureSchema();
+    \CRM_Core_DAO::executeQuery('DELETE FROM ' . self::WATCH_TABLE . ' WHERE handler_type = %1', [
+      1 => [$handlerType, 'String'],
+    ]);
   }
 
   public function getBaseline(string $providerKey, string $identityHash): ?array {

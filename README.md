@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha57-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha58-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -15,7 +15,7 @@ Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when t
 
 ## Development and beta policy
 
-`0.1.0-alpha57-core` continues development on top of the complete alpha56 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha58-core` continues development on top of the complete alpha57 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
 
 ## Purpose
 
@@ -34,14 +34,15 @@ The admin UI has four tabs.
 
 ### Synchronize
 
-Shows the current difference between active CiviCRM configuration and YAML files.
+Shows the current difference between **managed** active CiviCRM configuration and managed YAML. Before the first export there is no baseline, so the page shows one initial-export prompt instead of listing every existing CiviCRM record as a difference. After the baseline exists, the main cards use concise human wording and keep API/capability/dependency/identity metadata inside `Details`.
 
 Available actions:
 
-- `Export` writes active CiviCRM changes to YAML. If a temporary type filter is active, related dependency-sensitive types are included automatically and the filter is cleared after export so the next Synchronize view shows the full managed status.
-- `Import` opens an import preview for supported YAML-to-CiviCRM changes.
-- `Validate` checks YAML structure and handler compatibility.
-- `Diff` shows field-level details for a changed file.
+- `Export` writes active managed CiviCRM changes to YAML. If a temporary type filter is active, related dependency-sensitive types are included automatically and the filter is cleared after export so the next Synchronize view shows the full managed status.
+- `Import` opens an import preview for supported managed YAML-to-CiviCRM changes.
+- `Validate` checks managed YAML structure and handler compatibility.
+- `Details` shows the complete field-level comparison for a changed file.
+- `Scan Watched Config` explicitly scans watch-only configuration and stores local fingerprints without adding those objects to YAML.
 
 ### Import
 
@@ -72,18 +73,23 @@ Available options:
 
 ### Settings
 
-Controls the sync directory and the managed type filter.
+Controls the sync directory and the universal Configuration Scope policy.
 
 Settings include:
 
 - Sync Directory
-- Managed Types
-- Settings Allowlist
+- Configuration Scope: `Manage all`, `Manage selected`, `Watch only`, or `Ignore` for each supported configuration type
+- Per-type selectors for `Manage selected`, with optional `Watch unselected`
+- Settings Allowlist as the safety boundary for CiviCRM settings that are eligible for scope/export
 - Config Ignore
+
+`Manage selected` accepts one selector per line. A numeric ID or `id:123` is a local source selector used to choose the initial object; exported item YAML never uses that numeric ID as the cross-environment identity. Configuration Manager records the resulting semantic config key in `manifest.yml`, so the same selected object can be matched on another environment even when its local database ID differs. Stable names/keys, `key:<portable-config-key>`, and `path:<relative-yaml-path>` may also be used as selectors.
+
+`Watch only` and `Watch unselected` are deliberately non-destructive. Watched objects are fingerprinted only during an explicit watch scan; they are not exported to YAML and cannot be imported, restored, or deleted until they are moved into managed scope.
 
 Config Ignore accepts one relative YAML path or wildcard per line. Ignored files are skipped during diff, validate, export, and import. `extensions/civi.config.manager.yml` and legacy self-extension YAML keys are ignored by default to avoid self-management loops; remove it only if you intentionally want this extension to manage its own extension status.
 
-Config Ignore Values accepts field-level rules in `path/to/file.yml:dot.path` format. Example: `settings/civicrm.settings.yml:items.theme_frontend` lets dev/stage/prod keep different local theme or color settings while the rest of `settings/civicrm.settings.yml` remains managed. Ignored values are removed before diff, export, import, single-file preview, and ZIP download.
+Config Ignore Values accepts field-level rules in `path/to/file.yml:dot.path` format. Example: `settings/theme_frontend.yml:item.value` lets dev/stage/prod keep a different local theme while other managed settings remain portable. Ignored values are removed before diff, export, import, single-file preview, and ZIP download.
 
 The Site Identifier is generated automatically and written to `manifest.yml`. A cloned dev/stage/prod database keeps the same value, so same-site environment sync works without manual setup. A different site receives a different value and import validation blocks the YAML unless Experimental Cross-site Import is enabled for a reviewed one-off migration.
 
@@ -91,7 +97,9 @@ Large contributed/custom extension API records are exported as split files under
 
 Generated/read-only provider records are intentionally skipped. For example, Mosaico base templates are derived from packaged extension files and contain local site URLs, so `MosaicoBaseTemplate` YAML is not exported/imported; user-created `MosaicoTemplate` records remain managed. If old `api3/MosaicoBaseTemplate/*.yml` files exist from an earlier alpha, run Export once to remove them from the sync directory.
 
-Leaving Managed Types unchecked means all supported handlers are managed. If Managed Types is changed to a subset after YAML files already exist, the old YAML files are left on disk but ignored by status, diff, export, validate, and import until that type is enabled again. The extension does not delete those files automatically.
+The default scope is `Manage all`, preserving the existing full-export workflow. In `Manage selected`, only selected portable config keys participate in export/diff/validate/import. Existing YAML for a selector that is temporarily missing in CiviCRM is preserved and reported rather than silently removed. YAML for unselected objects is never interpreted as permission to delete those objects from CiviCRM.
+
+Managed ZIP and single-file downloads also enforce the effective scope. A stale YAML backup left behind after deselecting an object may remain on disk for safety, but it is omitted from the managed archive; an unselected active object cannot be fetched by crafting a single-export request.
 
 ## Sync Directory
 
@@ -128,6 +136,29 @@ $civicrm_setting['domain']['civicfg_sync_dir'] = '/var/www/html/civicrm-buildkit
 
 When this setting is present, the UI shows the Sync Directory as locked and does not allow UI edits to override the code-defined value.
 
+### Code-owned Configuration Scope
+
+Configuration Scope can also be deployment-owned in `civicrm.settings.php` through CiviCRM's normal domain setting override:
+
+```php
+global $civicrm_setting;
+$civicrm_setting['domain']['civicfg_scope'] = [
+  'message-templates' => [
+    'mode' => 'selected',
+    'selectors' => ['12', '25'],
+    'watch_unmanaged' => TRUE,
+  ],
+  'scheduled-jobs' => [
+    'mode' => 'watch',
+  ],
+  'payment-processors' => [
+    'mode' => 'ignore',
+  ],
+];
+```
+
+When `civicfg_scope` is code-owned, the Settings UI shows the scope as locked and will not overwrite it. Numeric selectors remain source selectors only; the export manifest maps configured selectors to semantic portable config keys for cross-environment matching.
+
 ## CLI terminal access
 
 The extension owns one real CLI implementation at `bin/civicfg`. On install/enable it may create a single Composer launcher at `<vendor>/bin/civicfg` and one shared global `civicfg` dispatcher. The global dispatcher contains no project-specific extension path; it uses `cv` from `PATH` or a sibling Composer `vendor/bin/cv` launcher to bootstrap the current site and resolves the enabled extension path at runtime. Drupal 7/non-Composer sites therefore do not require a `vendor/bin` directory.
@@ -143,6 +174,7 @@ cv api4 ConfigManager.status
 cv api4 ConfigManager.listTypes
 cv api4 ConfigManager.diff
 cv api4 ConfigManager.validate
+cv api4 ConfigManager.watch
 cv api4 ConfigManager.export dryRun=1
 cv api4 ConfigManager.export dryRun=0
 cv api4 ConfigManager.import dryRun=1 type=option-groups
@@ -155,6 +187,7 @@ Preferred CLI usage:
 civicfg status
 civicfg diff
 civicfg validate
+civicfg watch
 civicfg export --write
 civicfg export --type searchkit-saved-searches --write
 civicfg import --dry-run
@@ -164,6 +197,8 @@ civicfg import --yes
 The extension-local `ext/civi.config.manager/bin/civicfg` remains a direct fallback. Composer projects can additionally use `vendor/bin/civicfg`.
 
 ## Managed configuration types
+
+Configuration Scope applies generically to every registered handler. Item-level `Manage selected` is strongest for handlers that export one YAML file per object. CiviCRM Settings now export one YAML file per allowlisted setting, so the Settings Allowlist remains the safety boundary while Configuration Scope can manage/watch/ignore eligible settings just like other split-file configuration. Extension-owned providers can also be selected by stable key or YAML path when their discovered configuration is safely portable.
 
 Current export/diff/validate support includes:
 
@@ -175,7 +210,7 @@ Current export/diff/validate support includes:
 - Financial Types
 - Payment Processors, sanitized
 - Custom Groups and Fields
-- CiviCRM Settings Allowlist
+- CiviCRM Settings (one file per allowlisted setting)
 - Message Templates
 - Dedupe Rules
 - Scheduled Jobs
@@ -195,7 +230,7 @@ Current create/update import support includes:
 - Location Types
 - Financial Types
 - Custom Groups and Fields
-- CiviCRM Settings Allowlist
+- CiviCRM Settings (one file per allowlisted setting)
 - Message Templates
 - Dedupe Rules
 - Scheduled Jobs
@@ -210,24 +245,35 @@ Payment Processors remain export/diff only because exported data is sanitized an
 
 ## YAML layout
 
-Most stable config types are stored as collection files, for example `extensions/extensions.yml` or `option-groups/*.yml`. High-churn config types are stored as one YAML file per item:
+Configuration types that can be scoped per object are exported as one YAML file per item wherever practical. Current split-file examples include:
 
+- `contact-types/<name>.yml`
+- `relationship-types/<name>.yml`
+- `location-types/<name>.yml`
+- `financial/<name>.yml`
+- `payment-processors/<name>.yml`
+- `dedupe-rules/<name>.yml`
 - `searchkit/saved-searches/<name>.yml`
-- `searchkit/displays/<saved-search>__<display>.yml` for new exports, with older `<display>.yml` files still accepted
+- `searchkit/displays/<saved-search>__<display>.yml`
 - `formbuilder/afforms/<name>.yml`
 - `scheduled-jobs/<name>.yml`
+- `settings/<setting-name>.yml`
 - `message-templates/system/<name>.yml`
 - `message-templates/user/<name>.yml`
 - `custom-data/groups/<name>.yml`
 - `extensions/<extension-key>.yml`
 
-Each split file uses `type: <handler>.item`, stores the editable record under `item`, and includes a `dependencies` section where dependencies are detectable. Export also adds `required_by` reverse metadata where another YAML file depends on the current item, making dependency review easier from either direction. Extension-owned settings are stored in `extensions/<extension-key>.yml`; larger extension-owned API config is split into `extensions/<extension-key>/<api>/<entity>/<item>.yml` and linked from the extension file with `config_index`. Collection files use `type: <handler>.collection` and an `items` list. Existing collection files for these handlers are still accepted for import, but the current export format rewrites them as split files.
+Split files use a stable semantic identity and do not carry their local source database ID as the portable identity. CiviCRM setting files use the setting name as identity and never export a sensitive setting even if it is mistakenly added to the local allowlist. Message Templates use `workflow_name + is_default` for system workflow templates; user templates require a unique title before automatic writes are considered safe. Existing development collection YAML for handlers converted to split files remains accepted where the handler provides transitional import support, while a current full export rewrites the managed state into split files.
+
+Extension-owned settings are stored in `extensions/<extension-key>.yml`; larger extension-owned API config is split into `extensions/<extension-key>/<api>/<entity>/<item>.yml` and linked from the extension file with `config_index`. The export manifest records `managed_scope` using semantic config keys; selected source selectors may be mapped to those keys so target environments do not need matching numeric IDs.
 
 The export manifest is written to `manifest.yml`. Its `exported_with` value is read from `info.xml` at runtime, so the extension version only needs to be changed in `info.xml` for generated export metadata.
 
 ## Safety rules
 
-- Import can delete supported records that are present in CiviCRM but missing from YAML. Delete actions are shown as destructive actions in the import preview. Review the import preview before applying.
+- In `Manage all`, import can delete supported records that are present in CiviCRM but missing from YAML. Delete actions are shown as destructive actions in the import preview. Review the import preview before applying.
+- In `Manage selected`, bulk delete-missing is disabled centrally. An object being absent from a selective YAML set never authorizes deletion of an unselected CiviCRM object.
+- Watch-only and ignored objects are never import/delete candidates. Watch fingerprints live in local operational state, not portable YAML.
 - Machine names are treated as identities.
 - Suspected machine-name renames are warned and skipped.
 - Dependency metadata is validated where available. Missing managed YAML dependencies are treated as import-blocking errors to avoid broken relationships. Reverse `required_by` metadata is also checked and reported as a warning when it appears stale or incomplete.
@@ -247,13 +293,16 @@ The export manifest is written to `manifest.yml`. Its `exported_with` value is r
 
 The extension implements a CiviCRM status check.
 
-The status report warns when:
+The status report is deliberately cheap. It never runs a full configuration diff from `hook_civicrm_check()` or an ordinary CiviCRM page request. It reports the initial-export requirement or reads the cached result from the last explicit managed scan.
+
+The cached status can report:
 
 - The initial YAML export has not been done.
-- The sync directory exists but has no YAML files.
-- CiviCRM and YAML have pending differences.
+- The last explicit managed scan found pending differences.
+- The last explicit managed scan was in sync.
+- YAML exists but no explicit scan has been recorded yet.
 
-When the database and YAML are in sync, the status check reports an informational in-sync notice. CiviCRM displays these checks anywhere normal system-check notices are shown, including the status report page and admin login notification flow.
+Run Synchronize or `civicfg diff` to refresh managed health. Run `civicfg watch` (or the UI watch action) to refresh watch-only state. This keeps Configuration Manager from becoming a performance tax on unrelated CiviCRM requests.
 
 ## Permissions
 
@@ -383,6 +432,7 @@ civicfg status
 civicfg export --write
 civicfg diff
 civicfg validate
+civicfg watch
 civicfg import --dry-run
 civicfg import --yes
 ```
@@ -415,6 +465,20 @@ See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 - Added stronger automated coverage for the preferred `hook_civicfg_entityDefinitions()` integration path.
 - The metadata-hook tests now cover stable-key export, collection YAML, where/order metadata, composite keys, update/create/dry-run/delete-missing imports, import-disabled definitions, invalid YAML validation, sensitive-field blocking, and ignored-field diff behavior.
 - GitHub fast and full workflows now include a dedicated required `composer test:hook` / `EntityDefinitionHandlerTest` step so hook regressions are easy to spot in Actions.
+
+## Alpha 58 Notes
+
+Alpha58 introduces universal configuration scope and performance-safe monitoring on top of alpha57:
+
+- Every registered configuration handler can be `Manage all`, `Manage selected`, `Watch only`, or `Ignore`; selected mode can optionally watch the remaining active objects.
+- Numeric IDs are accepted only as source selectors. `manifest.yml` persists semantic config keys and selector mappings so selected objects remain portable across environments with different database IDs.
+- Message Templates now use explicit portable identities and support safe selective management of customized system templates and unique user templates.
+- Contact Types, Relationship Types, Location Types, Financial Types, Payment Processors, and Dedupe Rules now export as split item files so they can participate in item-level scope where practical.
+- Watch-only state is stored in a local disposable table and refreshed only by an explicit watch scan. Watched objects never enter YAML and never become import/delete candidates.
+- `hook_civicrm_check()` now reads cached health instead of running a full diff. Settings avoids virtual-provider discovery, and the Export page reuses its existing export preview instead of exporting every handler a second time just to populate the single-file selector.
+- Synchronize suppresses the initial all-CiviCRM difference flood and shows concise human change descriptions after a baseline exists; generated API/capability/dependency/identity metadata stays in Details.
+- Selected scope centrally disables bulk delete-missing, preserving the rule that absence from selective YAML never means an unselected active object should be removed.
+- Managed ZIP and single-file downloads enforce the same effective scope: stale deselected YAML backups may remain safely on disk, but they are not packaged as managed configuration and crafted single-file requests cannot bypass selection.
 
 ## Alpha 56 Notes
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.0-alpha58-core
+
+- Added universal Configuration Scope with `Manage all`, `Manage selected`, `Watch only`, and `Ignore` modes for registered configuration handlers, plus optional watch-unmanaged behavior for selected scope.
+- Added `civicrm.settings.php` scope overrides through the normal domain `civicfg_scope` setting; the UI treats code-owned scope as read-only.
+- Added source-selector to semantic-config-key resolution in `manifest.yml`, allowing local numeric IDs to bootstrap selection without becoming cross-environment identities.
+- Added explicit local watch-state storage and UI/API/CLI watch scans. Watched configuration is never exported to YAML and is never eligible for import, restore, or delete until it is moved into managed scope.
+- Disabled bulk delete-missing centrally for selected scope so an unselected CiviCRM object can never be deleted merely because it is absent from selective YAML.
+- Preserved YAML backups for selected objects that are temporarily missing from active CiviCRM and report the missing configured selector instead of silently deleting the backup.
+- Restricted managed ZIP and single-file export/download paths to the current effective scope, so stale deselected/watch-only YAML can remain safely on disk without leaking into managed deployment artifacts and crafted requests cannot export unselected active objects.
+- Added explicit Message Template identities for system workflow/default variants and unique user-template titles, with ambiguous duplicate user titles blocked from automatic writes.
+- Converted Contact Types, Relationship Types, Location Types, Financial Types, Payment Processors, Dedupe Rules, and allowlisted CiviCRM Settings to split item exports where practical so item-level selection can be applied consistently; local source IDs are stripped from portable YAML and sensitive settings remain excluded.
+- Changed Synchronize initial setup to show one initial-export prompt instead of flooding the page with every active CiviCRM record, and simplified post-baseline verbal diff summaries while retaining complete technical field details.
+- Removed full configuration scanning from the CiviCRM system check; normal status requests now read cached last-scan health only.
+- Reduced local state-table overhead by ensuring the operational schema only once per PHP process instead of re-running CREATE TABLE checks for every fingerprint update.
+- Reduced Configuration Manager page work by avoiding virtual extension-provider discovery on Settings and by reusing the Export tab's existing preview to populate the single-file selector instead of exporting every handler twice.
+- Added scope/portable-selector, message-template identity, canonical metadata, API permission, and no-scan health regression tests plus the `CM-SELECTIVE-SCOPE-WATCH` developer scenario.
+
 ## 0.1.0-alpha57-core
 
 - Fixed Standalone/WordPress-style runtime YAML parsing when the host application does not already autoload Symfony YAML.

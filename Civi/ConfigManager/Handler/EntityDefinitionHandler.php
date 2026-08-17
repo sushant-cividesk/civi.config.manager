@@ -82,13 +82,16 @@ class EntityDefinitionHandler extends AbstractHandler {
     $items = [];
 
     foreach ($rows as $row) {
-      $row = $this->prepareExportRow((array) $row);
+      $row = (array) $row;
+      $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
+      $row = $this->prepareExportRow($row);
       $key = $this->buildKey($row);
       if ($key === '') {
         continue;
       }
       $items[] = [
         'filename' => $this->fileNameForKey($key),
+        'source_id' => $sourceId,
         'data' => $this->itemDocument($row, $key),
       ];
     }

@@ -93,7 +93,10 @@ final class CivicfgStandaloneRoundTrip {
 
     foreach ([
       'civicfg_sync_dir',
-      'civicfg_enabled_types',
+      'civicfg_scope',
+      'civicfg_scope_resolved',
+      'civicfg_last_health',
+      'civicfg_watch_summary',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_settings_allowlist',
@@ -104,7 +107,10 @@ final class CivicfgStandaloneRoundTrip {
     }
 
     \Civi::settings()->set('civicfg_sync_dir', $this->syncDir);
-    \Civi::settings()->set('civicfg_enabled_types', []);
+    \Civi::settings()->set('civicfg_scope', []);
+    \Civi::settings()->set('civicfg_scope_resolved', []);
+    \Civi::settings()->set('civicfg_last_health', []);
+    \Civi::settings()->set('civicfg_watch_summary', []);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);
@@ -270,16 +276,18 @@ final class CivicfgStandaloneRoundTrip {
   private function testSensitiveSettingsAreNotExported(): void {
     \Civi::settings()->set('civicfg_settings_allowlist', ['theme_backend', 'smtpPassword']);
 
-    $handlerExport = (new SettingHandler())->export()[0]['data'];
+    $handlerExport = (new SettingHandler())->export();
     $encoded = (string) json_encode($handlerExport);
     $this->assertTrue(strpos($encoded, 'smtpPassword') === FALSE, 'Sensitive setting names and values must never enter export data.');
-    $this->assertTrue(!in_array('smtpPassword', (array) ($handlerExport['allowlist'] ?? []), TRUE), 'Sensitive setting names must be removed from the exported allowlist.');
+    $this->assertSame(1, count($handlerExport), 'Only the safe allowlisted setting should be exportable.');
+    $this->assertSame('theme_backend.yml', (string) ($handlerExport[0]['filename'] ?? ''), 'Settings export must use one portable YAML file per setting.');
 
     $manager = new ConfigManager();
     $result = $manager->export(FALSE, ['settings']);
     $this->assertTrue(!empty($result['ok']), 'Settings export must succeed.');
-    $path = $this->syncDir . '/settings/civicrm.settings.yml';
+    $path = $this->syncDir . '/settings/theme_backend.yml';
     $fileContents = is_file($path) ? (string) file_get_contents($path) : '';
+    $this->assertTrue($fileContents !== '', 'Safe allowlisted setting YAML must be written.');
     $this->assertTrue(strpos($fileContents, 'smtpPassword') === FALSE, 'Sensitive setting names must not appear in YAML files.');
 
     $this->record('secret_redaction', ['blocked_setting' => 'smtpPassword', 'status' => 'passed']);

@@ -32,37 +32,68 @@
           </td>
         </tr>
         <tr>
-          <td class="label">{ts}Managed Types{/ts}</td>
+          <td class="label">{ts}Configuration Scope{/ts}</td>
           <td>
-            <p class="description">{ts}Leave all unchecked to manage all supported types. Select types only if this site should manage a subset.{/ts}</p>
-            <div class="civicfg-type-group">
-              <h4>{ts}Standard managed types{/ts}</h4>
-              <div class="civicfg-checkbox-grid">
-                {foreach from=$allTypes item=row}
-                  {if !$row.virtual}
-                    <label class="civicfg-type-option"><input type="checkbox" name="enabled_types[]" value="{$row.type|escape}" {if $enabledTypesMap[$row.type]}checked="checked"{/if} /> <span class="civicfg-type-text"><span class="civicfg-type-name">{$row.label|escape}</span><small>{$row.directory|escape}</small></span></label>
-                  {/if}
-                {/foreach}
+            <p class="description">{ts}Choose what Configuration Manager manages, watches, or ignores. Managed configuration participates in YAML export/import. Watch-only configuration is monitored locally and is never imported, restored, or deleted.{/ts}</p>
+            {if $scopeOverridden}
+              <div class="messages status no-popup civicfg-inline-message">
+                <strong>{ts}Scope is controlled by civicrm.settings.php.{/ts}</strong>
+                {ts}The effective values are shown below, but they cannot be changed from this page.{/ts}
               </div>
+            {/if}
+            <div class="civicfg-scope-table-wrap">
+              <table class="display civicfg-scope-table">
+                <thead>
+                  <tr>
+                    <th>{ts}Configuration{/ts}</th>
+                    <th>{ts}Mode{/ts}</th>
+                    <th>{ts}Selected items{/ts}</th>
+                    <th>{ts}Watch the rest{/ts}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {foreach from=$scopeRows item=row}
+                    <tr>
+                      <td>
+                        <strong>{$row.label|escape}</strong>
+                        <div class="civicfg-muted"><code>{$row.type|escape}</code></div>
+                      </td>
+                      <td>
+                        <select name="scope_mode[{$row.type|escape}]" class="crm-form-select" {if $scopeOverridden}disabled="disabled"{/if}>
+                          <option value="all" {if $row.mode_all}selected="selected"{/if}>{ts}Manage all{/ts}</option>
+                          <option value="selected" {if $row.mode_selected}selected="selected"{/if}>{ts}Manage selected{/ts}</option>
+                          <option value="watch" {if $row.mode_watch}selected="selected"{/if}>{ts}Watch only{/ts}</option>
+                          <option value="ignore" {if $row.mode_ignore}selected="selected"{/if}>{ts}Ignore{/ts}</option>
+                        </select>
+                      </td>
+                      <td>
+                        <textarea name="scope_selectors[{$row.type|escape}]" class="crm-form-textarea civicfg-scope-selectors" rows="3" {if $scopeOverridden}disabled="disabled"{/if}>{$row.selectors_text|escape}</textarea>
+                        <div class="civicfg-muted">{ts}Used only with Manage selected.{/ts}</div>
+                      </td>
+                      <td>
+                        <label>
+                          <input type="checkbox" name="scope_watch_unmanaged[{$row.type|escape}]" value="1" {if $row.watch_unmanaged}checked="checked"{/if} {if $scopeOverridden}disabled="disabled"{/if} />
+                          {ts}Watch unselected{/ts}
+                        </label>
+                      </td>
+                    </tr>
+                  {/foreach}
+                </tbody>
+              </table>
             </div>
-            <div class="civicfg-type-group civicfg-type-group-extension">
-              <h4>{ts}Extension-owned managed config{/ts}</h4>
-              <p class="description">{ts}Generated automatically for enabled contrib/custom extensions when their API records can be exported and imported safely.{/ts}</p>
-              <div class="civicfg-checkbox-grid">
-                {foreach from=$allTypes item=row}
-                  {if $row.virtual}
-                    <label class="civicfg-type-option civicfg-type-option-virtual"><input type="checkbox" name="enabled_types[]" value="{$row.type|escape}" {if $enabledTypesMap[$row.type]}checked="checked"{/if} /> <span class="civicfg-type-text"><span class="civicfg-type-name">{$row.label|escape}</span>{if $row.provider}<small>{$row.provider|escape}</small>{/if}</span></label>
-                  {/if}
-                {/foreach}
-              </div>
-            </div>
+            <p class="description">{$scopeSelectorHelp|escape} {ts}Numeric IDs are source-site selectors only; exported YAML uses portable semantic identities instead of relying on database IDs.{/ts}</p>
+            <details class="civicfg-settings-example">
+              <summary>{ts}Override scope in civicrm.settings.php{/ts}</summary>
+              <p class="description">{ts}The normal CiviCRM settings override wins over values saved in this UI. This is useful when scope should be deployment-controlled on DEV, STAGE, or PROD.{/ts}</p>
+              <pre><code>{$scopeSettingsExample|escape}</code></pre>
+            </details>
           </td>
         </tr>
         <tr>
           <td class="label"><label for="settings_allowlist">{ts}Settings Allowlist{/ts}</label></td>
           <td>
             <textarea id="settings_allowlist" name="settings_allowlist" class="crm-form-textarea">{$settingsAllowlist|escape}</textarea>
-            <p class="description">{ts}Only these CiviCRM settings are exported. Add one setting name per line. Do not add secrets.{/ts}</p>
+            <p class="description">{ts}Safety allowlist for CiviCRM settings that Configuration Manager may inspect. Each safe setting is exported as its own YAML item, so Configuration Scope can manage selected settings or watch the rest. Add one setting name per line. Do not add secrets.{/ts}</p>
           </td>
         </tr>
 
@@ -70,7 +101,7 @@
           <td class="label"><label for="ignore_values">{ts}Config Ignore Values{/ts}</label></td>
           <td>
             <textarea id="ignore_values" name="ignore_values" class="crm-form-textarea">{$ignoreValues|escape}</textarea>
-            <p class="description">{ts}Optional field-level ignore rules. Use one rule per line in the format path/to/file.yml:dot.path. Wildcards are allowed in the YAML path and * is allowed as a path segment. Example: settings/civicrm.settings.yml:items.theme_backend or extensions/*.yml:settings.environment_color. Ignored values are removed before diff, export, import, and single-file preview so each environment can keep local values while the rest of the file remains managed.{/ts}</p>
+            <p class="description">{ts}Optional field-level ignore rules. Use one rule per line in the format path/to/file.yml:dot.path. Wildcards are allowed in the YAML path and * is allowed as a path segment. Example: settings/theme_backend.yml:item.value or extensions/*.yml:settings.environment_color. Ignored values are removed before diff, export, import, and single-file preview so each environment can keep local values while the rest of the file remains managed.{/ts}</p>
           </td>
         </tr>
         <tr>

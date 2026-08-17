@@ -40,7 +40,7 @@ Recommended for:
 
 ### administer CiviCRM configuration manager
 
-Allows a user to change Configuration Manager settings such as managed types and the settings allowlist.
+Allows a user to change Configuration Manager settings such as managed/watch/ignored scope, selectors, and the settings allowlist.
 
 This also allows editing the Sync Directory when the directory is not code-owned.
 
@@ -62,7 +62,7 @@ Users with `administer CiviCRM` are treated as superusers for this extension and
 
 When `civicfg_sync_dir` is set in `civicrm.settings.php`, users cannot change the Sync Directory from the UI, even if they have Configuration Manager administration permission.
 
-Other settings remain editable according to normal permissions.
+Other settings remain editable according to normal permissions unless they are also overridden through `civicrm.settings.php`. Configuration Scope can be code-owned with `$civicrm_setting['domain']['civicfg_scope']`; the UI then displays it as locked.
 
 ## Production recommendation
 

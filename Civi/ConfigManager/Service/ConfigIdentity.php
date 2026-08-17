@@ -22,7 +22,31 @@ class ConfigIdentity {
     $confidence = self::API_VERIFIED;
     $identity = '';
 
-    if ($documentType === 'extension.item') {
+    if (!empty($data['identity_key']) && is_scalar($data['identity_key'])) {
+      $identity = (string) $data['identity_key'];
+      $method = 'declared_identity_key';
+      $declaredConfidence = (string) ($data['identity_confidence'] ?? self::EXPLICIT);
+      $confidence = in_array($declaredConfidence, [self::EXPLICIT, self::API_VERIFIED, self::DISCOVERED_UNIQUE, self::AMBIGUOUS], TRUE)
+        ? $declaredConfidence
+        : self::EXPLICIT;
+    }
+    elseif ($documentType === 'message_template') {
+      $template = (array) ($data['template'] ?? []);
+      if (!empty($template['workflow_name'])) {
+        $identity = 'workflow_name=' . (string) $template['workflow_name'] . '|is_default=' . (!empty($template['is_default']) ? '1' : '0');
+        $method = 'message_template.workflow_name+is_default';
+        $confidence = self::API_VERIFIED;
+      }
+      elseif (!empty($template['msg_title'])) {
+        $identity = 'msg_title=' . (string) $template['msg_title'];
+        $method = 'message_template.msg_title';
+        $declaredConfidence = (string) ($data['identity_confidence'] ?? self::DISCOVERED_UNIQUE);
+        $confidence = in_array($declaredConfidence, [self::DISCOVERED_UNIQUE, self::AMBIGUOUS], TRUE)
+          ? $declaredConfidence
+          : self::DISCOVERED_UNIQUE;
+      }
+    }
+    elseif ($documentType === 'extension.item') {
       $extension = (array) ($data['extension'] ?? []);
       $identity = (string) ($extension['key'] ?? ($data['key'] ?? ''));
       $method = 'extension.key';

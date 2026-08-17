@@ -61,6 +61,34 @@ final class ConfigIdentityTest extends TestCase {
     self::assertFalse($identity['write_safe']);
   }
 
+  public function testSystemMessageTemplateUsesWorkflowAndDefaultVariantIdentity(): void {
+    $identity = (new ConfigIdentity())->identify('message-templates', [
+      'type' => 'message_template',
+      'template' => [
+        'workflow_name' => 'contribution_online_receipt',
+        'msg_title' => 'Contribution Receipt',
+        'is_default' => FALSE,
+      ],
+    ], 'system/contribution_online_receipt_custom.yml');
+
+    self::assertStringContainsString('workflow_name=contribution_online_receipt', $identity['config_key']);
+    self::assertStringContainsString('is_default=0', $identity['config_key']);
+    self::assertSame(ConfigIdentity::API_VERIFIED, $identity['identity_confidence']);
+    self::assertTrue($identity['write_safe']);
+  }
+
+  public function testAmbiguousUserMessageTemplateTitleIsNotWriteSafe(): void {
+    $identity = (new ConfigIdentity())->identify('message-templates', [
+      'type' => 'message_template',
+      'identity_key' => 'msg_title=Reminder',
+      'identity_confidence' => ConfigIdentity::AMBIGUOUS,
+      'template' => ['msg_title' => 'Reminder'],
+    ], 'user/reminder.yml');
+
+    self::assertSame(ConfigIdentity::AMBIGUOUS, $identity['identity_confidence']);
+    self::assertFalse($identity['write_safe']);
+  }
+
   public function testUnresolvedIdentityUsesFilenameOnlyAsAmbiguousReadFallback(): void {
     $identity = (new ConfigIdentity())->identify('example', ['value' => 123], 'one.yml');
 

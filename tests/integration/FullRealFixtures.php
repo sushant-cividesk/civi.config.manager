@@ -78,7 +78,10 @@ final class CivicfgFullRealFixtures {
 
     foreach ([
       'civicfg_sync_dir',
-      'civicfg_enabled_types',
+      'civicfg_scope',
+      'civicfg_scope_resolved',
+      'civicfg_last_health',
+      'civicfg_watch_summary',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_settings_allowlist',
@@ -88,7 +91,10 @@ final class CivicfgFullRealFixtures {
     }
 
     \Civi::settings()->set('civicfg_sync_dir', $this->syncDir);
-    \Civi::settings()->set('civicfg_enabled_types', []);
+    \Civi::settings()->set('civicfg_scope', []);
+    \Civi::settings()->set('civicfg_scope_resolved', []);
+    \Civi::settings()->set('civicfg_last_health', []);
+    \Civi::settings()->set('civicfg_watch_summary', []);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);
@@ -221,14 +227,14 @@ final class CivicfgFullRealFixtures {
     \Civi::settings()->set('menubar_position', 'over-cms-menu');
 
     $this->assertOk($manager->export(FALSE, ['settings']), 'Settings export must succeed.');
-    $relativePath = 'settings/civicrm.settings.yml';
-    $this->assertTrue(is_file($this->syncDir . '/' . $relativePath), 'Settings YAML must be written.');
+    $relativePath = 'settings/menubar_color.yml';
+    $this->assertTrue(is_file($this->syncDir . '/' . $relativePath), 'Individual setting YAML must be written.');
 
     \Civi::settings()->set('menubar_color', '#22cc55');
     $diff = $manager->diff(['settings']);
     $this->assertJsonContains($diff, 'menubar_color', 'Menubar color change must be visible before ignore.');
 
-    $manager->addIgnoreValueRules($relativePath, ['items.menubar_color']);
+    $manager->addIgnoreValueRules($relativePath, ['item.value']);
     $ignoredDiff = $manager->diff(['settings']);
     $this->assertJsonNotContains($ignoredDiff, '#22cc55', 'Ignored menubar color value must not appear in diff output.');
 

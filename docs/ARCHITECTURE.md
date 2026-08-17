@@ -148,7 +148,7 @@ The current built-in handlers cover:
 - Financial Types
 - Payment Processors
 - Custom Groups and Fields
-- CiviCRM Settings Allowlist
+- CiviCRM Settings, limited by the local Settings Allowlist
 - Message Templates
 - Dedupe Rules
 - Scheduled Jobs
@@ -205,9 +205,9 @@ Reference definitions may also declare a `dependency_type`, allowing the existin
 
 ## YAML file strategy
 
-Handlers can export collection files or split item files. Collection files remain suitable for stable low-volume configuration. Split item files are used for high-churn or large records so Git diffs stay reviewable.
+Handlers use split item files wherever practical so universal Configuration Scope can manage or watch individual objects safely. Current split-file handlers include Contact Types, Relationship Types, Location Types, Financial Types, Payment Processors, Dedupe Rules, Scheduled Jobs, SearchKit Saved Searches, SearchKit Displays, FormBuilder Afforms, Message Templates, allowlisted CiviCRM Settings, Custom Groups, Site Tokens, Extensions, and safely discovered extension-owned configuration. Aggregate objects such as an Option Group and its Option Values remain together where that relationship is the useful portable unit.
 
-Split-file YAML normally contains stable identity metadata and one portable record under `item`. The filename is a readable storage name only; semantic matching uses `config_key`/key fields instead of relying on the filename.
+Split-file YAML normally contains stable identity metadata and one portable record under `item` (or the handler-specific equivalent). The filename is a readable storage name only; semantic matching uses `config_key`/key fields instead of relying on the filename. A local database ID may be exposed to Configuration Scope only as a source selector and is not written as the portable cross-environment identity. Transitional import support may still read older development collection formats, while current exports use the split form.
 
 ## Import model
 

@@ -75,6 +75,10 @@ Every functional change should add or update a file in `tests/scenarios`. `compo
 
 Development scenarios must not depend on existing client records, production identifiers, real outbound services, or another test running first.
 
+## Alpha58 scope and performance coverage
+
+Alpha58 adds focused coverage for universal scope policy, portable selected-item mappings, explicit watch-only state, Message Template identities, operational identity metadata, API4 watch permissions, and the requirement that cached system health must not discover configuration handlers. The full isolated workflow should also exercise first-export UX, selected-scope safety, cross-environment IDs, watch scans, and repeat export/import idempotency.
+
 ## Alpha56 unit coverage
 
 The semantic configuration engine has focused unit coverage for:

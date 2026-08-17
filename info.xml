@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-14</releaseDate>
-  <version>0.1.0-alpha57-core</version>
+  <releaseDate>2026-08-17</releaseDate>
+  <version>0.1.0-alpha58-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 57 development build on the full alpha56 codebase: fixes runtime YAML parsing in Standalone/WordPress-style environments by loading the bundled Symfony YAML dependency and failing closed when no parser is available.</comments>
+  <comments>Alpha 58 development build on the full alpha57 codebase: adds universal managed/watch/ignored scope, portable selected-item identities, explicit watch scans, safer selective deletion rules, friendlier synchronization UX, and cached no-scan system health.</comments>
 </extension>

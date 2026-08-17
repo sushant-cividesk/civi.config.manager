@@ -24,6 +24,7 @@ class OptionGroupHandler extends AbstractHandler {
     $groups = $this->api4Get('OptionGroup', [], ['id', 'name', 'title', 'description', 'data_type', 'is_reserved', 'is_active'], ['name' => 'ASC']);
     $files = [];
     foreach ($groups as $group) {
+      $sourceId = isset($group['id']) && is_scalar($group['id']) ? (int) $group['id'] : NULL;
       $values = $this->api4Get('OptionValue', [["option_group_id", "=", $group['id']]], ['name', 'label', 'value', 'description', 'weight', 'is_default', 'is_optgroup', 'is_reserved', 'is_active', 'component_id', 'domain_id', 'visibility_id'], ['weight' => 'ASC', 'name' => 'ASC']);
       unset($group['id']);
       foreach ($values as &$value) {
@@ -31,6 +32,7 @@ class OptionGroupHandler extends AbstractHandler {
       }
       $files[] = [
         'filename' => $this->safeName($group['name']) . '.yml',
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => 'option_group',

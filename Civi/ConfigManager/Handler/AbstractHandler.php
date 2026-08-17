@@ -236,7 +236,7 @@ abstract class AbstractHandler implements HandlerInterface {
   protected function normaliseDataForDiff(array $data): array {
     foreach ([
       'schema_version', 'type', 'entity', 'key', 'key_fields',
-      'identity_field', 'identity_confidence', 'capabilities',
+      'identity_field', 'identity_key', 'identity_confidence', 'capabilities',
       'dependencies', 'required_by', 'config_index',
     ] as $field) {
       unset($data[$field]);

@@ -26,6 +26,7 @@ class ConfigManager extends AbstractEntity {
       'export' => [Permission::EXPORT],
       'import' => [Permission::IMPORT],
       'confirmIdentityAlias' => [Permission::IMPORT],
+      'watch' => [Permission::ADMINISTER],
       'getFields' => [Permission::ACCESS],
     ];
   }
@@ -74,6 +75,11 @@ class ConfigManager extends AbstractEntity {
 
   public static function confirmIdentityAlias($checkPermissions = TRUE) {
     return (new Action\ConfigManager\ConfirmIdentityAlias(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function watch($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\Watch(__CLASS__, __FUNCTION__))
       ->setCheckPermissions($checkPermissions);
   }
 

@@ -42,9 +42,10 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   }
 
   public function export(): array {
+    $rawRows = $this->api4Get($this->entity, [], array_values(array_unique(array_merge(['id'], $this->select))), $this->orderBy);
     $rows = array_map(function($row) {
       return $this->cleanExportRow((array) $row);
-    }, $this->api4Get($this->entity, [], $this->select, $this->orderBy));
+    }, $rawRows);
 
     if (!$this->splitFiles) {
       return [[
@@ -60,8 +61,10 @@ class GenericApi4CollectionHandler extends AbstractHandler {
     }
 
     $files = [];
-    foreach ($rows as $row) {
-      $row = $this->cleanExportRow((array) $row);
+    foreach ($rawRows as $rawRow) {
+      $rawRow = (array) $rawRow;
+      $sourceId = isset($rawRow['id']) && is_scalar($rawRow['id']) ? (int) $rawRow['id'] : NULL;
+      $row = $this->cleanExportRow($rawRow);
       $identityField = $this->getIdentityField($row);
       if (!$identityField) {
         continue;
@@ -69,12 +72,14 @@ class GenericApi4CollectionHandler extends AbstractHandler {
       $name = (string) $row[$identityField];
       $files[] = [
         'filename' => $this->fileNameForRow($row, $name),
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => $this->type . '.item',
           'entity' => $this->entity,
           'name' => $name,
           'identity_field' => $identityField,
+          'identity_confidence' => 'DISCOVERED_UNIQUE',
           'dependencies' => $this->dependenciesForRow($row),
           'item' => $row,
         ],

@@ -28,6 +28,7 @@ final class Api4FacadeTest extends TestCase {
     self::assertNotSame($permissions['diff'], $permissions['export']);
     self::assertNotSame($permissions['export'], $permissions['import']);
     self::assertSame($permissions['import'], $permissions['confirmIdentityAlias']);
+    self::assertSame(['administer CiviCRM configuration manager'], $permissions['watch']);
     self::assertSame($permissions['default'], $permissions['getFields']);
   }
 }

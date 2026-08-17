@@ -1,0 +1,61 @@
+id: CM-SELECTIVE-SCOPE-WATCH
+feature: Universal managed, watch-only, and ignored configuration scope with portable selectors and cheap explicit monitoring
+level:
+  - unit
+  - integration
+  - browser
+fixtures:
+  factory: disposable configuration records across several handlers plus a temporary YAML sync directory and local watch-state tables
+  records:
+    selected_source_record:
+      source_id: 12
+      stable_identity: qa_civicfg_selected_<run_id>
+    selected_target_record:
+      source_id: 47
+      stable_identity: qa_civicfg_selected_<run_id>
+    watched_record:
+      stable_identity: qa_civicfg_watched_<run_id>
+steps:
+  - Open Synchronize before the first export and verify a single initial-export prompt is shown instead of treating every active CiviCRM record as a pending difference.
+  - Configure a type as Manage selected using a local numeric source selector, enable Watch unselected, and export the initial managed YAML.
+  - Verify manifest managed_scope records the portable config key and selector-to-portable-key mapping while the individual YAML document contains no source database ID.
+  - On a target fixture with a different numeric ID, verify diff, import, and a later export still select the same object by its portable semantic identity.
+  - Verify unselected active records are excluded from YAML and from destructive import while remaining eligible for explicit watch scans.
+  - Leave stale YAML for a deselected object on disk and verify the managed ZIP archive omits it while preserving the local backup file.
+  - Attempt a crafted single-file preview/download for an unselected active object and verify the request is rejected as outside the current managed scope.
+  - Remove a selected active object after its selector has resolved and verify export reports the configured selector as missing without deleting its existing YAML backup.
+  - Remove a previously selected item from the selector list and verify an old manifest config key does not keep that item managed; it becomes watched or ignored immediately according to the current policy, without requiring a cleanup export first.
+  - Run the explicit watch scan twice, change a watched record, and verify the second scan reports the change without putting the watched object into YAML.
+  - Change a type to Ignore and verify its local watch state is cleared and it no longer participates in managed or watched operations.
+  - Override civicfg_scope through the domain civicrm.settings.php setting and verify the UI reports the scope as code-owned and does not overwrite it.
+  - Run the normal CiviCRM status check path and verify it reads cached health without invoking handler discovery or a full diff.
+expected:
+  initial_export_has_no_difference_flood: true
+  selected_scope_is_portable_across_database_ids: true
+  unselected_records_are_never_bulk_deleted: true
+  stale_deselected_yaml_is_not_in_managed_archive: true
+  crafted_unselected_single_export_is_rejected: true
+  missing_selected_object_is_reported_and_backup_preserved: true
+  deselected_records_stop_being_managed_immediately: true
+  watched_records_never_enter_yaml: true
+  watch_scan_is_explicit_and_cached: true
+  settings_php_scope_override_wins: true
+  normal_status_check_does_not_scan_handlers: true
+negative_cases:
+  - selected_source_database_id_is_written_as_cross_environment_identity
+  - unselected_record_is_deleted_because_it_is_absent_from_yaml
+  - stale_deselected_yaml_is_packaged_as_managed_configuration
+  - crafted_single_export_bypasses_selected_scope
+  - missing_selected_object_silently_removes_its_yaml_backup
+  - watched_record_is_imported_or_restored
+  - ordinary_civicrm_page_triggers_a_full_configuration_scan
+  - settings_ui_overwrites_a_civicrm_settings_php_scope_override
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  delete_fixture_records: true
+  clear_watch_state: true
+  remove_temporary_files: true

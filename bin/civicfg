@@ -10,6 +10,7 @@ Usage:
   civicfg import [options]
   civicfg diff [options]
   civicfg validate [options]
+  civicfg watch [options]
   civicfg status
 
 Options:
@@ -26,6 +27,7 @@ Examples:
   civicfg import --dry-run
   civicfg import --yes
   civicfg validate
+  civicfg watch
 HELP
 }
 
@@ -119,6 +121,9 @@ case "$command" in
     ;;
   validate)
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.validate type="$type_json"
+    ;;
+  watch)
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.watch type="$type_json"
     ;;
   status)
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.status

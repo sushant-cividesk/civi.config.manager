@@ -44,7 +44,7 @@ Handlers should run in this order unless a new dependency requires adjustment:
 6. Financial Types
 7. Payment Processors, sanitized
 8. Custom Groups and Fields
-9. CiviCRM Settings Allowlist
+9. CiviCRM Settings (local safety allowlist)
 10. Message Templates
 11. Dedupe Rules
 12. Scheduled Jobs
@@ -90,7 +90,7 @@ Create/update import is currently implemented for:
 - Location Types
 - Financial Types
 - Custom Groups and Fields
-- CiviCRM Settings Allowlist
+- CiviCRM Settings (local safety allowlist)
 - Message Templates
 - Dedupe Rules
 - Scheduled Jobs

@@ -24,6 +24,7 @@ class CustomGroupHandler extends AbstractHandler {
     $groups = $this->api4Get('CustomGroup', [], ['id', 'name', 'title', 'extends', 'extends_entity_column_id', 'extends_entity_column_value', 'style', 'collapse_display', 'help_pre', 'help_post', 'weight', 'is_active', 'is_multiple', 'min_multiple', 'max_multiple', 'collapse_adv_display', 'is_reserved', 'is_public'], ['name' => 'ASC']);
     $files = [];
     foreach ($groups as $group) {
+      $sourceId = isset($group['id']) && is_scalar($group['id']) ? (int) $group['id'] : NULL;
       $fields = $this->api4Get('CustomField', [["custom_group_id", "=", $group['id']]], ['name', 'label', 'data_type', 'html_type', 'default_value', 'is_required', 'is_searchable', 'is_search_range', 'weight', 'help_pre', 'help_post', 'attributes', 'is_active', 'is_view', 'options_per_line', 'text_length', 'start_date_years', 'end_date_years', 'date_format', 'time_format', 'note_columns', 'note_rows', 'column_name', 'option_group_id'], ['weight' => 'ASC', 'name' => 'ASC']);
       unset($group['id']);
       foreach ($fields as &$field) {
@@ -38,6 +39,7 @@ class CustomGroupHandler extends AbstractHandler {
       }
       $files[] = [
         'filename' => 'groups/' . $this->safeName($group['name']) . '.yml',
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => 'custom_group',

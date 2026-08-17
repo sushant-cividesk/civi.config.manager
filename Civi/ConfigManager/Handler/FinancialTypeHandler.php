@@ -8,26 +8,51 @@ class FinancialTypeHandler extends AbstractHandler {
   public function getWeight(): int { return 40; }
 
   public function export(): array {
-    $rows = $this->api4Get('FinancialType', [], ['name', 'label', 'description', 'is_deductible', 'is_reserved', 'is_active'], ['name' => 'ASC']);
-    return [[
-      'filename' => 'financial-types.yml',
-      'data' => [
-        'schema_version' => 1,
-        'type' => 'financial_type.collection',
-        'dependencies' => [],
-        'items' => $rows,
-      ],
-    ]];
+    $rows = $this->api4Get('FinancialType', [], ['id', 'name', 'label', 'description', 'is_deductible', 'is_reserved', 'is_active'], ['name' => 'ASC']);
+    $files = [];
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
+      unset($row['id']);
+      $name = trim((string) ($row['name'] ?? ''));
+      if ($name === '') {
+        continue;
+      }
+      $files[] = [
+        'filename' => $this->safeName($name) . '.yml',
+        'source_id' => $sourceId,
+        'data' => [
+          'schema_version' => 1,
+          'type' => 'financial_type.item',
+          'entity' => 'FinancialType',
+          'name' => $name,
+          'identity_field' => 'name',
+          'identity_confidence' => 'DISCOVERED_UNIQUE',
+          'dependencies' => [],
+          'item' => $row,
+        ],
+      ];
+    }
+    return $files;
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
     $summary = $this->baseImportSummary($dryRun);
     foreach ($items as $filename => $file) {
-      if (($file['type'] ?? '') !== 'financial_type.collection') {
-        $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid type. Expected financial_type.collection.'];
+      $rows = [];
+      if (($file['type'] ?? '') === 'financial_type.item') {
+        $rows[] = (array) ($file['item'] ?? []);
+      }
+      elseif (($file['type'] ?? '') === 'financial_type.collection') {
+        // Transitional development compatibility for earlier alpha exports.
+        $rows = array_values(array_filter((array) ($file['items'] ?? []), 'is_array'));
+      }
+      else {
+        $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid type. Expected financial_type.item.'];
         continue;
       }
-      foreach (($file['items'] ?? []) as $row) {
+
+      foreach ($rows as $row) {
         $row = $this->cleanValues((array) $row);
         if (empty($row['name'])) {
           $summary['errors'][] = ['file' => $filename, 'message' => 'Financial type is missing name.'];
@@ -60,5 +85,10 @@ class FinancialTypeHandler extends AbstractHandler {
     }
     $summary['ok'] = empty($summary['errors']);
     return $summary;
+  }
+
+  private function safeName(string $name): string {
+    $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name);
+    return trim((string) $safe, '-') ?: sha1($name);
   }
 }
