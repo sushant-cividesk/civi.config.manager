@@ -299,7 +299,7 @@
 .crm-configmanager-block .civicfg-settings-field {display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: .75rem 1rem; align-items: start; margin: .75rem 0;}
 .crm-configmanager-block .civicfg-settings-field input[type=text],
 .crm-configmanager-block .civicfg-settings-field textarea {width: 100%; max-width: 100%;}
-.crm-configmanager-block .civicfg-scope-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .8rem; margin-top: 1rem;}
+.crm-configmanager-block .civicfg-scope-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .8rem; margin-top: 1rem; align-items: start;}
 .crm-configmanager-block .civicfg-scope-card {border: 1px solid #d7dce2; border-radius: 5px; padding: .85rem; background: var(--crm-c-background2, #fbfcfd); min-width: 0;}
 .crm-configmanager-block .civicfg-scope-card-header {display: flex; justify-content: space-between; gap: .75rem; align-items: flex-start; margin-bottom: .7rem;}
 .crm-configmanager-block .civicfg-scope-title {font-size: 1rem;}
@@ -358,4 +358,31 @@
 @media (max-width: 700px) {
   .crm-configmanager-block .civicfg-scope-bulk {align-items: stretch;}
   .crm-configmanager-block .civicfg-scope-bulk > * {max-width: 100%;}
+}
+
+/* Alpha61 hotfix: persistent watch review history. */
+.crm-configmanager-block .civicfg-watch-panel > summary {display: flex; flex-wrap: wrap; align-items: center; gap: .55rem;}
+.crm-configmanager-block .civicfg-watch-overview {display: grid; grid-template-columns: minmax(180px, 2fr) repeat(5, minmax(80px, 1fr)); gap: .55rem; margin: 0 0 .8rem;}
+.crm-configmanager-block .civicfg-watch-overview > div {border: 1px solid #d7dce2; border-radius: 4px; padding: .55rem .65rem; background: var(--crm-c-background2, #fbfcfd); min-width: 0;}
+.crm-configmanager-block .civicfg-watch-stat-label {display: block; color: #5f6b7a; font-size: .8rem; margin-bottom: .12rem;}
+.crm-configmanager-block .civicfg-watch-section {margin-top: 1rem;}
+.crm-configmanager-block .civicfg-watch-section h4 {margin: 0 0 .45rem;}
+.crm-configmanager-block .civicfg-watch-findings,
+.crm-configmanager-block .civicfg-watch-history-list {display: grid; gap: .45rem;}
+.crm-configmanager-block .civicfg-watch-finding {display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; align-items: start; padding: .6rem .7rem; border: 1px solid #e0e5ea; border-radius: 4px; background: #fff;}
+.crm-configmanager-block .civicfg-watch-history-heading {display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: .55rem;}
+.crm-configmanager-block .civicfg-watch-history-heading .description {margin-bottom: 0;}
+.crm-configmanager-block .civicfg-watch-history-row {display: grid; grid-template-columns: minmax(180px, auto) auto minmax(0, 1fr); gap: .65rem; align-items: start; padding: .55rem .65rem; border-bottom: 1px solid #e6eaee;}
+.crm-configmanager-block .civicfg-watch-history-row:first-child {border-top: 1px solid #e6eaee;}
+.crm-configmanager-block .civicfg-watch-history-time {font-size: .84rem; color: #5f6b7a; white-space: nowrap;}
+.crm-configmanager-block .civicfg-watch-history-item {min-width: 0;}
+.crm-configmanager-block .civicfg-watch-no-change {margin: .35rem 0 0;}
+@media (max-width: 900px) {
+  .crm-configmanager-block .civicfg-watch-overview {grid-template-columns: repeat(3, minmax(0, 1fr));}
+  .crm-configmanager-block .civicfg-watch-history-row {grid-template-columns: auto minmax(0, 1fr);}
+  .crm-configmanager-block .civicfg-watch-history-time {grid-column: 1 / -1;}
+}
+@media (max-width: 600px) {
+  .crm-configmanager-block .civicfg-watch-overview {grid-template-columns: repeat(2, minmax(0, 1fr));}
+  .crm-configmanager-block .civicfg-watch-history-heading {flex-direction: column;}
 }

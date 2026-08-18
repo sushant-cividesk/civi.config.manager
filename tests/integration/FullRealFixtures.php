@@ -83,6 +83,7 @@ final class CivicfgFullRealFixtures {
       'civicfg_scope_resolved',
       'civicfg_last_health',
       'civicfg_watch_summary',
+      'civicfg_watch_history',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_settings_allowlist',
@@ -97,6 +98,7 @@ final class CivicfgFullRealFixtures {
     \Civi::settings()->set('civicfg_scope_resolved', []);
     \Civi::settings()->set('civicfg_last_health', []);
     \Civi::settings()->set('civicfg_watch_summary', []);
+    \Civi::settings()->set('civicfg_watch_history', []);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);

@@ -133,6 +133,20 @@ return [
     'is_contact' => 0,
   ],
 
+  'civicfg_watch_history' => [
+    'group_name' => 'Configuration Manager',
+    'group' => 'configuration_manager',
+    'name' => 'civicfg_watch_history',
+    'type' => 'Array',
+    'html_type' => 'Text',
+    'default' => [],
+    'add' => '5.0',
+    'title' => ts('Configuration Manager Watch History'),
+    'description' => ts('Local recent history of detected watch-only configuration changes. This is operational history only and is never exported to YAML.'),
+    'is_domain' => 1,
+    'is_contact' => 0,
+  ],
+
   'civicfg_settings_allowlist' => [
     'group_name' => 'Configuration Manager',
     'group' => 'configuration_manager',

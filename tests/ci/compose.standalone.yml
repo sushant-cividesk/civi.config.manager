@@ -64,8 +64,6 @@ services:
     image: axllent/mailpit:v1.30.4
     hostname: civicfg-qa-mailpit
     command: ["--max-messages", "100"]
-    ports:
-      - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
     networks:
       - isolated
 

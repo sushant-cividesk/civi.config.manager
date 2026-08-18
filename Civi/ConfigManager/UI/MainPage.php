@@ -68,6 +68,12 @@ class MainPage {
       elseif ($postAction === 'save_settings') {
         $this->saveSettings();
         \CRM_Core_Session::setStatus(ts('Configuration Manager settings saved.'), ts('Saved'), 'success');
+        $watchSummary = $this->manager->getWatchSummary();
+        if ((int) ($watchSummary['baseline'] ?? 0) > 0) {
+          \CRM_Core_Session::setStatus(ts('Monitoring baseline captured for %1 watched item(s). Future watch scans will report new, changed, or missing configuration.', [
+            1 => (int) $watchSummary['baseline'],
+          ]), ts('Configuration Manager'), 'success');
+        }
         if (!empty($_POST['allow_cross_site_import'])) {
           \CRM_Core_Session::setStatus(ts('Experimental cross-site import is enabled. Keep it off for normal dev/stage/prod synchronization and use it only for a reviewed one-off migration between different sites.'), ts('Configuration Manager'), 'warning');
         }
@@ -92,14 +98,19 @@ class MainPage {
       elseif ($postAction === 'scan_watch') {
         $watchResult = $this->manager->scanWatched($types);
         $notice = !empty($watchResult['ok'])
-          ? ts('Watch scan complete. %1 watched item(s), %2 new, %3 changed, %4 missing.', [
+          ? ts('Watch scan complete. %1 watched item(s), %2 baseline, %3 new, %4 changed, %5 missing.', [
               1 => (int) ($watchResult['watched'] ?? 0),
-              2 => (int) ($watchResult['new'] ?? 0),
-              3 => (int) ($watchResult['changed'] ?? 0),
-              4 => (int) ($watchResult['missing'] ?? 0),
+              2 => (int) ($watchResult['baseline'] ?? 0),
+              3 => (int) ($watchResult['new'] ?? 0),
+              4 => (int) ($watchResult['changed'] ?? 0),
+              5 => (int) ($watchResult['missing'] ?? 0),
             ])
           : ts('Watch scan completed with errors. Review the Configuration Manager watch summary.');
-        $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'warning');
+        $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'warning', 'watch=1', 'civicfg-watch-panel');
+      }
+      elseif ($postAction === 'clear_watch_history') {
+        $this->manager->clearWatchHistory();
+        $this->redirectWithNotice(ts('Watch history cleared. Current watch fingerprints and monitoring baselines were not changed.'), 'sync', 'success', 'watch=1', 'civicfg-watch-panel');
       }
       elseif ($postAction === 'revert_file') {
         $path = trim((string) ($_POST['path'] ?? ''));
@@ -206,9 +217,17 @@ class MainPage {
   }
 
 
-  private function redirectWithNotice(string $message, string $op = 'sync', string $type = 'success'): void {
+  private function redirectWithNotice(string $message, string $op = 'sync', string $type = 'success', string $extraQuery = '', string $fragment = ''): void {
     \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $type);
-    \CRM_Utils_System::redirect(\CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=' . $op));
+    $query = 'reset=1&op=' . $op;
+    if ($extraQuery !== '') {
+      $query .= '&' . ltrim($extraQuery, '&');
+    }
+    $url = \CRM_Utils_System::url('civicrm/admin/config-manager', $query);
+    if ($fragment !== '') {
+      $url .= '#' . rawurlencode($fragment);
+    }
+    \CRM_Utils_System::redirect($url);
   }
 
   private function getCodeDefinedSyncDir(): ?string {
@@ -344,11 +363,10 @@ class MainPage {
     }, $ignoreValues))));
     \Civi::settings()->set('civicfg_ignore_values', $ignoreValues);
 
-    // Settings/scope/ignore changes alter what a future comparison means.
-    // Never keep presenting a stale cached health/watch result after they are
-    // changed; explicit Synchronize/watch scans will rebuild these summaries.
+    // Settings/scope/ignore changes alter what a future managed comparison
+    // means. Scope saving initializes any newly enabled watch baseline and
+    // stores that summary, so do not erase the new watch fingerprints here.
     \Civi::settings()->set('civicfg_last_health', []);
-    \Civi::settings()->set('civicfg_watch_summary', []);
   }
 
 
@@ -498,6 +516,11 @@ class MainPage {
       ? !empty($diffResult['initial_export_required'])
       : !$this->manager->hasCurrentManifest();
     $watchSummary = $this->manager->getWatchSummary();
+    $watchHistory = $this->manager->getWatchHistory();
+    $watchDetectedCount = (int) ($watchSummary['new'] ?? 0) + (int) ($watchSummary['changed'] ?? 0) + (int) ($watchSummary['missing'] ?? 0);
+    $watchPanelOpen = $this->request->shouldOpenWatchPanel()
+      || (int) ($watchSummary['baseline'] ?? 0) > 0
+      || $watchDetectedCount > 0;
     $result += [
       'error' => NULL,
       'errors' => [],
@@ -557,6 +580,9 @@ class MainPage {
     $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json'));
     $this->page->assign('initialExportRequired', $initialExportRequired);
     $this->page->assign('watchSummary', $watchSummary);
+    $this->page->assign('watchHistory', $watchHistory);
+    $this->page->assign('watchDetectedCount', $watchDetectedCount);
+    $this->page->assign('watchPanelOpen', $watchPanelOpen);
     $this->page->assign('settingsAllowlist', implode("\n", $settingsAllowlist));
     $this->page->assign('ignorePaths', implode("\n", $ignorePaths));
     $this->page->assign('ignoreValues', implode("\n", array_map(fn($rule) => (string) ($rule['raw'] ?? ''), $ignoreValues)));

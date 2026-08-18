@@ -150,19 +150,68 @@
       {/if}
     {/if}
 
-    {if $watchSummary.scanned_at}
-      <details class="civicfg-panel civicfg-watch-panel" {if $watchSummary.new gt 0 || $watchSummary.changed gt 0 || $watchSummary.missing gt 0}open="open"{/if}>
-        <summary>{ts}Watched Configuration{/ts}</summary>
+    {if $watchSummary.scanned_at || $watchHistory|@count gt 0}
+      <details id="civicfg-watch-panel" class="civicfg-panel civicfg-watch-panel" {if $watchPanelOpen}open="open"{/if}>
+        <summary>
+          <span>{ts}Watched Configuration{/ts}</span>
+          {if $watchDetectedCount gt 0}<span class="civicfg-badge warn">{$watchDetectedCount|escape} {ts}detected this scan{/ts}</span>{elseif $watchHistory|@count gt 0}<span class="civicfg-badge">{$watchHistory|@count|escape} {ts}in history{/ts}</span>{/if}
+        </summary>
         <div class="civicfg-panel-body">
-          <p>{ts}Last watch scan:{/ts} <strong>{$watchSummary.scanned_at|escape}</strong>. {$watchSummary.watched|default:0|escape} {ts}item(s) watched{/ts}; {$watchSummary.new|default:0|escape} {ts}new{/ts}, {$watchSummary.changed|default:0|escape} {ts}changed{/ts}, {$watchSummary.missing|default:0|escape} {ts}missing{/ts}.</p>
-          <p class="description">{ts}Watched configuration is not part of YAML and cannot be imported, restored, or deleted by Configuration Manager unless you explicitly move it into managed scope.{/ts}</p>
-          {if $watchSummary.items|@count gt 0}
-            <ul>
-              {foreach from=$watchSummary.items item=item}
-                <li><strong>{$item.label|escape}</strong> — {if $item.status eq 'new'}{ts}new{/ts}{elseif $item.status eq 'changed'}{ts}changed{/ts}{elseif $item.status eq 'missing'}{ts}missing{/ts}{else}{$item.status|escape}{/if} <span class="civicfg-muted"><code>{$item.path|escape}</code></span></li>
-              {/foreach}
-            </ul>
+          {if $watchSummary.scanned_at}
+            <div class="civicfg-watch-overview">
+              <div><span class="civicfg-watch-stat-label">{ts}Last scan{/ts}</span><strong>{$watchSummary.scanned_at|escape}</strong></div>
+              <div><span class="civicfg-watch-stat-label">{ts}Watched{/ts}</span><strong>{$watchSummary.watched|default:0|escape}</strong></div>
+              <div><span class="civicfg-watch-stat-label">{ts}Baseline{/ts}</span><strong>{$watchSummary.baseline|default:0|escape}</strong></div>
+              <div><span class="civicfg-watch-stat-label">{ts}New{/ts}</span><strong>{$watchSummary.new|default:0|escape}</strong></div>
+              <div><span class="civicfg-watch-stat-label">{ts}Changed{/ts}</span><strong>{$watchSummary.changed|default:0|escape}</strong></div>
+              <div><span class="civicfg-watch-stat-label">{ts}Missing{/ts}</span><strong>{$watchSummary.missing|default:0|escape}</strong></div>
+            </div>
+            {if $watchSummary.baseline gt 0}<p class="description">{ts}A monitoring baseline was captured for newly watched items. Future scans compare against these fingerprints; watched items still stay out of YAML and cannot be imported or deleted.{/ts}</p>{/if}
           {/if}
+          <p class="description">{ts}Watched configuration is not part of YAML and cannot be imported, restored, or deleted by Configuration Manager unless you explicitly move it into managed scope. Detected watch changes are kept in local history so later scans do not hide earlier findings.{/ts}</p>
+
+          <div class="civicfg-watch-section">
+            <h4>{ts}Latest scan{/ts}</h4>
+            {if $watchSummary.items|@count gt 0}
+              <div class="civicfg-watch-findings">
+                {foreach from=$watchSummary.items item=item}
+                  <div class="civicfg-watch-finding">
+                    <span class="civicfg-badge {if $item.status eq 'missing'}warn{elseif $item.status eq 'changed'}warn{/if}">{if $item.status eq 'new'}{ts}New{/ts}{elseif $item.status eq 'changed'}{ts}Changed{/ts}{elseif $item.status eq 'missing'}{ts}Missing{/ts}{else}{$item.status|escape}{/if}</span>
+                    <div><strong>{$item.label|escape}</strong><div class="civicfg-muted"><code>{$item.path|escape}</code></div></div>
+                  </div>
+                {/foreach}
+              </div>
+            {elseif $watchSummary.scanned_at}
+              <div class="messages status no-popup civicfg-watch-no-change">{ts}No new watch-only changes were detected in the latest scan. Previous detections remain available in Recent watch history below.{/ts}</div>
+            {/if}
+          </div>
+
+          {if $watchHistory|@count gt 0}
+            <div class="civicfg-watch-section">
+              <div class="civicfg-watch-history-heading">
+                <div>
+                  <h4>{ts}Recent watch history{/ts}</h4>
+                  <p class="description">{ts}Newest detections are shown first. This is local operational history and does not change YAML or accepted managed baselines.{/ts}</p>
+                </div>
+                {if $canAdminister}
+                  <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Clear Watch History" data-civicfg-confirm-word="CLEAR" data-civicfg-confirm-button="Clear history" data-civicfg-confirm-message="This clears the local list of previously detected watch-only changes. Monitoring fingerprints and baselines are kept." data-civicfg-confirm-warning="This does not change CiviCRM configuration or YAML.">
+                    <input type="hidden" name="_action" value="clear_watch_history" />
+                    <button type="submit" class="button civicfg-action-secondary"><span>{ts}Clear history{/ts}</span></button>
+                  </form>
+                {/if}
+              </div>
+              <div class="civicfg-watch-history-list">
+                {foreach from=$watchHistory item=item}
+                  <div class="civicfg-watch-history-row">
+                    <div class="civicfg-watch-history-time">{$item.detected_at|escape}</div>
+                    <span class="civicfg-badge {if $item.status eq 'missing'}warn{elseif $item.status eq 'changed'}warn{/if}">{if $item.status eq 'new'}{ts}New{/ts}{elseif $item.status eq 'changed'}{ts}Changed{/ts}{elseif $item.status eq 'missing'}{ts}Missing{/ts}{else}{$item.status|escape}{/if}</span>
+                    <div class="civicfg-watch-history-item"><strong>{$item.label|escape}</strong><div class="civicfg-muted"><code>{$item.path|escape}</code></div></div>
+                  </div>
+                {/foreach}
+              </div>
+            </div>
+          {/if}
+
           {if $watchSummary.errors|@count gt 0}
             <div class="messages warning no-popup"><ul>{foreach from=$watchSummary.errors item=error}<li>{$error.type|escape}: {$error.message|escape}</li>{/foreach}</ul></div>
           {/if}

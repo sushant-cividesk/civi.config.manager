@@ -7,7 +7,34 @@ const artifactDir = process.env.QA_ARTIFACT_DIR || path.resolve(__dirname, '../c
 const statePath = path.join(artifactDir, 'ui-fixture-state.json');
 const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
 const baseUrl = new URL(process.env.CIVICFG_BASE_URL || 'http://127.0.0.1:8760');
+const canonicalBaseUrl = new URL(process.env.CIVICFG_CANONICAL_BASE_URL || baseUrl.href);
 const blockedRequests = new WeakMap();
+
+async function installNetworkGuard(page) {
+  const blocked = [];
+  blockedRequests.set(page, blocked);
+  await page.route('**/*', async route => {
+    const requestUrl = new URL(route.request().url());
+    if (
+      requestUrl.origin === canonicalBaseUrl.origin &&
+      canonicalBaseUrl.origin !== baseUrl.origin
+    ) {
+      requestUrl.protocol = baseUrl.protocol;
+      requestUrl.host = baseUrl.host;
+      await route.continue({ url: requestUrl.toString() });
+      return;
+    }
+    if (
+      (requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:') &&
+      requestUrl.origin !== baseUrl.origin
+    ) {
+      blocked.push(route.request().url());
+      await route.abort('blockedbyclient');
+      return;
+    }
+    await route.continue();
+  });
+}
 
 async function login(page) {
   await page.goto('/civicrm/login');
@@ -27,20 +54,7 @@ async function login(page) {
 
 test.describe('Configuration Manager isolated UI', () => {
   test.beforeEach(async ({ page }) => {
-    const blocked = [];
-    blockedRequests.set(page, blocked);
-    await page.route('**/*', async route => {
-      const requestUrl = new URL(route.request().url());
-      if (
-        (requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:') &&
-        requestUrl.origin !== baseUrl.origin
-      ) {
-        blocked.push(route.request().url());
-        await route.abort('blockedbyclient');
-        return;
-      }
-      await route.continue();
-    });
+    await installNetworkGuard(page);
     await login(page);
   });
 
@@ -71,6 +85,19 @@ test.describe('Configuration Manager isolated UI', () => {
 
     expect(consoleErrors, `Browser console errors: ${consoleErrors.join('\n')}`).toEqual([]);
     expect(pageErrors, `Uncaught page errors: ${pageErrors.join('\n')}`).toEqual([]);
+  });
+
+  test('keeps watch history visible and opens the watch panel for review', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=sync&watch=1#civicfg-watch-panel', { waitUntil: 'domcontentloaded' });
+
+    const panel = page.locator('#civicfg-watch-panel');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('open', '');
+    await expect(panel.getByText('No new watch-only changes were detected in the latest scan.')).toBeVisible();
+    await expect(panel.getByText('QA watched template first change')).toBeVisible();
+    await expect(panel.getByText('QA watched template second change')).toBeVisible();
+    await expect(panel.getByText('2 in history')).toBeVisible();
+    await page.screenshot({ path: path.join(artifactDir, 'watch-history.png'), fullPage: true });
   });
 
   test('requires review and the exact IMPORT confirmation word', async ({ page }) => {
@@ -111,20 +138,7 @@ test.describe('Configuration Manager isolated UI', () => {
 
 test.describe('Configuration Manager scope settings', () => {
   test.beforeEach(async ({ page }) => {
-    const blocked = [];
-    blockedRequests.set(page, blocked);
-    await page.route('**/*', async route => {
-      const requestUrl = new URL(route.request().url());
-      if (
-        (requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:') &&
-        requestUrl.origin !== baseUrl.origin
-      ) {
-        blocked.push(route.request().url());
-        await route.abort('blockedbyclient');
-        return;
-      }
-      await route.continue();
-    });
+    await installNetworkGuard(page);
     await login(page);
   });
 
@@ -150,6 +164,13 @@ test.describe('Configuration Manager scope settings', () => {
     await mode.selectOption('selected');
     await expect(selectedControls).toBeVisible();
     await expect(row.getByText('Monitor everything else in this type')).toBeVisible();
+
+    const siblingRow = page.locator('[data-civicfg-scope-row="contact-types"]');
+    const selectedBox = await row.boundingBox();
+    const siblingBox = await siblingRow.boundingBox();
+    expect(selectedBox).not.toBeNull();
+    expect(siblingBox).not.toBeNull();
+    expect(selectedBox.height).toBeGreaterThan(siblingBox.height);
 
     await row.getByRole('button', { name: 'Choose items' }).click();
     await expect(page.locator('#civicfg-scope-picker-modal')).toBeVisible();

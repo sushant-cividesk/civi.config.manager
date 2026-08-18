@@ -3,3 +3,4 @@ vendor/*
 composer.lock
 .phpstan-cache/
 .DS_Store
+tests/ci/artifacts/

@@ -35,6 +35,8 @@ Alpha60 additionally hardens generic API3 contributed-provider restore: create/u
 Fresh installations now start with configuration types ignored until an administrator explicitly chooses what to manage or monitor. Existing installations without the fresh-install marker keep the historical `Manage everything` fallback, so upgrading does not silently disable an established workflow. The Settings page includes first-run guidance, bulk scope actions, and expanded collapsible management/advanced sections.
 
 Local full QA does not require CiviCRM Buildkit: `composer qa:full` runs the isolated Docker integration suite without browser tests, while `composer qa:full-ui` runs the same stack plus Playwright and review screenshots.
+Run those standalone QA commands from the **host repository checkout**, not from inside `ddev ssh`; they require host Docker/Compose. Generated `tests/ci/artifacts/` output is disposable and ignored by Git. When selected scope enables **Monitor everything else in this type**, saving the scope captures the initial local watch baseline so later watch scans can immediately report changes.
+Watch-only detections are also retained in a bounded local recent-history list, so detecting another watched change (or running a later no-op scan) does not erase what was previously detected. **Scan Watched Config** reopens the Watched Configuration panel after the scan; the panel separates the latest scan from retained history and provides a history-only clear action that does not reset monitoring fingerprints. Local `qa:full-ui` can use the pinned Playwright Docker image when host Node/npm is unavailable, and Mailpit is no longer published to a host port, avoiding collisions with an existing local Mailpit/DDEV service.
 
 ## Current UI
 

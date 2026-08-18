@@ -48,6 +48,7 @@ final class CivicfgUiFixture {
       'civicfg_scope_resolved',
       'civicfg_last_health',
       'civicfg_watch_summary',
+      'civicfg_watch_history',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_allow_cross_site_import',
@@ -60,7 +61,33 @@ final class CivicfgUiFixture {
     \Civi::settings()->set('civicfg_scope', []);
     \Civi::settings()->set('civicfg_scope_resolved', []);
     \Civi::settings()->set('civicfg_last_health', []);
-    \Civi::settings()->set('civicfg_watch_summary', []);
+    \Civi::settings()->set('civicfg_watch_summary', [
+      'ok' => TRUE,
+      'scanned_at' => date('c'),
+      'watched' => 2,
+      'baseline' => 0,
+      'new' => 0,
+      'changed' => 0,
+      'missing' => 0,
+      'items' => [],
+      'errors' => [],
+    ]);
+    \Civi::settings()->set('civicfg_watch_history', [
+      [
+        'detected_at' => date('c', time() - 60),
+        'type' => 'message-templates',
+        'label' => 'QA watched template second change',
+        'path' => 'message-templates/system/qa_watch_second.yml',
+        'status' => 'changed',
+      ],
+      [
+        'detected_at' => date('c', time() - 120),
+        'type' => 'message-templates',
+        'label' => 'QA watched template first change',
+        'path' => 'message-templates/system/qa_watch_first.yml',
+        'status' => 'changed',
+      ],
+    ]);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);

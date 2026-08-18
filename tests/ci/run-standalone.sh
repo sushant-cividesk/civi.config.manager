@@ -9,13 +9,28 @@ PHP_QA_INI="${PHP_QA_INI:-${SCRIPT_DIR}/php-qa.ini}"
 FIXTURE_EXTENSION_DIR="${FIXTURE_EXTENSION_DIR:-${QA_ARTIFACT_DIR}/fixture-extensions}"
 COMPOSE_FILE="${SCRIPT_DIR}/compose.standalone.yml"
 CIVICRM_HTTP_PORT="${CIVICRM_HTTP_PORT:-8760}"
-MAILPIT_HTTP_PORT="${MAILPIT_HTTP_PORT:-8025}"
 CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID:-github-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-civicfgqa-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
 CURRENT_QA_STAGE="bootstrap"
 
-export EXTENSION_ROOT QA_ARTIFACT_DIR PHP_QA_INI FIXTURE_EXTENSION_DIR CIVICRM_HTTP_PORT MAILPIT_HTTP_PORT
+export EXTENSION_ROOT QA_ARTIFACT_DIR PHP_QA_INI FIXTURE_EXTENSION_DIR CIVICRM_HTTP_PORT
 export CIVICFG_QA_RUN_ID COMPOSE_PROJECT_NAME
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is required for standalone Configuration Manager QA." >&2
+  echo "If you are inside 'ddev ssh' or another container, exit to the host and run this command from the host repository checkout." >&2
+  echo "CiviCRM Buildkit is not required; this suite starts its own isolated CiviCRM stack with Docker Compose." >&2
+  exit 2
+fi
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 ('docker compose') is required for standalone Configuration Manager QA." >&2
+  exit 2
+fi
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker is installed, but the Docker daemon is not available." >&2
+  echo "Start Docker on the host, then rerun the QA command." >&2
+  exit 2
+fi
 
 source_state() {
   if git -C "${EXTENSION_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -202,11 +217,18 @@ if [[ "${RUN_UI_TESTS:-false}" == "true" ]]; then
     app cv scr /var/www/html/ext/civi.config.manager/tests/integration/UiFixture.php seed \
     | tee "${QA_ARTIFACT_DIR}/ui-fixture-seed.log"
 
-  CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
-  CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
-  CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
-  QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR}" \
-  npm run test:ui
+  if command -v npm >/dev/null 2>&1; then
+    CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
+    CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
+    CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
+    QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR}" \
+    npm run test:ui
+  else
+    "${SCRIPT_DIR}/run-playwright-docker.sh" \
+      "${CIVICRM_HTTP_PORT}" \
+      "${CIVICRM_ADMIN_USER:-admin}" \
+      "${CIVICRM_ADMIN_PASS:-qa-admin-password}"
+  fi
 
   compose exec -T -u www-data \
     -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
@@ -228,8 +250,15 @@ if [[ -s "${QA_ARTIFACT_DIR}/mail-attempts.log" ]]; then
   exit 1
 fi
 
-mail_total="$(curl --fail --silent --show-error "http://127.0.0.1:${MAILPIT_HTTP_PORT}/api/v1/messages" \
-  | php -r '$data = json_decode(stream_get_contents(STDIN), true); echo (int) ($data["total"] ?? -1);')"
+mail_total="$(compose exec -T app php -r '
+  $json = @file_get_contents("http://mailpit:8025/api/v1/messages");
+  if ($json === false) {
+    fwrite(STDERR, "Could not query Mailpit over the isolated Docker network.\n");
+    exit(2);
+  }
+  $data = json_decode($json, true);
+  echo (int) ($data["total"] ?? -1);
+')"
 if [[ "${mail_total}" != "0" ]]; then
   echo "Email isolation failed: Mailpit captured ${mail_total} message(s)." >&2
   exit 1

@@ -37,6 +37,7 @@ final class CivicfgStandaloneRoundTrip {
       $this->testApiFacade();
       $this->testSiteIdentityAndManifest();
       $this->testOptionGroupRoundTrip();
+      $this->testSelectedScopeWatchUnmanaged();
       $this->testMessageTemplateRoundTripWithoutSendingMail();
       $this->testSensitiveSettingsAreNotExported();
       $this->testReservedOptionValueDeletionSafety();
@@ -98,6 +99,7 @@ final class CivicfgStandaloneRoundTrip {
       'civicfg_scope_resolved',
       'civicfg_last_health',
       'civicfg_watch_summary',
+      'civicfg_watch_history',
       'civicfg_ignore_paths',
       'civicfg_ignore_values',
       'civicfg_settings_allowlist',
@@ -113,6 +115,7 @@ final class CivicfgStandaloneRoundTrip {
     \Civi::settings()->set('civicfg_scope_resolved', []);
     \Civi::settings()->set('civicfg_last_health', []);
     \Civi::settings()->set('civicfg_watch_summary', []);
+    \Civi::settings()->set('civicfg_watch_history', []);
     \Civi::settings()->set('civicfg_ignore_paths', []);
     \Civi::settings()->set('civicfg_ignore_values', []);
     \Civi::settings()->set('civicfg_allow_cross_site_import', FALSE);
@@ -218,6 +221,124 @@ final class CivicfgStandaloneRoundTrip {
       'file' => $relativePath,
       'status' => 'passed',
     ]);
+  }
+
+  private function testSelectedScopeWatchUnmanaged(): void {
+    $managedName = 'qa_civicfg_watch_managed_' . strtolower(str_replace('-', '_', $this->runId));
+    $watchedName = 'qa_civicfg_watch_unmanaged_' . strtolower(str_replace('-', '_', $this->runId));
+    $watchedSecondName = 'qa_civicfg_watch_unmanaged_second_' . strtolower(str_replace('-', '_', $this->runId));
+
+    $managed = OptionGroup::create(FALSE)
+      ->addValue('name', $managedName)
+      ->addValue('title', 'QA managed watch-scope fixture')
+      ->addValue('description', 'Disposable managed watch-scope fixture')
+      ->addValue('data_type', 'String')
+      ->addValue('is_reserved', FALSE)
+      ->addValue('is_active', TRUE)
+      ->execute()
+      ->first();
+    $watched = OptionGroup::create(FALSE)
+      ->addValue('name', $watchedName)
+      ->addValue('title', 'QA unmanaged watch-scope fixture')
+      ->addValue('description', 'Disposable unmanaged watch-scope fixture')
+      ->addValue('data_type', 'String')
+      ->addValue('is_reserved', FALSE)
+      ->addValue('is_active', TRUE)
+      ->execute()
+      ->first();
+    $watchedSecond = OptionGroup::create(FALSE)
+      ->addValue('name', $watchedSecondName)
+      ->addValue('title', 'QA second unmanaged watch-scope fixture')
+      ->addValue('description', 'Disposable second unmanaged watch-scope fixture')
+      ->addValue('data_type', 'String')
+      ->addValue('is_reserved', FALSE)
+      ->addValue('is_active', TRUE)
+      ->execute()
+      ->first();
+    $this->created['watch_managed_group'] = (int) $managed['id'];
+    $this->created['watch_unmanaged_group'] = (int) $watched['id'];
+    $this->created['watch_unmanaged_second_group'] = (int) $watchedSecond['id'];
+
+    $manager = new ConfigManager();
+    try {
+      $policy = $manager->setScopePolicy('option-groups', 'selected', [$managedName], TRUE);
+      $this->assertTrue(!empty($policy['ok']), 'Selected scope with watch-unmanaged must save successfully.');
+
+      $baseline = $manager->getWatchSummary();
+      $this->assertTrue(!empty($baseline['ok']), 'Saving watch-unmanaged scope must initialize the watch baseline.');
+      $this->assertTrue((int) ($baseline['baseline'] ?? 0) > 0, 'Saving watch-unmanaged scope must baseline unselected active items.');
+
+      $export = $manager->export(FALSE, ['option-groups']);
+      $this->assertTrue(!empty($export['ok']), 'Selected-scope export must succeed after watch baseline initialization.');
+      $this->assertTrue(is_file($this->syncDir . '/option-groups/' . $managedName . '.yml'), 'Selected managed item must enter YAML.');
+      $this->assertTrue(!is_file($this->syncDir . '/option-groups/' . $watchedName . '.yml'), 'Watch-unmanaged item must stay out of YAML.');
+      $this->assertTrue(!is_file($this->syncDir . '/option-groups/' . $watchedSecondName . '.yml'), 'Second watch-unmanaged item must stay out of YAML.');
+
+      OptionGroup::update(FALSE)
+        ->addWhere('id', '=', (int) $watched['id'])
+        ->addValue('title', 'QA unmanaged watch-scope fixture changed')
+        ->execute();
+
+      $scan = $manager->scanWatched(['option-groups']);
+      $this->assertTrue(!empty($scan['ok']), 'Watch scan after an unmanaged change must succeed.');
+      $this->assertTrue((int) ($scan['changed'] ?? 0) > 0, 'Changing an unselected watched item after scope save must be reported as changed.');
+      $watchedPath = 'option-groups/' . $watchedName . '.yml';
+      $foundWatchedChange = FALSE;
+      foreach ((array) ($scan['items'] ?? []) as $item) {
+        if ((string) ($item['path'] ?? '') === $watchedPath && (string) ($item['status'] ?? '') === 'changed') {
+          $foundWatchedChange = TRUE;
+          break;
+        }
+      }
+      $this->assertTrue($foundWatchedChange, 'Watch summary must identify the changed unselected fixture.');
+      $historyAfterFirst = $manager->getWatchHistory();
+      $this->assertTrue($this->watchHistoryContains($historyAfterFirst, $watchedPath, 'changed'), 'Watch history must retain the first detected unmanaged change.');
+
+      OptionGroup::update(FALSE)
+        ->addWhere('id', '=', (int) $watchedSecond['id'])
+        ->addValue('title', 'QA second unmanaged watch-scope fixture changed')
+        ->execute();
+      $secondScan = $manager->scanWatched(['option-groups']);
+      $this->assertTrue((int) ($secondScan['changed'] ?? 0) > 0, 'Changing a second unselected watched item must be reported on the next scan.');
+      $watchedSecondPath = 'option-groups/' . $watchedSecondName . '.yml';
+      $historyAfterSecond = $manager->getWatchHistory();
+      $this->assertTrue($this->watchHistoryContains($historyAfterSecond, $watchedPath, 'changed'), 'The first watch finding must remain after a later scan detects another item.');
+      $this->assertTrue($this->watchHistoryContains($historyAfterSecond, $watchedSecondPath, 'changed'), 'Watch history must append the second detected unmanaged change.');
+
+      $noChangeScan = $manager->scanWatched(['option-groups']);
+      $this->assertSame(0, (int) ($noChangeScan['changed'] ?? 0), 'A no-op watch scan must not invent another change event.');
+      $historyAfterNoChange = $manager->getWatchHistory();
+      $this->assertTrue($this->watchHistoryContains($historyAfterNoChange, $watchedPath, 'changed'), 'A no-op scan must not erase the first historical finding.');
+      $this->assertTrue($this->watchHistoryContains($historyAfterNoChange, $watchedSecondPath, 'changed'), 'A no-op scan must not erase the second historical finding.');
+
+      OptionGroup::update(FALSE)
+        ->addWhere('id', '=', (int) $managed['id'])
+        ->addValue('title', 'QA managed watch-scope fixture changed')
+        ->execute();
+      $managedOnlyScan = $manager->scanWatched(['option-groups']);
+      $this->assertSame(0, (int) ($managedOnlyScan['changed'] ?? 0), 'Changing the selected managed item must not be reported as watch-only drift.');
+
+      $this->record('selected_scope_watch_unmanaged', [
+        'managed' => $managedName,
+        'watched' => $watchedName,
+        'watched_second' => $watchedSecondName,
+        'baseline_count' => (int) ($baseline['baseline'] ?? 0),
+        'history_count' => count($manager->getWatchHistory()),
+        'status' => 'passed',
+      ]);
+    }
+    finally {
+      $manager->setScopePolicy('option-groups', 'all');
+    }
+  }
+
+  private function watchHistoryContains(array $history, string $path, string $status): bool {
+    foreach ($history as $item) {
+      if ((string) ($item['path'] ?? '') === $path && (string) ($item['status'] ?? '') === $status) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   private function testMessageTemplateRoundTripWithoutSendingMail(): void {
@@ -481,6 +602,15 @@ final class CivicfgStandaloneRoundTrip {
       if (!empty($this->created['reserved_option_value'])) {
         OptionValue::delete(FALSE)->addWhere('id', '=', (int) $this->created['reserved_option_value'])->execute();
       }
+      if (!empty($this->created['watch_managed_group'])) {
+        OptionGroup::delete(FALSE)->addWhere('id', '=', (int) $this->created['watch_managed_group'])->execute();
+      }
+      if (!empty($this->created['watch_unmanaged_group'])) {
+        OptionGroup::delete(FALSE)->addWhere('id', '=', (int) $this->created['watch_unmanaged_group'])->execute();
+      }
+      if (!empty($this->created['watch_unmanaged_second_group'])) {
+        OptionGroup::delete(FALSE)->addWhere('id', '=', (int) $this->created['watch_unmanaged_second_group'])->execute();
+      }
       if (!empty($this->created['option_group'])) {
         OptionGroup::delete(FALSE)->addWhere('id', '=', (int) $this->created['option_group'])->execute();
       }
@@ -498,6 +628,24 @@ final class CivicfgStandaloneRoundTrip {
         $remaining = OptionValue::get(FALSE)->addWhere('id', '=', (int) $this->created['reserved_option_value'])->execute()->count();
         if ($remaining !== 0) {
           throw new RuntimeException('Disposable reserved Option Value fixture still exists after cleanup.');
+        }
+      }
+      if (!empty($this->created['watch_managed_group'])) {
+        $remaining = OptionGroup::get(FALSE)->addWhere('id', '=', (int) $this->created['watch_managed_group'])->execute()->count();
+        if ($remaining !== 0) {
+          throw new RuntimeException('Disposable managed watch-scope Option Group still exists after cleanup.');
+        }
+      }
+      if (!empty($this->created['watch_unmanaged_group'])) {
+        $remaining = OptionGroup::get(FALSE)->addWhere('id', '=', (int) $this->created['watch_unmanaged_group'])->execute()->count();
+        if ($remaining !== 0) {
+          throw new RuntimeException('Disposable unmanaged watch-scope Option Group still exists after cleanup.');
+        }
+      }
+      if (!empty($this->created['watch_unmanaged_second_group'])) {
+        $remaining = OptionGroup::get(FALSE)->addWhere('id', '=', (int) $this->created['watch_unmanaged_second_group'])->execute()->count();
+        if ($remaining !== 0) {
+          throw new RuntimeException('Disposable second unmanaged watch-scope Option Group still exists after cleanup.');
         }
       }
       if (!empty($this->created['option_group'])) {

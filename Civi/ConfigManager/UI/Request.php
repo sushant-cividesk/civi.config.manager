@@ -39,4 +39,8 @@ class Request {
   public function getSingleExportKey(): string {
     return isset($_REQUEST['export_item']) ? trim((string) $_REQUEST['export_item']) : '';
   }
+
+  public function shouldOpenWatchPanel(): bool {
+    return isset($_REQUEST['watch']) && (string) $_REQUEST['watch'] === '1';
+  }
 }

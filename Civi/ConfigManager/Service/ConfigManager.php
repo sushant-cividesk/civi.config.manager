@@ -5,6 +5,7 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
 use Civi\ConfigManager\Version;
 
 class ConfigManager {
+  private const WATCH_HISTORY_LIMIT = 200;
   private HandlerRegistry $registry;
   private ConfigScope $scope;
   private ?array $allHandlersCache = NULL;
@@ -268,29 +269,188 @@ class ConfigManager {
     if ($this->scope->isPolicyOverridden()) {
       throw new \RuntimeException('Configuration scope is overridden in civicrm.settings.php and cannot be changed from the UI.');
     }
-    $this->scope->savePolicies($policies);
 
-    // Watch state is local and disposable. Scope changes must still save even
-    // if this optional cleanup cannot run (for example during an upgrade before
-    // the operational tables have been repaired).
+    $previousPolicies = [];
+    foreach ($this->getScopeTypeOptions() as $row) {
+      $type = (string) ($row['type'] ?? '');
+      if ($type !== '') {
+        $previousPolicies[$type] = $this->scope->getPolicy($type);
+      }
+    }
+
+    $this->scope->savePolicies($policies);
+    $watchBaselineTypes = [];
+
+    // Watch state is local and disposable. Clear records that are no longer
+    // watched, and establish a baseline immediately when a saved scope starts
+    // watching a type or changes which selected items are watched. This makes
+    // "Monitor everything else in this type" effective from the moment the
+    // administrator saves the scope instead of silently treating the first
+    // later watch scan as the baseline.
     try {
       $store = new StateStore();
       foreach ($this->getScopeTypeOptions() as $row) {
         $type = (string) ($row['type'] ?? '');
-        if ($type !== '' && !$this->scope->isWatchedType($type)) {
+        if ($type === '') {
+          continue;
+        }
+        $currentPolicy = $this->scope->getPolicy($type);
+        if (!$this->scope->isWatchedType($type)) {
           $store->clearWatchStatesByType($type);
+          continue;
+        }
+        $previousPolicy = (array) ($previousPolicies[$type] ?? []);
+        $coverageChanged = $this->watchCoverageSignature($previousPolicy) !== $this->watchCoverageSignature($currentPolicy);
+        $watchStateMissing = !$store->getWatchStatesByType($type);
+        if ($coverageChanged || $watchStateMissing) {
+          $watchBaselineTypes[] = $type;
         }
       }
     }
     catch (\Throwable $e) {
-      // Do not roll back a successfully saved scope because disposable watch
+      // Do not roll back successfully saved scope because disposable watch
       // fingerprints could not be cleaned up. The next watch scan can rebuild
       // this state safely.
     }
-    // Scope changes invalidate both cached managed health and watched status.
-    // The next explicit Synchronize/watch scan will rebuild them.
+
     \Civi::settings()->set('civicfg_last_health', []);
     \Civi::settings()->set('civicfg_watch_summary', []);
+
+    if ($watchBaselineTypes) {
+      try {
+        $this->initializeWatchBaselines($watchBaselineTypes);
+      }
+      catch (\Throwable $e) {
+        \Civi::settings()->set('civicfg_watch_summary', [
+          'ok' => FALSE,
+          'scanned_at' => date('c'),
+          'watched' => 0,
+          'baseline' => 0,
+          'new' => 0,
+          'changed' => 0,
+          'missing' => 0,
+          'items' => [],
+          'errors' => [['type' => 'watch', 'message' => $e->getMessage()]],
+        ]);
+      }
+    }
+  }
+
+  /**
+   * Capture fingerprints for newly watched objects without accepting changes
+   * to objects that already have a watch baseline.
+   *
+   * @return array<string,mixed>
+   */
+  public function initializeWatchBaselines(array $typeFilter = []): array {
+    $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
+    $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
+    $store = new StateStore();
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $manifest = $this->readManifest($storage);
+    $summary = [
+      'ok' => TRUE,
+      'scanned_at' => date('c'),
+      'watched' => 0,
+      'baseline' => 0,
+      'new' => 0,
+      'changed' => 0,
+      'missing' => 0,
+      'items' => [],
+      'errors' => [],
+    ];
+
+    foreach ($this->getAllHandlers() as $handler) {
+      $type = (string) $handler->getType();
+      if ($baseFilter && !in_array($type, $baseFilter, TRUE)) {
+        continue;
+      }
+      if (!$this->scope->isWatchedType($type)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
+      try {
+        $exported = $handler->export();
+        $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, $type);
+        $partition = $this->scope->partition($type, $exported, FALSE, $selectorMap);
+        $watched = (array) ($partition['watched'] ?? []);
+        $previousRows = $store->getWatchStatesByType($type);
+        $previousByHash = [];
+        foreach ($previousRows as $row) {
+          $identityHash = (string) ($row['identity_hash'] ?? '');
+          if ($identityHash !== '') {
+            $previousByHash[$identityHash] = $row;
+          }
+        }
+
+        $allActiveHashes = [];
+        foreach ($exported as $file) {
+          $file = (array) $file;
+          $filename = (string) ($file['filename'] ?? '');
+          if ($filename === '') {
+            continue;
+          }
+          $identity = $identityService->identify($type, (array) ($file['data'] ?? []), $filename);
+          $allActiveHashes[(string) $identity['identity_hash']] = TRUE;
+        }
+
+        $seenWatched = [];
+        foreach ($watched as $file) {
+          $file = (array) $file;
+          $filename = (string) ($file['filename'] ?? '');
+          $data = (array) ($file['data'] ?? []);
+          if ($filename === '') {
+            continue;
+          }
+          $identity = $identityService->identify($type, $data, $filename);
+          $identityHash = (string) $identity['identity_hash'];
+          $seenWatched[$identityHash] = TRUE;
+          $summary['watched']++;
+          if (isset($previousByHash[$identityHash])) {
+            continue;
+          }
+          $hash = $canonicalizer->hash($data, $handler->getCanonicalizationOptions());
+          $label = $this->displayLabelForConfigFile($type, $file);
+          $store->upsertWatchState($type, $identity, $filename, $label, $hash, $data, 'baseline');
+          $summary['baseline']++;
+        }
+
+        // If scope changed from watched to managed for a still-active item,
+        // discard its stale watch row. Missing watched items intentionally keep
+        // their previous baseline so the next explicit scan can report missing.
+        foreach ($previousRows as $previous) {
+          $identityHash = (string) ($previous['identity_hash'] ?? '');
+          if ($identityHash === '' || isset($seenWatched[$identityHash])) {
+            continue;
+          }
+          if (isset($allActiveHashes[$identityHash])) {
+            $store->deleteWatchState((string) $previous['provider_key'], $identityHash);
+          }
+        }
+      }
+      catch (\Throwable $e) {
+        $summary['ok'] = FALSE;
+        $summary['errors'][] = ['type' => $type, 'message' => $e->getMessage()];
+      }
+    }
+
+    \Civi::settings()->set('civicfg_watch_summary', $summary);
+    return $summary;
+  }
+
+  private function watchCoverageSignature(array $policy): string {
+    $mode = (string) ($policy['mode'] ?? ConfigScope::MODE_ALL);
+    if ($mode === ConfigScope::MODE_WATCH) {
+      return ConfigScope::MODE_WATCH . ':all';
+    }
+    if ($mode !== ConfigScope::MODE_SELECTED || empty($policy['watch_unmanaged'])) {
+      return '';
+    }
+    $selectors = array_values(array_unique(array_filter(array_map('strval', (array) ($policy['selectors'] ?? [])), 'strlen')));
+    sort($selectors, SORT_NATURAL | SORT_FLAG_CASE);
+    return ConfigScope::MODE_SELECTED . ':watch-unmanaged:' . implode('|', $selectors);
   }
 
   public function isScopePolicyOverridden(): bool {
@@ -2452,6 +2612,8 @@ class ConfigManager {
       }
     }
 
+    $history = $this->appendWatchHistory($summary);
+    $summary['history_count'] = count($history);
     \Civi::settings()->set('civicfg_watch_summary', $summary);
     return $summary;
   }
@@ -2459,6 +2621,72 @@ class ConfigManager {
   public function getWatchSummary(): array {
     $summary = \Civi::settings()->get('civicfg_watch_summary');
     return is_array($summary) ? $summary : [];
+  }
+
+  /**
+   * Return recent detected watch-only changes, newest first.
+   *
+   * History is local operational data. It deliberately survives later no-op
+   * watch scans so an administrator can review changes detected across several
+   * scans instead of losing the previous finding as soon as another item
+   * changes.
+   */
+  public function getWatchHistory(): array {
+    $history = \Civi::settings()->get('civicfg_watch_history');
+    if (!is_array($history)) {
+      return [];
+    }
+    $rows = [];
+    foreach ($history as $row) {
+      if (!is_array($row)) {
+        continue;
+      }
+      $status = (string) ($row['status'] ?? '');
+      if (!in_array($status, ['new', 'changed', 'missing'], TRUE)) {
+        continue;
+      }
+      $rows[] = [
+        'detected_at' => (string) ($row['detected_at'] ?? ''),
+        'type' => (string) ($row['type'] ?? ''),
+        'label' => (string) ($row['label'] ?? ''),
+        'path' => (string) ($row['path'] ?? ''),
+        'status' => $status,
+      ];
+      if (count($rows) >= self::WATCH_HISTORY_LIMIT) {
+        break;
+      }
+    }
+    return $rows;
+  }
+
+  public function clearWatchHistory(): void {
+    \Civi::settings()->set('civicfg_watch_history', []);
+  }
+
+  private function appendWatchHistory(array $summary): array {
+    $history = $this->getWatchHistory();
+    $detectedAt = (string) ($summary['scanned_at'] ?? date('c'));
+    $newRows = [];
+    foreach ((array) ($summary['items'] ?? []) as $item) {
+      $item = (array) $item;
+      $status = (string) ($item['status'] ?? '');
+      if (!in_array($status, ['new', 'changed', 'missing'], TRUE)) {
+        continue;
+      }
+      $newRows[] = [
+        'detected_at' => $detectedAt,
+        'type' => (string) ($item['type'] ?? ''),
+        'label' => (string) ($item['label'] ?? ''),
+        'path' => (string) ($item['path'] ?? ''),
+        'status' => $status,
+      ];
+    }
+    if ($newRows) {
+      $history = array_merge(array_reverse($newRows), $history);
+      $history = array_slice($history, 0, self::WATCH_HISTORY_LIMIT);
+      \Civi::settings()->set('civicfg_watch_history', $history);
+    }
+    return $history;
   }
 
   private function displayLabelForConfigFile(string $type, array $file): string {

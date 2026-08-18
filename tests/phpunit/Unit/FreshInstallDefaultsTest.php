@@ -20,7 +20,7 @@ final class FreshInstallDefaultsTest extends TestCase {
   }
 
   public function testFreshInstallInitializesIgnoreDefault(): void {
-    _configmanager_initialize_fresh_install_defaults();
+    $this->initializeFreshInstallDefaults();
 
     self::assertSame('ignore', \Civi::settings()->get('civicfg_scope_default_mode'));
   }
@@ -28,8 +28,15 @@ final class FreshInstallDefaultsTest extends TestCase {
   public function testFreshInstallInitializerDoesNotOverwriteExplicitDefault(): void {
     \Civi::settings()->set('civicfg_scope_default_mode', 'all');
 
-    _configmanager_initialize_fresh_install_defaults();
+    $this->initializeFreshInstallDefaults();
 
     self::assertSame('all', \Civi::settings()->get('civicfg_scope_default_mode'));
   }
+  private function initializeFreshInstallDefaults(): void {
+    $function = '_configmanager_initialize_fresh_install_defaults';
+    self::assertTrue(function_exists($function));
+    $reflection = new \ReflectionFunction($function);
+    $reflection->invoke();
+  }
+
 }

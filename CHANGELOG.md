@@ -2,6 +2,16 @@
 
 ## 0.1.0-alpha61-core
 
+- Follow-up hotfix: watch-only detections now append to a bounded local recent-history list instead of disappearing when the next watched item changes or a later scan finds no new differences. The latest scan remains separate from recent history, and administrators can clear only the history without resetting watch fingerprints/baselines.
+- The Watched Configuration panel now reopens and scrolls into view immediately after **Scan Watched Config**, shows compact latest-scan counters, separates current findings from recent history, and keeps previous detections readable across scans.
+- Fixed the remaining alpha61 PHPStan failure in `FreshInstallDefaultsTest` by invoking the runtime install helper through `ReflectionFunction` rather than a callable string PHPStan cannot prove.
+- Standalone QA no longer publishes Mailpit on host port 8025; mail-isolation checks query Mailpit only across the isolated Docker network, avoiding collisions with local DDEV/Mailpit services. Local UI QA can fall back to the pinned Playwright Docker image when Node/npm is not installed on the host, while GitHub Actions continues using its configured Node runtime.
+
+- Fixed selected-scope monitoring so **Monitor everything else in this type** establishes watch fingerprints when the scope is saved; later watch scans now detect changes instead of silently treating the first post-change scan as the baseline. Existing watch fingerprints are never overwritten by this initialization.
+- Watch results now report how many items were baselined, making the first monitoring scan explicit.
+- Fixed the alpha61 PHPStan failure in the fresh-install regression test.
+- Hardened standalone QA preflight so Docker/Compose availability is checked before fixture downloads or artifact creation, with clear guidance when commands are run inside `ddev ssh`; generated QA artifacts are ignored by Git.
+- Prevented expanded selected-item cards from stretching every sibling card in the Settings grid.
 - Made fresh installations opt-in by defaulting unconfigured scope to `Ignore`, while preserving the legacy manage-everything fallback for existing installations that do not have the new fresh-install default marker.
 - Added first-run Settings guidance and Drupal-style checkbox/bulk mode controls; bulk Apply changes the form only and still requires the existing Save settings action.
 - Made both the management scope and Advanced settings sections collapsible and expanded by default.

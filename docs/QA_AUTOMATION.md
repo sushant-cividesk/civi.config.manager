@@ -208,3 +208,5 @@ composer qa:full-ui
 ```
 
 The browser suite writes screenshots and failure artifacts under `tests/ci/artifacts`. Real contributed-extension fixtures are pinned to tested refs by default; override the corresponding `*_REF` environment variable only for deliberate compatibility testing.
+Run these commands from the host repository checkout where Docker Compose is available. The scripts intentionally stop before fetching fixtures when Docker is unavailable (for example inside a normal `ddev ssh` shell), and `tests/ci/artifacts/` is disposable/ignored by Git.
+Mailpit is not published to the host at all; the mail-isolation check queries it over the isolated Docker network, so a separate DDEV/Mailpit instance using `127.0.0.1:8025` cannot block the suite. When `composer qa:full-ui` is run on a host without Node/npm, the UI stage uses the pinned `mcr.microsoft.com/playwright:v1.61.1-noble` image instead; GitHub Actions continues to use the workflow's Node/Playwright installation.

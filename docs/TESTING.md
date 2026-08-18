@@ -153,6 +153,12 @@ In addition to the existing scope and provider checks, verify:
 - Playwright writes review screenshots for the expanded Settings layout, bulk Ignore state, and first-run/no-managed-config guidance under `tests/ci/artifacts`.
 - `composer qa:full` runs the isolated Docker suite without browser tests and `composer qa:full-ui` runs the same stack with Playwright; neither local command requires CiviCRM Buildkit.
 - The GitHub full-QA workflow is exercised once with `run_ui_tests=false` and once with `run_ui_tests=true` before promotion.
+- Saving a selected scope with **Monitor everything else in this type** captures an initial watch baseline for the unselected items; changing one of those items afterward must produce `changed > 0` on the next watch scan without adding that item to YAML.
+- The first explicit watch scan for a watch scope that has no stored fingerprints reports a non-zero `baseline` count so initialization is visible rather than looking like an empty/no-op scan.
+- Running standalone QA from inside `ddev ssh` must fail immediately with host-Docker guidance, before fixture repositories or QA artifacts are created; run `composer qa:full` / `composer qa:full-ui` from the host checkout instead.
+- Detect one watched change, then change a different watched item and scan again: recent watch history must retain the first detection and append the second. A later no-op scan must keep both historical detections while reporting zero new/changed/missing for that latest scan.
+- After **Scan Watched Config**, Synchronize must return to the Watched Configuration anchor with the panel expanded. The panel must distinguish latest-scan findings from retained recent history, and clearing history must not reset watch fingerprints/baselines.
+- Local standalone QA must not bind host port `8025`; an existing local Mailpit/DDEV service must not conflict with the isolated suite. Local UI QA must be able to use the pinned Playwright Docker image when host Node/npm is unavailable.
 
 ## Alpha58 scope, watch, and performance tests
 
