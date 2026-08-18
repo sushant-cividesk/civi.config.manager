@@ -160,6 +160,7 @@ class ExtensionHandler extends AbstractHandler {
           'api' => (string) ($definition['api'] ?? ''),
           'entity' => (string) ($definition['entity'] ?? ''),
           'list_action' => (string) ($definition['list_action'] ?? 'get'),
+          'read_adapter' => (string) ($definition['read_adapter'] ?? ''),
           'match_fields' => array_values((array) ($definition['match_fields'] ?? [])),
           'can_create' => !empty($definition['can_create']),
           'can_update' => !empty($definition['can_update']),
@@ -1093,8 +1094,12 @@ class ExtensionHandler extends AbstractHandler {
       if ($this->isNonImportableLegacyExtensionConfig($extensionKey, 'api3', $entity)) {
         continue;
       }
-      $listAction = $this->api3ListAction($entity);
-      if ($listAction === NULL || !$this->api3EntityHasAction($entity, 'create')) {
+      // Prefer a reviewed provider adapter before probing generic API3 read
+      // actions. SQLTasks Sqltask.get requires an ID, so probing it as a
+      // collection action can itself emit warnings in full QA.
+      $readAdapter = $this->api3ReadAdapter($entity);
+      $listAction = $readAdapter === NULL ? $this->api3ListAction($entity) : NULL;
+      if (($listAction === NULL && $readAdapter === NULL) || !$this->api3EntityHasAction($entity, 'create')) {
         continue;
       }
       $definitions[] = [
@@ -1102,7 +1107,8 @@ class ExtensionHandler extends AbstractHandler {
         'api' => 'api3',
         'entity' => $entity,
         'fields' => [],
-        'list_action' => $listAction,
+        'list_action' => $listAction ?? '',
+        'read_adapter' => $readAdapter ?? '',
         'can_create' => TRUE,
         'can_update' => TRUE,
         'delete_action' => $this->api3DeleteAction($entity),
@@ -1144,7 +1150,50 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   private function api3EntityUsable(string $entity): bool {
-    return $this->api3ListAction($entity) !== NULL;
+    return $this->api3ReadAdapter($entity) !== NULL || $this->api3ListAction($entity) !== NULL;
+  }
+
+  /**
+   * Resolve a narrowly-scoped read-only adapter for API3 providers that do not
+   * expose a collection action.
+   *
+   * SQLTasks 3.x exposes Sqltask.get for one required numeric ID, while its BAO
+   * provides the provider-owned generator/exportData pair used to enumerate
+   * portable task configuration. Keep this fallback explicit and read-only;
+   * create/update/delete continue through the provider's API3 actions.
+   */
+  private function api3ReadAdapter(string $entity): ?string {
+    $adapter = $this->api3ReadAdapterDefinition($entity);
+    if ($adapter === NULL) {
+      return NULL;
+    }
+
+    $class = (string) ($adapter['class'] ?? '');
+    $collectionMethod = (string) ($adapter['collection_method'] ?? '');
+    $rowMethod = (string) ($adapter['row_method'] ?? '');
+    if ($class === '' || $collectionMethod === '' || $rowMethod === '' || !class_exists($class)) {
+      return NULL;
+    }
+    if (!method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
+      return NULL;
+    }
+
+    return (string) ($adapter['name'] ?? '');
+  }
+
+  /**
+   * Describe only reviewed provider-specific collection adapters.
+   */
+  private function api3ReadAdapterDefinition(string $entity): ?array {
+    $adapters = [
+      'sqltask' => [
+        'name' => 'sqltasks_bao_generator',
+        'class' => 'CRM_Sqltasks_BAO_SqlTask',
+        'collection_method' => 'generator',
+        'row_method' => 'exportData',
+      ],
+    ];
+    return $adapters[strtolower($entity)] ?? NULL;
   }
 
   /**
@@ -1320,6 +1369,11 @@ class ExtensionHandler extends AbstractHandler {
       }
     }
 
+    $readAdapter = trim((string) ($definition['read_adapter'] ?? ''));
+    if ($readAdapter !== '') {
+      return $this->fetchApi3ReadAdapterRows($definition, $readAdapter);
+    }
+
     try {
       $action = (string) ($definition['list_action'] ?? 'get');
       $params = ['sequential' => 1];
@@ -1357,6 +1411,49 @@ class ExtensionHandler extends AbstractHandler {
         throw $e;
       }
       throw new \RuntimeException('Could not read contributed configuration provider API3 ' . $entity . '.' . (string) ($definition['list_action'] ?? 'get') . ': ' . $e->getMessage(), 0, $e);
+    }
+  }
+
+  /**
+   * Read rows through one reviewed provider-owned adapter.
+   */
+  private function fetchApi3ReadAdapterRows(array $definition, string $adapterName): array {
+    $entity = (string) ($definition['entity'] ?? '');
+    $adapter = $this->api3ReadAdapterDefinition($entity);
+    if ($adapter === NULL || (string) ($adapter['name'] ?? '') !== $adapterName) {
+      throw new \RuntimeException('Unknown API3 contributed-provider read adapter: ' . $adapterName . '.');
+    }
+
+    $class = (string) ($adapter['class'] ?? '');
+    $collectionMethod = (string) ($adapter['collection_method'] ?? '');
+    $rowMethod = (string) ($adapter['row_method'] ?? '');
+    if ($class === '' || !class_exists($class) || !method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
+      throw new \RuntimeException('API3 contributed-provider read adapter is unavailable for ' . $entity . '.');
+    }
+
+    try {
+      $generatorMethod = new \ReflectionMethod($class, $collectionMethod);
+      $rowExportMethod = new \ReflectionMethod($class, $rowMethod);
+      $items = $generatorMethod->invoke(NULL, []);
+      if (!is_iterable($items)) {
+        throw new \RuntimeException('Provider collection adapter did not return an iterable result.');
+      }
+
+      $rows = [];
+      foreach ($items as $item) {
+        if (!is_object($item)) {
+          throw new \RuntimeException('Provider collection adapter returned a non-object row.');
+        }
+        $row = $rowExportMethod->invoke($item);
+        if (!is_array($row)) {
+          throw new \RuntimeException('Provider row adapter did not return an array.');
+        }
+        $rows[] = $row;
+      }
+      return $rows;
+    }
+    catch (\Throwable $e) {
+      throw new \RuntimeException('Could not read contributed configuration provider API3 ' . $entity . ' through ' . $adapterName . ': ' . $e->getMessage(), 0, $e);
     }
   }
 
@@ -1631,8 +1728,9 @@ class ExtensionHandler extends AbstractHandler {
       return $this->api4GetFirst((string) $definition['entity'], [[$identityField, '=', $identity]], ['*']);
     }
     try {
+      $readAdapter = trim((string) ($definition['read_adapter'] ?? ''));
       $action = (string) ($definition['list_action'] ?? 'get');
-      if ($action === 'get') {
+      if ($readAdapter === '' && $action === 'get') {
         $result = civicrm_api3((string) $definition['entity'], 'get', ['sequential' => 1, $identityField => $identity, 'options' => ['limit' => 1]]);
         $values = array_values((array) ($result['values'] ?? []));
         return $values[0] ?? NULL;

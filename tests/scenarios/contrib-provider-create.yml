@@ -20,7 +20,7 @@ steps:
   - Read the created row back by the same stable identity and fail the import if the provider reported success but the row is not readable.
   - Repeat with exactly one matching target row and verify update/skip remains safe.
   - Repeat with duplicate matching target rows and verify automatic writes are blocked as ambiguous.
-  - In the SQLTasks real fixture, verify the Sqltask API3 provider is discovered with a readable list action and create capability; a DEV-exported SQL task should therefore be restorable on STAGE when its name is absent there.
+  - In the pinned SQLTasks 3.0.0-alpha3 real fixture, verify Sqltask is discovered even though its API3 get action requires an ID and no collection action exists; Configuration Manager must use only the reviewed read-only BAO generator/export adapter while keeping create/update/delete on API3.
   - Run import with only the SQLTasks virtual subtype selected and verify unrelated extension-provider YAML is neither validated as part of that subtype nor applied by the import.
   - Verify API3 write results that return one associative provider row are normalized without a return-type error.
   - Delete the final SQLTasks task on DEV, export again, and verify the zero-count provider index remains so STAGE can plan and apply the matching delete.
@@ -36,6 +36,7 @@ expected:
   associative_api3_write_result_is_normalized: true
   zero_count_provider_index_is_preserved: true
   sqltasks_delete_action_is_supported: true
+  sqltasks_read_adapter_is_supported: true
 negative_cases:
   - zero_target_matches_is_treated_as_ambiguous
   - duplicate_target_identity_is_written_automatically
@@ -45,6 +46,7 @@ negative_cases:
   - sqltasks_only_import_is_blocked_by_unrelated_provider_yaml
   - sqltasks_last_record_delete_is_lost_when_no_split_yaml_remains
   - sqltasks_create_returns_string_type_error_after_provider_success
+  - sqltasks_provider_is_skipped_when_get_requires_id_and_no_collection_api_action_exists
 isolation:
   disposable_database: true
   temporary_sync_directory: true

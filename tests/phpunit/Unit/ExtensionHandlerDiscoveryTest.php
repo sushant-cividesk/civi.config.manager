@@ -38,6 +38,20 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertEqualsCanonicalizing(['get_all_items', 'getalltasks'], $actions);
   }
 
+  public function testSqltasksUsesOnlyReviewedBaoCollectionAdapterMetadata(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'api3ReadAdapterDefinition');
+    $method->setAccessible(TRUE);
+
+    self::assertSame([
+      'name' => 'sqltasks_bao_generator',
+      'class' => 'CRM_Sqltasks_BAO_SqlTask',
+      'collection_method' => 'generator',
+      'row_method' => 'exportData',
+    ], $method->invoke($handler, 'Sqltask'));
+    self::assertNull($method->invoke($handler, 'UnreviewedEntity'));
+  }
+
   public function testNormalizeApi3RowsSupportsCollectionAndSingleRecordResults(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'normalizeApi3Rows');

@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 61 development build on the complete alpha60 codebase: adds safe fresh-install Ignore scope, first-run guidance, bulk scope controls, expanded collapsible settings, Playwright screenshot coverage, and reproducible standalone QA while preserving existing-install scope behavior.</comments>
+  <comments>Alpha 61 development build on the complete alpha60 codebase: adds safe fresh-install scope and watch-history UX, reproducible standalone QA, and a reviewed read-only SQLTasks collection adapter while preserving API3 writes and existing-install behavior.</comments>
 </extension>

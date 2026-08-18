@@ -2,6 +2,7 @@
 
 ## 0.1.0-alpha61-core
 
+- Follow-up hotfix: fixed pinned SQLTasks 3.0.0-alpha3 discovery in full QA. That provider exposes `Sqltask.get` only for a required numeric ID and no API3 collection action, so Configuration Manager now prefers the extension-owned `CRM_Sqltasks_BAO_SqlTask::generator()` + `exportData()` pair as a narrowly reviewed read-only collection adapter before generic API3 read probing, while keeping create/update/delete on SQLTasks API3 actions.
 - Follow-up hotfix: watch-only detections now append to a bounded local recent-history list instead of disappearing when the next watched item changes or a later scan finds no new differences. The latest scan remains separate from recent history, and administrators can clear only the history without resetting watch fingerprints/baselines.
 - The Watched Configuration panel now reopens and scrolls into view immediately after **Scan Watched Config**, shows compact latest-scan counters, separates current findings from recent history, and keeps previous detections readable across scans.
 - Fixed the remaining alpha61 PHPStan failure in `FreshInstallDefaultsTest` by invoking the runtime install helper through `ReflectionFunction` rather than a callable string PHPStan cannot prove.

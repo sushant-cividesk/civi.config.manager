@@ -135,7 +135,7 @@ In addition to the alpha58 scope safety checks, verify:
 - `civicfg scope`, `scope-items`, and `scope-set` use the same effective policy as the Settings UI, including rejection of selectors outside selected mode and settings-file-owned scope.
 - A contributed provider with a strong identity and zero matching target rows is treated as a create candidate; one match is update-safe and duplicate matches block automatic writes.
 - Nested contributed-provider configuration survives export/import cleaning while only top-level runtime IDs/timestamps are removed.
-- The SQLTasks real fixture discovers `Sqltask` as an API3 provider with a readable collection action and create capability; a write-safe task YAML missing on the target must not be downgraded to ambiguous merely because the target currently has zero matches.
+- The pinned SQLTasks 3.0.0-alpha3 real fixture discovers `Sqltask` even though `Sqltask.get` requires a numeric ID and the extension exposes no API3 collection action. Discovery must use the reviewed read-only BAO `generator()`/`exportData()` adapter, while create/update/delete remain API3 operations; a write-safe task YAML missing on the target must not be downgraded to ambiguous merely because the target currently has zero matches.
 - SQLTasks import strips read-only/computed API3 collection fields using the provider create specification while preserving writable task fields and nested `config` actions.
 - A filtered SQLTasks provider import preserves the virtual subtype through UI preview/apply and CLI import, validates/applies only that provider, and is not blocked by unrelated extension-provider YAML errors.
 
