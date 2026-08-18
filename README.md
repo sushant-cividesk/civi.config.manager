@@ -553,3 +553,5 @@ Because this extension has not yet been published for client use, alpha56 intent
 ## Extension integration hook
 
 Other extensions can make their own APIv4-backed configuration exportable/importable with `hook_civicfg_entityDefinitions()`. This is the preferred integration path because it only requires metadata: entity name, stable key fields, export fields, ignored runtime fields, sensitive fields, and dependencies. See `docs/EXTENSION_HOOKS.md`.
+
+Alpha61 follow-up hardening also discovers API3 capabilities directly from `Entity/Action.php` provider files before falling back to runtime `getactions`. This keeps SQLTasks 3.0.0-alpha3 discoverable in isolated QA/bootstrap contexts, explicitly loads its reviewed BAO read adapter when needed, and avoids re-probing provider metadata for its portable write-field allowlist.

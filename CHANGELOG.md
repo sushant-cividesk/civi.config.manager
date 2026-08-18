@@ -2,6 +2,9 @@
 
 ## 0.1.0-alpha61-core
 
+- Follow-up QA hotfix: API3 Entity/Action.php files now provide deterministic capability discovery before runtime `getactions` introspection. This fixes pinned SQLTasks 3.0.0-alpha3 being skipped when its custom API3 metadata path warns/fails even though `Create.php` and `Deletetask.php` are present.
+- SQLTasks' reviewed BAO read adapter can now explicitly load its DAO/BAO classes from the installed provider base path in isolated CLI/bootstrap contexts, and uses a pinned portable write-field allowlist matching the provider create specification instead of re-probing API3 metadata.
+
 - Follow-up hotfix: fixed pinned SQLTasks 3.0.0-alpha3 discovery in full QA. That provider exposes `Sqltask.get` only for a required numeric ID and no API3 collection action, so Configuration Manager now prefers the extension-owned `CRM_Sqltasks_BAO_SqlTask::generator()` + `exportData()` pair as a narrowly reviewed read-only collection adapter before generic API3 read probing, while keeping create/update/delete on SQLTasks API3 actions.
 - Follow-up hotfix: watch-only detections now append to a bounded local recent-history list instead of disappearing when the next watched item changes or a later scan finds no new differences. The latest scan remains separate from recent history, and administrators can clear only the history without resetting watch fingerprints/baselines.
 - The Watched Configuration panel now reopens and scrolls into view immediately after **Scan Watched Config**, shows compact latest-scan counters, separates current findings from recent history, and keeps previous detections readable across scans.

@@ -289,6 +289,7 @@ final class CivicfgFullRealFixtures {
       }
       $this->assertTrue(is_array($sqltaskProvider), 'SQLTasks Sqltask API3 provider must be discovered.');
       $this->assertTrue(!empty($sqltaskProvider['can_create']), 'SQLTasks Sqltask provider must expose create for cross-environment task restore.');
+      $this->assertTrue(!empty($sqltaskProvider['can_delete']), 'SQLTasks Sqltask provider must expose its Deletetask action for cross-environment delete restore.');
       $this->assertTrue(!empty($sqltaskProvider['importable']), 'SQLTasks Sqltask provider must remain importable when its portable identity is safe.');
       $this->assertSame('', trim((string) ($sqltaskProvider['list_action'] ?? '')), 'Pinned SQLTasks 3.0.0-alpha3 must not be mistaken for exposing an API3 collection action.');
       $this->assertSame('sqltasks_bao_generator', (string) ($sqltaskProvider['read_adapter'] ?? ''), 'SQLTasks Sqltask provider must use the reviewed read-only BAO collection adapter.');

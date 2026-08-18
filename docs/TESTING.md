@@ -196,3 +196,5 @@ Before accepting alpha56 on a real development project, verify:
 - The contrib compatibility matrix explicitly reports FULL, PARTIAL, NO_PORTABLE_CONFIG, UNSUPPORTED, or ERROR rather than silently treating missing portable config as failure.
 
 The historical Alpha43 project-wrapper expectations above document that alpha's behavior only. Alpha56 intentionally replaces those development-only wrappers before public release.
+
+The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable, and that the reviewed SQLTasks BAO adapter can load from the installed extension base path.

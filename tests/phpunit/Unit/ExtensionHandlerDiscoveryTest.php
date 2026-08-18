@@ -20,6 +20,48 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertSame('SqltaskTemplate', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/SqltaskTemplate/GetAll.php'));
   }
 
+  public function testApi3ActionNameUsesActionDirectoryFilesWithoutRuntimeIntrospection(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'api3ActionNameFromFile');
+    $method->setAccessible(TRUE);
+
+    self::assertSame('', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/LegacyEntity.php'));
+    self::assertSame('Create', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/Sqltask/Create.php'));
+    self::assertSame('Deletetask', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/Sqltask/Deletetask.php'));
+  }
+
+  public function testKnownApi3FileActionsShortCircuitBrokenGetactionsDiscovery(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'api3EntityHasAction');
+    $method->setAccessible(TRUE);
+
+    self::assertTrue($method->invoke($handler, 'Sqltask', 'create', ['create', 'deletetask']));
+    self::assertTrue($method->invoke($handler, 'Sqltask', 'deletetask', ['create', 'deletetask']));
+  }
+
+  public function testReviewedApi3AdapterCanLoadClassFromProviderBasePath(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'loadApi3ReadAdapterClass');
+    $method->setAccessible(TRUE);
+
+    $class = 'CivicfgQaProviderAdapter_' . str_replace('.', '_', uniqid('', TRUE));
+    $dir = sys_get_temp_dir() . '/civicfg-provider-adapter-' . bin2hex(random_bytes(6));
+    mkdir($dir, 0700, TRUE);
+    file_put_contents($dir . '/Adapter.php', '<?php class ' . $class . ' {}');
+
+    try {
+      self::assertTrue($method->invoke($handler, [
+        'class' => $class,
+        'load_files' => ['Adapter.php'],
+      ], $dir));
+      self::assertTrue(class_exists($class, FALSE));
+    }
+    finally {
+      @unlink($dir . '/Adapter.php');
+      @rmdir($dir);
+    }
+  }
+
   public function testApi3CollectionActionCandidatesAcceptSafeGetAllVariantsOnly(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'api3CollectionActionCandidates');
@@ -48,6 +90,23 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'class' => 'CRM_Sqltasks_BAO_SqlTask',
       'collection_method' => 'generator',
       'row_method' => 'exportData',
+      'load_files' => [
+        'CRM/Sqltasks/DAO/SqlTask.php',
+        'CRM/Sqltasks/BAO/SqlTask.php',
+      ],
+      'write_fields' => [
+        'name',
+        'description',
+        'run_permissions',
+        'category',
+        'weight',
+        'scheduled',
+        'parallel_exec',
+        'input_required',
+        'enabled',
+        'config',
+        'abort_on_error',
+      ],
     ], $method->invoke($handler, 'Sqltask'));
     self::assertNull($method->invoke($handler, 'UnreviewedEntity'));
   }

@@ -1082,12 +1082,17 @@ class ExtensionHandler extends AbstractHandler {
       // Keep top-level API3 files only.
     }
     $entities = [];
+    $fileActions = [];
     foreach ($files as $file) {
       $entity = $this->api3EntityNameFromFile($dir, (string) $file);
       if ($entity === '' || in_array(strtolower($entity), ['utils', 'index'], TRUE)) {
         continue;
       }
       $entities[$entity] = TRUE;
+      $fileAction = $this->api3ActionNameFromFile($dir, (string) $file);
+      if ($fileAction !== '') {
+        $fileActions[$entity][strtolower($fileAction)] = TRUE;
+      }
     }
 
     foreach (array_keys($entities) as $entity) {
@@ -1097,11 +1102,14 @@ class ExtensionHandler extends AbstractHandler {
       // Prefer a reviewed provider adapter before probing generic API3 read
       // actions. SQLTasks Sqltask.get requires an ID, so probing it as a
       // collection action can itself emit warnings in full QA.
-      $readAdapter = $this->api3ReadAdapter($entity);
+      $knownActions = array_keys($fileActions[$entity] ?? []);
+      $readAdapter = $this->api3ReadAdapter($entity, $basePath);
+      $readAdapterDefinition = $readAdapter === NULL ? NULL : $this->api3ReadAdapterDefinition($entity);
       $listAction = $readAdapter === NULL ? $this->api3ListAction($entity) : NULL;
-      if (($listAction === NULL && $readAdapter === NULL) || !$this->api3EntityHasAction($entity, 'create')) {
+      if (($listAction === NULL && $readAdapter === NULL) || !$this->api3EntityHasAction($entity, 'create', $knownActions)) {
         continue;
       }
+      $deleteAction = $this->api3DeleteAction($entity, $knownActions);
       $definitions[] = [
         'extension' => $extensionKey,
         'api' => 'api3',
@@ -1109,10 +1117,11 @@ class ExtensionHandler extends AbstractHandler {
         'fields' => [],
         'list_action' => $listAction ?? '',
         'read_adapter' => $readAdapter ?? '',
+        'write_fields' => array_values((array) ($readAdapterDefinition['write_fields'] ?? [])),
         'can_create' => TRUE,
         'can_update' => TRUE,
-        'delete_action' => $this->api3DeleteAction($entity),
-        'can_delete' => $this->api3DeleteAction($entity) !== NULL,
+        'delete_action' => $deleteAction,
+        'can_delete' => $deleteAction !== NULL,
       ];
     }
     return $definitions;
@@ -1133,6 +1142,29 @@ class ExtensionHandler extends AbstractHandler {
       return (string) $parts[0];
     }
     return $parts ? basename((string) $parts[0], '.php') : '';
+  }
+
+  /**
+   * Resolve an API3 action name from an Entity/Action.php provider layout.
+   *
+   * File-backed action discovery is intentionally preferred when available.
+   * Some contributed APIs expose valid action files but their runtime
+   * getactions introspection is incomplete or emits warnings. SQLTasks 3.x is
+   * one such provider. Top-level Entity.php files return no action here and
+   * continue through the normal runtime capability checks.
+   */
+  private function api3ActionNameFromFile(string $apiDir, string $file): string {
+    $apiDir = rtrim(str_replace('\\', '/', $apiDir), '/');
+    $file = str_replace('\\', '/', $file);
+    if (strpos($file, $apiDir . '/') !== 0) {
+      return '';
+    }
+    $relative = substr($file, strlen($apiDir) + 1);
+    $parts = array_values(array_filter(explode('/', $relative), 'strlen'));
+    if (count($parts) < 2) {
+      return '';
+    }
+    return basename((string) end($parts), '.php');
   }
 
   private function api4EntityUsable(string $entity): bool {
@@ -1162,7 +1194,7 @@ class ExtensionHandler extends AbstractHandler {
    * portable task configuration. Keep this fallback explicit and read-only;
    * create/update/delete continue through the provider's API3 actions.
    */
-  private function api3ReadAdapter(string $entity): ?string {
+  private function api3ReadAdapter(string $entity, string $basePath = ''): ?string {
     $adapter = $this->api3ReadAdapterDefinition($entity);
     if ($adapter === NULL) {
       return NULL;
@@ -1171,7 +1203,10 @@ class ExtensionHandler extends AbstractHandler {
     $class = (string) ($adapter['class'] ?? '');
     $collectionMethod = (string) ($adapter['collection_method'] ?? '');
     $rowMethod = (string) ($adapter['row_method'] ?? '');
-    if ($class === '' || $collectionMethod === '' || $rowMethod === '' || !class_exists($class)) {
+    if ($class === '' || $collectionMethod === '' || $rowMethod === '') {
+      return NULL;
+    }
+    if (!$this->loadApi3ReadAdapterClass($adapter, $basePath)) {
       return NULL;
     }
     if (!method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
@@ -1179,6 +1214,42 @@ class ExtensionHandler extends AbstractHandler {
     }
 
     return (string) ($adapter['name'] ?? '');
+  }
+
+  /**
+   * Make one reviewed provider adapter available from its extension base path.
+   *
+   * CiviCRM normally registers extension classloaders before this code runs,
+   * but isolated CLI/bootstrap contexts can discover the provider files before
+   * the provider's legacy CRM_* classes have been autoloaded. Loading only the
+   * reviewed DAO/BAO files keeps this deterministic without executing arbitrary
+   * provider code or weakening generic discovery safety.
+   */
+  private function loadApi3ReadAdapterClass(array $adapter, string $basePath): bool {
+    $class = (string) ($adapter['class'] ?? '');
+    if ($class === '') {
+      return FALSE;
+    }
+    if (class_exists($class)) {
+      return TRUE;
+    }
+    if ($basePath === '') {
+      return FALSE;
+    }
+
+    foreach ((array) ($adapter['load_files'] ?? []) as $relativeFile) {
+      $relativeFile = ltrim(str_replace('\\', '/', (string) $relativeFile), '/');
+      if ($relativeFile === '') {
+        continue;
+      }
+      $path = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeFile);
+      if (!is_file($path)) {
+        return FALSE;
+      }
+      require_once $path;
+    }
+
+    return class_exists($class, FALSE) || class_exists($class);
   }
 
   /**
@@ -1191,6 +1262,23 @@ class ExtensionHandler extends AbstractHandler {
         'class' => 'CRM_Sqltasks_BAO_SqlTask',
         'collection_method' => 'generator',
         'row_method' => 'exportData',
+        'load_files' => [
+          'CRM/Sqltasks/DAO/SqlTask.php',
+          'CRM/Sqltasks/BAO/SqlTask.php',
+        ],
+        'write_fields' => [
+          'name',
+          'description',
+          'run_permissions',
+          'category',
+          'weight',
+          'scheduled',
+          'parallel_exec',
+          'input_required',
+          'enabled',
+          'config',
+          'abort_on_error',
+        ],
       ],
     ];
     return $adapters[strtolower($entity)] ?? NULL;
@@ -1277,11 +1365,16 @@ class ExtensionHandler extends AbstractHandler {
     return array_values(array_unique($candidates));
   }
 
-  private function api3EntityHasAction(string $entity, string $action): bool {
-    if (in_array(strtolower($action), $this->api3EntityActions($entity), TRUE)) {
+  private function api3EntityHasAction(string $entity, string $action, array $knownActions = []): bool {
+    $action = strtolower($action);
+    $knownActions = array_map('strtolower', array_map('strval', $knownActions));
+    if (in_array($action, $knownActions, TRUE)) {
       return TRUE;
     }
-    $function = 'civicrm_api3_' . strtolower($entity) . '_' . strtolower($action);
+    if (in_array($action, $this->api3EntityActions($entity), TRUE)) {
+      return TRUE;
+    }
+    $function = 'civicrm_api3_' . strtolower($entity) . '_' . $action;
     return function_exists($function);
   }
 
@@ -1292,13 +1385,13 @@ class ExtensionHandler extends AbstractHandler {
    * behavior as `deletetask`, so keep that provider alias explicit rather than
    * guessing at arbitrary destructive action names.
    */
-  private function api3DeleteAction(string $entity): ?string {
+  private function api3DeleteAction(string $entity, array $knownActions = []): ?string {
     $cacheKey = strtolower($entity);
     if (array_key_exists($cacheKey, self::$api3DeleteActionByEntity)) {
       return self::$api3DeleteActionByEntity[$cacheKey];
     }
 
-    if ($this->api3EntityHasAction($entity, 'delete')) {
+    if ($this->api3EntityHasAction($entity, 'delete', $knownActions)) {
       self::$api3DeleteActionByEntity[$cacheKey] = 'delete';
       return 'delete';
     }
@@ -1307,7 +1400,7 @@ class ExtensionHandler extends AbstractHandler {
       'sqltask' => 'deletetask',
     ];
     $alias = $aliases[$cacheKey] ?? NULL;
-    if ($alias !== NULL && $this->api3EntityHasAction($entity, $alias)) {
+    if ($alias !== NULL && $this->api3EntityHasAction($entity, $alias, $knownActions)) {
       self::$api3DeleteActionByEntity[$cacheKey] = $alias;
       return $alias;
     }

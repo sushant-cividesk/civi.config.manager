@@ -37,6 +37,7 @@ expected:
   zero_count_provider_index_is_preserved: true
   sqltasks_delete_action_is_supported: true
   sqltasks_read_adapter_is_supported: true
+  sqltasks_action_files_drive_capability_discovery: true
 negative_cases:
   - zero_target_matches_is_treated_as_ambiguous
   - duplicate_target_identity_is_written_automatically
