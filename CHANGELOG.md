@@ -2,6 +2,9 @@
 
 ## 0.1.0-alpha61-core
 
+- Fixed Configuration Scope/export consistency: saving **Manage everything** now replaces stale `ignore` manifest state even when a handler reports a partial provider error, and extension status YAML can still be exported when one contributed provider cannot be inspected. Incomplete handler exports never authorize stale-YAML deletion or baseline acceptance.
+- Settings now warns clearly when scope changes are unsaved, adds a nearby **Save scope changes** action, and avoids claiming **In Sync** on the Settings tab before a real Synchronize comparison. Synchronize shows persistent provider errors and cannot report **In Sync** when the managed comparison is incomplete.
+
 - Fixed initial Synchronize state classification: all-Ignore/empty-selected scope now shows **Setup Required**, watch-only scope shows **Monitoring Only**, managed scope without a baseline shows **Initial Export Required**, and **In Sync** is reserved for an actual managed baseline with zero differences. Managed/watch actions are hidden when their corresponding scope is not configured.
 
 - Final QA correction: SQLTasks 3.0.0-alpha3 exposes native API4 `SqlTask`, so full real-fixture QA now verifies the canonical API4 provider first and uses the reviewed API3/BAO path only as a fallback when API4 is unavailable.

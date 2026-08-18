@@ -6,6 +6,14 @@
 (function() {
   function ready(fn) { if (document.readyState !== 'loading') { fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
   ready(function() {
+    document.querySelectorAll('[data-civicfg-transient-summary-error]').forEach(function(message) {
+      window.setTimeout(function() {
+        if (message && message.parentNode) {
+          message.parentNode.removeChild(message);
+        }
+      }, 7000);
+    });
+
     document.querySelectorAll('.crm-configmanager-block [data-civicfg-open]').forEach(function(btn) {
       btn.addEventListener('click', function(ev) {
         ev.preventDefault();
@@ -150,6 +158,30 @@
       updateScopeCount(row);
     }
 
+    var scopeSettingsForm = document.querySelector('[data-civicfg-settings-form]');
+    var scopeUnsaved = document.querySelector('[data-civicfg-scope-unsaved]');
+    var scopeDirty = false;
+
+    function markScopeDirty() {
+      scopeDirty = true;
+      if (scopeUnsaved) { scopeUnsaved.hidden = false; }
+    }
+
+    if (scopeSettingsForm) {
+      scopeSettingsForm.addEventListener('submit', function() {
+        scopeDirty = false;
+        if (scopeUnsaved) { scopeUnsaved.hidden = true; }
+      });
+      document.querySelectorAll('.civicfg-tab').forEach(function(tab) {
+        tab.addEventListener('click', function(event) {
+          if (!scopeDirty || tab.classList.contains('active')) { return; }
+          if (!window.confirm('You have unsaved Configuration Manager scope changes. Leave Settings without saving them?')) {
+            event.preventDefault();
+          }
+        });
+      });
+    }
+
     function refreshScopeBulkControls() {
       var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-civicfg-scope-select]'));
       var enabled = boxes.filter(function(box) { return !box.disabled; });
@@ -200,14 +232,16 @@
       refreshScopeRow(row);
       var mode = row.querySelector('[data-civicfg-scope-mode]');
       if (mode) {
-        mode.addEventListener('change', function() { refreshScopeRow(row); renderScopeSettingsExample(); });
+        mode.addEventListener('change', function() { refreshScopeRow(row); renderScopeSettingsExample(); markScopeDirty(); });
       }
       var textarea = row.querySelector('[data-civicfg-scope-selectors]');
       if (textarea) {
-        textarea.addEventListener('input', function() { updateScopeCount(row); renderScopeSettingsExample(); });
+        textarea.addEventListener('input', function() { updateScopeCount(row); renderScopeSettingsExample(); markScopeDirty(); });
       }
       var watch = row.querySelector('input[name^="scope_watch_unmanaged"]');
-      if (watch) { watch.addEventListener('change', renderScopeSettingsExample); }
+      if (watch) {
+        watch.addEventListener('change', function() { renderScopeSettingsExample(); markScopeDirty(); });
+      }
     });
 
     function ensureScopePickerModal() {

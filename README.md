@@ -33,6 +33,7 @@ Alpha60 additionally hardens generic API3 contributed-provider restore: create/u
 ## Alpha61 safe first-run scope
 
 Fresh installations now start with configuration types ignored until an administrator explicitly chooses what to manage or monitor. Existing installations without the fresh-install marker keep the historical `Manage everything` fallback, so upgrading does not silently disable an established workflow. The Settings page includes first-run guidance, bulk scope actions, and expanded collapsible management/advanced sections.
+Scope changes are intentionally explicit: changing a dropdown or using bulk **Apply** edits the form only until **Save scope changes** / **Save settings** is submitted. While scope edits are unsaved, Settings shows a warning that Export, Import, Validate, and Synchronize are still using the last saved policy. `Manage everything` writes all supported items for that type; `Manage selected items` keeps only selected items managed; `Monitor only` stays out of YAML; and `Ignore` remains excluded from both YAML and watch scanning.
 
 Local full QA does not require CiviCRM Buildkit: `composer qa:full` runs the isolated Docker integration suite without browser tests, while `composer qa:full-ui` runs the same stack plus Playwright and review screenshots.
 Run those standalone QA commands from the **host repository checkout**, not from inside `ddev ssh`; they require host Docker/Compose. Generated `tests/ci/artifacts/` output is disposable and ignored by Git. When selected scope enables **Monitor everything else in this type**, saving the scope captures the initial local watch baseline so later watch scans can immediately report changes.
@@ -45,6 +46,7 @@ The admin UI has four tabs.
 ### Synchronize
 
 Shows the current difference between **managed** active CiviCRM configuration and managed YAML. The status is explicit: **Setup Required** when nothing is managed or watched, **Monitoring Only** for watch-only scope, **Initial Export Required** when managed scope exists without a YAML baseline, and **In Sync** only after a managed baseline exists and the managed diff is empty. This prevents a fresh all-Ignore configuration from being presented as synchronized. After the baseline exists, the main cards use concise human wording and keep API/capability/dependency/identity metadata inside `Details`.
+If a managed handler or contributed provider cannot be read completely, Synchronize reports **Error**, keeps the detailed provider error visible, preserves any safe partial backup files, and does not claim the site is In Sync.
 
 Available actions:
 

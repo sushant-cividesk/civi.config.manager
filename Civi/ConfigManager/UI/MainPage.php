@@ -140,9 +140,22 @@ class MainPage {
         $deleted = !empty($exportResult['deleted']) ? count($exportResult['deleted']) : 0;
         $skipped = !empty($exportResult['skipped']) ? count($exportResult['skipped']) : 0;
         $dependencyTypes = (array) ($exportResult['dependency_types'] ?? []);
-        $notice = ($written || $deleted)
-          ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-          : ts('Nothing to export. YAML files already match active CiviCRM configuration.');
+        $exportErrors = (array) ($exportResult['errors'] ?? []);
+        if ($exportErrors) {
+          $firstError = (array) reset($exportErrors);
+          $firstType = trim((string) ($firstError['type'] ?? ''));
+          $firstMessage = trim((string) ($firstError['message'] ?? ''));
+          $firstProblem = trim(($firstType !== '' ? $firstType . ': ' : '') . $firstMessage);
+          $notice = ts('Export completed with %1 error(s). Safe files were preserved/written, but the managed export is incomplete.', [1 => count($exportErrors)]);
+          if ($firstProblem !== '') {
+            $notice .= ' ' . $firstProblem;
+          }
+        }
+        else {
+          $notice = ($written || $deleted)
+            ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
+            : ts('Nothing to export. YAML files already match active CiviCRM configuration.');
+        }
         if ($dependencyTypes) {
           $notice .= ' ' . ts('Related dependency types were included automatically: %1.', [1 => implode(', ', $dependencyTypes)]);
         }
@@ -571,6 +584,21 @@ class MainPage {
     }
     $this->page->assign('importMessages', $importMessages);
     $this->page->assign('importErrorCount', $importErrorCount);
+    $syncErrors = [];
+    if ($op === 'sync') {
+      foreach ((array) ($diffResult['errors'] ?? []) as $error) {
+        $error = is_array($error) ? $error : ['message' => (string) $error];
+        $message = trim((string) ($error['message'] ?? ''));
+        if ($message === '') {
+          continue;
+        }
+        $syncErrors[] = [
+          'type' => trim((string) ($error['type'] ?? '')),
+          'message' => $message,
+        ];
+      }
+    }
+    $this->page->assign('syncErrors', $syncErrors);
     $this->page->assign('validationResult', $validationResult);
     $this->page->assign('status', $status);
     $this->page->assign('allTypes', $allTypes);

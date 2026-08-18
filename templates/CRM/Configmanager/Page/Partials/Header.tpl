@@ -20,7 +20,18 @@
 
   {if $notice}<div class="messages status no-popup">{$notice|escape}</div>{/if}
   {if $result.error}<div class="messages error no-popup">{$result.error|escape}</div>{/if}
-  {if $summary.error_count gt 0}<div class="messages error no-popup">{ts 1=$summary.error_count}%1 Error(s) Reported. Review the page messages and logs for details.{/ts}</div>{/if}
+  {if $summary.error_count gt 0}<div class="messages error no-popup" data-civicfg-transient-summary-error>{ts 1=$summary.error_count}%1 Error(s) Reported. Review the page messages and logs for details.{/ts}</div>{/if}
+
+  {if $op eq 'sync' && $syncErrors|@count gt 0}
+    <details class="messages error no-popup civicfg-sync-error-summary" open="open">
+      <summary><strong>{ts 1=$syncErrors|@count}Synchronization has %1 active error(s).{/ts}</strong></summary>
+      <ul class="civicfg-import-message-list">
+        {foreach from=$syncErrors item=syncError}
+          <li>{if $syncError.type}<strong>{$syncError.type|escape}:</strong> {/if}{$syncError.message|escape}</li>
+        {/foreach}
+      </ul>
+    </details>
+  {/if}
 
   {if $importMessages|@count gt 0}
     <details class="messages {if $importErrorCount gt 0}error{else}warning{/if} no-popup civicfg-import-message-summary">
@@ -49,6 +60,8 @@
           <span class="civicfg-badge warn">{if $watchOnlyScope}{ts}Monitoring Only{/ts}{else}{ts}Setup Required{/ts}{/if}</span>
         {elseif $initialExportRequired}
           <span class="civicfg-badge warn">{ts}Initial Export Required{/ts}</span>
+        {elseif $summary.error_count gt 0}
+          <span class="civicfg-badge warn">{ts}Error{/ts}</span>
         {elseif $summary.total_changes gt 0}
           <span class="civicfg-badge warn">{ts 1=$summary.total_changes}%1 Difference(s){/ts}</span>
         {else}
@@ -58,11 +71,14 @@
     </div>
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Changes{/ts}</div>
-      {if !$managedScopeConfigured}
+      {if $op eq 'settings'}
+        <div>{ts}Scope changes are edited here. Open Synchronize to run the managed comparison after saving.{/ts}</div>
+      {elseif !$managedScopeConfigured}
         <div>{if $watchOnlyScope}{ts}No configuration is managed in YAML. Watch-only items can still be scanned.{/ts}{else}{ts}Choose configuration to manage in Settings before starting synchronization.{/ts}{/if}</div>
       {elseif $initialExportRequired}
         <div>{ts}Differences will be shown after the initial managed YAML export.{/ts}</div>
       {else}
+        {if $summary.error_count gt 0}<div><strong>{ts}Comparison incomplete - review the error details below.{/ts}</strong></div>{/if}
         <div>{ts}Changed{/ts}: {$summary.changed_count|escape}</div>
         <div>{ts}New in CiviCRM{/ts}: {$summary.new_count|escape}</div>
         <div>{ts}Missing from CiviCRM{/ts}: {$summary.missing_count|escape}</div>

@@ -1029,17 +1029,19 @@ class ConfigManager {
     $successfulHandlers = [];
     $scopeManifestUpdates = [];
 
-    // Keep non-managed modes explicit in manifest.yml as well. This prevents a
-    // type that was changed from managed to watch/ignore from retaining stale
-    // managed-scope metadata from a previous export. Managed handlers below
-    // replace these entries with their resolved portable keys where needed.
+    // Keep scope modes that do not depend on resolved selected-item keys
+    // explicit in manifest.yml before handler export. This prevents stale
+    // metadata (for example, extensions: ignore) from surviving after an
+    // administrator saves Manage everything, even if that handler later
+    // reports a provider-specific export error. Selected mode is still written
+    // only after a successful partition because it needs resolved portable keys.
     foreach ($this->getScopeTypeOptions() as $scopeType) {
       $type = (string) ($scopeType['type'] ?? '');
       if ($type === '') {
         continue;
       }
       $policy = $this->scope->getPolicy($type);
-      if (!in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
+      if (!in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_ALL, ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
         continue;
       }
       $scopeManifestUpdates[$type] = $this->scope->manifestEntry($type, ['policy' => $policy]);
@@ -1051,10 +1053,16 @@ class ConfigManager {
       }
       $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
       try {
-        $partition = $this->scopePartition($handler, $handler->export(), $storage, TRUE);
-        $scopeManifestUpdates[(string) $handler->getType()] = $this->scope->manifestEntry((string) $handler->getType(), $partition);
-        if (!$dryRun) {
-          $this->scope->persistResolvedMatches((string) $handler->getType(), $partition);
+        $exported = $handler->export();
+        $handlerExportErrors = $this->consumeHandlerExportErrors($handler, $summary['errors']);
+        $partition = $this->scopePartition($handler, $exported, $storage, TRUE);
+        $handlerType = (string) $handler->getType();
+        $handlerPolicy = $this->scope->getPolicy($handlerType);
+        if ($handlerExportErrors === 0 || (string) ($handlerPolicy['mode'] ?? '') !== ConfigScope::MODE_SELECTED) {
+          $scopeManifestUpdates[$handlerType] = $this->scope->manifestEntry($handlerType, $partition);
+        }
+        if (!$dryRun && $handlerExportErrors === 0) {
+          $this->scope->persistResolvedMatches($handlerType, $partition);
         }
         foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
           $summary['warnings'][] = [
@@ -1083,7 +1091,13 @@ class ConfigManager {
             'data' => $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? [])),
           ];
         }
-        $successfulHandlers[] = $handler;
+        // A handler can return useful partial backup files while reporting that
+        // one contributed provider could not be read. Keep those files, but do
+        // not authorize stale-file deletion or baseline acceptance for that
+        // incomplete handler.
+        if ($handlerExportErrors === 0) {
+          $successfulHandlers[] = $handler;
+        }
       }
       catch (\Throwable $e) {
         $summary['errors'][] = [
@@ -1467,6 +1481,7 @@ class ConfigManager {
         $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
 
         $activeFiles = $handler->export();
+        $this->consumeHandlerExportErrors($handler, $result['errors']);
         $partition = $this->scopePartition($handler, $activeFiles, $storage, FALSE);
         $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), (array) ($partition['managed'] ?? []));
         $files = $this->filterYamlByScope($handler, $files, $partition, $storage);
@@ -1498,6 +1513,39 @@ class ConfigManager {
     $result['ok'] = empty($result['errors']);
     $this->cacheHealthFromDiff($result);
     return $result;
+  }
+
+  /**
+   * Collect non-fatal handler export errors while allowing safe partial files.
+   *
+   * ExtensionHandler uses this for contributed providers where one provider
+   * may be unreadable while extension status YAML remains safe to export.
+   */
+  private function consumeHandlerExportErrors($handler, array &$errors): int {
+    if (!method_exists($handler, 'consumeExportErrors')) {
+      return 0;
+    }
+
+    try {
+      $messages = (array) $handler->consumeExportErrors();
+    }
+    catch (\Throwable $e) {
+      $messages = ['Could not read handler export diagnostics: ' . $e->getMessage()];
+    }
+
+    $count = 0;
+    foreach ($messages as $message) {
+      $message = trim((string) $message);
+      if ($message === '') {
+        continue;
+      }
+      $errors[] = [
+        'type' => (string) $handler->getType(),
+        'message' => $message,
+      ];
+      $count++;
+    }
+    return $count;
   }
 
   public function validate(array $typeFilter = []): array {
@@ -2453,22 +2501,21 @@ class ConfigManager {
    */
   public function getHealth(): array {
     $syncDir = $this->getSyncDir();
-    $scopeState = $this->getScopeSetupState();
-    if (empty($scopeState['managed'])) {
-      return [
-        'level' => 'warning',
-        'title' => !empty($scopeState['watch_only'])
-          ? 'Configuration Manager: Monitoring only'
-          : 'Configuration Manager: Setup required',
-        'message' => !empty($scopeState['watch_only'])
-          ? 'Watch-only configuration is enabled, but no configuration is currently managed in YAML.'
-          : 'Choose configuration to manage before creating the initial YAML export.',
-        'sync_dir' => $syncDir,
-        'changed' => 0,
-        'in_civicrm' => 0,
-        'in_yaml' => 0,
-      ];
+
+    // Health/status hooks must never discover handlers. Scope-aware diff()
+    // caches the two no-managed-scope states explicitly; those cached states
+    // are safe to return even when no manifest exists yet. Other cached states
+    // remain subordinate to the manifest check so a removed YAML tree cannot
+    // leave a stale "In sync" result visible.
+    $cached = \Civi::settings()->get('civicfg_last_health');
+    if (is_array($cached) && in_array((string) ($cached['title'] ?? ''), [
+      'Configuration Manager: Setup required',
+      'Configuration Manager: Monitoring only',
+    ], TRUE)) {
+      $cached['sync_dir'] = $syncDir;
+      return $cached;
     }
+
     if (!is_dir($syncDir)) {
       return [
         'level' => 'warning',
@@ -2499,7 +2546,6 @@ class ConfigManager {
       ];
     }
 
-    $cached = \Civi::settings()->get('civicfg_last_health');
     if (is_array($cached) && !empty($cached['title'])) {
       $cached['sync_dir'] = $syncDir;
       return $cached;

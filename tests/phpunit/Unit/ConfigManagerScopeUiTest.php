@@ -405,6 +405,125 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertStringNotContainsString("'other-type' => [", $example);
   }
 
+  public function testManageEverythingReplacesStaleIgnoreManifestAndExportsFiles(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'extensions' => ['mode' => 'all'],
+    ]);
+
+    $this->writeYaml($root, 'manifest.yml', [
+      'schema_version' => 1,
+      'extension' => 'civi.config.manager',
+      'managed_scope' => [
+        'extensions' => ['mode' => 'ignore'],
+      ],
+    ]);
+
+    $handler = new ScopeUiFixtureHandler('extensions', 'Extensions', TRUE, [[
+      'filename' => 'example.extension.yml',
+      'data' => [
+        'schema_version' => 1,
+        'type' => 'extension.item',
+        'key' => 'example.extension',
+        'extension' => ['key' => 'example.extension', 'status' => 'installed'],
+      ],
+    ]]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $result = $manager->export(FALSE);
+
+    self::assertTrue($result['ok'], json_encode($result, JSON_PRETTY_PRINT));
+    self::assertFileExists($root . '/extensions/example.extension.yml');
+    $manifest = SimpleYaml::parseFile($root . '/manifest.yml');
+    self::assertSame('all', $manifest['managed_scope']['extensions']['mode'] ?? NULL);
+  }
+
+  public function testPartialHandlerErrorKeepsSafeExportAndNeverDeletesStaleYaml(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'extensions' => ['mode' => 'all'],
+    ]);
+
+    $this->writeYaml($root, 'manifest.yml', [
+      'schema_version' => 1,
+      'extension' => 'civi.config.manager',
+      'managed_scope' => [
+        'extensions' => ['mode' => 'ignore'],
+      ],
+    ]);
+    $this->writeYaml($root, 'extensions/stale-provider.yml', [
+      'schema_version' => 1,
+      'type' => 'extension.item',
+      'key' => 'stale-provider',
+      'extension' => ['key' => 'stale-provider', 'status' => 'installed'],
+    ]);
+
+    $handler = new ScopeUiPartialErrorFixtureHandler('extensions', 'Extensions', [[
+      'filename' => 'safe-extension.yml',
+      'data' => [
+        'schema_version' => 1,
+        'type' => 'extension.item',
+        'key' => 'safe-extension',
+        'extension' => ['key' => 'safe-extension', 'status' => 'installed'],
+      ],
+    ]], ['One contributed provider could not be read.']);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $result = $manager->export(FALSE);
+
+    self::assertFalse($result['ok']);
+    self::assertFileExists($root . '/extensions/safe-extension.yml');
+    self::assertFileExists($root . '/extensions/stale-provider.yml');
+    self::assertSame('extensions', $result['errors'][0]['type'] ?? NULL);
+    self::assertStringContainsString('could not be read', (string) ($result['errors'][0]['message'] ?? ''));
+    $manifest = SimpleYaml::parseFile($root . '/manifest.yml');
+    self::assertSame('all', $manifest['managed_scope']['extensions']['mode'] ?? NULL);
+  }
+
+  public function testPartialSelectedHandlerErrorPreservesExistingSelectedManifest(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => [
+        'mode' => 'selected',
+        'selectors' => ['key:scheduled-jobs|Job|name=job_one'],
+        'watch_unmanaged' => TRUE,
+      ],
+    ]);
+
+    $existingKey = 'scheduled-jobs|Job|name=previously_resolved_job';
+    $this->writeYaml($root, 'manifest.yml', [
+      'schema_version' => 1,
+      'extension' => 'civi.config.manager',
+      'managed_scope' => [
+        'scheduled-jobs' => [
+          'mode' => 'selected',
+          'config_keys' => [$existingKey],
+          'selector_map' => [
+            'key:' . $existingKey => $existingKey,
+          ],
+        ],
+      ],
+    ]);
+
+    $handler = new ScopeUiPartialErrorFixtureHandler('scheduled-jobs', 'Scheduled Jobs', [
+      $this->jobFile(10, 'job_one'),
+    ], ['Provider read was incomplete.']);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $result = $manager->export(FALSE);
+
+    self::assertFalse($result['ok']);
+    $manifest = SimpleYaml::parseFile($root . '/manifest.yml');
+    self::assertSame('selected', $manifest['managed_scope']['scheduled-jobs']['mode'] ?? NULL);
+    self::assertSame([$existingKey], $manifest['managed_scope']['scheduled-jobs']['config_keys'] ?? []);
+  }
+
   private function writeYaml(string $root, string $relative, array $data): void {
     $path = $root . '/' . $relative;
     if (!is_dir(dirname($path))) {
@@ -511,6 +630,32 @@ final class ScopeUiFixtureHandler extends AbstractHandler {
       'warnings' => [],
       'errors' => [],
     ];
+  }
+}
+
+final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
+  private string $type;
+  private string $label;
+  private array $files;
+  private array $errors;
+
+  public function __construct(string $type, string $label, array $files, array $errors) {
+    $this->type = $type;
+    $this->label = $label;
+    $this->files = $files;
+    $this->errors = $errors;
+  }
+
+  public function getType(): string { return $this->type; }
+  public function getLabel(): string { return $this->label; }
+  public function getDirectory(): string { return $this->type; }
+  public function getWeight(): int { return 20; }
+  public function export(): array { return $this->files; }
+
+  public function consumeExportErrors(): array {
+    $errors = $this->errors;
+    $this->errors = [];
+    return $errors;
   }
 }
 

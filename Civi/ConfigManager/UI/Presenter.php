@@ -532,7 +532,7 @@ class Presenter {
 
   private function shortInlineValue(string $value): string {
     $value = trim(preg_replace('/\s+/', ' ', $value) ?: '');
-    if ($value === '' || $value === '—') {
+    if ($value === '' || $value === '-') {
       return 'empty';
     }
     if (strlen($value) > 120) {
@@ -754,7 +754,7 @@ class Presenter {
 
   private function formatChangeValue($value, $other = NULL): string {
     if ($value === NULL || $value === '') {
-      return '—';
+      return '-';
     }
     if (is_bool($value)) {
       return $value ? 'true' : 'false';

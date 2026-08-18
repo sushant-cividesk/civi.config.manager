@@ -151,6 +151,8 @@ In addition to the existing scope and provider checks, verify:
 - An explicit per-type scope policy always overrides the fresh-install default.
 - The Settings page opens both **What should Configuration Manager manage?** and **Advanced settings** by default and allows either section to be collapsed and reopened.
 - Every scope card has a bulk-selection checkbox; **Select all**, bulk mode selection, and **Apply** update only the visible form until **Save settings** is used.
+- Any unsaved scope mode/selector/watch change shows an **Unsaved scope changes** warning explaining that Export/Import/Validate/Synchronize still use the last saved policy; the nearby **Save scope changes** button persists the same form as the existing bottom Save settings action.
+- Switching `extensions` from `Ignore` to `Manage everything`, saving, and exporting must write `managed_scope.extensions.mode: all` plus extension status YAML. If one contributed provider cannot be read, safe extension files may still be written, but the export/diff must report an error, preserve stale YAML, and must never report **In Sync**.
 - Bulk **Manage selected items** reveals the existing item-selection controls without implicitly selecting any configuration item.
 - `civicrm.settings.php` scope ownership keeps individual and bulk scope controls read-only.
 - Playwright writes review screenshots for the expanded Settings layout, bulk Ignore state, first-run/no-managed-config guidance, and the Synchronize **Setup Required** state (`sync-setup-required.png`) under `tests/ci/artifacts`.

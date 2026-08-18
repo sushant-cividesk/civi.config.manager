@@ -386,3 +386,6 @@
   .crm-configmanager-block .civicfg-watch-overview {grid-template-columns: repeat(2, minmax(0, 1fr));}
   .crm-configmanager-block .civicfg-watch-history-heading {flex-direction: column;}
 }
+.crm-configmanager-block .civicfg-scope-unsaved[hidden] {display: none !important;}
+.crm-configmanager-block .civicfg-scope-unsaved {margin: -.25rem 0 .9rem;}
+.crm-configmanager-block .civicfg-scope-save {white-space: nowrap;}

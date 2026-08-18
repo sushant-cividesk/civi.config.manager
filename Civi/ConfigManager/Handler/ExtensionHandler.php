@@ -13,6 +13,7 @@ class ExtensionHandler extends AbstractHandler {
   private static array $api3ListActionByEntity = [];
   private static array $api3WritableFieldsByEntity = [];
   private static array $api3DeleteActionByEntity = [];
+  private array $exportErrors = [];
 
   public function getType(): string { return 'extensions'; }
   public function getLabel(): string { return 'Extensions'; }
@@ -67,9 +68,24 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   public function export(): array {
+    $this->exportErrors = [];
     $manager = \CRM_Extension_System::singleton()->getManager();
-    $settingsByExtension = $this->discoverSettingsByExtension();
-    $configExport = $this->discoverSplitConfigByExtension();
+
+    $settingsByExtension = [];
+    try {
+      $settingsByExtension = $this->discoverSettingsByExtension();
+    }
+    catch (\Throwable $e) {
+      $this->addExportError('Extension settings could not be discovered: ' . $e->getMessage());
+    }
+
+    $configExport = ['files' => [], 'index' => []];
+    try {
+      $configExport = $this->discoverSplitConfigByExtension();
+    }
+    catch (\Throwable $e) {
+      $this->addExportError('Extension provider configuration could not be discovered: ' . $e->getMessage());
+    }
 
     $files = [];
     foreach ($manager->getStatuses() as $key => $status) {
@@ -104,6 +120,26 @@ class ExtensionHandler extends AbstractHandler {
     }
     usort($files, fn($a, $b) => strcmp($a['filename'], $b['filename']));
     return $files;
+  }
+
+  /**
+   * Return and clear non-fatal errors collected during the latest export.
+   *
+   * Base extension status YAML remains exportable when one contributed
+   * provider cannot be inspected. ConfigManager consumes these errors so the
+   * UI never reports an incomplete extension scan as In Sync.
+   */
+  public function consumeExportErrors(): array {
+    $errors = $this->exportErrors;
+    $this->exportErrors = [];
+    return $errors;
+  }
+
+  private function addExportError(string $message): void {
+    $message = trim($message);
+    if ($message !== '' && !in_array($message, $this->exportErrors, TRUE)) {
+      $this->exportErrors[] = $message;
+    }
   }
 
   /**
@@ -266,15 +302,15 @@ class ExtensionHandler extends AbstractHandler {
       }
 
       foreach ($this->flattenBundledConfig($item['config'] ?? []) as $entry) {
-        $definitionKey = $this->definitionKey($key, $entry['api'], $entry['entity']);
-        if (!isset($definitions[$definitionKey])) {
+        $resolved = $this->resolveConfigDefinition($definitions, $key, (string) $entry['api'], (string) $entry['entity']);
+        if ($resolved === NULL) {
           $errors[] = [
             'file' => $filename,
             'message' => sprintf('Bundled extension config provider is not available: extension %s, %s entity %s. Install/enable that extension before import.', $key, $entry['api'], $entry['entity']),
           ];
           continue;
         }
-        $definition = $definitions[$definitionKey];
+        $definition = $resolved['definition'];
         $row = (array) ($entry['item']['item'] ?? []);
         $identityField = (string) ($entry['item']['identity_field'] ?? '');
         if ($identityField === '' || empty($row[$identityField])) {
@@ -323,8 +359,9 @@ class ExtensionHandler extends AbstractHandler {
     $desiredConfigKeys = $this->desiredConfigKeysForRuntimeFilter($definitions);
 
     foreach ($this->expandConfigIndexes($items) as $index) {
-      $definitionKey = $this->definitionKey($index['extension'], $index['api'], $index['entity']);
-      if (isset($definitions[$definitionKey])) {
+      $resolved = $this->resolveConfigDefinition($definitions, (string) $index['extension'], (string) $index['api'], (string) $index['entity']);
+      if ($resolved !== NULL) {
+        $definitionKey = (string) $resolved['key'];
         $desiredConfigKeys[$definitionKey] = $desiredConfigKeys[$definitionKey] ?? [];
       }
     }
@@ -381,14 +418,15 @@ class ExtensionHandler extends AbstractHandler {
     if (isset($data['item']) && is_array($data['item'])) {
       unset($data['item']['required_by']);
       if (($data['type'] ?? '') === 'extension_config.item') {
-        $definitionKey = $this->definitionKey(
+        $definitions = $this->entityDefinitionsByKey();
+        $resolved = $this->resolveConfigDefinition(
+          $definitions,
           (string) ($data['extension'] ?? ''),
           (string) ($data['api'] ?? ''),
           (string) ($data['entity'] ?? '')
         );
-        $definitions = $this->entityDefinitionsByKey();
-        if (isset($definitions[$definitionKey])) {
-          $data['item'] = $this->cleanEntityRowForImport($data['item'], $definitions[$definitionKey]);
+        if ($resolved !== NULL) {
+          $data['item'] = $this->cleanEntityRowForImport($data['item'], $resolved['definition']);
         }
       }
     }
@@ -604,8 +642,8 @@ class ExtensionHandler extends AbstractHandler {
       $errors[] = ['file' => $filename, 'message' => 'Extension config item is missing extension, api, or entity.'];
       return;
     }
-    $definitionKey = $this->definitionKey($extensionKey, $api, $entity);
-    if (!isset($definitions[$definitionKey])) {
+    $resolved = $this->resolveConfigDefinition($definitions, $extensionKey, $api, $entity);
+    if ($resolved === NULL) {
       if ($this->isNonImportableLegacyExtensionConfig($extensionKey, $api, $entity)) {
         $warnings[] = [
           'file' => $filename,
@@ -621,7 +659,7 @@ class ExtensionHandler extends AbstractHandler {
     }
     $row = (array) ($item['item'] ?? []);
     $identityField = (string) ($item['identity_field'] ?? '');
-    $definition = $definitions[$definitionKey];
+    $definition = $resolved['definition'];
     if ($identityField === '' || empty($row[$identityField])) {
       $identityField = (string) ($this->identityField($row, $definition) ?? '');
     }
@@ -643,8 +681,8 @@ class ExtensionHandler extends AbstractHandler {
       $summary['config']['skip']++;
       return;
     }
-    $definitionKey = $this->definitionKey($extensionKey, $api, $entity);
-    if (!isset($definitions[$definitionKey])) {
+    $resolved = $this->resolveConfigDefinition($definitions, $extensionKey, $api, $entity);
+    if ($resolved === NULL) {
       if ($this->isNonImportableLegacyExtensionConfig($extensionKey, $api, $entity)) {
         $summary['config']['skip']++;
         $summary['warnings'][] = [
@@ -659,7 +697,8 @@ class ExtensionHandler extends AbstractHandler {
       ];
       return;
     }
-    $definition = $definitions[$definitionKey];
+    $definitionKey = (string) $resolved['key'];
+    $definition = $resolved['definition'];
     if ($this->isNonImportableDefinition($definition)) {
       $summary['config']['skip']++;
       $summary['warnings'][] = [
@@ -819,61 +858,72 @@ class ExtensionHandler extends AbstractHandler {
     $files = [];
     $index = [];
     foreach ($this->discoverEntityDefinitions() as $definition) {
-      $extensionKey = (string) $definition['extension'];
-      if ($this->isGenericConfigSkippedExtension($extensionKey) || $this->isNonImportableDefinition($definition)) {
-        continue;
-      }
-      if (!$this->definitionMatchesRuntimeFilter($definition)) {
-        continue;
-      }
+      $extensionKey = (string) ($definition['extension'] ?? '');
+      $api = (string) ($definition['api'] ?? '');
+      $entity = (string) ($definition['entity'] ?? '');
 
-      $providerRows = $this->identityRowsForDefinition($definition);
-
-      $usedNames = [];
-      foreach ($providerRows as $row) {
-        $identityField = $this->identityField($row, $definition);
-        if ($identityField === NULL) {
+      try {
+        if ($this->isGenericConfigSkippedExtension($extensionKey) || $this->isNonImportableDefinition($definition)) {
           continue;
         }
-        $identity = (string) $row[$identityField];
-        $identityConfidence = $this->identityConfidence($identityField, $definition);
-        if ($identityConfidence !== 'AMBIGUOUS' && !$this->identityValueIsUnique($providerRows, $identityField, $identity)) {
-          $identityConfidence = 'AMBIGUOUS';
+        if (!$this->definitionMatchesRuntimeFilter($definition)) {
+          continue;
         }
-        $safeExtension = $this->safeName($extensionKey);
-        $filename = $safeExtension . '/' . $this->safeName((string) $definition['api']) . '/' . $this->safeName((string) $definition['entity']) . '/' . $this->uniqueConfigFileName($identity, $usedNames) . '.yml';
-        $dependencies = $this->dependenciesForEntityRow($row, $definition);
-        $files[] = [
-          'filename' => $filename,
-          'data' => [
-            'schema_version' => 1,
-            'type' => 'extension_config.item',
-            'extension' => $extensionKey,
-            'api' => (string) $definition['api'],
-            'entity' => (string) $definition['entity'],
-            'name' => $identity,
-            'identity_field' => $identityField,
-            'identity_confidence' => $identityConfidence,
-            'capabilities' => [
-              'create' => !empty($definition['can_create']) && $identityConfidence !== 'AMBIGUOUS',
-              'update' => !empty($definition['can_update']) && $identityConfidence !== 'AMBIGUOUS',
-              'delete' => !empty($definition['can_delete']) && $identityConfidence !== 'AMBIGUOUS',
+
+        $providerRows = $this->identityRowsForDefinition($definition);
+        $usedNames = [];
+        foreach ($providerRows as $row) {
+          $identityField = $this->identityField($row, $definition);
+          if ($identityField === NULL) {
+            continue;
+          }
+          $identity = (string) $row[$identityField];
+          $identityConfidence = $this->identityConfidence($identityField, $definition);
+          if ($identityConfidence !== 'AMBIGUOUS' && !$this->identityValueIsUnique($providerRows, $identityField, $identity)) {
+            $identityConfidence = 'AMBIGUOUS';
+          }
+          $safeExtension = $this->safeName($extensionKey);
+          $filename = $safeExtension . '/' . $this->safeName($api) . '/' . $this->safeName($entity) . '/' . $this->uniqueConfigFileName($identity, $usedNames) . '.yml';
+          $dependencies = $this->dependenciesForEntityRow($row, $definition);
+          $files[] = [
+            'filename' => $filename,
+            'data' => [
+              'schema_version' => 1,
+              'type' => 'extension_config.item',
+              'extension' => $extensionKey,
+              'api' => $api,
+              'entity' => $entity,
+              'name' => $identity,
+              'identity_field' => $identityField,
+              'identity_confidence' => $identityConfidence,
+              'capabilities' => [
+                'create' => !empty($definition['can_create']) && $identityConfidence !== 'AMBIGUOUS',
+                'update' => !empty($definition['can_update']) && $identityConfidence !== 'AMBIGUOUS',
+                'delete' => !empty($definition['can_delete']) && $identityConfidence !== 'AMBIGUOUS',
+              ],
+              'dependencies' => $dependencies,
+              'item' => $row,
             ],
-            'dependencies' => $dependencies,
-            'item' => $row,
-          ],
+          ];
+        }
+
+        // Keep a zero-count provider index only after the provider was read
+        // successfully. A failed provider must never look like an authoritative
+        // empty desired set because that could authorize destructive cleanup on
+        // import.
+        $index[$extensionKey][] = [
+          'api' => $api,
+          'entity' => $entity,
+          'directory' => $this->safeName($extensionKey) . '/' . $this->safeName($api) . '/' . $this->safeName($entity),
+          'count' => count($usedNames),
         ];
       }
-      // Keep a zero-count provider index as an explicit empty-set marker.
-      // Without it, deleting the final DEV record removes the last split YAML
-      // file and STAGE cannot know that the provider should now be empty.
-      $index[$extensionKey][] = [
-        'api' => (string) $definition['api'],
-        'entity' => (string) $definition['entity'],
-        'directory' => $this->safeName($extensionKey) . '/' . $this->safeName((string) $definition['api']) . '/' . $this->safeName((string) $definition['entity']),
-        'count' => count($usedNames),
-      ];
+      catch (\Throwable $e) {
+        $provider = trim($extensionKey . ' ' . $api . ' ' . $entity);
+        $this->addExportError('Extension configuration provider ' . ($provider !== '' ? $provider : '(unknown)') . ' could not be exported: ' . $e->getMessage());
+      }
     }
+
     foreach ($index as &$rows) {
       usort($rows, fn($a, $b) => strcmp($a['api'] . ':' . $a['entity'], $b['api'] . ':' . $b['entity']));
     }
@@ -1606,6 +1656,19 @@ class ExtensionHandler extends AbstractHandler {
     $rowMethod = (string) ($adapter['row_method'] ?? '');
     $basePath = (string) ($definition['base_path'] ?? '');
     if ($class === '' || !$this->loadApi3ReadAdapterClass($adapter, $basePath) || !method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
+      // SQLTasks 3.x ships native API4 SqlTask as well as its older API3/BAO
+      // surface. An old YAML export can still reference API3 Sqltask, while a
+      // target site's classloader may not expose the BAO in this request. Use
+      // the native API4 collection as the safe read fallback instead of
+      // blocking preview/import solely because the legacy adapter is absent.
+      if (strtolower($entity) === 'sqltask' && class_exists('\Civi\Api4\SqlTask')) {
+        try {
+          return (array) \Civi\Api4\SqlTask::get(FALSE)->addSelect('*')->execute();
+        }
+        catch (\Throwable $e) {
+          throw new \RuntimeException('Could not read SQLTasks through native API4 fallback: ' . $e->getMessage(), 0, $e);
+        }
+      }
       throw new \RuntimeException('API3 contributed-provider read adapter is unavailable for ' . $entity . '.');
     }
 
@@ -2226,6 +2289,41 @@ class ExtensionHandler extends AbstractHandler {
 
   private function isSensitiveSettingName(string $name): bool {
     return (bool) preg_match('/(password|passwd|secret|credential|private|token|api[_-]?key|key)$/i', $name);
+  }
+
+  /**
+   * Resolve YAML provider metadata to the canonical runtime provider.
+   *
+   * SQLTasks exports from older Configuration Manager builds can reference the
+   * API3 Sqltask provider. SQLTasks 3.x also exposes native API4 SqlTask and
+   * Configuration Manager deliberately prefers API4. Treat the old API3
+   * metadata as a compatibility alias when API4 is available, while retaining
+   * the reviewed API3/BAO implementation as fallback on older sites.
+   *
+   * @return array{key:string,definition:array}|null
+   */
+  private function resolveConfigDefinition(array $definitions, string $extension, string $api, string $entity): ?array {
+    if (
+      strtolower($extension) === 'de.systopia.sqltasks'
+      && strtolower($api) === 'api3'
+      && strtolower($entity) === 'sqltask'
+    ) {
+      foreach ($definitions as $key => $definition) {
+        if (
+          strtolower((string) ($definition['extension'] ?? '')) === 'de.systopia.sqltasks'
+          && strtolower((string) ($definition['api'] ?? '')) === 'api4'
+          && strtolower((string) ($definition['entity'] ?? '')) === 'sqltask'
+        ) {
+          return ['key' => (string) $key, 'definition' => (array) $definition];
+        }
+      }
+    }
+
+    $key = $this->definitionKey($extension, $api, $entity);
+    if (!isset($definitions[$key])) {
+      return NULL;
+    }
+    return ['key' => $key, 'definition' => (array) $definitions[$key]];
   }
 
   private function definitionKey(string $extension, string $api, string $entity): string {

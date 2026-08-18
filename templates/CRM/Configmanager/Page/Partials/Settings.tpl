@@ -1,6 +1,6 @@
   {if $op eq 'settings'}
     <h3>{ts}Settings{/ts}</h3>
-    <form class="civicfg-settings-form" method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}" data-civicfg-scope-options-url="{$scopeOptionsUrl|escape}">
+    <form class="civicfg-settings-form" data-civicfg-settings-form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}" data-civicfg-scope-options-url="{$scopeOptionsUrl|escape}">
       <input type="hidden" name="_action" value="save_settings" />
 
       <div class="civicfg-settings-section">
@@ -52,7 +52,11 @@
             <option value="ignore">{ts}Ignore{/ts}</option>
           </select>
           <button type="button" class="button" data-civicfg-scope-bulk-apply disabled="disabled" {if $scopeOverridden}disabled="disabled"{/if}><span>{ts}Apply{/ts}</span></button>
-          <span class="civicfg-muted">{ts}Bulk Apply changes the form only. Nothing is saved until you use Save settings.{/ts}</span>
+          <button type="submit" class="button civicfg-scope-save" data-civicfg-scope-save {if $scopeOverridden}disabled="disabled"{/if}><span>{ts}Save scope changes{/ts}</span></button>
+          <span class="civicfg-muted">{ts}Bulk Apply changes the form only. Save scope changes before exporting, importing, or leaving Settings.{/ts}</span>
+        </div>
+        <div class="messages warning no-popup civicfg-scope-unsaved" data-civicfg-scope-unsaved hidden="hidden">
+          <strong>{ts}Unsaved scope changes{/ts}</strong> - {ts}Export, Import, Validate, and Synchronize still use the last saved scope until you save this form.{/ts}
         </div>
 
         {if $scopeOverridden}

@@ -219,6 +219,9 @@ test.describe('Configuration Manager scope settings', () => {
     await expect(page.locator('[data-civicfg-scope-selected-count]')).toContainText((await rows.count()) + ' selected');
     await page.locator('[data-civicfg-scope-bulk-mode]').selectOption('ignore');
     await page.locator('[data-civicfg-scope-bulk-apply]').click();
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeVisible();
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toContainText('Export, Import, Validate, and Synchronize still use the last saved scope');
+    await expect(page.getByRole('button', { name: 'Save scope changes' })).toBeVisible();
     for (let i = 0; i < await rows.count(); i++) {
       await expect(rows.nth(i).locator('[data-civicfg-scope-mode]')).toHaveValue('ignore');
     }
@@ -227,6 +230,7 @@ test.describe('Configuration Manager scope settings', () => {
     // Apply only changes the form; persistence still requires Save settings.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-civicfg-scope-bulk-mode]')).toHaveValue('');
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeHidden();
     await expect(page.locator('[data-civicfg-scope-row]').first().locator('[data-civicfg-scope-mode]')).not.toHaveValue('ignore');
 
     // Save an all-Ignore policy to exercise the same first-run guidance that a
@@ -234,7 +238,8 @@ test.describe('Configuration Manager scope settings', () => {
     await page.locator('[data-civicfg-scope-select-all]').check();
     await page.locator('[data-civicfg-scope-bulk-mode]').selectOption('ignore');
     await page.locator('[data-civicfg-scope-bulk-apply]').click();
-    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeVisible();
+    await page.getByRole('button', { name: 'Save scope changes' }).click();
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('[data-civicfg-onboarding]')).toBeVisible();
     await page.screenshot({ path: path.join(artifactDir, 'settings-first-run-guide.png'), fullPage: true });
