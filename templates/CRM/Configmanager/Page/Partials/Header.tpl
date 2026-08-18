@@ -5,7 +5,11 @@
   </div>
 
   {if $op eq 'sync'}
-    <p class="civicfg-help">{ts}Review pending differences between active CiviCRM configuration and YAML files. Export writes CiviCRM changes to YAML. Import applies YAML changes to CiviCRM.{/ts}</p>
+    {if !$managedScopeConfigured}
+      <p class="civicfg-help">{if $watchOnlyScope}{ts}Watch-only monitoring is configured. Scan watched configuration for drift, or choose managed configuration in Settings to begin YAML synchronization.{/ts}{else}{ts}Choose what Configuration Manager should manage in Settings, then create the initial YAML export before synchronization can be evaluated.{/ts}{/if}</p>
+    {else}
+      <p class="civicfg-help">{ts}Review pending differences between active CiviCRM configuration and YAML files. Export writes CiviCRM changes to YAML. Import applies YAML changes to CiviCRM.{/ts}</p>
+    {/if}
   {elseif $op eq 'import'}
     <p class="civicfg-help">{ts}Review YAML files in the sync directory before applying them to CiviCRM. Import treats YAML as the source of truth and may update, create, or delete supported records after confirmation.{/ts}</p>
   {elseif $op eq 'export'}
@@ -41,7 +45,9 @@
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Status{/ts}</div>
       <div class="civicfg-card-value">
-        {if $initialExportRequired}
+        {if !$managedScopeConfigured}
+          <span class="civicfg-badge warn">{if $watchOnlyScope}{ts}Monitoring Only{/ts}{else}{ts}Setup Required{/ts}{/if}</span>
+        {elseif $initialExportRequired}
           <span class="civicfg-badge warn">{ts}Initial Export Required{/ts}</span>
         {elseif $summary.total_changes gt 0}
           <span class="civicfg-badge warn">{ts 1=$summary.total_changes}%1 Difference(s){/ts}</span>
@@ -52,7 +58,9 @@
     </div>
     <div class="civicfg-card">
       <div class="civicfg-card-label">{ts}Changes{/ts}</div>
-      {if $initialExportRequired}
+      {if !$managedScopeConfigured}
+        <div>{if $watchOnlyScope}{ts}No configuration is managed in YAML. Watch-only items can still be scanned.{/ts}{else}{ts}Choose configuration to manage in Settings before starting synchronization.{/ts}{/if}</div>
+      {elseif $initialExportRequired}
         <div>{ts}Differences will be shown after the initial managed YAML export.{/ts}</div>
       {else}
         <div>{ts}Changed{/ts}: {$summary.changed_count|escape}</div>

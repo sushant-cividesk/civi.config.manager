@@ -41,6 +41,104 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
+  public function testFreshIgnoreScopeRequiresSetupInsteadOfReportingSync(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+
+    $handler = new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE, [
+      $this->jobFile(10, 'job_one'),
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $state = $manager->getScopeSetupState();
+    self::assertFalse($state['managed']);
+    self::assertFalse($state['watched']);
+    self::assertTrue($state['setup_required']);
+
+    $result = $manager->diff();
+    self::assertTrue($result['no_managed_scope']);
+    self::assertTrue($result['setup_required']);
+    self::assertArrayNotHasKey('initial_export_required', $result);
+    self::assertSame(0, $handler->exportCalls);
+
+    $health = $manager->getHealth();
+    self::assertSame('Configuration Manager: Setup required', $health['title']);
+  }
+
+  public function testWatchOnlyScopeIsNotReportedAsManagedSync(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => ['mode' => 'watch'],
+    ]);
+
+    $handler = new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE, [
+      $this->jobFile(10, 'job_one'),
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $state = $manager->getScopeSetupState();
+    self::assertFalse($state['managed']);
+    self::assertTrue($state['watched']);
+    self::assertTrue($state['watch_only']);
+
+    $result = $manager->diff();
+    self::assertTrue($result['no_managed_scope']);
+    self::assertTrue($result['watch_only']);
+    self::assertSame(0, $handler->exportCalls);
+
+    $health = $manager->getHealth();
+    self::assertSame('Configuration Manager: Monitoring only', $health['title']);
+  }
+
+  public function testSelectedScopeWithoutItemsStillRequiresSetup(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => [
+        'mode' => 'selected',
+        'selectors' => [],
+        'watch_unmanaged' => FALSE,
+      ],
+    ]);
+
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE),
+    ]));
+
+    self::assertFalse($manager->hasManagedScopeConfigured());
+    $result = $manager->diff();
+    self::assertTrue($result['no_managed_scope']);
+    self::assertTrue($result['setup_required']);
+  }
+
+  public function testSelectedScopeWithItemRequiresInitialExportBeforeDiff(): void {
+    $root = $this->createTemporaryDirectory();
+    \Civi::settings()->set('civicfg_sync_dir', $root);
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => [
+        'mode' => 'selected',
+        'selectors' => ['key:scheduled-jobs|Job|name=job_one'],
+        'watch_unmanaged' => TRUE,
+      ],
+    ]);
+
+    $handler = new ScopeUiFixtureHandler('scheduled-jobs', 'Scheduled Jobs', TRUE, [
+      $this->jobFile(10, 'job_one'),
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    self::assertTrue($manager->hasManagedScopeConfigured());
+    $result = $manager->diff();
+    self::assertTrue($result['initial_export_required']);
+    self::assertArrayNotHasKey('no_managed_scope', $result);
+    self::assertSame(0, $handler->exportCalls);
+  }
+
   public function testPickerExportsOnlyRequestedTypeAndReturnsStableSelectors(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);

@@ -870,8 +870,59 @@ class ConfigManager {
     ];
   }
 
+  /**
+   * Return the effective high-level scope state without exporting any records.
+   *
+   * Selected mode only counts as managed when at least one selector is present.
+   * This prevents an empty selected scope, all-Ignore scope, or watch-only scope
+   * from being presented as a successful managed YAML synchronization.
+   */
+  public function getScopeSetupState(): array {
+    $managed = FALSE;
+    $watched = FALSE;
+
+    foreach ($this->getScopeTypeOptions() as $row) {
+      $type = trim((string) ($row['type'] ?? ''));
+      if ($type === '') {
+        continue;
+      }
+
+      $policy = $this->scope->getPolicy($type);
+      $mode = (string) ($policy['mode'] ?? ConfigScope::MODE_ALL);
+      if ($mode === ConfigScope::MODE_ALL) {
+        $managed = TRUE;
+      }
+      elseif ($mode === ConfigScope::MODE_SELECTED) {
+        if (!empty($policy['selectors'])) {
+          $managed = TRUE;
+        }
+        if (!empty($policy['watch_unmanaged'])) {
+          $watched = TRUE;
+        }
+      }
+      elseif ($mode === ConfigScope::MODE_WATCH) {
+        $watched = TRUE;
+      }
+
+      if ($managed && $watched) {
+        break;
+      }
+    }
+
+    return [
+      'managed' => $managed,
+      'watched' => $watched,
+      'watch_only' => !$managed && $watched,
+      'setup_required' => !$managed && !$watched,
+    ];
+  }
+
+  public function hasManagedScopeConfigured(): bool {
+    return !empty($this->getScopeSetupState()['managed']);
+  }
+
   public function isInitialExportRequired(): bool {
-    return !$this->hasManagedYamlFiles($this->getSyncDir());
+    return $this->hasManagedScopeConfigured() && !$this->hasManagedYamlFiles($this->getSyncDir());
   }
 
   /**
@@ -1367,6 +1418,17 @@ class ConfigManager {
   public function diff(array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
+    $scopeState = $this->getScopeSetupState();
+    if (empty($scopeState['managed'])) {
+      $result['no_managed_scope'] = TRUE;
+      $result['watch_only'] = !empty($scopeState['watch_only']);
+      $result['setup_required'] = !empty($scopeState['setup_required']);
+      $result['message'] = !empty($scopeState['watch_only'])
+        ? 'Watch-only configuration is enabled, but no configuration is currently managed in YAML.'
+        : 'Configuration scope setup is required before managed YAML synchronization can begin.';
+      $this->cacheHealthFromDiff($result);
+      return $result;
+    }
 
     // Before the first managed export there is no useful YAML comparison. Do
     // not scan the whole CiviCRM installation simply to report every active
@@ -2391,6 +2453,22 @@ class ConfigManager {
    */
   public function getHealth(): array {
     $syncDir = $this->getSyncDir();
+    $scopeState = $this->getScopeSetupState();
+    if (empty($scopeState['managed'])) {
+      return [
+        'level' => 'warning',
+        'title' => !empty($scopeState['watch_only'])
+          ? 'Configuration Manager: Monitoring only'
+          : 'Configuration Manager: Setup required',
+        'message' => !empty($scopeState['watch_only'])
+          ? 'Watch-only configuration is enabled, but no configuration is currently managed in YAML.'
+          : 'Choose configuration to manage before creating the initial YAML export.',
+        'sync_dir' => $syncDir,
+        'changed' => 0,
+        'in_civicrm' => 0,
+        'in_yaml' => 0,
+      ];
+    }
     if (!is_dir($syncDir)) {
       return [
         'level' => 'warning',
@@ -2428,7 +2506,7 @@ class ConfigManager {
     }
 
     return [
-      'level' => 'warning',
+      'level' => 'info',
       'title' => 'Configuration Manager: Status not scanned yet',
       'message' => 'YAML configuration exists. Run Synchronize or civicfg diff to refresh the last-known configuration status.',
       'sync_dir' => $syncDir,
@@ -2440,6 +2518,25 @@ class ConfigManager {
 
   private function cacheHealthFromDiff(array $diff): void {
     $syncDir = (string) ($diff['sync_dir'] ?? $this->getSyncDir());
+    if (!empty($diff['no_managed_scope'])) {
+      $watchOnly = !empty($diff['watch_only']);
+      $health = [
+        'level' => 'warning',
+        'title' => $watchOnly
+          ? 'Configuration Manager: Monitoring only'
+          : 'Configuration Manager: Setup required',
+        'message' => $watchOnly
+          ? 'Watch-only configuration is enabled, but no configuration is currently managed in YAML.'
+          : 'Choose configuration to manage before creating the initial YAML export.',
+        'sync_dir' => $syncDir,
+        'changed' => 0,
+        'in_civicrm' => 0,
+        'in_yaml' => 0,
+        'scanned_at' => date('c'),
+      ];
+      \Civi::settings()->set('civicfg_last_health', $health);
+      return;
+    }
     if (!empty($diff['initial_export_required'])) {
       $health = [
         'level' => 'warning',

@@ -238,6 +238,15 @@ test.describe('Configuration Manager scope settings', () => {
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('[data-civicfg-onboarding]')).toBeVisible();
     await page.screenshot({ path: path.join(artifactDir, 'settings-first-run-guide.png'), fullPage: true });
+
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=sync', { waitUntil: 'domcontentloaded' });
+    const syncBlock = page.locator('.crm-configmanager-block');
+    await expect(syncBlock.getByText('Setup Required', { exact: true })).toBeVisible();
+    await expect(syncBlock.getByText('Choose what Configuration Manager should manage', { exact: true })).toBeVisible();
+    await expect(syncBlock.getByText('Managed configuration is in sync. No pending changes were found.', { exact: true })).toHaveCount(0);
+    await expect(syncBlock.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
+    await expect(syncBlock.getByRole('button', { name: 'Scan Watched Config', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: path.join(artifactDir, 'sync-setup-required.png'), fullPage: true });
   });
 
   test('persists the reviewed cross-site import switch and can turn it back off', async ({ page }) => {

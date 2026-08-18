@@ -1,19 +1,19 @@
   {if $op eq 'sync'}
     <div class="civicfg-actions">
-      {if $canExport}<form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export YAML Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
+      {if $managedScopeConfigured && $canExport}<form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export YAML Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
         <input type="hidden" name="_action" value="export_write" />
         {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
         <button type="submit" class="button"><span>{if $initialExportRequired}{ts}Create Initial Export{/ts}{else}{ts}Export{/ts}{/if}</span></button>
       </form>{/if}
-      {if !$initialExportRequired && $canImport}<a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}"><span>{ts}Import{/ts}</span></a>{/if}
-      {if !$initialExportRequired}
+      {if $managedScopeConfigured && !$initialExportRequired && $canImport}<a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}"><span>{ts}Import{/ts}</span></a>{/if}
+      {if $managedScopeConfigured && !$initialExportRequired}
         <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}">
           <input type="hidden" name="_action" value="validate_files" />
           {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
           <button type="submit" class="button"><span>{ts}Validate{/ts}</span></button>
         </form>
       {/if}
-      {if $canAdminister}
+      {if $canAdminister && $watchedScopeConfigured}
         <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}">
           <input type="hidden" name="_action" value="scan_watch" />
           {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
@@ -22,12 +22,27 @@
       {/if}
     </div>
 
-    {if $initialExportRequired}
+    {if !$managedScopeConfigured}
+      <div class="civicfg-panel civicfg-initial-export-panel">
+        <div class="civicfg-panel-body">
+          {if $watchOnlyScope}
+            <h3>{ts}Monitoring is configured; nothing is managed in YAML{/ts}</h3>
+            <p>{ts}Watch-only configuration can be scanned for drift, but it is intentionally excluded from YAML synchronization.{/ts}</p>
+            <p>{ts}Choose Manage everything or Manage selected items in Settings when you want Configuration Manager to establish a managed YAML baseline.{/ts}</p>
+          {else}
+            <h3>{ts}Choose what Configuration Manager should manage{/ts}</h3>
+            <p>{ts}No configuration is currently managed in YAML, so there is no synchronization baseline and the site cannot be reported as In Sync yet.{/ts}</p>
+            <p>{ts}Open Settings, choose Manage everything or Manage selected items for at least one configuration type, save, then create the initial export.{/ts}</p>
+          {/if}
+          {if $canAdminister}<p><a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}"><span>{ts}Review Configuration Scope{/ts}</span></a></p>{/if}
+        </div>
+      </div>
+    {elseif $initialExportRequired}
       <div class="civicfg-panel civicfg-initial-export-panel">
         <div class="civicfg-panel-body">
           <h3>{ts}Create the initial configuration export{/ts}</h3>
           <p>{ts}There is no YAML baseline yet, so Configuration Manager is not showing every existing CiviCRM record as a difference.{/ts}</p>
-          <p>{ts}Choose what should be managed in Settings, then create the initial export. After that, Synchronize will show only real changes between managed YAML and active CiviCRM.{/ts}</p>
+          <p>{ts}Your managed scope is ready. Create the initial export; after that, Synchronize will show only real changes between managed YAML and active CiviCRM.{/ts}</p>
           {if $canAdminister}<p><a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}"><span>{ts}Review Configuration Scope{/ts}</span></a></p>{/if}
         </div>
       </div>

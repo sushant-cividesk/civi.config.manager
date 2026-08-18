@@ -44,7 +44,7 @@ The admin UI has four tabs.
 
 ### Synchronize
 
-Shows the current difference between **managed** active CiviCRM configuration and managed YAML. Before the first export there is no baseline, so the page shows one initial-export prompt instead of listing every existing CiviCRM record as a difference. After the baseline exists, the main cards use concise human wording and keep API/capability/dependency/identity metadata inside `Details`.
+Shows the current difference between **managed** active CiviCRM configuration and managed YAML. The status is explicit: **Setup Required** when nothing is managed or watched, **Monitoring Only** for watch-only scope, **Initial Export Required** when managed scope exists without a YAML baseline, and **In Sync** only after a managed baseline exists and the managed diff is empty. This prevents a fresh all-Ignore configuration from being presented as synchronized. After the baseline exists, the main cards use concise human wording and keep API/capability/dependency/identity metadata inside `Details`.
 
 Available actions:
 

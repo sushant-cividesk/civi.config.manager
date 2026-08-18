@@ -144,13 +144,16 @@ In addition to the alpha58 scope safety checks, verify:
 In addition to the existing scope and provider checks, verify:
 
 - A genuinely fresh install sets the unconfigured scope default to `Ignore`; no configuration type is exported, imported, deleted, or watched until an administrator opts it in.
+- On Synchronize, an all-Ignore or empty-selected scope must show **Setup Required**, never **In Sync**; managed Export/Import/Validate controls and the watch-scan action must be absent until their corresponding scope is configured.
+- A watch-only scope must show **Monitoring Only** and keep **Scan Watched Config** available without implying that a managed YAML baseline exists.
+- A managed scope with no YAML baseline must show **Initial Export Required**; **In Sync** is valid only after a managed baseline exists and the managed diff is empty.
 - An upgraded installation with no `civicfg_scope_default_mode` marker keeps the historical `Manage everything` fallback.
 - An explicit per-type scope policy always overrides the fresh-install default.
 - The Settings page opens both **What should Configuration Manager manage?** and **Advanced settings** by default and allows either section to be collapsed and reopened.
 - Every scope card has a bulk-selection checkbox; **Select all**, bulk mode selection, and **Apply** update only the visible form until **Save settings** is used.
 - Bulk **Manage selected items** reveals the existing item-selection controls without implicitly selecting any configuration item.
 - `civicrm.settings.php` scope ownership keeps individual and bulk scope controls read-only.
-- Playwright writes review screenshots for the expanded Settings layout, bulk Ignore state, and first-run/no-managed-config guidance under `tests/ci/artifacts`.
+- Playwright writes review screenshots for the expanded Settings layout, bulk Ignore state, first-run/no-managed-config guidance, and the Synchronize **Setup Required** state (`sync-setup-required.png`) under `tests/ci/artifacts`.
 - `composer qa:full` runs the isolated Docker suite without browser tests and `composer qa:full-ui` runs the same stack with Playwright; neither local command requires CiviCRM Buildkit.
 - The GitHub full-QA workflow is exercised once with `run_ui_tests=false` and once with `run_ui_tests=true` before promotion.
 - Saving a selected scope with **Monitor everything else in this type** captures an initial watch baseline for the unselected items; changing one of those items afterward must produce `changed > 0` on the next watch scan without adding that item to YAML.

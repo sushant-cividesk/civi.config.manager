@@ -509,12 +509,17 @@ class MainPage {
         'watch_unmanaged' => !empty($policy['watch_unmanaged']),
       ];
     }
+    $scopeSetupState = $this->manager->getScopeSetupState();
+    $managedScopeConfigured = !empty($scopeSetupState['managed']);
+    $watchedScopeConfigured = !empty($scopeSetupState['watched']);
+    $watchOnlyScope = !empty($scopeSetupState['watch_only']);
     // Synchronize/import already performed an explicit diff, which owns the
     // legacy-tree check. Other tabs use only the cheap current manifest marker
-    // and never recursively walk the YAML tree just to render the header.
-    $initialExportRequired = in_array($op, ['sync', 'import'], TRUE)
+    // and never recursively walk the YAML tree just to render the header. A
+    // baseline is meaningful only after at least one managed scope exists.
+    $initialExportRequired = $managedScopeConfigured && (in_array($op, ['sync', 'import'], TRUE)
       ? !empty($diffResult['initial_export_required'])
-      : !$this->manager->hasCurrentManifest();
+      : !$this->manager->hasCurrentManifest());
     $watchSummary = $this->manager->getWatchSummary();
     $watchHistory = $this->manager->getWatchHistory();
     $watchDetectedCount = (int) ($watchSummary['new'] ?? 0) + (int) ($watchSummary['changed'] ?? 0) + (int) ($watchSummary['missing'] ?? 0);
@@ -578,6 +583,9 @@ class MainPage {
     $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
     $this->page->assign('scopeSettingsExample', $this->manager->getScopeSettingsExample());
     $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json'));
+    $this->page->assign('managedScopeConfigured', $managedScopeConfigured);
+    $this->page->assign('watchedScopeConfigured', $watchedScopeConfigured);
+    $this->page->assign('watchOnlyScope', $watchOnlyScope);
     $this->page->assign('initialExportRequired', $initialExportRequired);
     $this->page->assign('watchSummary', $watchSummary);
     $this->page->assign('watchHistory', $watchHistory);
