@@ -2428,7 +2428,7 @@ class ConfigManager {
     }
 
     return [
-      'level' => 'info',
+      'level' => 'warning',
       'title' => 'Configuration Manager: Status not scanned yet',
       'message' => 'YAML configuration exists. Run Synchronize or civicfg diff to refresh the last-known configuration status.',
       'sync_dir' => $syncDir,
