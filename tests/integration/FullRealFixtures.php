@@ -279,14 +279,23 @@ final class CivicfgFullRealFixtures {
         'SQLTasks singular sqltask_* setting namespace must be exported.'
       );
 
+      $sqltaskProviders = (array) ($compatibility['de.systopia.sqltasks']['providers'] ?? []);
       $sqltaskProvider = NULL;
-      foreach ((array) ($compatibility['de.systopia.sqltasks']['providers'] ?? []) as $provider) {
-        $provider = (array) $provider;
-        if (strtolower((string) ($provider['api'] ?? '')) === 'api3' && strtolower((string) ($provider['entity'] ?? '')) === 'sqltask') {
-          $sqltaskProvider = $provider;
-          break;
+
+      // SQLTasks 3.0.0-alpha3 exposes a native API4 SqlTask entity. The
+      // contributed-provider engine intentionally prefers API4 and suppresses
+      // the equivalent API3 provider. Keep the reviewed API3/BAO path only as
+      // the compatibility fallback for installations without API4 SqlTask.
+      foreach (['api4', 'api3'] as $preferredApi) {
+        foreach ($sqltaskProviders as $provider) {
+          $provider = (array) $provider;
+          if (strtolower((string) ($provider['api'] ?? '')) === $preferredApi && strtolower((string) ($provider['entity'] ?? '')) === 'sqltask') {
+            $sqltaskProvider = $provider;
+            break 2;
+          }
         }
       }
+
       $sqltaskProviderSummary = array_map(static function($provider): array {
         $provider = (array) $provider;
         return [
@@ -295,18 +304,35 @@ final class CivicfgFullRealFixtures {
           'read_adapter' => (string) ($provider['read_adapter'] ?? ''),
           'can_create' => !empty($provider['can_create']),
           'can_delete' => !empty($provider['can_delete']),
+          'importable' => !empty($provider['importable']),
           'error' => (string) ($provider['error'] ?? ''),
         ];
-      }, (array) ($compatibility['de.systopia.sqltasks']['providers'] ?? []));
+      }, $sqltaskProviders);
       $this->assertTrue(
         is_array($sqltaskProvider),
-        'SQLTasks Sqltask API3 provider must be discovered. Providers seen: ' . json_encode($sqltaskProviderSummary, JSON_UNESCAPED_SLASHES)
+        'SQLTasks SqlTask provider must be discovered. Providers seen: ' . json_encode($sqltaskProviderSummary, JSON_UNESCAPED_SLASHES)
       );
-      $this->assertTrue(!empty($sqltaskProvider['can_create']), 'SQLTasks Sqltask provider must expose create for cross-environment task restore.');
-      $this->assertTrue(!empty($sqltaskProvider['can_delete']), 'SQLTasks Sqltask provider must expose its Deletetask action for cross-environment delete restore.');
-      $this->assertTrue(!empty($sqltaskProvider['importable']), 'SQLTasks Sqltask provider must remain importable when its portable identity is safe.');
-      $this->assertSame('', trim((string) ($sqltaskProvider['list_action'] ?? '')), 'Pinned SQLTasks 3.0.0-alpha3 must not be mistaken for exposing an API3 collection action.');
-      $this->assertSame('sqltasks_bao_generator', (string) ($sqltaskProvider['read_adapter'] ?? ''), 'SQLTasks Sqltask provider must use the reviewed read-only BAO collection adapter.');
+      $this->assertTrue(!empty($sqltaskProvider['can_create']), 'SQLTasks SqlTask provider must expose create for cross-environment task restore.');
+      $this->assertTrue(!empty($sqltaskProvider['can_delete']), 'SQLTasks SqlTask provider must expose delete for cross-environment task restore.');
+      $this->assertTrue(!empty($sqltaskProvider['importable']), 'SQLTasks SqlTask provider must remain importable when its portable identity is safe.');
+
+      $selectedApi = strtolower((string) ($sqltaskProvider['api'] ?? ''));
+      if (class_exists('Civi\\Api4\\SqlTask')) {
+        $this->assertSame('api4', $selectedApi, 'SQLTasks native API4 SqlTask provider must be preferred when available.');
+      }
+      elseif ($selectedApi === 'api3') {
+        $this->assertSame('', trim((string) ($sqltaskProvider['list_action'] ?? '')), 'SQLTasks API3 fallback must not mistake single-record get for a collection action.');
+        $this->assertSame('sqltasks_bao_generator', (string) ($sqltaskProvider['read_adapter'] ?? ''), 'SQLTasks API3 fallback must use the reviewed read-only BAO collection adapter.');
+      }
+
+      $this->record('sqltasks_provider', [
+        'api' => (string) ($sqltaskProvider['api'] ?? ''),
+        'entity' => (string) ($sqltaskProvider['entity'] ?? ''),
+        'can_create' => !empty($sqltaskProvider['can_create']),
+        'can_delete' => !empty($sqltaskProvider['can_delete']),
+        'importable' => !empty($sqltaskProvider['importable']),
+        'status' => 'passed',
+      ]);
     }
 
     $coverage = [];

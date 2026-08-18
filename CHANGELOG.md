@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- Final QA correction: SQLTasks 3.0.0-alpha3 exposes native API4 `SqlTask`, so full real-fixture QA now verifies the canonical API4 provider first and uses the reviewed API3/BAO path only as a fallback when API4 is unavailable.
+
 - Final same-version SQLTasks discovery hotfix: the reviewed `de.systopia.sqltasks` provider is now defined declaratively from its installed `Sqltask/Create.php` and `Sqltask/Deletetask.php` files, so discovery no longer depends on loading legacy BAO classes or probing unreliable API3 runtime metadata. BAO class loading is deferred until provider rows are actually read.
 - Extension base-path discovery is now resilient per extension and falls back conservatively to the configured CiviCRM extensions directory for an installed key, so one stale mapper entry cannot suppress later contributed providers during isolated CLI/QA bootstrap.
 

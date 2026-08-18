@@ -83,7 +83,7 @@ The alpha59 hotfix additionally covers picker filtering/clear behavior, the test
 
 The alpha60 hotfix adds regression coverage for API3 create-spec writable-field filtering and virtual contributed-provider import isolation, including SQLTasks runtime-field cleanup and preservation of the selected subtype through UI preview/apply and service validation/apply behavior.
 
-The alpha61 QA hotfix also covers the official pinned SQLTasks 3.0.0-alpha3 read shape: `Sqltask.get` is a single-record action requiring an ID, so full real-fixture QA verifies the reviewed read-only BAO generator/export adapter rather than assuming every write-capable API3 provider exposes a collection action.
+The alpha61 QA coverage follows the actual pinned SQLTasks 3.0.0-alpha3 runtime: native API4 `SqlTask` is preferred and verified by full real-fixture QA. The reviewed API3 `Sqltask` BAO generator/export adapter remains covered as a compatibility fallback because its `Sqltask.get` action is single-record only.
 
 ## Alpha58 scope and performance coverage
 

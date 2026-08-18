@@ -20,7 +20,7 @@ steps:
   - Read the created row back by the same stable identity and fail the import if the provider reported success but the row is not readable.
   - Repeat with exactly one matching target row and verify update/skip remains safe.
   - Repeat with duplicate matching target rows and verify automatic writes are blocked as ambiguous.
-  - In the pinned SQLTasks 3.0.0-alpha3 real fixture, verify Sqltask is discovered even though its API3 get action requires an ID and no collection action exists; Configuration Manager must use only the reviewed read-only BAO generator/export adapter while keeping create/update/delete on API3.
+  - In the pinned SQLTasks 3.0.0-alpha3 real fixture, verify native API4 SqlTask is preferred and remains importable with create/delete capability; keep the reviewed API3 Sqltask + BAO generator/export adapter as the fallback when API4 is unavailable.
   - Run import with only the SQLTasks virtual subtype selected and verify unrelated extension-provider YAML is neither validated as part of that subtype nor applied by the import.
   - Verify API3 write results that return one associative provider row are normalized without a return-type error.
   - Delete the final SQLTasks task on DEV, export again, and verify the zero-count provider index remains so STAGE can plan and apply the matching delete.
