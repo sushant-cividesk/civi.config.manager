@@ -12,6 +12,7 @@ CIVICRM_HTTP_PORT="${CIVICRM_HTTP_PORT:-8760}"
 MAILPIT_HTTP_PORT="${MAILPIT_HTTP_PORT:-8025}"
 CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID:-github-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-civicfgqa-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}}"
+CURRENT_QA_STAGE="bootstrap"
 
 export EXTENSION_ROOT QA_ARTIFACT_DIR PHP_QA_INI FIXTURE_EXTENSION_DIR CIVICRM_HTTP_PORT MAILPIT_HTTP_PORT
 export CIVICFG_QA_RUN_ID COMPOSE_PROJECT_NAME
@@ -78,10 +79,19 @@ collect_diagnostics() {
   fi
   if [[ "${exit_code}" -ne 0 ]]; then
     rm -f "${QA_ARTIFACT_DIR}/READY"
+    printf 'FAILED QA STAGE: %s\n' "${CURRENT_QA_STAGE}" | tee "${QA_ARTIFACT_DIR}/FAILED_STAGE.txt" >&2
   fi
   exit "${exit_code}"
 }
 trap collect_diagnostics EXIT
+
+qa_stage() {
+  CURRENT_QA_STAGE="$1"
+  printf '%s\n' "${CURRENT_QA_STAGE}" > "${QA_ARTIFACT_DIR}/current-stage.txt"
+  printf '\n============================================================\n'
+  printf 'QA STAGE: %s\n' "${CURRENT_QA_STAGE}"
+  printf '============================================================\n'
+}
 
 wait_for_http() {
   local url="$1"
@@ -107,12 +117,15 @@ printf 'Real extension fixtures: %s\n' "${RUN_REAL_EXTENSION_FIXTURES:-true}" \
   | tee -a "${QA_ARTIFACT_DIR}/run-metadata.txt"
 
 if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
+  qa_stage "Fetch pinned real extension fixtures"
   "${SCRIPT_DIR}/fetch-fixture-extensions.sh" | tee "${QA_ARTIFACT_DIR}/fixture-extension-fetch.log"
 fi
 
+qa_stage "Pull and start isolated CiviCRM stack"
 compose pull
 compose up -d
 
+qa_stage "Install isolated CiviCRM"
 compose exec -T -u www-data \
   -e CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
   -e CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
@@ -120,6 +133,8 @@ compose exec -T -u www-data \
 
 wait_for_http "http://127.0.0.1:${CIVICRM_HTTP_PORT}/"
 
+qa_stage "Verify extension lifecycle"
+qa_stage "Run API and CLI smoke tests"
 compose exec -T -u www-data app sh -lc '
   set -eu
   cd /var/www/html
@@ -133,6 +148,7 @@ compose exec -T -u www-data app sh -lc '
 ' | tee "${QA_ARTIFACT_DIR}/extension-lifecycle.log"
 
 if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
+  qa_stage "Install pinned real extension fixtures"
   compose exec -T -u www-data \
     -e FIXTURE_EXTENSION_DIR=/var/www/html/ext-fixtures \
     -e CIVICFG_QA_FIXTURE_EXTENSION_KEYS="${CIVICFG_QA_FIXTURE_EXTENSION_KEYS:-uk.co.vedaconsulting.mosaico de.systopia.sqltasks org.civicrm.contactlayout org.civicoop.civirules}" \
@@ -141,6 +157,7 @@ if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
     | tee "${QA_ARTIFACT_DIR}/fixture-extension-install.log"
 fi
 
+qa_stage "Run standalone round-trip integration"
 compose exec -T -u www-data \
   -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
   -e CIVICFG_QA_ROOT=/tmp/civicfg-qa \
@@ -149,6 +166,7 @@ compose exec -T -u www-data \
   | tee "${QA_ARTIFACT_DIR}/standalone-round-trip.log"
 
 if [[ "${RUN_FULL_REAL_FIXTURE_SUITE:-true}" == "true" ]]; then
+  qa_stage "Run full real-fixture integration"
   compose exec -T -u www-data \
     -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
     -e CIVICFG_QA_ROOT=/tmp/civicfg-qa \
@@ -168,6 +186,7 @@ compose exec -T -u www-data app sh -lc '
   /var/www/html/ext/civi.config.manager/bin/civicfg validate
 ' | tee "${QA_ARTIFACT_DIR}/api-cli-smoke.log"
 
+qa_stage "Check application runtime logs"
 compose logs --no-color app > "${QA_ARTIFACT_DIR}/app-runtime.log"
 if grep -E 'PHP (Fatal error|Parse error)|Uncaught (Error|Exception)|Allowed memory size.*exhausted' \
   "${QA_ARTIFACT_DIR}/app-runtime.log"; then
@@ -176,6 +195,7 @@ if grep -E 'PHP (Fatal error|Parse error)|Uncaught (Error|Exception)|Allowed mem
 fi
 
 if [[ "${RUN_UI_TESTS:-false}" == "true" ]]; then
+  qa_stage "Run Playwright UI tests and screenshots"
   compose exec -T -u www-data \
     -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
     -e CIVICFG_QA_ARTIFACTS=/qa-artifacts \
@@ -202,6 +222,7 @@ if grep -Ei 'PHP (Fatal error|Parse error)|Uncaught (Error|Exception)|Allowed me
   exit 1
 fi
 
+qa_stage "Verify mail isolation and source immutability"
 if [[ -s "${QA_ARTIFACT_DIR}/mail-attempts.log" ]]; then
   echo "Email isolation failed: application code attempted to invoke PHP mail." >&2
   exit 1
@@ -224,4 +245,5 @@ if [[ "${SOURCE_STATE_BEFORE}" != "${SOURCE_STATE_AFTER}" ]]; then
 fi
 
 touch "${QA_ARTIFACT_DIR}/READY"
+qa_stage "PASS - standalone integration suite"
 echo "Standalone integration suite passed."

@@ -23,7 +23,20 @@ class ConfigScope {
 
   public function getPolicy(string $type): array {
     $all = $this->getPolicies();
-    return $this->normalisePolicy((array) ($all[$type] ?? []));
+    if (isset($all[$type])) {
+      return $this->normalisePolicy((array) $all[$type]);
+    }
+    return $this->normalisePolicy(['mode' => $this->getDefaultMode()]);
+  }
+
+  public function getDefaultMode(): string {
+    $mode = strtolower(trim((string) \Civi::settings()->get('civicfg_scope_default_mode')));
+    if (in_array($mode, [self::MODE_ALL, self::MODE_SELECTED, self::MODE_WATCH, self::MODE_IGNORE], TRUE)) {
+      return $mode;
+    }
+    // Backward compatibility: installations upgraded from alpha60 or earlier
+    // have no default-mode marker and must continue managing everything.
+    return self::MODE_ALL;
   }
 
   public function getPolicies(): array {

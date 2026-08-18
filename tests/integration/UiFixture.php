@@ -43,6 +43,7 @@ final class CivicfgUiFixture {
     $backup = [];
     foreach ([
       'civicfg_sync_dir',
+      'civicfg_scope_default_mode',
       'civicfg_scope',
       'civicfg_scope_resolved',
       'civicfg_last_health',
@@ -55,6 +56,7 @@ final class CivicfgUiFixture {
     }
 
     \Civi::settings()->set('civicfg_sync_dir', $this->root . '/sync');
+    \Civi::settings()->set('civicfg_scope_default_mode', 'all');
     \Civi::settings()->set('civicfg_scope', []);
     \Civi::settings()->set('civicfg_scope_resolved', []);
     \Civi::settings()->set('civicfg_last_health', []);

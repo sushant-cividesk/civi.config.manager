@@ -40,6 +40,19 @@ spl_autoload_register(function ($class) {
 /**
  * Runtime/install helper for local state schema and managed CLI launchers.
  */
+function _configmanager_initialize_fresh_install_defaults(): void {
+  if (!class_exists('Civi')) {
+    return;
+  }
+  $current = \Civi::settings()->get('civicfg_scope_default_mode');
+  if (!is_string($current) || !in_array($current, ['all', 'selected', 'watch', 'ignore'], TRUE)) {
+    // Fresh installs are deliberately opt-in. Existing installations do not
+    // receive this setting during upgrades, so their historical default
+    // remains Manage everything until an administrator explicitly changes it.
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+  }
+}
+
 function _configmanager_lifecycle(bool $installCli = TRUE, bool $removeCli = FALSE): void {
   try {
     $installer = new \Civi\ConfigManager\Service\CliInstaller();
@@ -67,6 +80,7 @@ function _configmanager_lifecycle(bool $installCli = TRUE, bool $removeCli = FAL
  * Implements hook_civicrm_install().
  */
 function configmanager_civicrm_install() {
+  _configmanager_initialize_fresh_install_defaults();
   _configmanager_lifecycle(TRUE, FALSE);
 }
 

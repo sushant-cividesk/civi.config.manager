@@ -6,7 +6,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha60-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha61-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -15,7 +15,7 @@ Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when t
 
 ## Development and beta policy
 
-`0.1.0-alpha60-core` is a focused hotfix on top of the complete alpha59 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha61-core` continues development on top of the complete alpha60 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
 
 ## Purpose
 
@@ -29,6 +29,12 @@ The extension is intended to provide a Drupal-style configuration workflow for C
 The YAML directory is treated as the deployable source of truth for supported configuration types. The current alpha development build continues from the latest internal beta codebase for development-project testing. Import can now create, update, and delete supported records, but only after preview and explicit confirmation.
 
 Alpha60 additionally hardens generic API3 contributed-provider restore: create/update payloads are limited to fields accepted by the provider's create API when a usable `getfields` specification is available, and virtual provider imports such as SQLTasks remain isolated from unrelated extension-provider YAML through both CLI and UI preview/apply.
+
+## Alpha61 safe first-run scope
+
+Fresh installations now start with configuration types ignored until an administrator explicitly chooses what to manage or monitor. Existing installations without the fresh-install marker keep the historical `Manage everything` fallback, so upgrading does not silently disable an established workflow. The Settings page includes first-run guidance, bulk scope actions, and expanded collapsible management/advanced sections.
+
+Local full QA does not require CiviCRM Buildkit: `composer qa:full` runs the isolated Docker integration suite without browser tests, while `composer qa:full-ui` runs the same stack plus Playwright and review screenshots.
 
 ## Current UI
 

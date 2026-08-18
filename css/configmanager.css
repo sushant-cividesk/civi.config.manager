@@ -344,3 +344,18 @@
 .crm-configmanager-block .civicfg-import-message-summary summary {cursor: pointer;}
 .crm-configmanager-block .civicfg-import-message-list {margin: .65rem 0 0 1.25rem;}
 .crm-configmanager-block .civicfg-import-message-list li {margin: .35rem 0;}
+
+.crm-configmanager-block details.civicfg-settings-section > summary {cursor: pointer; padding: .85rem 0; font-size: 1rem;}
+.crm-configmanager-block .civicfg-settings-section-body {padding-top: .25rem;}
+.crm-configmanager-block .civicfg-onboarding {margin: .5rem 0 1rem;}
+.crm-configmanager-block .civicfg-onboarding ol {margin-bottom: 0;}
+.crm-configmanager-block .civicfg-scope-bulk {display: flex; flex-wrap: wrap; align-items: center; gap: .55rem .75rem; margin: .9rem 0; padding: .75rem; border: 1px solid #d7dce2; border-radius: 5px; background: var(--crm-c-background2, #fbfcfd);}
+.crm-configmanager-block .civicfg-scope-select-all,
+.crm-configmanager-block .civicfg-scope-card-select {display: inline-flex; align-items: center; gap: .35rem;}
+.crm-configmanager-block .civicfg-scope-card {position: relative;}
+.crm-configmanager-block .civicfg-scope-card-select {position: absolute; top: .75rem; right: .75rem; z-index: 1;}
+.crm-configmanager-block .civicfg-scope-card-header {padding-right: 1.8rem;}
+@media (max-width: 700px) {
+  .crm-configmanager-block .civicfg-scope-bulk {align-items: stretch;}
+  .crm-configmanager-block .civicfg-scope-bulk > * {max-width: 100%;}
+}

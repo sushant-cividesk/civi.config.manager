@@ -27,6 +27,12 @@ fetch_git_extension() {
       return 0
     fi
     rm -rf "${target}.tmp"
+    if [[ "${ALLOW_MISSING}" == "true" ]]; then
+      echo "WARNING: Could not fetch optional fixture extension ${key} at pinned ref ${ref}." >&2
+      return 0
+    fi
+    echo "ERROR: Could not fetch required fixture extension ${key} at pinned ref ${ref}." >&2
+    return 1
   fi
 
   if git clone --depth 1 "${url}" "${target}.tmp"; then
@@ -46,9 +52,9 @@ fetch_git_extension() {
 # These are intentionally fetched on the GitHub runner/host. The CiviCRM
 # container stays on an internal Docker network so the application under test
 # cannot reach the public internet during QA.
-fetch_git_extension "uk.co.vedaconsulting.mosaico" "${MOSAICO_REPO:-https://github.com/veda-consulting/uk.co.vedaconsulting.mosaico.git}" "${MOSAICO_REF:-}"
-fetch_git_extension "de.systopia.sqltasks" "${SQLTASKS_REPO:-https://github.com/systopia/de.systopia.sqltasks.git}" "${SQLTASKS_REF:-}"
-fetch_git_extension "org.civicrm.contactlayout" "${CONTACTLAYOUT_REPO:-https://github.com/civicrm/org.civicrm.contactlayout.git}" "${CONTACTLAYOUT_REF:-}"
-fetch_git_extension "org.civicoop.civirules" "${CIVIRULES_REPO:-https://lab.civicrm.org/extensions/civirules.git}" "${CIVIRULES_REF:-}"
+fetch_git_extension "uk.co.vedaconsulting.mosaico" "${MOSAICO_REPO:-https://github.com/veda-consulting-company/uk.co.vedaconsulting.mosaico.git}" "${MOSAICO_REF:-3.7}"
+fetch_git_extension "de.systopia.sqltasks" "${SQLTASKS_REPO:-https://github.com/systopia/de.systopia.sqltasks.git}" "${SQLTASKS_REF:-3.0.0-alpha3}"
+fetch_git_extension "org.civicrm.contactlayout" "${CONTACTLAYOUT_REPO:-https://github.com/civicrm/org.civicrm.contactlayout.git}" "${CONTACTLAYOUT_REF:-3.0.1}"
+fetch_git_extension "org.civicoop.civirules" "${CIVIRULES_REPO:-https://lab.civicrm.org/extensions/civirules.git}" "${CIVIRULES_REF:-3.44.0}"
 
 find "${FIXTURE_EXTENSION_DIR}" -maxdepth 2 -name info.xml -print | sort

@@ -18,7 +18,7 @@ final class ConfigScopeTest extends TestCase {
     $GLOBALS['civicrm_setting'] = [];
   }
 
-  public function testDefaultScopeManagesEverythingAndAllowsBulkDelete(): void {
+  public function testLegacyInstallationWithoutDefaultMarkerStillManagesEverything(): void {
     $scope = new ConfigScope();
     $files = [$this->jobFile(10, 'job_one'), $this->jobFile(20, 'job_two')];
 
@@ -26,6 +26,31 @@ final class ConfigScopeTest extends TestCase {
 
     self::assertCount(2, $partition['managed']);
     self::assertSame([], $partition['watched']);
+    self::assertTrue($scope->allowsDeleteMissing('scheduled-jobs'));
+  }
+
+  public function testFreshInstallDefaultMarkerIgnoresUnconfiguredTypes(): void {
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    $scope = new ConfigScope();
+    $files = [$this->jobFile(10, 'job_one'), $this->jobFile(20, 'job_two')];
+
+    $partition = $scope->partition('scheduled-jobs', $files, TRUE);
+
+    self::assertSame('ignore', $scope->getDefaultMode());
+    self::assertSame('ignore', $scope->getPolicy('scheduled-jobs')['mode']);
+    self::assertSame([], $partition['managed']);
+    self::assertCount(2, $partition['ignored']);
+    self::assertFalse($scope->allowsDeleteMissing('scheduled-jobs'));
+  }
+
+  public function testExplicitPolicyOverridesFreshInstallDefault(): void {
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'scheduled-jobs' => ['mode' => 'all'],
+    ]);
+    $scope = new ConfigScope();
+
+    self::assertSame('all', $scope->getPolicy('scheduled-jobs')['mode']);
     self::assertTrue($scope->allowsDeleteMissing('scheduled-jobs'));
   }
 

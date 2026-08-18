@@ -20,13 +20,41 @@
         </div>
       </div>
 
-      <div class="civicfg-settings-section">
-        <h4>{ts}What should Configuration Manager manage?{/ts}</h4>
+      <details class="civicfg-settings-section civicfg-scope-settings" open="open">
+        <summary><strong>{ts}What should Configuration Manager manage?{/ts}</strong></summary>
+        <div class="civicfg-settings-section-body">
+        {if $scopeNeedsSetup}
+          <div class="messages status no-popup civicfg-onboarding" data-civicfg-onboarding>
+            <strong>{ts}Welcome to Configuration Manager{/ts}</strong>
+            <p>{ts}Nothing is managed automatically on a new installation. Choose the configuration types you want to manage or monitor, save the settings, then create the first YAML export/baseline from Synchronize.{/ts}</p>
+            <ol>
+              <li>{ts}Select configuration types below.{/ts}</li>
+              <li>{ts}Use the bulk action or individual dropdowns to choose a mode.{/ts}</li>
+              <li>{ts}Save settings.{/ts}</li>
+              <li>{ts}Open Synchronize and run the first export.{/ts}</li>
+            </ol>
+          </div>
+        {/if}
         <p class="description">{ts}Every registered configuration type is listed below. Third-party providers that do not expose a safe portable identity remain backup/monitor-only instead of being written automatically.{/ts}</p>
         <p class="civicfg-scope-question"><strong>{ts}How should each configuration type be handled?{/ts}</strong> {ts}Choose one mode on each card. Additional controls appear only when they are needed.{/ts}</p>
         <div class="civicfg-mode-help civicfg-mode-help-all" data-civicfg-mode-help="all">
           {ts}All supported items are part of managed YAML and the normal export, diff, validation, and safe restore/import workflow.{/ts}
         </div>
+        <div class="civicfg-scope-bulk" data-civicfg-scope-bulk>
+          <label class="civicfg-scope-select-all"><input type="checkbox" data-civicfg-scope-select-all {if $scopeOverridden}disabled="disabled"{/if} /> <span>{ts}Select all{/ts}</span></label>
+          <span class="civicfg-muted" data-civicfg-scope-selected-count>0 {ts}selected{/ts}</span>
+          <label for="civicfg-scope-bulk-mode"><strong>{ts}Bulk action{/ts}</strong></label>
+          <select id="civicfg-scope-bulk-mode" class="crm-form-select" data-civicfg-scope-bulk-mode {if $scopeOverridden}disabled="disabled"{/if}>
+            <option value="">{ts}- Choose mode -{/ts}</option>
+            <option value="all">{ts}Manage everything{/ts}</option>
+            <option value="selected">{ts}Manage selected items{/ts}</option>
+            <option value="watch">{ts}Monitor only{/ts}</option>
+            <option value="ignore">{ts}Ignore{/ts}</option>
+          </select>
+          <button type="button" class="button" data-civicfg-scope-bulk-apply disabled="disabled" {if $scopeOverridden}disabled="disabled"{/if}><span>{ts}Apply{/ts}</span></button>
+          <span class="civicfg-muted">{ts}Bulk Apply changes the form only. Nothing is saved until you use Save settings.{/ts}</span>
+        </div>
+
         {if $scopeOverridden}
           <div class="messages status no-popup civicfg-inline-message">
             <strong>{ts}Configuration scope is controlled by civicrm.settings.php.{/ts}</strong>
@@ -37,6 +65,7 @@
         <div class="civicfg-scope-grid">
           {foreach from=$scopeRows item=row}
             <section class="civicfg-scope-card" data-civicfg-scope-row="{$row.type|escape}" data-scope-label="{$row.label|escape}">
+              <label class="civicfg-scope-card-select"><input type="checkbox" data-civicfg-scope-select aria-label="{ts 1=$row.label}Select %1 for bulk action{/ts}" {if $scopeOverridden}disabled="disabled"{/if} /></label>
               <div class="civicfg-scope-card-header">
                 <div>
                   <strong class="civicfg-scope-title">{$row.label|escape}</strong>
@@ -95,9 +124,10 @@
           </div>
           <pre><code id="civicfg-scope-settings-example">{$scopeSettingsExample|escape}</code></pre>
         </details>
-      </div>
+        </div>
+      </details>
 
-      <details class="civicfg-settings-section civicfg-advanced-settings">
+      <details class="civicfg-settings-section civicfg-advanced-settings" open="open">
         <summary>{ts}Advanced settings{/ts}</summary>
         <div class="civicfg-advanced-settings-body">
           <div class="civicfg-settings-field">

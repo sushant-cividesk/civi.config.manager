@@ -173,10 +173,56 @@ test.describe('Configuration Manager scope settings', () => {
     await expect(selectedControls).toBeHidden();
   });
 
+  test('supports expanded collapsible settings and Drupal-style bulk scope changes', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const scopeDetails = page.locator('details.civicfg-scope-settings');
+    const advanced = page.locator('details.civicfg-advanced-settings');
+    await expect(scopeDetails).toHaveAttribute('open', '');
+    await expect(advanced).toHaveAttribute('open', '');
+
+    await page.screenshot({ path: path.join(artifactDir, 'settings-expanded.png'), fullPage: true });
+
+    await scopeDetails.locator('summary').click();
+    await expect(scopeDetails).not.toHaveAttribute('open', '');
+    await scopeDetails.locator('summary').click();
+    await expect(scopeDetails).toHaveAttribute('open', '');
+    await advanced.locator('summary').click();
+    await expect(advanced).not.toHaveAttribute('open', '');
+    await advanced.locator('summary').click();
+    await expect(advanced).toHaveAttribute('open', '');
+
+    const rows = page.locator('[data-civicfg-scope-row]');
+    const selectable = page.locator('[data-civicfg-scope-select]:not([disabled])');
+    expect(await selectable.count()).toBe(await rows.count());
+    await page.locator('[data-civicfg-scope-select-all]').check();
+    await expect(page.locator('[data-civicfg-scope-selected-count]')).toContainText((await rows.count()) + ' selected');
+    await page.locator('[data-civicfg-scope-bulk-mode]').selectOption('ignore');
+    await page.locator('[data-civicfg-scope-bulk-apply]').click();
+    for (let i = 0; i < await rows.count(); i++) {
+      await expect(rows.nth(i).locator('[data-civicfg-scope-mode]')).toHaveValue('ignore');
+    }
+    await page.screenshot({ path: path.join(artifactDir, 'settings-bulk-ignore.png'), fullPage: true });
+
+    // Apply only changes the form; persistence still requires Save settings.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-civicfg-scope-bulk-mode]')).toHaveValue('');
+    await expect(page.locator('[data-civicfg-scope-row]').first().locator('[data-civicfg-scope-mode]')).not.toHaveValue('ignore');
+
+    // Save an all-Ignore policy to exercise the same first-run guidance that a
+    // fresh installation receives before the administrator opts configuration in.
+    await page.locator('[data-civicfg-scope-select-all]').check();
+    await page.locator('[data-civicfg-scope-bulk-mode]').selectOption('ignore');
+    await page.locator('[data-civicfg-scope-bulk-apply]').click();
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('[data-civicfg-onboarding]')).toBeVisible();
+    await page.screenshot({ path: path.join(artifactDir, 'settings-first-run-guide.png'), fullPage: true });
+  });
+
   test('persists the reviewed cross-site import switch and can turn it back off', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
     const advanced = page.locator('details.civicfg-advanced-settings');
-    await advanced.locator('summary').click();
+    await expect(advanced).toHaveAttribute('open', '');
     const checkbox = advanced.locator('input[name="allow_cross_site_import"]');
     await expect(checkbox).toBeVisible();
 
@@ -185,13 +231,13 @@ test.describe('Configuration Manager scope settings', () => {
       await page.getByRole('button', { name: 'Save settings' }).click();
       await page.waitForLoadState('domcontentloaded');
     }
-    await page.locator('details.civicfg-advanced-settings summary').click();
+    await expect(page.locator('details.civicfg-advanced-settings')).toHaveAttribute('open', '');
     await expect(page.locator('input[name="allow_cross_site_import"]')).toBeChecked();
 
     await page.locator('input[name="allow_cross_site_import"]').uncheck();
     await page.getByRole('button', { name: 'Save settings' }).click();
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('details.civicfg-advanced-settings summary').click();
+    await expect(page.locator('details.civicfg-advanced-settings')).toHaveAttribute('open', '');
     await expect(page.locator('input[name="allow_cross_site_import"]')).not.toBeChecked();
   });
 

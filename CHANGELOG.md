@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-alpha61-core
+
+- Made fresh installations opt-in by defaulting unconfigured scope to `Ignore`, while preserving the legacy manage-everything fallback for existing installations that do not have the new fresh-install default marker.
+- Added first-run Settings guidance and Drupal-style checkbox/bulk mode controls; bulk Apply changes the form only and still requires the existing Save settings action.
+- Made both the management scope and Advanced settings sections collapsible and expanded by default.
+- Added Playwright coverage and review screenshots for the Settings scope UX.
+- Added local full-QA Composer commands that use the standalone Docker CiviCRM stack without requiring Buildkit, with Playwright optional.
+- Hardened full QA with clearer stage markers and pinned contributed-extension fixtures for reproducible runs.
+
 ## 0.1.0-alpha60-core
 
 - Follow-up hotfix: normalized custom API3 write responses that return one associative row directly under `values`, preventing a successful SQLTasks create/update from being reported as `Return value must be of type array, string returned`.

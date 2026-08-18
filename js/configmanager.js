@@ -150,6 +150,52 @@
       updateScopeCount(row);
     }
 
+    function refreshScopeBulkControls() {
+      var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-civicfg-scope-select]'));
+      var enabled = boxes.filter(function(box) { return !box.disabled; });
+      var checked = enabled.filter(function(box) { return box.checked; });
+      var all = document.querySelector('[data-civicfg-scope-select-all]');
+      var count = document.querySelector('[data-civicfg-scope-selected-count]');
+      var apply = document.querySelector('[data-civicfg-scope-bulk-apply]');
+      var mode = document.querySelector('[data-civicfg-scope-bulk-mode]');
+      if (count) { count.textContent = checked.length + ' selected'; }
+      if (all) {
+        all.checked = enabled.length > 0 && checked.length === enabled.length;
+        all.indeterminate = checked.length > 0 && checked.length < enabled.length;
+      }
+      if (apply) { apply.disabled = checked.length === 0 || !mode || !mode.value; }
+    }
+
+    var scopeSelectAll = document.querySelector('[data-civicfg-scope-select-all]');
+    if (scopeSelectAll) {
+      scopeSelectAll.addEventListener('change', function() {
+        document.querySelectorAll('[data-civicfg-scope-select]').forEach(function(box) {
+          if (!box.disabled) { box.checked = scopeSelectAll.checked; }
+        });
+        refreshScopeBulkControls();
+      });
+    }
+    document.querySelectorAll('[data-civicfg-scope-select]').forEach(function(box) {
+      box.addEventListener('change', refreshScopeBulkControls);
+    });
+    var scopeBulkMode = document.querySelector('[data-civicfg-scope-bulk-mode]');
+    if (scopeBulkMode) { scopeBulkMode.addEventListener('change', refreshScopeBulkControls); }
+    var scopeBulkApply = document.querySelector('[data-civicfg-scope-bulk-apply]');
+    if (scopeBulkApply) {
+      scopeBulkApply.addEventListener('click', function() {
+        if (!scopeBulkMode || !scopeBulkMode.value) { return; }
+        document.querySelectorAll('[data-civicfg-scope-select]:checked').forEach(function(box) {
+          var row = box.closest('[data-civicfg-scope-row]');
+          var mode = row ? row.querySelector('[data-civicfg-scope-mode]') : null;
+          if (!mode || mode.disabled) { return; }
+          mode.value = scopeBulkMode.value;
+          mode.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        refreshScopeBulkControls();
+      });
+    }
+    refreshScopeBulkControls();
+
     document.querySelectorAll('[data-civicfg-scope-row]').forEach(function(row) {
       refreshScopeRow(row);
       var mode = row.querySelector('[data-civicfg-scope-mode]');

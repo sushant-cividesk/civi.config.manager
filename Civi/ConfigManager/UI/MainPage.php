@@ -309,9 +309,9 @@ class MainPage {
       $policies = [];
       foreach ($this->manager->getScopeTypeOptions() as $row) {
         $type = (string) $row['type'];
-        $mode = strtolower(trim((string) ($modes[$type] ?? 'all')));
+        $mode = strtolower(trim((string) ($modes[$type] ?? $this->manager->getScopeDefaultMode())));
         if (!in_array($mode, ['all', 'selected', 'watch', 'ignore'], TRUE)) {
-          $mode = 'all';
+          $mode = $this->manager->getScopeDefaultMode();
         }
         $rawSelectors = (string) ($selectors[$type] ?? '');
         $selectorList = preg_split('/[\r\n,]+/', $rawSelectors) ?: [];
@@ -471,12 +471,15 @@ class MainPage {
     foreach ($importApplyTypes as $type) {
       $importApplyTypesMap[(string) $type] = TRUE;
     }
-    $scopePolicies = $this->manager->getScopePolicies();
     $scopeRows = [];
+    $scopeConfiguredCount = 0;
     foreach ($this->manager->getScopeTypeOptions() as $row) {
       $type = (string) $row['type'];
-      $policy = (array) ($scopePolicies[$type] ?? []);
-      $mode = (string) ($policy['mode'] ?? 'all');
+      $policy = $this->manager->getScopePolicy($type);
+      $mode = (string) ($policy['mode'] ?? $this->manager->getScopeDefaultMode());
+      if ($mode !== 'ignore') {
+        $scopeConfiguredCount++;
+      }
       $scopeRows[] = $row + [
         'mode' => $mode,
         'mode_all' => $mode === 'all',
@@ -546,6 +549,8 @@ class MainPage {
     $this->page->assign('selectedTypes', $types);
     $this->page->assign('selectedTypesMap', $selectedTypesMap);
     $this->page->assign('scopeRows', $scopeRows);
+    $this->page->assign('scopeDefaultMode', $this->manager->getScopeDefaultMode());
+    $this->page->assign('scopeNeedsSetup', $scopeConfiguredCount === 0 && !$this->manager->isScopePolicyOverridden());
     $this->page->assign('scopeOverridden', $this->manager->isScopePolicyOverridden());
     $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
     $this->page->assign('scopeSettingsExample', $this->manager->getScopeSettingsExample());

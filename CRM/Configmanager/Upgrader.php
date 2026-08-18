@@ -9,6 +9,9 @@
 class CRM_Configmanager_Upgrader extends CRM_Extension_Upgrader_Base {
 
   public function install() {
+    if (function_exists('_configmanager_initialize_fresh_install_defaults')) {
+      _configmanager_initialize_fresh_install_defaults();
+    }
     $this->runLifecycle(TRUE, FALSE);
   }
 

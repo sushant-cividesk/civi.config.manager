@@ -139,6 +139,21 @@ In addition to the alpha58 scope safety checks, verify:
 - SQLTasks import strips read-only/computed API3 collection fields using the provider create specification while preserving writable task fields and nested `config` actions.
 - A filtered SQLTasks provider import preserves the virtual subtype through UI preview/apply and CLI import, validates/applies only that provider, and is not blocked by unrelated extension-provider YAML errors.
 
+## Alpha61 first-run scope and Settings UX tests
+
+In addition to the existing scope and provider checks, verify:
+
+- A genuinely fresh install sets the unconfigured scope default to `Ignore`; no configuration type is exported, imported, deleted, or watched until an administrator opts it in.
+- An upgraded installation with no `civicfg_scope_default_mode` marker keeps the historical `Manage everything` fallback.
+- An explicit per-type scope policy always overrides the fresh-install default.
+- The Settings page opens both **What should Configuration Manager manage?** and **Advanced settings** by default and allows either section to be collapsed and reopened.
+- Every scope card has a bulk-selection checkbox; **Select all**, bulk mode selection, and **Apply** update only the visible form until **Save settings** is used.
+- Bulk **Manage selected items** reveals the existing item-selection controls without implicitly selecting any configuration item.
+- `civicrm.settings.php` scope ownership keeps individual and bulk scope controls read-only.
+- Playwright writes review screenshots for the expanded Settings layout, bulk Ignore state, and first-run/no-managed-config guidance under `tests/ci/artifacts`.
+- `composer qa:full` runs the isolated Docker suite without browser tests and `composer qa:full-ui` runs the same stack with Playwright; neither local command requires CiviCRM Buildkit.
+- The GitHub full-QA workflow is exercised once with `run_ui_tests=false` and once with `run_ui_tests=true` before promotion.
+
 ## Alpha58 scope, watch, and performance tests
 
 Before accepting alpha58 on a real development project, verify:

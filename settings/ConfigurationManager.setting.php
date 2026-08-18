@@ -66,6 +66,20 @@ return [
     'is_domain' => 1,
     'is_contact' => 0,
   ],
+  'civicfg_scope_default_mode' => [
+    'group_name' => 'Configuration Manager',
+    'group' => 'configuration_manager',
+    'name' => 'civicfg_scope_default_mode',
+    'type' => 'String',
+    'html_type' => 'Text',
+    'default' => '',
+    'add' => '5.0',
+    'title' => ts('Configuration Manager Default Scope Mode'),
+    'description' => ts('Default scope for configuration types without an explicit policy. Fresh installs set this to ignore; existing installations without this marker retain the legacy manage-everything default.'),
+    'is_domain' => 1,
+    'is_contact' => 0,
+  ],
+
   'civicfg_scope' => [
     'group_name' => 'Configuration Manager',
     'group' => 'configuration_manager',

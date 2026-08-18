@@ -192,3 +192,19 @@ Before promoting a development alpha to a public beta, require:
 - CLI works in Composer and non-Composer layouts without wrapper sprawl
 - multi-project uninstall never removes another project's shared global CLI
 - contrib compatibility results are explicit rather than silently skipped
+
+## Alpha61 local and UI QA
+
+Run the isolated stack locally without CiviCRM Buildkit:
+
+```bash
+composer qa:full
+```
+
+Run the same isolated stack with Playwright and review screenshots:
+
+```bash
+composer qa:full-ui
+```
+
+The browser suite writes screenshots and failure artifacts under `tests/ci/artifacts`. Real contributed-extension fixtures are pinned to tested refs by default; override the corresponding `*_REF` environment variable only for deliberate compatibility testing.

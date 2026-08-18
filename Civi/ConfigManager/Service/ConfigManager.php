@@ -256,6 +256,14 @@ class ConfigManager {
     return $this->scope->getPolicies();
   }
 
+  public function getScopePolicy(string $type): array {
+    return $this->scope->getPolicy($type);
+  }
+
+  public function getScopeDefaultMode(): string {
+    return $this->scope->getDefaultMode();
+  }
+
   public function saveScopePolicies(array $policies): void {
     if ($this->scope->isPolicyOverridden()) {
       throw new \RuntimeException('Configuration scope is overridden in civicrm.settings.php and cannot be changed from the UI.');

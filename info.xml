@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-17</releaseDate>
-  <version>0.1.0-alpha60-core</version>
+  <releaseDate>2026-08-18</releaseDate>
+  <version>0.1.0-alpha61-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 60 hotfix on the full alpha59 codebase: fixes SQLTasks and generic API3 provider restore by filtering create/update payloads to writable create-spec fields, preserves nested provider configuration, and isolates virtual contributed-provider imports from unrelated extension YAML validation/apply.</comments>
+  <comments>Alpha 61 development build on the complete alpha60 codebase: adds safe fresh-install Ignore scope, first-run guidance, bulk scope controls, expanded collapsible settings, Playwright screenshot coverage, and reproducible standalone QA while preserving existing-install scope behavior.</comments>
 </extension>
