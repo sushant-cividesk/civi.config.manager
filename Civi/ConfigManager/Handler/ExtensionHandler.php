@@ -1007,26 +1007,57 @@ class ExtensionHandler extends AbstractHandler {
       $system = \CRM_Extension_System::singleton();
       $manager = $system->getManager();
       $mapper = method_exists($system, 'getMapper') ? $system->getMapper() : NULL;
-      foreach ((array) $manager->getStatuses() as $key => $status) {
-        $status = strtolower((string) $status);
-        if (!in_array($status, ['installed', 'enabled'], TRUE)) {
-          continue;
-        }
-        $base = '';
-        if ($mapper && method_exists($mapper, 'keyToBasePath')) {
-          $base = (string) $mapper->keyToBasePath((string) $key);
-        }
-        elseif ($mapper && method_exists($mapper, 'getBasePath')) {
-          $base = (string) $mapper->getBasePath((string) $key);
-        }
-        if ($base !== '' && is_dir($base)) {
-          $paths[(string) $key] = rtrim($base, DIRECTORY_SEPARATOR);
-        }
-      }
+      $statuses = (array) $manager->getStatuses();
     }
     catch (\Throwable $e) {
-      // Discovery is best-effort.
+      return [];
     }
+
+    $extensionsDir = '';
+    try {
+      $extensionsDir = rtrim((string) (\CRM_Core_Config::singleton()->extensionsDir ?? ''), DIRECTORY_SEPARATOR);
+    }
+    catch (\Throwable $e) {
+      // The mapper remains the authoritative source when config is unavailable.
+    }
+
+    foreach ($statuses as $key => $status) {
+      $key = (string) $key;
+      $status = strtolower((string) $status);
+      if (!in_array($status, ['installed', 'enabled'], TRUE)) {
+        continue;
+      }
+
+      $base = '';
+      try {
+        if ($mapper && method_exists($mapper, 'keyToBasePath')) {
+          $base = (string) $mapper->keyToBasePath($key);
+        }
+        elseif ($mapper && method_exists($mapper, 'getBasePath')) {
+          $base = (string) $mapper->getBasePath($key);
+        }
+      }
+      catch (\Throwable $e) {
+        // One stale/broken mapper entry must not abort discovery of every
+        // other installed contributed extension.
+      }
+
+      // Freshly copied/enabled extensions can be visible to the manager before
+      // every mapper cache is refreshed in an isolated CLI request. Use the
+      // configured extensions directory only as a conservative filesystem
+      // fallback for the exact installed key.
+      if (($base === '' || !is_dir($base)) && $extensionsDir !== '') {
+        $candidate = $extensionsDir . DIRECTORY_SEPARATOR . $key;
+        if (is_dir($candidate) && is_file($candidate . DIRECTORY_SEPARATOR . 'info.xml')) {
+          $base = $candidate;
+        }
+      }
+
+      if ($base !== '' && is_dir($base)) {
+        $paths[$key] = rtrim($base, DIRECTORY_SEPARATOR);
+      }
+    }
+
     ksort($paths, SORT_NATURAL | SORT_FLAG_CASE);
     return $paths;
   }
@@ -1067,6 +1098,16 @@ class ExtensionHandler extends AbstractHandler {
     if (!is_dir($dir) || !function_exists('civicrm_api3')) {
       return [];
     }
+
+    // A small number of reviewed contributed providers have API3 layouts that
+    // cannot be discovered safely through runtime metadata. Resolve those
+    // providers declaratively from their installed action files and defer BAO
+    // class loading until rows are actually read.
+    $reviewed = $this->reviewedApi3ProviderDefinitions($extensionKey, $basePath);
+    if ($reviewed !== NULL) {
+      return $reviewed;
+    }
+
     $definitions = [];
     $files = glob($dir . '/*.php') ?: [];
     try {
@@ -1118,6 +1159,7 @@ class ExtensionHandler extends AbstractHandler {
         'list_action' => $listAction ?? '',
         'read_adapter' => $readAdapter ?? '',
         'write_fields' => array_values((array) ($readAdapterDefinition['write_fields'] ?? [])),
+        'base_path' => $basePath,
         'can_create' => TRUE,
         'can_update' => TRUE,
         'delete_action' => $deleteAction,
@@ -1125,6 +1167,48 @@ class ExtensionHandler extends AbstractHandler {
       ];
     }
     return $definitions;
+  }
+
+  /**
+   * Return declarative definitions for narrowly reviewed API3 providers whose
+   * runtime metadata cannot safely describe their collection/read capability.
+   *
+   * Returning NULL means "use generic discovery". Returning an array (including
+   * an empty array) means the extension has a reviewed discovery policy and
+   * generic probing must not run for it.
+   */
+  private function reviewedApi3ProviderDefinitions(string $extensionKey, string $basePath): ?array {
+    if (strtolower($extensionKey) !== 'de.systopia.sqltasks') {
+      return NULL;
+    }
+
+    $entity = 'Sqltask';
+    $apiDir = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . $entity;
+    $createFile = $apiDir . DIRECTORY_SEPARATOR . 'Create.php';
+    if (!is_file($createFile)) {
+      return [];
+    }
+
+    $adapter = $this->api3ReadAdapterDefinition($entity);
+    if ($adapter === NULL || empty($adapter['name'])) {
+      return [];
+    }
+
+    $deleteAction = is_file($apiDir . DIRECTORY_SEPARATOR . 'Deletetask.php') ? 'deletetask' : NULL;
+    return [[
+      'extension' => $extensionKey,
+      'api' => 'api3',
+      'entity' => $entity,
+      'fields' => [],
+      'list_action' => '',
+      'read_adapter' => (string) $adapter['name'],
+      'write_fields' => array_values((array) ($adapter['write_fields'] ?? [])),
+      'base_path' => $basePath,
+      'can_create' => TRUE,
+      'can_update' => TRUE,
+      'delete_action' => $deleteAction,
+      'can_delete' => $deleteAction !== NULL,
+    ]];
   }
 
   /**
@@ -1520,7 +1604,8 @@ class ExtensionHandler extends AbstractHandler {
     $class = (string) ($adapter['class'] ?? '');
     $collectionMethod = (string) ($adapter['collection_method'] ?? '');
     $rowMethod = (string) ($adapter['row_method'] ?? '');
-    if ($class === '' || !class_exists($class) || !method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
+    $basePath = (string) ($definition['base_path'] ?? '');
+    if ($class === '' || !$this->loadApi3ReadAdapterClass($adapter, $basePath) || !method_exists($class, $collectionMethod) || !method_exists($class, $rowMethod)) {
       throw new \RuntimeException('API3 contributed-provider read adapter is unavailable for ' . $entity . '.');
     }
 

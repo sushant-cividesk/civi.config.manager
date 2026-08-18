@@ -62,6 +62,41 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     }
   }
 
+  public function testReviewedSqltasksProviderDefinitionIsDeclarative(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'reviewedApi3ProviderDefinitions');
+    $method->setAccessible(TRUE);
+
+    $dir = sys_get_temp_dir() . '/civicfg-sqltasks-definition-' . bin2hex(random_bytes(6));
+    mkdir($dir . '/api/v3/Sqltask', 0700, TRUE);
+    file_put_contents($dir . '/api/v3/Sqltask/Create.php', "<?php\n");
+    file_put_contents($dir . '/api/v3/Sqltask/Deletetask.php', "<?php\n");
+
+    try {
+      /** @var array<int, array<string, mixed>> $definitions */
+      $definitions = (array) $method->invoke($handler, 'de.systopia.sqltasks', $dir);
+      self::assertCount(1, $definitions);
+      self::assertSame('Sqltask', $definitions[0]['entity']);
+      self::assertSame('', $definitions[0]['list_action']);
+      self::assertSame('sqltasks_bao_generator', $definitions[0]['read_adapter']);
+      self::assertSame($dir, $definitions[0]['base_path']);
+      self::assertTrue($definitions[0]['can_create']);
+      self::assertTrue($definitions[0]['can_update']);
+      self::assertTrue($definitions[0]['can_delete']);
+      self::assertSame('deletetask', $definitions[0]['delete_action']);
+      self::assertContains('config', $definitions[0]['write_fields']);
+      self::assertNull($method->invoke($handler, 'example.extension', $dir));
+    }
+    finally {
+      @unlink($dir . '/api/v3/Sqltask/Deletetask.php');
+      @unlink($dir . '/api/v3/Sqltask/Create.php');
+      @rmdir($dir . '/api/v3/Sqltask');
+      @rmdir($dir . '/api/v3');
+      @rmdir($dir . '/api');
+      @rmdir($dir);
+    }
+  }
+
   public function testApi3CollectionActionCandidatesAcceptSafeGetAllVariantsOnly(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'api3CollectionActionCandidates');

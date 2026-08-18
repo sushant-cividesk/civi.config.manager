@@ -287,7 +287,21 @@ final class CivicfgFullRealFixtures {
           break;
         }
       }
-      $this->assertTrue(is_array($sqltaskProvider), 'SQLTasks Sqltask API3 provider must be discovered.');
+      $sqltaskProviderSummary = array_map(static function($provider): array {
+        $provider = (array) $provider;
+        return [
+          'api' => (string) ($provider['api'] ?? ''),
+          'entity' => (string) ($provider['entity'] ?? ''),
+          'read_adapter' => (string) ($provider['read_adapter'] ?? ''),
+          'can_create' => !empty($provider['can_create']),
+          'can_delete' => !empty($provider['can_delete']),
+          'error' => (string) ($provider['error'] ?? ''),
+        ];
+      }, (array) ($compatibility['de.systopia.sqltasks']['providers'] ?? []));
+      $this->assertTrue(
+        is_array($sqltaskProvider),
+        'SQLTasks Sqltask API3 provider must be discovered. Providers seen: ' . json_encode($sqltaskProviderSummary, JSON_UNESCAPED_SLASHES)
+      );
       $this->assertTrue(!empty($sqltaskProvider['can_create']), 'SQLTasks Sqltask provider must expose create for cross-environment task restore.');
       $this->assertTrue(!empty($sqltaskProvider['can_delete']), 'SQLTasks Sqltask provider must expose its Deletetask action for cross-environment delete restore.');
       $this->assertTrue(!empty($sqltaskProvider['importable']), 'SQLTasks Sqltask provider must remain importable when its portable identity is safe.');

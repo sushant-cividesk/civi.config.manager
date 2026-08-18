@@ -2,6 +2,9 @@
 
 ## 0.1.0-alpha61-core
 
+- Final same-version SQLTasks discovery hotfix: the reviewed `de.systopia.sqltasks` provider is now defined declaratively from its installed `Sqltask/Create.php` and `Sqltask/Deletetask.php` files, so discovery no longer depends on loading legacy BAO classes or probing unreliable API3 runtime metadata. BAO class loading is deferred until provider rows are actually read.
+- Extension base-path discovery is now resilient per extension and falls back conservatively to the configured CiviCRM extensions directory for an installed key, so one stale mapper entry cannot suppress later contributed providers during isolated CLI/QA bootstrap.
+
 - Follow-up QA hotfix: API3 Entity/Action.php files now provide deterministic capability discovery before runtime `getactions` introspection. This fixes pinned SQLTasks 3.0.0-alpha3 being skipped when its custom API3 metadata path warns/fails even though `Create.php` and `Deletetask.php` are present.
 - SQLTasks' reviewed BAO read adapter can now explicitly load its DAO/BAO classes from the installed provider base path in isolated CLI/bootstrap contexts, and uses a pinned portable write-field allowlist matching the provider create specification instead of re-probing API3 metadata.
 

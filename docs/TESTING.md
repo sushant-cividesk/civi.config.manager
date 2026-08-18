@@ -197,4 +197,4 @@ Before accepting alpha56 on a real development project, verify:
 
 The historical Alpha43 project-wrapper expectations above document that alpha's behavior only. Alpha56 intentionally replaces those development-only wrappers before public release.
 
-The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable, and that the reviewed SQLTasks BAO adapter can load from the installed extension base path.
+The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable. SQLTasks now has a reviewed declarative provider definition that does not load the BAO during discovery; the BAO adapter is loaded from the provider base path only when rows are read.
