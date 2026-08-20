@@ -35,6 +35,25 @@ class SimpleYaml {
   }
 
   /**
+   * Report the YAML parser available to web/CLI runtime.
+   *
+   * @return array{available:bool,parser:string,reason:string}
+   */
+  public static function runtimeStatus(): array {
+    if (self::loadSymfonyYaml()) {
+      return ['available' => TRUE, 'parser' => 'symfony/yaml', 'reason' => ''];
+    }
+    if (function_exists('yaml_parse_file')) {
+      return ['available' => TRUE, 'parser' => 'ext-yaml', 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'parser' => '',
+      'reason' => 'No YAML parser is available. Run Composer in the extension directory to install the PHP 7.4-compatible runtime dependencies, or enable the PHP yaml extension.',
+    ];
+  }
+
+  /**
    * @return array<string|int, mixed>
    */
   public static function parseFile(string $file): array {

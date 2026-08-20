@@ -41,6 +41,18 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
+  public function testUnavailableRuntimeProviderIsReportedWithoutExporting(): void {
+    $handler = new ScopeUiUnavailableFixtureHandler('optional-type', 'Optional Type');
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $rows = $manager->getScopeTypeOptions();
+
+    self::assertSame(0, $handler->exportCalls);
+    self::assertSame('unavailable', $rows[0]['capability']);
+    self::assertSame('Unavailable on this site', $rows[0]['capability_label']);
+    self::assertStringContainsString('Optional API4 provider', $rows[0]['capability_help']);
+  }
+
   public function testFreshIgnoreScopeRequiresSetupInsteadOfReportingSync(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);
@@ -657,6 +669,26 @@ final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
     $this->errors = [];
     return $errors;
   }
+}
+
+final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
+  private string $type;
+  private string $label;
+  public int $exportCalls = 0;
+
+  public function __construct(string $type, string $label) {
+    $this->type = $type;
+    $this->label = $label;
+  }
+
+  public function getType(): string { return $this->type; }
+  public function getLabel(): string { return $this->label; }
+  public function getDirectory(): string { return $this->type; }
+  public function getWeight(): int { return 20; }
+  public function getRuntimeAvailability(): array {
+    return ['available' => FALSE, 'reason' => 'Optional API4 provider is not available.'];
+  }
+  public function export(): array { $this->exportCalls++; return []; }
 }
 
 final class ScopeUiReadOnlyFixtureHandler extends AbstractHandler {

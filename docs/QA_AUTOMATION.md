@@ -11,12 +11,13 @@ Blocking checks include:
 - Composer metadata validation
 - PHP syntax
 - developer scenario contract validation
-- isolated PHPUnit unit tests on the configured PHP matrix
+- isolated PHPUnit unit tests on PHP 7.4, 8.1, and 8.3
 - PHPStan at the current legacy-safe baseline
+- PHPCompatibility enforcement against PHP 7.4
 - dedicated public metadata-hook coverage
 - Composer security audit
 
-CiviCRM coding standards and PHP compatibility remain available as manual/advisory checks while the existing historical style baseline is being cleaned up; functional work should still follow the surrounding CiviCRM/PHP conventions and pass `git diff --check`.
+CiviCRM coding standards remain available as a manual/advisory check while the existing historical style baseline is being cleaned up. PHP 7.4 compatibility is blocking in `qa:fast`; functional work should also follow the surrounding CiviCRM/PHP conventions and pass `git diff --check`.
 
 ## Full workflow
 

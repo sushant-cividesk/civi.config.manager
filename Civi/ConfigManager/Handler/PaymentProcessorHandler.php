@@ -7,6 +7,16 @@ class PaymentProcessorHandler extends AbstractHandler {
   public function getDirectory(): string { return 'payment-processors'; }
   public function getWeight(): int { return 50; }
 
+  public function getRuntimeAvailability(): array {
+    if (class_exists('Civi\\Api4\\PaymentProcessor')) {
+      return ['available' => TRUE, 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'reason' => 'PaymentProcessor API4 is unavailable. Install/enable CiviContribute before managing payment processors.',
+    ];
+  }
+
   public function export(): array {
     $rows = $this->api4Get('PaymentProcessor', [], ['id', 'name', 'title', 'description', 'payment_processor_type_id', 'is_active', 'is_default', 'is_test', 'user_name', 'url_site', 'url_api', 'url_recur', 'url_button', 'class_name', 'billing_mode', 'financial_account_id', 'payment_instrument_id'], ['name' => 'ASC']);
     $files = [];

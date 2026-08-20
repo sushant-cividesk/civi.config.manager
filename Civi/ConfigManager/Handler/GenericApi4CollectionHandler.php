@@ -31,6 +31,17 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   public function getDirectory(): string { return $this->directory; }
   public function getWeight(): int { return $this->weight; }
 
+  public function getRuntimeAvailability(): array {
+    $class = 'Civi\\Api4\\' . $this->entity;
+    if (class_exists($class)) {
+      return ['available' => TRUE, 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'reason' => 'API4 entity ' . $this->entity . ' is not available on this site. Install/enable the provider before managing this type.',
+    ];
+  }
+
   public function setImportWriteEnabled(bool $enabled): self {
     $this->importWritesEnabled = $enabled;
     return $this;

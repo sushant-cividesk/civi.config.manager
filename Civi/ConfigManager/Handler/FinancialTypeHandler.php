@@ -7,6 +7,16 @@ class FinancialTypeHandler extends AbstractHandler {
   public function getDirectory(): string { return 'financial'; }
   public function getWeight(): int { return 40; }
 
+  public function getRuntimeAvailability(): array {
+    if (class_exists('Civi\\Api4\\FinancialType')) {
+      return ['available' => TRUE, 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'reason' => 'FinancialType API4 is unavailable. Install/enable CiviContribute before managing financial types.',
+    ];
+  }
+
   public function export(): array {
     $rows = $this->api4Get('FinancialType', [], ['id', 'name', 'label', 'description', 'is_deductible', 'is_reserved', 'is_active'], ['name' => 'ASC']);
     $files = [];

@@ -180,6 +180,14 @@ final class AbstractHandlerDiffTest extends TestCase {
     }
   }
 
+  public function testMissingApi4EntityFailsClosedInsteadOfLookingEmpty(): void {
+    $handler = new TestHandler();
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('API4 entity not available: DefinitelyMissingCivicfgEntity');
+    $handler->readApi4EntityForTest('DefinitelyMissingCivicfgEntity');
+  }
+
   public function testLargeTextDiffUsesFocusedExcerpt(): void {
     $handler = new TestHandler();
     $old = str_repeat('A', 700) . 'OLD-MARKER' . str_repeat('B', 700);
@@ -220,5 +228,9 @@ final class TestHandler extends AbstractHandler {
 
   public function getWeight(): int {
     return 1;
+  }
+
+  public function readApi4EntityForTest(string $entity): array {
+    return $this->api4Get($entity);
   }
 }

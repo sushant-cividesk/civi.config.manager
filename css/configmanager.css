@@ -307,6 +307,7 @@
 .crm-configmanager-block .civicfg-capability-full {background: #dff0d8; color: #245724;}
 .crm-configmanager-block .civicfg-capability-export_only {background: #fff3cd; color: #664d03;}
 .crm-configmanager-block .civicfg-capability-mixed {background: #e7f1ff; color: #084298;}
+.crm-configmanager-block .civicfg-capability-unavailable {background: #f8d7da; color: #842029;}
 .crm-configmanager-block .civicfg-scope-mode-label {display: block; font-weight: 600; margin-bottom: .3rem;}
 .crm-configmanager-block .civicfg-scope-mode {width: 100%; max-width: 100%;}
 .crm-configmanager-block .civicfg-mode-help {margin: .45rem 0 0; color: #5f6b7a; font-size: .9rem; line-height: 1.4;}

@@ -24,10 +24,32 @@ class CiviRulesHandler extends AbstractHandler {
   public function getDirectory(): string { return 'civirules'; }
   public function getWeight(): int { return 150; }
 
+  public function getRuntimeAvailability(): array {
+    $missing = [];
+    foreach ($this->entities as $def) {
+      $entity = (string) $def['entity'];
+      if (!$this->entityAvailable($entity)) {
+        $missing[] = $entity;
+      }
+    }
+    if (!$missing) {
+      return ['available' => TRUE, 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'reason' => 'CiviRules provider coverage is incomplete on this site. Missing API4 entities: ' . implode(', ', $missing) . '. Install/enable a supported CiviRules version before managing this type.',
+    ];
+  }
+
   public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }
   public function setDeleteMissingEnabled(bool $enabled): self { $this->deleteMissingEnabled = $enabled; return $this; }
 
   public function export(): array {
+    $availability = $this->getRuntimeAvailability();
+    if (empty($availability['available'])) {
+      throw new \RuntimeException((string) $availability['reason']);
+    }
+
     $files = [];
     foreach ($this->entities as $bucket => $def) {
       if (!$this->entityAvailable($def['entity'])) {

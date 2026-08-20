@@ -203,3 +203,11 @@ Before accepting alpha56 on a real development project, verify:
 The historical Alpha43 project-wrapper expectations above document that alpha's behavior only. Alpha56 intentionally replaces those development-only wrappers before public release.
 
 The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable. SQLTasks now has a reviewed declarative provider definition that does not load the BAO during discovery; the BAO adapter is loaded from the provider base path only when rows are read.
+
+## CiviCRM 5.76 / PHP 7.4 compatibility coverage
+
+- Fast GitHub QA must pass on PHP 7.4, 8.1, and 8.3.
+- `composer compatibility` targets PHP 7.4 so source syntax/runtime calls cannot silently require PHP 8.
+- Composer resolution uses a PHP 7.4.33 platform; an installable production package must bundle `vendor/` or the target must provide ext-yaml.
+- A missing optional API4 provider must be reported as **Unavailable on this site** and a managed export/diff must fail closed; it must never be treated as an authoritative empty set that could delete stale YAML or target configuration.
+- On a CiviCRM 5.76.3/Drupal 7 smoke site, verify `civicfg status --json`, initial export, diff, validate, dry-run import, and a second idempotent diff before promotion.

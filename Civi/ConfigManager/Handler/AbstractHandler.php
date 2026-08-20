@@ -7,6 +7,19 @@ use Civi\ConfigManager\Util\SimpleYaml;
 
 abstract class AbstractHandler implements HandlerInterface {
 
+  /**
+   * Report whether this handler can read its runtime provider on this site.
+   *
+   * Handlers backed by optional API4 entities override this method. The
+   * default is intentionally available for handlers whose dependencies are
+   * intrinsic to supported CiviCRM core versions.
+   *
+   * @return array{available:bool,reason:string}
+   */
+  public function getRuntimeAvailability(): array {
+    return ['available' => TRUE, 'reason' => ''];
+  }
+
   public function import(array $items, bool $dryRun = TRUE): array {
     return [
       'type' => $this->getType(),
@@ -570,7 +583,7 @@ abstract class AbstractHandler implements HandlerInterface {
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class)) {
-      return [];
+      throw new \RuntimeException('API4 entity not available: ' . $entity . '. Install/enable the provider before managing this configuration type.');
     }
     $action = $class::get(FALSE)->addSelect(...$select);
     foreach ($where as $condition) {

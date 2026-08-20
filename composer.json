@@ -29,7 +29,10 @@
     "allow-plugins": {
       "dealerdirect/phpcodesniffer-composer-installer": true
     },
-    "sort-packages": true
+    "sort-packages": true,
+    "platform": {
+      "php": "7.4.33"
+    }
   },
   "scripts": {
     "lint:php": "bash tests/ci/php-lint.sh",
@@ -39,12 +42,13 @@
     "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
     "analyse": "phpstan analyse --configuration phpstan.neon.dist --no-progress",
     "standards": "phpcs --standard=phpcs.xml.dist",
-    "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.1 .",
+    "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
     "qa:fast": [
       "@lint:php",
       "@test:scenarios",
       "@test:unit",
-      "@analyse"
+      "@analyse",
+      "@compatibility"
     ],
     "qa:full": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
     "qa:full-ui": "bash tests/ci/run-local-ui.sh"

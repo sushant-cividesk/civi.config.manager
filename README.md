@@ -30,6 +30,20 @@ The YAML directory is treated as the deployable source of truth for supported co
 
 Alpha60 additionally hardens generic API3 contributed-provider restore: create/update payloads are limited to fields accepted by the provider's create API when a usable `getfields` specification is available, and virtual provider imports such as SQLTasks remain isolated from unrelated extension-provider YAML through both CLI and UI preview/apply.
 
+## Legacy CiviCRM 5.76 / PHP 7.4 compatibility
+
+The extension source remains compatible with PHP 7.4 and CiviCRM 5.76-era Drupal 7 installations. Fast CI includes PHP 7.4, and Composer dependency resolution is pinned to a PHP 7.4.33 platform so a production `composer install --no-dev` selects a compatible Symfony YAML release. Optional providers such as SearchKit displays, FormBuilder Afforms, CiviContribute-backed financial entities, SiteToken, or CiviRules are detected at runtime. If a provider is unavailable, Configuration Manager reports it explicitly and fails closed for that managed type; it never interprets a missing API4 class as an authoritative empty set or uses that absence to delete existing YAML/configuration.
+
+For a source checkout or package without `vendor/`, install runtime dependencies inside the extension directory before enabling import/validation:
+
+```bash
+composer install --no-dev --prefer-dist --optimize-autoloader
+```
+
+`vendor/` is intentionally not committed. Release/installable packages should bundle the resulting production `vendor/` directory, or the target host must provide the PHP yaml extension.
+
+After installation, `civicfg status` reports the active PHP/CiviCRM versions, YAML parser, and any optional configuration provider that is unavailable on the current site. This makes older Drupal 7/CiviCRM environments fail visibly and safely instead of silently treating a missing provider as empty configuration.
+
 ## Alpha61 safe first-run scope
 
 Fresh installations now start with configuration types ignored until an administrator explicitly chooses what to manage or monitor. Existing installations without the fresh-install marker keep the historical `Manage everything` fallback, so upgrading does not silently disable an established workflow. The Settings page includes first-run guidance, bulk scope actions, and expanded collapsible management/advanced sections.

@@ -2,6 +2,7 @@
 namespace Civi\ConfigManager\Service;
 
 use Civi\ConfigManager\Storage\YamlFileStorage;
+use Civi\ConfigManager\Util\SimpleYaml;
 use Civi\ConfigManager\Version;
 
 class ConfigManager {
@@ -709,6 +710,26 @@ class ConfigManager {
   }
 
   private function scopeCapabilityForHandler($handler): array {
+    if (method_exists($handler, 'getRuntimeAvailability')) {
+      try {
+        $availability = (array) $handler->getRuntimeAvailability();
+        if (array_key_exists('available', $availability) && empty($availability['available'])) {
+          return [
+            'key' => 'unavailable',
+            'label' => 'Unavailable on this site',
+            'help' => trim((string) ($availability['reason'] ?? 'Required runtime provider is not available on this site.')),
+          ];
+        }
+      }
+      catch (\Throwable $e) {
+        return [
+          'key' => 'unavailable',
+          'label' => 'Unavailable on this site',
+          'help' => 'Runtime provider availability could not be confirmed: ' . $e->getMessage(),
+        ];
+      }
+    }
+
     if ($handler instanceof \Civi\ConfigManager\Handler\ExtensionHandler) {
       return [
         'key' => 'mixed',
@@ -747,6 +768,17 @@ class ConfigManager {
     $exists = is_dir($dir);
     $parent = dirname($dir);
     $writable = $exists ? is_writable($dir) : (is_dir($parent) && is_writable($parent));
+    $yamlRuntime = SimpleYaml::runtimeStatus();
+    $civiVersion = class_exists('CRM_Utils_System') ? (string) \CRM_Utils_System::version() : '';
+    $providerAvailability = [];
+    foreach ($this->getScopeTypeOptions() as $scopeType) {
+      $providerAvailability[] = [
+        'type' => (string) ($scopeType['type'] ?? ''),
+        'capability' => (string) ($scopeType['capability'] ?? ''),
+        'available' => (string) ($scopeType['capability'] ?? '') !== 'unavailable',
+        'message' => (string) ($scopeType['capability_help'] ?? ''),
+      ];
+    }
     $types = [];
     foreach ($this->getHandlers() as $handler) {
       $types[] = [
@@ -761,6 +793,14 @@ class ConfigManager {
       'sync_dir' => $dir,
       'exists' => $exists,
       'writable' => $writable,
+      'runtime' => [
+        'php_version' => PHP_VERSION,
+        'php_74_compatible' => version_compare(PHP_VERSION, '7.4.0', '>='),
+        'civicrm_version' => $civiVersion,
+        'civicrm_576_compatible' => $civiVersion === '' ? NULL : version_compare($civiVersion, '5.76.0', '>='),
+        'yaml' => $yamlRuntime,
+        'provider_availability' => $providerAvailability,
+      ],
       'cli' => (new CliInstaller($this))->status(),
       'types' => $types,
     ];
@@ -2501,6 +2541,18 @@ class ConfigManager {
    */
   public function getHealth(): array {
     $syncDir = $this->getSyncDir();
+    $yamlRuntime = SimpleYaml::runtimeStatus();
+    if (empty($yamlRuntime['available'])) {
+      return [
+        'level' => 'warning',
+        'title' => 'Configuration Manager: YAML runtime dependency missing',
+        'message' => (string) ($yamlRuntime['reason'] ?? 'No YAML parser is available.'),
+        'sync_dir' => $syncDir,
+        'changed' => 0,
+        'in_civicrm' => 0,
+        'in_yaml' => 0,
+      ];
+    }
 
     // Health/status hooks must never discover handlers. Scope-aware diff()
     // caches the two no-managed-scope states explicitly; those cached states

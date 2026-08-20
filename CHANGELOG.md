@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- Added legacy-runtime hardening for CiviCRM 5.76 / Drupal 7 / PHP 7.4 deployments: fast QA now includes PHP 7.4 and PHPCompatibility 7.4, Composer resolves runtime dependencies against PHP 7.4.33, and missing optional API4 providers fail closed instead of being mistaken for authoritative empty configuration. Settings labels unavailable optional providers clearly, preserving existing YAML/baselines rather than authorizing destructive cleanup.
+
 - Fixed Configuration Scope/export consistency: saving **Manage everything** now replaces stale `ignore` manifest state even when a handler reports a partial provider error, and extension status YAML can still be exported when one contributed provider cannot be inspected. Incomplete handler exports never authorize stale-YAML deletion or baseline acceptance.
 - Settings now warns clearly when scope changes are unsaved, adds a nearby **Save scope changes** action, and avoids claiming **In Sync** on the Settings tab before a real Synchronize comparison. Synchronize shows persistent provider errors and cannot report **In Sync** when the managed comparison is incomplete.
 

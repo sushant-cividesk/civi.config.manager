@@ -15,12 +15,22 @@ class SiteTokenHandler extends AbstractHandler {
   public function getDirectory(): string { return 'site-tokens'; }
   public function getWeight(): int { return 85; }
 
+  public function getRuntimeAvailability(): array {
+    if ($this->isAvailable()) {
+      return ['available' => TRUE, 'reason' => ''];
+    }
+    return [
+      'available' => FALSE,
+      'reason' => 'SiteToken API4 entity is not available on this site.',
+    ];
+  }
+
   public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }
   public function setDeleteMissingEnabled(bool $enabled): self { $this->deleteMissingEnabled = $enabled; return $this; }
 
   public function export(): array {
     if (!$this->isAvailable()) {
-      return [];
+      throw new \RuntimeException('SiteToken API4 entity is not available on this site.');
     }
     $rows = $this->api4Get('SiteToken', [], ['*'], ['name' => 'ASC']);
     $files = [];

@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 61 development build with same-version QA hotfixes: safe first-run scope, bulk settings, watch history, hardened standalone/Playwright QA, SQLTasks create/delete restore, and deterministic reviewed SQLTasks provider discovery with deferred BAO reads.</comments>
+  <comments>Alpha 61 development build with same-version QA hotfixes: safe first-run scope, bulk settings, watch history, hardened standalone/Playwright QA, SQLTasks provider compatibility, and fail-closed PHP 7.4/CiviCRM 5.76 runtime-provider handling.</comments>
 </extension>
