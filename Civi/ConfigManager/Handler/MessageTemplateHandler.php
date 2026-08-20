@@ -10,6 +10,10 @@ class MessageTemplateHandler extends AbstractHandler {
   public function getDirectory(): string { return 'message-templates'; }
   public function getWeight(): int { return 90; }
 
+  public function getRuntimeAvailability(): array {
+    return $this->api4ManagementAvailability('MessageTemplate', ['get', 'create', 'update', 'delete']);
+  }
+
   public function setImportWriteEnabled(bool $enabled): self {
     $this->importWritesEnabled = $enabled;
     return $this;

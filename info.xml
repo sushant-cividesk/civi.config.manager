@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 61 development build with same-version QA hotfixes: safe first-run scope, dependency-aware settings guidance, watch history, standalone YAML runtime packaging, SQLTasks provider compatibility, and fail-closed PHP 7.4/CiviCRM 5.76 runtime-provider handling.</comments>
+  <comments>Alpha 61 development build with same-version QA hotfixes: safe first-run scope, dependency-aware settings guidance, watch history, standalone YAML runtime packaging, SQLTasks provider compatibility, and fail-closed PHP 7.4/CiviCRM 5.76 runtime-provider handling, runtime CRUD capability checks, and SQLTasks API4 bootstrap compatibility.</comments>
 </extension>

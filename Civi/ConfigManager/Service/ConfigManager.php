@@ -668,6 +668,20 @@ class ConfigManager {
       throw new \RuntimeException('Unknown Configuration Scope type: ' . $type);
     }
 
+    if (method_exists($handler, 'getRuntimeAvailability')) {
+      $availability = (array) $handler->getRuntimeAvailability();
+      if (array_key_exists('available', $availability) && empty($availability['available'])) {
+        return [
+          'type' => $type,
+          'label' => (string) $handler->getLabel(),
+          'policy' => $this->scope->getPolicy($type),
+          'available' => FALSE,
+          'unavailable_reason' => trim((string) ($availability['reason'] ?? 'Required runtime provider is not available on this site.')),
+          'items' => [],
+        ];
+      }
+    }
+
     $storage = new YamlFileStorage($this->getSyncDir());
     $exported = $this->attachScopeRelativePaths($handler, $handler->export());
     $partition = $this->scopePartition($handler, $exported, $storage, FALSE);
@@ -753,6 +767,8 @@ class ConfigManager {
       'type' => $type,
       'label' => (string) $handler->getLabel(),
       'policy' => $this->scope->getPolicy($type),
+      'available' => TRUE,
+      'unavailable_reason' => '',
       'items' => $items,
     ];
   }
@@ -876,6 +892,13 @@ class ConfigManager {
             'key' => 'unavailable',
             'label' => 'Unavailable on this site',
             'help' => trim((string) ($availability['reason'] ?? 'Required runtime provider is not available on this site.')),
+          ];
+        }
+        if (($availability['management_capability'] ?? '') === 'export_only') {
+          return [
+            'key' => 'export_only',
+            'label' => 'Export + compare',
+            'help' => trim((string) ($availability['reason'] ?? 'The provider can be read, but safe automatic restore/import is not available on this site.')),
           ];
         }
       }

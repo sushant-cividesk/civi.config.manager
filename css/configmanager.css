@@ -408,3 +408,57 @@
 .crm-configmanager-block .civicfg-scope-card.has-dependency-review {border-color: #d6b656;}
 .crm-configmanager-block .civicfg-manage-dependencies {margin-top: .45rem !important;}
 .crm-configmanager-block .civicfg-manage-dependencies[hidden] {display: none !important;}
+
+/* Keep message severity unambiguous across CiviCRM/Drupal themes. */
+.crm-configmanager-block .messages.error,
+.crm-configmanager-block details.messages.error,
+.crm-configmanager-block .civicfg-message-error,
+.crm-configmanager-block .civicfg-scope-picker-status.is-error {
+  background: #f8d7da !important;
+  border: 1px solid #f1aeb5 !important;
+  color: #842029 !important;
+}
+.crm-configmanager-block .messages.warning,
+.crm-configmanager-block details.messages.warning,
+.crm-configmanager-block .civicfg-message-warning,
+.crm-configmanager-block .civicfg-scope-picker-status.is-warning {
+  background: #fff3cd !important;
+  border: 1px solid #ffe69c !important;
+  color: #664d03 !important;
+}
+.crm-configmanager-block .messages.status,
+.crm-configmanager-block details.messages.status,
+.crm-configmanager-block .civicfg-message-success,
+.crm-configmanager-block .civicfg-scope-picker-status.is-success {
+  background: #d1e7dd !important;
+  border: 1px solid #a3cfbb !important;
+  color: #0f5132 !important;
+}
+.crm-configmanager-block details.messages.error > summary,
+.crm-configmanager-block details.messages.warning > summary,
+.crm-configmanager-block details.messages.status > summary {
+  background: transparent !important;
+  color: inherit !important;
+}
+.crm-configmanager-block .messages.error strong,
+.crm-configmanager-block .messages.error li,
+.crm-configmanager-block .messages.error summary {
+  color: #842029 !important;
+}
+.crm-configmanager-block .messages.warning strong,
+.crm-configmanager-block .messages.warning li,
+.crm-configmanager-block .messages.warning summary {
+  color: #664d03 !important;
+}
+.crm-configmanager-block .messages.status strong,
+.crm-configmanager-block .messages.status li,
+.crm-configmanager-block .messages.status summary {
+  color: #0f5132 !important;
+}
+.crm-configmanager-block .civicfg-scope-picker-status.is-error,
+.crm-configmanager-block .civicfg-scope-picker-status.is-warning,
+.crm-configmanager-block .civicfg-scope-picker-status.is-success {
+  margin: .65rem 0;
+  padding: .65rem .75rem;
+  border-radius: 4px;
+}

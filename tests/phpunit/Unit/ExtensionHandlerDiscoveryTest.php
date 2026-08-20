@@ -39,6 +39,27 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertTrue($method->invoke($handler, 'Sqltask', 'deletetask', ['create', 'deletetask']));
   }
 
+  public function testApi4ProviderClassCanLoadFromExactExtensionFile(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'loadApi4ClassFromProvider');
+    $method->setAccessible(TRUE);
+
+    $entity = 'CivicfgQaApi4_' . str_replace('.', '_', uniqid('', TRUE));
+    $dir = sys_get_temp_dir() . '/civicfg-api4-provider-' . bin2hex(random_bytes(6));
+    mkdir($dir, 0700, TRUE);
+    $file = $dir . '/' . $entity . '.php';
+    file_put_contents($file, '<?php namespace Civi\Api4; class ' . $entity . ' { public static function get($checkPermissions = TRUE) {} }');
+
+    try {
+      self::assertTrue($method->invoke($handler, $entity, $file));
+      self::assertTrue(class_exists('Civi\\Api4\\' . $entity, FALSE));
+    }
+    finally {
+      @unlink($file);
+      @rmdir($dir);
+    }
+  }
+
   public function testReviewedApi3AdapterCanLoadClassFromProviderBasePath(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'loadApi3ReadAdapterClass');
@@ -70,6 +91,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     $dir = sys_get_temp_dir() . '/civicfg-sqltasks-definition-' . bin2hex(random_bytes(6));
     mkdir($dir . '/api/v3/Sqltask', 0700, TRUE);
     file_put_contents($dir . '/api/v3/Sqltask/Create.php', "<?php\n");
+    file_put_contents($dir . '/api/v3/Sqltask/Get.php', "<?php\n");
+    file_put_contents($dir . '/api/v3/Sqltask/Getalltasks.php', "<?php\n");
     file_put_contents($dir . '/api/v3/Sqltask/Deletetask.php', "<?php\n");
 
     try {
@@ -77,8 +100,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       $definitions = (array) $method->invoke($handler, 'de.systopia.sqltasks', $dir);
       self::assertCount(1, $definitions);
       self::assertSame('Sqltask', $definitions[0]['entity']);
-      self::assertSame('', $definitions[0]['list_action']);
-      self::assertSame('sqltasks_bao_generator', $definitions[0]['read_adapter']);
+      self::assertSame('getalltasks', $definitions[0]['list_action']);
+      self::assertSame('', $definitions[0]['read_adapter']);
       self::assertSame($dir, $definitions[0]['base_path']);
       self::assertTrue($definitions[0]['can_create']);
       self::assertTrue($definitions[0]['can_update']);
@@ -89,6 +112,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     }
     finally {
       @unlink($dir . '/api/v3/Sqltask/Deletetask.php');
+      @unlink($dir . '/api/v3/Sqltask/Getalltasks.php');
+      @unlink($dir . '/api/v3/Sqltask/Get.php');
       @unlink($dir . '/api/v3/Sqltask/Create.php');
       @rmdir($dir . '/api/v3/Sqltask');
       @rmdir($dir . '/api/v3');

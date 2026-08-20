@@ -44,6 +44,14 @@ composer install --no-dev --prefer-dist --optimize-autoloader
 
 After installation, `civicfg status` reports the active PHP/CiviCRM versions, YAML parser, and any optional configuration provider that is unavailable on the current site. It also reports whether Symfony YAML is available, whether the extension-local `vendor/autoload.php` is present, and whether PHP `ext-yaml` is enabled. The CiviCRM System Status check is an error only when neither Symfony YAML nor ext-yaml is available. This makes older Drupal 7/CiviCRM environments fail visibly and safely instead of silently treating a missing provider as empty configuration.
 
+## Runtime CRUD and provider safeguards
+
+Configuration Manager checks the runtime API surface before advertising a type as **Full management**. API4-backed handlers must expose the read/create/update/delete actions that the handler actually uses; a readable provider with missing write actions is shown as **Export + compare** instead of being allowed to fail later during import. Unavailable providers remain fail-closed. SQLTasks prefers native API4 `SqlTask` when present and retains the reviewed API3/BAO path only as a legacy fallback.
+
+Admin messages use explicit semantic styling so active errors remain red, warnings amber, and successful status messages green even on older Drupal/CiviCRM themes.
+
+SQLTasks compatibility is version-aware: releases with native API4 `SqlTask` use API4; SQLTasks 2.2.x uses the extension's public API3 `getalltasks` collection plus `get` hydration and the existing `create`/`deletetask` write actions. No nonexistent BAO class is required on 2.2.x. Unavailable optional providers keep their saved scope for recovery but only **Ignore** can be newly selected until the provider becomes usable.
+
 ## Alpha61 safe first-run scope
 
 Fresh installations now start with configuration types ignored until an administrator explicitly chooses what to manage or monitor. Existing installations without the fresh-install marker keep the historical `Manage everything` fallback, so upgrading does not silently disable an established workflow. The Settings page includes first-run guidance, bulk scope actions, and expanded collapsible management/advanced sections.

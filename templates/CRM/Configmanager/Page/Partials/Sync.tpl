@@ -49,7 +49,7 @@
     {else}
       {if $diffResult.errors|@count gt 0}
         <details class="civicfg-panel civicfg-error-panel" open="open">
-          <summary>{ts}Synchronization Errors{/ts} <span class="civicfg-badge warn">{$diffResult.errors|@count|escape}</span></summary>
+          <summary>{ts}Synchronization Errors{/ts} <span class="civicfg-badge bad">{$diffResult.errors|@count|escape}</span></summary>
           <div class="civicfg-panel-body">
             <div class="messages error no-popup">
               <strong>{ts}The managed comparison is incomplete. Configuration Manager will not report this site as In Sync until these errors are resolved.{/ts}</strong>
@@ -116,7 +116,7 @@
 
       {if $summary.total_changes eq 0}
         {if $summary.error_count gt 0}
-          <div class="messages warning no-popup">{ts}No differences were calculated, but synchronization is not confirmed because one or more managed configuration providers could not be read.{/ts}</div>
+          <div class="messages error no-popup">{ts}No differences were calculated, but synchronization is not confirmed because one or more managed configuration providers could not be read.{/ts}</div>
         {else}
           <div class="messages status no-popup">{ts}Managed configuration is in sync. No pending changes were found.{/ts}</div>
         {/if}

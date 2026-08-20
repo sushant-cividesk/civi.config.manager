@@ -1124,7 +1124,21 @@ class ExtensionHandler extends AbstractHandler {
         continue;
       }
       $class = 'Civi\\Api4\\' . $entity;
-      if (!class_exists($class) || !$this->api4EntityUsable($entity)) {
+      if (!$this->loadApi4ClassFromProvider($entity, (string) $file)) {
+        continue;
+      }
+
+      // SQLTasks ships a native API4 SqlTask provider and a legacy API3
+      // surface for compatibility. Do not downgrade to API3 just because a
+      // discovery-time probe cannot execute in an isolated/early bootstrap
+      // request. The real export read below remains authoritative and will
+      // report a provider error if API4 is genuinely unusable.
+      $isSqltasksSqlTask = strtolower($extensionKey) === 'de.systopia.sqltasks'
+        && strtolower($entity) === 'sqltask';
+      if (!$isSqltasksSqlTask && !$this->api4EntityUsable($entity)) {
+        continue;
+      }
+      if (!method_exists($class, 'get')) {
         continue;
       }
       $info = $this->api4Info($entity);
@@ -1141,6 +1155,32 @@ class ExtensionHandler extends AbstractHandler {
       ];
     }
     return $definitions;
+  }
+
+  /**
+   * Load an API4 provider class from the exact discovered extension file.
+   *
+   * CiviCRM normally registers extension classloaders before discovery, but
+   * CLI/early-bootstrap requests can see extension files before the provider's
+   * PSR-4 loader is active. Loading the exact Civi/Api4 file avoids false
+   * API3 fallback without scanning or executing unrelated provider code.
+   */
+  private function loadApi4ClassFromProvider(string $entity, string $file): bool {
+    $class = 'Civi\\Api4\\' . $entity;
+    if (class_exists($class)) {
+      return TRUE;
+    }
+    if ($entity === '' || !is_file($file)) {
+      return FALSE;
+    }
+
+    try {
+      require_once $file;
+    }
+    catch (\Throwable $e) {
+      return FALSE;
+    }
+    return class_exists($class, FALSE) || class_exists($class);
   }
 
   private function discoverApi3Entities(string $extensionKey, string $basePath): array {
@@ -1233,6 +1273,11 @@ class ExtensionHandler extends AbstractHandler {
     }
 
     $entity = 'Sqltask';
+    $nativeApi4File = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'Civi' . DIRECTORY_SEPARATOR . 'Api4' . DIRECTORY_SEPARATOR . 'SqlTask.php';
+    if ($this->loadApi4ClassFromProvider('SqlTask', $nativeApi4File)) {
+      return [];
+    }
+
     $apiDir = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . $entity;
     $createFile = $apiDir . DIRECTORY_SEPARATOR . 'Create.php';
     if (!is_file($createFile)) {
@@ -1244,14 +1289,21 @@ class ExtensionHandler extends AbstractHandler {
       return [];
     }
 
+    // SQLTasks 2.2.x has no native API4 SqlTask class and no
+    // CRM_Sqltasks_BAO_SqlTask adapter. It does provide a reviewed API3
+    // collection action, Sqltask.getalltasks, plus Sqltask.get for row
+    // hydration. Prefer that provider-owned public API when available.
+    $listAction = is_file($apiDir . DIRECTORY_SEPARATOR . 'Getalltasks.php') ? 'getalltasks' : '';
+    $readAdapter = $listAction === '' ? (string) $adapter['name'] : '';
+
     $deleteAction = is_file($apiDir . DIRECTORY_SEPARATOR . 'Deletetask.php') ? 'deletetask' : NULL;
     return [[
       'extension' => $extensionKey,
       'api' => 'api3',
       'entity' => $entity,
       'fields' => [],
-      'list_action' => '',
-      'read_adapter' => (string) $adapter['name'],
+      'list_action' => $listAction,
+      'read_adapter' => $readAdapter,
       'write_fields' => array_values((array) ($adapter['write_fields'] ?? [])),
       'base_path' => $basePath,
       'can_create' => TRUE,
@@ -1661,12 +1713,27 @@ class ExtensionHandler extends AbstractHandler {
       // target site's classloader may not expose the BAO in this request. Use
       // the native API4 collection as the safe read fallback instead of
       // blocking preview/import solely because the legacy adapter is absent.
-      if (strtolower($entity) === 'sqltask' && class_exists('\Civi\Api4\SqlTask')) {
-        try {
-          return (array) \Civi\Api4\SqlTask::get(FALSE)->addSelect('*')->execute();
+      if (strtolower($entity) === 'sqltask') {
+        $nativeApi4File = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'Civi' . DIRECTORY_SEPARATOR . 'Api4' . DIRECTORY_SEPARATOR . 'SqlTask.php';
+        if ($this->loadApi4ClassFromProvider('SqlTask', $nativeApi4File)) {
+          try {
+            return (array) \Civi\Api4\SqlTask::get(FALSE)->addSelect('*')->execute();
+          }
+          catch (\Throwable $e) {
+            throw new \RuntimeException('Could not read SQLTasks through native API4 fallback: ' . $e->getMessage(), 0, $e);
+          }
         }
-        catch (\Throwable $e) {
-          throw new \RuntimeException('Could not read SQLTasks through native API4 fallback: ' . $e->getMessage(), 0, $e);
+
+        // SQLTasks 2.2.x exposes Sqltask.getalltasks as its supported
+        // collection API. Old YAML/provider metadata may still request the
+        // later BAO adapter, so transparently fall back to the public API3
+        // collection instead of blocking export/diff/import.
+        $getAllFile = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . 'Sqltask' . DIRECTORY_SEPARATOR . 'Getalltasks.php';
+        if (is_file($getAllFile)) {
+          $fallbackDefinition = $definition;
+          $fallbackDefinition['read_adapter'] = '';
+          $fallbackDefinition['list_action'] = 'getalltasks';
+          return $this->fetchEntityRows($fallbackDefinition);
         }
       }
       throw new \RuntimeException('API3 contributed-provider read adapter is unavailable for ' . $entity . '.');

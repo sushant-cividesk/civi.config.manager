@@ -580,6 +580,87 @@ abstract class AbstractHandler implements HandlerInterface {
     return $value;
   }
 
+  /**
+   * Describe the API4 action surface needed for safe managed CRUD.
+   *
+   * This is intentionally based on callable API actions rather than CiviCRM
+   * version numbers. Contributed/core entities vary by installation, so a
+   * handler is only advertised as full-management when the actions it uses are
+   * actually present at runtime.
+   *
+   * @return array{available:bool,management_capability:string,reason:string,missing_actions:array<int,string>}
+   */
+  protected function api4ManagementAvailability(string $entity, array $requiredActions = ['get', 'create', 'update', 'delete']): array {
+    $class = 'Civi\\Api4\\' . $entity;
+    if (!class_exists($class)) {
+      return [
+        'available' => FALSE,
+        'management_capability' => 'unavailable',
+        'reason' => 'API4 entity ' . $entity . ' is not available on this site.',
+        'missing_actions' => array_values($requiredActions),
+      ];
+    }
+
+    $missing = [];
+    foreach ($requiredActions as $action) {
+      if (!is_callable([$class, (string) $action])) {
+        $missing[] = (string) $action;
+      }
+    }
+
+    if (in_array('get', $missing, TRUE)) {
+      return [
+        'available' => FALSE,
+        'management_capability' => 'unavailable',
+        'reason' => 'API4 entity ' . $entity . ' cannot be read on this site. Missing action(s): ' . implode(', ', $missing) . '.',
+        'missing_actions' => $missing,
+      ];
+    }
+
+    if ($missing) {
+      return [
+        'available' => TRUE,
+        'management_capability' => 'export_only',
+        'reason' => 'API4 entity ' . $entity . ' is readable but does not expose every action required for managed restore/import. Missing action(s): ' . implode(', ', $missing) . '.',
+        'missing_actions' => $missing,
+      ];
+    }
+
+    return [
+      'available' => TRUE,
+      'management_capability' => 'full',
+      'reason' => '',
+      'missing_actions' => [],
+    ];
+  }
+
+  /**
+   * Combine multiple API4 capability checks for one composite handler.
+   */
+  protected function combineApi4ManagementAvailability(array $checks, string $label): array {
+    $reasons = [];
+    $capability = 'full';
+    foreach ($checks as $check) {
+      $check = (array) $check;
+      if (empty($check['available'])) {
+        $capability = 'unavailable';
+      }
+      elseif (($check['management_capability'] ?? 'full') !== 'full' && $capability !== 'unavailable') {
+        $capability = 'export_only';
+      }
+      $reason = trim((string) ($check['reason'] ?? ''));
+      if ($reason !== '') {
+        $reasons[] = $reason;
+      }
+    }
+
+    return [
+      'available' => $capability !== 'unavailable',
+      'management_capability' => $capability,
+      'reason' => $reasons ? ($label . ': ' . implode(' ', $reasons)) : '',
+    ];
+  }
+
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class)) {

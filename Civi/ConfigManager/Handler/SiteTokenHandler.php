@@ -16,13 +16,7 @@ class SiteTokenHandler extends AbstractHandler {
   public function getWeight(): int { return 85; }
 
   public function getRuntimeAvailability(): array {
-    if ($this->isAvailable()) {
-      return ['available' => TRUE, 'reason' => ''];
-    }
-    return [
-      'available' => FALSE,
-      'reason' => 'SiteToken API4 entity is not available on this site.',
-    ];
+    return $this->api4ManagementAvailability('SiteToken', ['get', 'create', 'update', 'delete']);
   }
 
   public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }

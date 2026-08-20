@@ -140,6 +140,38 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertStringContainsString('Optional API4 provider', $rows[0]['capability_help']);
   }
 
+  public function testUnavailableScopePickerReturnsReasonWithoutExporting(): void {
+    $handler = new ScopeUiUnavailableFixtureHandler('optional-type', 'Optional Type');
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $picker = $manager->getScopePickerItems('optional-type');
+
+    self::assertFalse($picker['available']);
+    self::assertSame([], $picker['items']);
+    self::assertStringContainsString('Optional API4 provider', $picker['unavailable_reason']);
+    self::assertSame(0, $handler->exportCalls);
+  }
+
+  public function testRuntimeWriteGapDowngradesFullHandlerToExportOnly(): void {
+    $handler = new ScopeUiRuntimeExportOnlyFixtureHandler('partial-api4', 'Partial API4');
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $rows = $manager->getScopeTypeOptions();
+
+    self::assertSame('export_only', $rows[0]['capability']);
+    self::assertStringContainsString('delete', $rows[0]['capability_help']);
+    self::assertSame(0, $handler->exportCalls);
+  }
+
+
+  public function testUnavailableProviderSettingsKeepOnlyIgnoreActionable(): void {
+    $template = (string) file_get_contents(dirname(__DIR__, 3) . '/templates/CRM/Configmanager/Page/Partials/Settings.tpl');
+
+    self::assertStringContainsString('$row.capability eq \'unavailable\'}disabled="disabled"', $template);
+    self::assertStringContainsString('Current saved scope is retained but cannot run safely.', $template);
+    self::assertStringContainsString('Choose Ignore and save, or restore a supported provider version.', $template);
+  }
+
   public function testFreshIgnoreScopeRequiresSetupInsteadOfReportingSync(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);
@@ -776,6 +808,31 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
     return ['available' => FALSE, 'reason' => 'Optional API4 provider is not available.'];
   }
   public function export(): array { $this->exportCalls++; return []; }
+}
+
+final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
+  private string $type;
+  private string $label;
+  public int $exportCalls = 0;
+
+  public function __construct(string $type, string $label) {
+    $this->type = $type;
+    $this->label = $label;
+  }
+
+  public function getType(): string { return $this->type; }
+  public function getLabel(): string { return $this->label; }
+  public function getDirectory(): string { return $this->type; }
+  public function getWeight(): int { return 20; }
+  public function getRuntimeAvailability(): array {
+    return [
+      'available' => TRUE,
+      'management_capability' => 'export_only',
+      'reason' => 'Provider is readable but delete is unavailable.',
+    ];
+  }
+  public function export(): array { $this->exportCalls++; return []; }
+  public function import(array $items, bool $dryRun = TRUE): array { return $this->baseImportSummary($dryRun); }
 }
 
 final class ScopeUiReadOnlyFixtureHandler extends AbstractHandler {

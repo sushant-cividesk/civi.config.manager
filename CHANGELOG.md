@@ -2,6 +2,10 @@
 
 ## 0.1.0-alpha61-core
 
+- Fixed SQLTasks 2.2.x compatibility by using its public API3 `Sqltask.getalltasks` collection action (with `get` hydration, `create` create/update, and `deletetask` delete) when native API4 `SqlTask` is absent; stale BAO-adapter metadata also falls back safely to this API. Unavailable scope providers now preserve their saved policy, permit only an explicit switch to **Ignore**, disable unsafe picker/watch/bulk controls, and synchronization errors are detailed only once.
+
+- Hardened runtime/provider UX and compatibility: SQLTasks now loads and prefers its native API4 `SqlTask` class from the discovered extension path before considering the legacy API3/BAO fallback; unavailable scope item pickers are blocked with an explicit error; message colors are forced to semantic error/warning/success states across CiviCRM themes; and full-management labels now verify the API4 CRUD actions actually used by each supported handler, downgrading safely to export/compare when write actions are missing. GitHub Actions checkout/setup-node usage is updated to Node 24-compatible action versions.
+
 - Added scope dependency guidance for portable deployments: Settings now shows related configuration types, live warnings when a managed type depends on ignored/monitor-only/unavailable/selected scope, and an explicit **Manage recommended dependencies** helper that only changes scope after the administrator clicks it. Saved risky combinations remain allowed but are reported, while actual import dependency validation remains authoritative. Added regression coverage and kept the implementation PHP 7.4-compatible.
 - YAML runtime diagnostics now report bundled Symfony availability, extension-local vendor/autoload presence, and the PHP yaml extension separately. A missing YAML runtime is raised as a CiviCRM System Status error; either bundled Symfony YAML or ext-yaml remains sufficient at runtime.
 

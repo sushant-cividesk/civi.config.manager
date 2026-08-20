@@ -32,14 +32,15 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   public function getWeight(): int { return $this->weight; }
 
   public function getRuntimeAvailability(): array {
-    $class = 'Civi\\Api4\\' . $this->entity;
-    if (class_exists($class)) {
-      return ['available' => TRUE, 'reason' => ''];
+    // Capability labels describe what this handler can safely do when fully
+    // managed, not the mutable flags used for one selected/dry-run operation.
+    // Requiring the complete surface here prevents a prior scoped operation
+    // from accidentally making a read-only provider look fully writable.
+    $availability = $this->api4ManagementAvailability($this->entity, ['get', 'create', 'update', 'delete']);
+    if (empty($availability['available'])) {
+      $availability['reason'] .= ' Install/enable the provider before managing this type.';
     }
-    return [
-      'available' => FALSE,
-      'reason' => 'API4 entity ' . $this->entity . ' is not available on this site. Install/enable the provider before managing this type.',
-    ];
+    return $availability;
   }
 
   public function setImportWriteEnabled(bool $enabled): self {

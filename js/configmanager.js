@@ -474,9 +474,15 @@
       var modal = ensureScopePickerModal();
       modal._civicfgRow = row;
       modal.querySelector('#civicfg-scope-picker-title').textContent = 'Choose ' + label;
-      modal.querySelector('#civicfg-scope-picker-search').value = '';
+      var pickerSearch = modal.querySelector('#civicfg-scope-picker-search');
+      var pickerStatus = modal.querySelector('#civicfg-scope-picker-status');
+      var pickerApply = modal.querySelector('[data-civicfg-scope-picker-apply]');
+      pickerSearch.value = '';
+      pickerSearch.disabled = false;
+      pickerApply.disabled = false;
       modal.querySelector('#civicfg-scope-picker-list').innerHTML = '';
-      modal.querySelector('#civicfg-scope-picker-status').textContent = 'Loading current CiviCRM items...';
+      pickerStatus.classList.remove('is-error', 'is-warning', 'is-success');
+      pickerStatus.textContent = 'Loading current CiviCRM items...';
       modal.hidden = false;
       modal.setAttribute('aria-hidden', 'false');
       modal.classList.add('is-open');
@@ -485,6 +491,14 @@
         .then(function(response) { return response.json(); })
         .then(function(data) {
           if (!data || !data.ok) { throw new Error((data && data.error) ? data.error : 'Could not load configuration items.'); }
+          if (data.available === false) {
+            pickerStatus.textContent = data.unavailable_reason || 'This configuration provider is unavailable on this site.';
+            pickerStatus.classList.add('is-error');
+            pickerSearch.disabled = true;
+            pickerApply.disabled = true;
+            modal.querySelector('#civicfg-scope-picker-list').innerHTML = '';
+            return;
+          }
           var loadedItems = data.items || [];
           renderScopePickerItems(modal, loadedItems, currentSelectors);
           var current = {};
@@ -495,7 +509,10 @@
           }));
         })
         .catch(function(error) {
-          modal.querySelector('#civicfg-scope-picker-status').textContent = error.message || 'Could not load configuration items.';
+          pickerStatus.textContent = error.message || 'Could not load configuration items.';
+          pickerStatus.classList.add('is-error');
+          pickerSearch.disabled = true;
+          pickerApply.disabled = true;
         });
     }
 

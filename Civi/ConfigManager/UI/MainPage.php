@@ -112,7 +112,7 @@ class MainPage {
               5 => (int) ($watchResult['missing'] ?? 0),
             ])
           : ts('Watch scan completed with errors. Review the Configuration Manager watch summary.');
-        $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'warning', 'watch=1', 'civicfg-watch-panel');
+        $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'error', 'watch=1', 'civicfg-watch-panel');
       }
       elseif ($postAction === 'clear_watch_history') {
         $this->manager->clearWatchHistory();
@@ -208,7 +208,7 @@ class MainPage {
             ? ts('Validation passed. No YAML format problems were found for the selected files.')
             : ts('Validation found problems. Review the validation details below.'),
           ts('Configuration Manager'),
-          !empty($validationResult['ok']) ? 'success' : 'warning'
+          !empty($validationResult['ok']) ? 'success' : 'error'
         );
       }
       elseif ($op === 'import') {
@@ -351,6 +351,21 @@ class MainPage {
         if (!in_array($mode, ['all', 'selected', 'watch', 'ignore'], TRUE)) {
           $mode = $this->manager->getScopeDefaultMode();
         }
+
+        // An unavailable provider cannot safely enter a new managed/watch
+        // state. Preserve its existing policy while administrators edit other
+        // settings, but always allow an explicit switch to Ignore so a broken
+        // or removed optional provider can be taken out of scope safely.
+        if (($row['capability'] ?? '') === 'unavailable' && $mode !== 'ignore') {
+          $existingPolicy = $this->manager->getScopePolicy($type);
+          $policies[$type] = [
+            'mode' => (string) ($existingPolicy['mode'] ?? $this->manager->getScopeDefaultMode()),
+            'selectors' => array_values((array) ($existingPolicy['selectors'] ?? [])),
+            'watch_unmanaged' => !empty($existingPolicy['watch_unmanaged']),
+          ];
+          continue;
+        }
+
         $rawSelectors = (string) ($selectors[$type] ?? '');
         $selectorList = preg_split('/[\r\n,]+/', $rawSelectors) ?: [];
         $selectorList = array_values(array_unique(array_filter(array_map('trim', $selectorList), 'strlen')));
@@ -583,14 +598,20 @@ class MainPage {
     $this->page->assign('result', $result);
     $this->page->assign('importResult', $importResult);
     $importMessages = $this->presenter->extractImportMessages($importResult);
-    $importErrorCount = 0;
+    $importErrorMessages = [];
+    $importWarningMessages = [];
     foreach ($importMessages as $importMessage) {
       if (($importMessage['type'] ?? '') === 'error') {
-        $importErrorCount++;
+        $importErrorMessages[] = $importMessage;
+      }
+      else {
+        $importWarningMessages[] = $importMessage;
       }
     }
     $this->page->assign('importMessages', $importMessages);
-    $this->page->assign('importErrorCount', $importErrorCount);
+    $this->page->assign('importErrorMessages', $importErrorMessages);
+    $this->page->assign('importWarningMessages', $importWarningMessages);
+    $this->page->assign('importErrorCount', count($importErrorMessages));
     $syncErrors = [];
     if ($op === 'sync') {
       foreach ((array) ($diffResult['errors'] ?? []) as $error) {

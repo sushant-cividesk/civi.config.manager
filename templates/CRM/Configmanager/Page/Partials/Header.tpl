@@ -23,34 +23,33 @@
   {if $summary.error_count gt 0}<div class="messages error no-popup" data-civicfg-transient-summary-error>{ts 1=$summary.error_count}%1 Error(s) Reported. Review the page messages and logs for details.{/ts}</div>{/if}
 
   {if $op eq 'sync' && $syncErrors|@count gt 0}
-    <details class="messages error no-popup civicfg-sync-error-summary" open="open">
-      <summary><strong>{ts 1=$syncErrors|@count}Synchronization has %1 active error(s).{/ts}</strong></summary>
-      <ul class="civicfg-import-message-list">
-        {foreach from=$syncErrors item=syncError}
-          <li>{if $syncError.type}<strong>{$syncError.type|escape}:</strong> {/if}{$syncError.message|escape}</li>
-        {/foreach}
-      </ul>
-    </details>
+    <div class="messages error no-popup civicfg-sync-error-summary">
+      <strong>{ts 1=$syncErrors|@count}Synchronization has %1 active error(s).{/ts}</strong> {ts}Review Synchronization Errors below for details.{/ts}
+    </div>
   {/if}
 
-  {if $importMessages|@count gt 0}
-    <details class="messages {if $importErrorCount gt 0}error{else}warning{/if} no-popup civicfg-import-message-summary">
-      <summary>
-        <strong>
-          {if $importErrorCount gt 0}
-            {ts 1=$importErrorCount 2=$importMessages|@count}Import has %1 blocking error(s). %2 distinct message(s) are available below.{/ts}
-          {else}
-            {ts 1=$importMessages|@count}Import completed with %1 warning(s).{/ts}
-          {/if}
-        </strong>
-      </summary>
+  {if $importErrorMessages|@count gt 0}
+    <details class="messages error no-popup civicfg-import-message-summary" open="open">
+      <summary><strong>{ts 1=$importErrorMessages|@count}Import has %1 blocking error(s).{/ts}</strong></summary>
       <ul class="civicfg-import-message-list">
-        {foreach from=$importMessages item=message}
+        {foreach from=$importErrorMessages item=message}
           <li><strong>{$message.title|escape}:</strong> {$message.message|escape}</li>
         {/foreach}
       </ul>
     </details>
   {/if}
+
+  {if $importWarningMessages|@count gt 0}
+    <details class="messages warning no-popup civicfg-import-message-summary" open="open">
+      <summary><strong>{ts 1=$importWarningMessages|@count}Import has %1 warning(s).{/ts}</strong></summary>
+      <ul class="civicfg-import-message-list">
+        {foreach from=$importWarningMessages item=message}
+          <li><strong>{$message.title|escape}:</strong> {$message.message|escape}</li>
+        {/foreach}
+      </ul>
+    </details>
+  {/if}
+
 
   <div class="civicfg-cards">
     <div class="civicfg-card">
@@ -61,7 +60,7 @@
         {elseif $initialExportRequired}
           <span class="civicfg-badge warn">{ts}Initial Export Required{/ts}</span>
         {elseif $summary.error_count gt 0}
-          <span class="civicfg-badge warn">{ts}Error{/ts}</span>
+          <span class="civicfg-badge bad">{ts}Error{/ts}</span>
         {elseif $summary.total_changes gt 0}
           <span class="civicfg-badge warn">{ts 1=$summary.total_changes}%1 Difference(s){/ts}</span>
         {else}

@@ -20,6 +20,12 @@ class OptionGroupHandler extends AbstractHandler {
   public function getDirectory(): string { return 'option-groups'; }
   public function getWeight(): int { return 20; }
 
+  public function getRuntimeAvailability(): array {
+    $group = $this->api4ManagementAvailability('OptionGroup', ['get', 'create', 'update']);
+    $value = $this->api4ManagementAvailability('OptionValue', ['get', 'create', 'update', 'delete']);
+    return $this->combineApi4ManagementAvailability([$group, $value], 'Option Groups and Values');
+  }
+
   public function export(): array {
     $groups = $this->api4Get('OptionGroup', [], ['id', 'name', 'title', 'description', 'data_type', 'is_reserved', 'is_active'], ['name' => 'ASC']);
     $files = [];

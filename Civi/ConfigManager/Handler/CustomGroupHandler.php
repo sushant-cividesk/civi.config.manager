@@ -20,6 +20,12 @@ class CustomGroupHandler extends AbstractHandler {
   public function getDirectory(): string { return 'custom-data'; }
   public function getWeight(): int { return 60; }
 
+  public function getRuntimeAvailability(): array {
+    $group = $this->api4ManagementAvailability('CustomGroup', ['get', 'create', 'update', 'delete']);
+    $field = $this->api4ManagementAvailability('CustomField', ['get', 'create', 'update', 'delete']);
+    return $this->combineApi4ManagementAvailability([$group, $field], 'Custom Groups and Fields');
+  }
+
   public function export(): array {
     $groups = $this->api4Get('CustomGroup', [], ['id', 'name', 'title', 'extends', 'extends_entity_column_id', 'extends_entity_column_value', 'style', 'collapse_display', 'help_pre', 'help_post', 'weight', 'is_active', 'is_multiple', 'min_multiple', 'max_multiple', 'collapse_adv_display', 'is_reserved', 'is_public'], ['name' => 'ASC']);
     $files = [];

@@ -25,20 +25,25 @@ class CiviRulesHandler extends AbstractHandler {
   public function getWeight(): int { return 150; }
 
   public function getRuntimeAvailability(): array {
-    $missing = [];
+    $checks = [];
+    $missingEntities = [];
     foreach ($this->entities as $def) {
       $entity = (string) $def['entity'];
-      if (!$this->entityAvailable($entity)) {
-        $missing[] = $entity;
+      $check = $this->api4ManagementAvailability($entity, ['get', 'create', 'update', 'delete']);
+      $checks[] = $check;
+      if (empty($check['available'])) {
+        $missingEntities[] = $entity;
       }
     }
-    if (!$missing) {
-      return ['available' => TRUE, 'reason' => ''];
+
+    $availability = $this->combineApi4ManagementAvailability($checks, 'CiviRules');
+    if ($missingEntities) {
+      $availability['reason'] = 'CiviRules provider coverage is incomplete on this site. Missing/unreadable API4 entities: ' . implode(', ', $missingEntities) . '. Install/enable a supported CiviRules version before managing this type.';
     }
-    return [
-      'available' => FALSE,
-      'reason' => 'CiviRules provider coverage is incomplete on this site. Missing API4 entities: ' . implode(', ', $missing) . '. Install/enable a supported CiviRules version before managing this type.',
-    ];
+    elseif (($availability['management_capability'] ?? 'full') !== 'full') {
+      $availability['reason'] = 'CiviRules is readable, but one or more API4 entities do not expose the complete create/update/delete action surface required for safe managed import. ' . $availability['reason'];
+    }
+    return $availability;
   }
 
   public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }

@@ -82,7 +82,7 @@
         <div class="civicfg-scope-grid">
           {foreach from=$scopeRows item=row}
             <section class="civicfg-scope-card" data-civicfg-scope-row="{$row.type|escape}" data-scope-label="{$row.label|escape}" data-scope-capability="{$row.capability|escape}" data-civicfg-scope-dependencies="{$row.scope_dependency_types|escape}">
-              <label class="civicfg-scope-card-select"><input type="checkbox" data-civicfg-scope-select aria-label="{ts 1=$row.label}Select %1 for bulk action{/ts}" {if $scopeOverridden}disabled="disabled"{/if} /></label>
+              <label class="civicfg-scope-card-select"><input type="checkbox" data-civicfg-scope-select aria-label="{ts 1=$row.label}Select %1 for bulk action{/ts}" {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if} /></label>
               <div class="civicfg-scope-card-header">
                 <div>
                   <strong class="civicfg-scope-title">{$row.label|escape}</strong>
@@ -92,11 +92,18 @@
               </div>
 
               <select id="scope-mode-{$row.type|escape}" name="scope_mode[{$row.type|escape}]" class="crm-form-select civicfg-scope-mode" data-civicfg-scope-mode aria-label="{ts 1=$row.label}How should %1 be handled?{/ts}" {if $scopeOverridden}disabled="disabled"{/if}>
-                <option value="all" {if $row.mode_all}selected="selected"{/if}>{ts}Manage everything{/ts}</option>
-                <option value="selected" {if $row.mode_selected}selected="selected"{/if}>{ts}Manage selected items{/ts}</option>
-                <option value="watch" {if $row.mode_watch}selected="selected"{/if}>{ts}Monitor only{/ts}</option>
+                <option value="all" {if $row.mode_all}selected="selected"{/if} {if $row.capability eq 'unavailable'}disabled="disabled"{/if}>{ts}Manage everything{/ts}</option>
+                <option value="selected" {if $row.mode_selected}selected="selected"{/if} {if $row.capability eq 'unavailable'}disabled="disabled"{/if}>{ts}Manage selected items{/ts}</option>
+                <option value="watch" {if $row.mode_watch}selected="selected"{/if} {if $row.capability eq 'unavailable'}disabled="disabled"{/if}>{ts}Monitor only{/ts}</option>
                 <option value="ignore" {if $row.mode_ignore}selected="selected"{/if}>{ts}Ignore{/ts}</option>
               </select>
+
+              {if $row.capability eq 'unavailable'}
+                <div class="messages error no-popup civicfg-provider-unavailable">
+                  <strong>{ts}Provider unavailable{/ts}</strong> - {$row.capability_help|escape}
+                  {if !$row.mode_ignore}<div><strong>{ts}Current saved scope is retained but cannot run safely. Choose Ignore and save, or restore a supported provider version.{/ts}</strong></div>{/if}
+                </div>
+              {/if}
 
               <div class="civicfg-mode-help civicfg-mode-help-selected" data-civicfg-mode-help="selected">
                 {ts}Only the items you choose are managed. Other items can optionally be monitored without entering YAML.{/ts}
@@ -133,18 +140,18 @@
                   <strong>{ts}Managed items{/ts}</strong>
                   <span class="civicfg-muted" data-civicfg-scope-count>{if $row.selector_count gt 0}{$row.selector_count|escape} {ts}selected{/ts}{else}{ts}None selected yet{/ts}{/if}</span>
                 </div>
-                <button type="button" class="button civicfg-scope-picker-button" data-civicfg-scope-picker="{$row.type|escape}" {if $scopeOverridden}disabled="disabled"{/if}><span>{ts}Choose items{/ts}</span></button>
+                <button type="button" class="button civicfg-scope-picker-button" data-civicfg-scope-picker="{$row.type|escape}" {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if}><span>{ts}Choose items{/ts}</span></button>
                 <div class="civicfg-selected-chips" data-civicfg-selected-chips></div>
 
                 <label class="civicfg-watch-rest">
-                  <input type="checkbox" name="scope_watch_unmanaged[{$row.type|escape}]" value="1" {if $row.watch_unmanaged}checked="checked"{/if} {if $scopeOverridden}disabled="disabled"{/if} />
+                  <input type="checkbox" name="scope_watch_unmanaged[{$row.type|escape}]" value="1" {if $row.watch_unmanaged}checked="checked"{/if} {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if} />
                   <span>{ts}Monitor everything else in this type{/ts}</span>
                 </label>
 
                 <details class="civicfg-advanced-selection">
                   <summary>{ts}Advanced selection{/ts}</summary>
                   <p class="description">{ts}Normally use Choose items above. Advanced selectors are useful for deployment automation or an item that is temporarily missing from CiviCRM.{/ts}</p>
-                  <textarea name="scope_selectors[{$row.type|escape}]" class="crm-form-textarea civicfg-scope-selectors" rows="3" data-civicfg-scope-selectors {if $scopeOverridden}disabled="disabled"{/if}>{$row.selectors_text|escape}</textarea>
+                  <textarea name="scope_selectors[{$row.type|escape}]" class="crm-form-textarea civicfg-scope-selectors" rows="3" data-civicfg-scope-selectors {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if}>{$row.selectors_text|escape}</textarea>
                   <div class="civicfg-muted">{$scopeSelectorHelp|escape}</div>
                 </details>
               </div>
