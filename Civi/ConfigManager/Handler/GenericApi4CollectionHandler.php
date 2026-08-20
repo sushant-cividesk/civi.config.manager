@@ -31,6 +31,11 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   public function getDirectory(): string { return $this->directory; }
   public function getWeight(): int { return $this->weight; }
 
+  /**
+   * {@inheritdoc}
+   *
+   * @return array{available:bool,management_capability:string,reason:string,missing_actions:array<int,string>}
+   */
   public function getRuntimeAvailability(): array {
     // Capability labels describe what this handler can safely do when fully
     // managed, not the mutable flags used for one selected/dry-run operation.
