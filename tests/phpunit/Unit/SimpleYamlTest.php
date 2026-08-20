@@ -46,6 +46,22 @@ final class SimpleYamlTest extends TestCase {
     self::assertSame($data, SimpleYaml::parseFile($file));
   }
 
+  public function testRuntimeStatusReportsStandaloneAndPhpYamlCapabilities(): void {
+    $status = SimpleYaml::runtimeStatus();
+
+    self::assertArrayHasKey('available', $status);
+    self::assertArrayHasKey('parser', $status);
+    self::assertArrayHasKey('symfony_yaml_available', $status);
+    self::assertArrayHasKey('extension_vendor_autoload', $status);
+    self::assertArrayHasKey('php_yaml_extension', $status);
+    if (!empty($status['symfony_yaml_available'])) {
+      self::assertSame('symfony/yaml', $status['parser']);
+    }
+    elseif (!empty($status['php_yaml_extension'])) {
+      self::assertSame('ext-yaml', $status['parser']);
+    }
+  }
+
   public function testSymfonyYamlIsRuntimeDependency(): void {
     $composer = json_decode((string) file_get_contents(dirname(__DIR__, 3) . '/composer.json'), TRUE);
 

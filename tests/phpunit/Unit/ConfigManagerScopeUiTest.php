@@ -41,6 +41,93 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
+  public function testScopeTypeOptionsExposeDeploymentDependenciesAndDependents(): void {
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('option-groups', 'Option Groups and Values', TRUE),
+      new ScopeUiFixtureHandler('contact-types', 'Contact Types', TRUE),
+      new ScopeUiFixtureHandler('site-tokens', 'Site Tokens', TRUE),
+      new ScopeUiFixtureHandler('custom-data', 'Custom Groups and Fields', TRUE),
+    ]));
+
+    $rows = [];
+    foreach ($manager->getScopeTypeOptions() as $row) {
+      $rows[(string) $row['type']] = $row;
+    }
+
+    self::assertSame('option-groups,contact-types,site-tokens', $rows['custom-data']['scope_dependency_types']);
+    self::assertSame(3, count($rows['custom-data']['scope_dependencies']));
+    self::assertSame('custom-data', $rows['option-groups']['scope_dependents'][0]['type']);
+  }
+
+  public function testScopeDependencyWarningsFlagIgnoredWatchedAndSelectedRelatedTypes(): void {
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'custom-data' => ['mode' => 'all'],
+      'option-groups' => ['mode' => 'ignore'],
+      'contact-types' => ['mode' => 'watch'],
+      'site-tokens' => [
+        'mode' => 'selected',
+        'selectors' => ['key:site-tokens|SiteToken|name=example'],
+      ],
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('option-groups', 'Option Groups and Values', TRUE),
+      new ScopeUiFixtureHandler('contact-types', 'Contact Types', TRUE),
+      new ScopeUiFixtureHandler('site-tokens', 'Site Tokens', TRUE),
+      new ScopeUiFixtureHandler('custom-data', 'Custom Groups and Fields', TRUE),
+    ]));
+
+    $warnings = $manager->getScopeDependencyWarnings();
+    $messages = implode("\n", array_map(static function($warning) {
+      return (string) ($warning['message'] ?? '');
+    }, $warnings));
+
+    self::assertCount(3, $warnings);
+    self::assertStringContainsString('Option Groups and Values is ignored', $messages);
+    self::assertStringContainsString('Contact Types is monitor-only', $messages);
+    self::assertStringContainsString('Site Tokens uses selected-item scope', $messages);
+  }
+
+  public function testScopeDependencyWarningsFlagUnavailableRelatedProvider(): void {
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'custom-data' => ['mode' => 'all'],
+      'option-groups' => ['mode' => 'all'],
+      'contact-types' => ['mode' => 'all'],
+      'site-tokens' => ['mode' => 'all'],
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('option-groups', 'Option Groups and Values', TRUE),
+      new ScopeUiFixtureHandler('contact-types', 'Contact Types', TRUE),
+      new ScopeUiUnavailableFixtureHandler('site-tokens', 'Site Tokens'),
+      new ScopeUiFixtureHandler('custom-data', 'Custom Groups and Fields', TRUE),
+    ]));
+
+    $warnings = $manager->getScopeDependencyWarnings();
+
+    self::assertCount(1, $warnings);
+    self::assertSame('error', $warnings[0]['level']);
+    self::assertStringContainsString('Site Tokens is unavailable on this site', $warnings[0]['message']);
+  }
+
+  public function testScopeDependencyWarningsClearWhenRelatedTypesAreFullyManaged(): void {
+    \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
+    \Civi::settings()->set('civicfg_scope', [
+      'custom-data' => ['mode' => 'all'],
+      'option-groups' => ['mode' => 'all'],
+      'contact-types' => ['mode' => 'all'],
+      'site-tokens' => ['mode' => 'all'],
+    ]);
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([
+      new ScopeUiFixtureHandler('option-groups', 'Option Groups and Values', TRUE),
+      new ScopeUiFixtureHandler('contact-types', 'Contact Types', TRUE),
+      new ScopeUiFixtureHandler('site-tokens', 'Site Tokens', TRUE),
+      new ScopeUiFixtureHandler('custom-data', 'Custom Groups and Fields', TRUE),
+    ]));
+
+    self::assertSame([], $manager->getScopeDependencyWarnings());
+  }
+
   public function testUnavailableRuntimeProviderIsReportedWithoutExporting(): void {
     $handler = new ScopeUiUnavailableFixtureHandler('optional-type', 'Optional Type');
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));

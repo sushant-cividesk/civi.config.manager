@@ -211,3 +211,17 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 - Composer resolution uses a PHP 7.4.33 platform; an installable production package must bundle `vendor/` or the target must provide ext-yaml.
 - A missing optional API4 provider must be reported as **Unavailable on this site** and a managed export/diff must fail closed; it must never be treated as an authoritative empty set that could delete stale YAML or target configuration.
 - On a CiviCRM 5.76.3/Drupal 7 smoke site, verify `civicfg status --json`, initial export, diff, validate, dry-run import, and a second idempotent diff before promotion.
+### Standalone YAML runtime diagnostics
+
+- `civicfg status` must report `symfony_yaml_available`, `extension_vendor_autoload`, and `php_yaml_extension` separately.
+- The runtime is healthy when either Symfony YAML or PHP ext-yaml is available.
+- When neither parser is available, `hook_civicrm_check()` must report a CiviCRM System Status error without discovering configuration handlers.
+- The standalone installable ZIP must include `vendor/autoload.php` and the PHP 7.4-compatible Symfony YAML runtime so target sites do not need a post-install Composer command.
+
+### Scope dependency guidance
+
+- Managing Custom Data while Option Groups, Contact Types, or Site Tokens are Ignore/Monitor must show a live scope dependency warning without silently changing those modes.
+- A related type in selected-item mode must show a review warning because the referenced item may not be part of that selected scope.
+- **Manage recommended dependencies** may change only Ignore/Monitor related types to Manage everything after an explicit administrator click; unavailable or already-selected dependencies must not be overwritten.
+- Fully managed related types must clear the warning. Actual YAML/import dependency validation remains authoritative and may accept dependencies already present in active CiviCRM.
+- The implementation and tests must remain compatible with PHP 7.4 and the configured PHP 7.4/8.1/8.3 fast-QA matrix.

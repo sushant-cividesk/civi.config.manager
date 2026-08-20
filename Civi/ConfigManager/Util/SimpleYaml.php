@@ -37,19 +37,44 @@ class SimpleYaml {
   /**
    * Report the YAML parser available to web/CLI runtime.
    *
-   * @return array{available:bool,parser:string,reason:string}
+   * The detailed flags make standalone-package problems visible without
+   * requiring an administrator to inspect php -m or the extension directory.
+   *
+   * @return array{available:bool,parser:string,reason:string,symfony_yaml_available:bool,extension_vendor_autoload:bool,php_yaml_extension:bool}
    */
   public static function runtimeStatus(): array {
-    if (self::loadSymfonyYaml()) {
-      return ['available' => TRUE, 'parser' => 'symfony/yaml', 'reason' => ''];
+    $autoload = dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $extensionVendorAutoload = is_file($autoload);
+    $phpYamlExtension = function_exists('yaml_parse_file');
+    $symfonyYamlAvailable = self::loadSymfonyYaml();
+
+    if ($symfonyYamlAvailable) {
+      return [
+        'available' => TRUE,
+        'parser' => 'symfony/yaml',
+        'reason' => '',
+        'symfony_yaml_available' => TRUE,
+        'extension_vendor_autoload' => $extensionVendorAutoload,
+        'php_yaml_extension' => $phpYamlExtension,
+      ];
     }
-    if (function_exists('yaml_parse_file')) {
-      return ['available' => TRUE, 'parser' => 'ext-yaml', 'reason' => ''];
+    if ($phpYamlExtension) {
+      return [
+        'available' => TRUE,
+        'parser' => 'ext-yaml',
+        'reason' => '',
+        'symfony_yaml_available' => FALSE,
+        'extension_vendor_autoload' => $extensionVendorAutoload,
+        'php_yaml_extension' => TRUE,
+      ];
     }
     return [
       'available' => FALSE,
       'parser' => '',
-      'reason' => 'No YAML parser is available. Run Composer in the extension directory to install the PHP 7.4-compatible runtime dependencies, or enable the PHP yaml extension.',
+      'reason' => 'No YAML parser is available. Install the standalone Configuration Manager package with its bundled Symfony YAML runtime, or enable the PHP yaml extension.',
+      'symfony_yaml_available' => FALSE,
+      'extension_vendor_autoload' => $extensionVendorAutoload,
+      'php_yaml_extension' => FALSE,
     ];
   }
 

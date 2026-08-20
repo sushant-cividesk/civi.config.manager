@@ -2,6 +2,9 @@
 
 ## 0.1.0-alpha61-core
 
+- Added scope dependency guidance for portable deployments: Settings now shows related configuration types, live warnings when a managed type depends on ignored/monitor-only/unavailable/selected scope, and an explicit **Manage recommended dependencies** helper that only changes scope after the administrator clicks it. Saved risky combinations remain allowed but are reported, while actual import dependency validation remains authoritative. Added regression coverage and kept the implementation PHP 7.4-compatible.
+- YAML runtime diagnostics now report bundled Symfony availability, extension-local vendor/autoload presence, and the PHP yaml extension separately. A missing YAML runtime is raised as a CiviCRM System Status error; either bundled Symfony YAML or ext-yaml remains sufficient at runtime.
+
 - Added legacy-runtime hardening for CiviCRM 5.76 / Drupal 7 / PHP 7.4 deployments: fast QA now includes PHP 7.4 and PHPCompatibility 7.4, Composer resolves runtime dependencies against PHP 7.4.33, and missing optional API4 providers fail closed instead of being mistaken for authoritative empty configuration. Settings labels unavailable optional providers clearly, preserving existing YAML/baselines rather than authorizing destructive cleanup.
 
 - Fixed Configuration Scope/export consistency: saving **Manage everything** now replaces stale `ignore` manifest state even when a handler reports a partial provider error, and extension status YAML can still be exported when one contributed provider cannot be inspected. Incomplete handler exports never authorize stale-YAML deletion or baseline acceptance.

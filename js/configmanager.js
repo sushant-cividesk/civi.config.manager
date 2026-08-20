@@ -158,6 +158,112 @@
       updateScopeCount(row);
     }
 
+    function scopeRowIsManaged(row) {
+      if (!row) { return false; }
+      var mode = row.querySelector('[data-civicfg-scope-mode]');
+      var value = mode ? mode.value : 'ignore';
+      if (value === 'all') { return true; }
+      if (value !== 'selected') { return false; }
+      return parseScopeSelectors(row.querySelector('[data-civicfg-scope-selectors]')).length > 0;
+    }
+
+    function scopeDependencyTypes(row) {
+      var raw = row ? (row.getAttribute('data-civicfg-scope-dependencies') || '') : '';
+      return raw.split(',').map(function(value) { return value.trim(); }).filter(function(value) { return value !== ''; });
+    }
+
+    function refreshScopeDependencies() {
+      var rows = Array.prototype.slice.call(document.querySelectorAll('[data-civicfg-scope-row]'));
+      if (!rows.length) { return; }
+      var rowByType = {};
+      rows.forEach(function(row) {
+        rowByType[row.getAttribute('data-civicfg-scope-row') || ''] = row;
+        row.classList.remove('has-dependency-warning', 'has-dependency-review');
+        var cardWarning = row.querySelector('[data-civicfg-scope-card-dependency-warning]');
+        if (cardWarning) { cardWarning.hidden = true; cardWarning.textContent = ''; }
+        var manageButton = row.querySelector('[data-civicfg-manage-dependencies]');
+        if (manageButton) { manageButton.hidden = true; manageButton.removeAttribute('data-civicfg-fix-dependencies'); }
+      });
+
+      var messages = [];
+      rows.forEach(function(row) {
+        if (!scopeRowIsManaged(row)) { return; }
+        var sourceLabel = row.getAttribute('data-scope-label') || row.getAttribute('data-civicfg-scope-row') || 'Configuration';
+        var sourceMessages = [];
+        var fixable = [];
+        var hasReview = false;
+
+        scopeDependencyTypes(row).forEach(function(dependencyType) {
+          var dependencyRow = rowByType[dependencyType];
+          if (!dependencyRow) { return; }
+          var dependencyLabel = dependencyRow.getAttribute('data-scope-label') || dependencyType;
+          var capability = dependencyRow.getAttribute('data-scope-capability') || '';
+          var dependencyModeNode = dependencyRow.querySelector('[data-civicfg-scope-mode]');
+          var dependencyMode = dependencyModeNode ? dependencyModeNode.value : 'ignore';
+          var message = '';
+          var level = 'warning';
+
+          if (capability === 'unavailable') {
+            message = sourceLabel + ' can reference ' + dependencyLabel + ', but ' + dependencyLabel + ' is unavailable on this site.';
+            level = 'warning';
+          }
+          else if (dependencyMode === 'ignore') {
+            message = sourceLabel + ' can reference ' + dependencyLabel + ', but ' + dependencyLabel + ' is ignored and will not be deployed.';
+            fixable.push(dependencyType);
+          }
+          else if (dependencyMode === 'watch') {
+            message = sourceLabel + ' can reference ' + dependencyLabel + ', but ' + dependencyLabel + ' is monitor-only and will not be imported.';
+            fixable.push(dependencyType);
+          }
+          else if (dependencyMode === 'selected') {
+            var dependencySelectors = parseScopeSelectors(dependencyRow.querySelector('[data-civicfg-scope-selectors]'));
+            if (dependencySelectors.length === 0) {
+              message = dependencyLabel + ' uses selected-item scope but no items are selected, so referenced dependencies will not be deployed.';
+            }
+            else {
+              message = dependencyLabel + ' uses selected-item scope. Verify every item referenced by ' + sourceLabel + ' is selected.';
+              level = 'review';
+              hasReview = true;
+            }
+          }
+
+          if (message !== '') {
+            sourceMessages.push(message);
+            messages.push({message: message, level: level});
+          }
+        });
+
+        if (sourceMessages.length) {
+          row.classList.add(fixable.length ? 'has-dependency-warning' : 'has-dependency-review');
+          var warningHost = row.querySelector('[data-civicfg-scope-card-dependency-warning]');
+          if (warningHost) {
+            warningHost.hidden = false;
+            warningHost.textContent = sourceMessages.join(' ');
+          }
+          var button = row.querySelector('[data-civicfg-manage-dependencies]');
+          if (button && fixable.length) {
+            button.hidden = false;
+            button.setAttribute('data-civicfg-fix-dependencies', fixable.join(','));
+          }
+          if (hasReview && !fixable.length) { row.classList.add('has-dependency-review'); }
+        }
+      });
+
+      var summary = document.querySelector('[data-civicfg-scope-dependency-summary]');
+      var heading = document.querySelector('[data-civicfg-scope-dependency-heading]');
+      var list = document.querySelector('[data-civicfg-scope-dependency-list]');
+      if (!summary || !heading || !list) { return; }
+      list.innerHTML = '';
+      messages.forEach(function(item) {
+        var li = document.createElement('li');
+        li.textContent = item.message;
+        if (item.level === 'review') { li.className = 'civicfg-dependency-review'; }
+        list.appendChild(li);
+      });
+      summary.hidden = messages.length === 0;
+      heading.textContent = messages.length ? (messages.length + ' scope dependency item(s) need review.') : '';
+    }
+
     var scopeSettingsForm = document.querySelector('[data-civicfg-settings-form]');
     var scopeUnsaved = document.querySelector('[data-civicfg-scope-unsaved]');
     var scopeDirty = false;
@@ -232,17 +338,34 @@
       refreshScopeRow(row);
       var mode = row.querySelector('[data-civicfg-scope-mode]');
       if (mode) {
-        mode.addEventListener('change', function() { refreshScopeRow(row); renderScopeSettingsExample(); markScopeDirty(); });
+        mode.addEventListener('change', function() { refreshScopeRow(row); renderScopeSettingsExample(); refreshScopeDependencies(); markScopeDirty(); });
       }
       var textarea = row.querySelector('[data-civicfg-scope-selectors]');
       if (textarea) {
-        textarea.addEventListener('input', function() { updateScopeCount(row); renderScopeSettingsExample(); markScopeDirty(); });
+        textarea.addEventListener('input', function() { updateScopeCount(row); renderScopeSettingsExample(); refreshScopeDependencies(); markScopeDirty(); });
       }
       var watch = row.querySelector('input[name^="scope_watch_unmanaged"]');
       if (watch) {
         watch.addEventListener('change', function() { renderScopeSettingsExample(); markScopeDirty(); });
       }
+      var manageDependencies = row.querySelector('[data-civicfg-manage-dependencies]');
+      if (manageDependencies) {
+        manageDependencies.addEventListener('click', function() {
+          var types = (manageDependencies.getAttribute('data-civicfg-fix-dependencies') || '').split(',').filter(function(value) { return value !== ''; });
+          types.forEach(function(type) {
+            var dependencyRow = document.querySelector('[data-civicfg-scope-row="' + type + '"]');
+            var dependencyMode = dependencyRow ? dependencyRow.querySelector('[data-civicfg-scope-mode]') : null;
+            if (!dependencyMode || dependencyMode.disabled || dependencyRow.getAttribute('data-scope-capability') === 'unavailable') { return; }
+            if (dependencyMode.value === 'ignore' || dependencyMode.value === 'watch') {
+              dependencyMode.value = 'all';
+              dependencyMode.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+          });
+          refreshScopeDependencies();
+        });
+      }
     });
+    refreshScopeDependencies();
 
     function ensureScopePickerModal() {
       var existing = document.getElementById('civicfg-scope-picker-modal');

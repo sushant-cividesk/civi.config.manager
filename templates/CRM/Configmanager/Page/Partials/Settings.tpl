@@ -59,6 +59,19 @@
           <strong>{ts}Unsaved scope changes{/ts}</strong> - {ts}Export, Import, Validate, and Synchronize still use the last saved scope until you save this form.{/ts}
         </div>
 
+        <div class="civicfg-scope-dependency-guide">
+          <strong>{ts}Scope dependency guidance{/ts}</strong>
+          <p class="description">{ts}Some configuration types reference other types. Configuration Manager will not silently widen your saved scope, but it will warn when a managed type depends on configuration that is ignored, monitor-only, unavailable, or only partly selected. Import validation still checks the actual YAML dependency before making changes.{/ts}</p>
+          <div class="messages warning no-popup civicfg-scope-dependency-summary" data-civicfg-scope-dependency-summary {if $scopeDependencyWarnings|@count eq 0}hidden="hidden"{/if}>
+            <strong data-civicfg-scope-dependency-heading>{if $scopeDependencyWarnings|@count gt 0}{ts 1=$scopeDependencyWarnings|@count}%1 scope dependency item(s) need review.{/ts}{/if}</strong>
+            <ul data-civicfg-scope-dependency-list>
+              {foreach from=$scopeDependencyWarnings item=dependencyWarning}
+                <li>{$dependencyWarning.message|escape}</li>
+              {/foreach}
+            </ul>
+          </div>
+        </div>
+
         {if $scopeOverridden}
           <div class="messages status no-popup civicfg-inline-message">
             <strong>{ts}Configuration scope is controlled by civicrm.settings.php.{/ts}</strong>
@@ -68,7 +81,7 @@
 
         <div class="civicfg-scope-grid">
           {foreach from=$scopeRows item=row}
-            <section class="civicfg-scope-card" data-civicfg-scope-row="{$row.type|escape}" data-scope-label="{$row.label|escape}">
+            <section class="civicfg-scope-card" data-civicfg-scope-row="{$row.type|escape}" data-scope-label="{$row.label|escape}" data-scope-capability="{$row.capability|escape}" data-civicfg-scope-dependencies="{$row.scope_dependency_types|escape}">
               <label class="civicfg-scope-card-select"><input type="checkbox" data-civicfg-scope-select aria-label="{ts 1=$row.label}Select %1 for bulk action{/ts}" {if $scopeOverridden}disabled="disabled"{/if} /></label>
               <div class="civicfg-scope-card-header">
                 <div>
@@ -94,6 +107,26 @@
               <div class="civicfg-mode-help civicfg-mode-help-ignore" data-civicfg-mode-help="ignore">
                 {ts}Configuration Manager does not manage or monitor this type.{/ts}
               </div>
+
+              {if $row.scope_dependencies|@count gt 0}
+                <div class="civicfg-scope-relations">
+                  <div class="civicfg-scope-relations-label"><strong>{ts}Related deployment scope{/ts}</strong></div>
+                  <div class="civicfg-scope-relation-links">
+                    {foreach from=$row.scope_dependencies item=dependency name=scopeDependencyLoop}
+                      <code title="{$dependency.reason|escape}">{$dependency.label|escape}</code>{if !$smarty.foreach.scopeDependencyLoop.last}<span aria-hidden="true">, </span>{/if}
+                    {/foreach}
+                  </div>
+                  {if $row.scope_dependents|@count gt 0}
+                    <div class="civicfg-scope-used-by"><span class="civicfg-muted">{ts}Used by:{/ts}</span>
+                      {foreach from=$row.scope_dependents item=dependent name=scopeDependentLoop}
+                        <span>{$dependent.label|escape}</span>{if !$smarty.foreach.scopeDependentLoop.last}<span aria-hidden="true">, </span>{/if}
+                      {/foreach}
+                    </div>
+                  {/if}
+                  <div class="civicfg-scope-card-dependency-warning" data-civicfg-scope-card-dependency-warning hidden="hidden"></div>
+                  <button type="button" class="button civicfg-manage-dependencies" data-civicfg-manage-dependencies hidden="hidden" {if $scopeOverridden}disabled="disabled"{/if}><span>{ts}Manage recommended dependencies{/ts}</span></button>
+                </div>
+              {/if}
 
               <div class="civicfg-selected-controls" data-civicfg-selected-controls {if !$row.mode_selected}hidden="hidden"{/if}>
                 <div class="civicfg-selected-summary">

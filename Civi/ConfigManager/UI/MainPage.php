@@ -74,6 +74,12 @@ class MainPage {
             1 => (int) $watchSummary['baseline'],
           ]), ts('Configuration Manager'), 'success');
         }
+        $scopeDependencyWarnings = $this->manager->getScopeDependencyWarnings();
+        if ($scopeDependencyWarnings) {
+          \CRM_Core_Session::setStatus(ts('%1 Configuration Scope dependency warning(s) remain. Review the highlighted related types before exporting or promoting this configuration.', [
+            1 => count($scopeDependencyWarnings),
+          ]), ts('Configuration Manager'), 'warning');
+        }
         if (!empty($_POST['allow_cross_site_import'])) {
           \CRM_Core_Session::setStatus(ts('Experimental cross-site import is enabled. Keep it off for normal dev/stage/prod synchronization and use it only for a reviewed one-off migration between different sites.'), ts('Configuration Manager'), 'warning');
         }
@@ -522,6 +528,7 @@ class MainPage {
         'watch_unmanaged' => !empty($policy['watch_unmanaged']),
       ];
     }
+    $scopeDependencyWarnings = $this->manager->getScopeDependencyWarnings();
     $scopeSetupState = $this->manager->getScopeSetupState();
     $managedScopeConfigured = !empty($scopeSetupState['managed']);
     $watchedScopeConfigured = !empty($scopeSetupState['watched']);
@@ -605,6 +612,7 @@ class MainPage {
     $this->page->assign('selectedTypes', $types);
     $this->page->assign('selectedTypesMap', $selectedTypesMap);
     $this->page->assign('scopeRows', $scopeRows);
+    $this->page->assign('scopeDependencyWarnings', $scopeDependencyWarnings);
     $this->page->assign('scopeDefaultMode', $this->manager->getScopeDefaultMode());
     $this->page->assign('scopeNeedsSetup', $scopeConfiguredCount === 0 && !$this->manager->isScopePolicyOverridden());
     $this->page->assign('scopeOverridden', $this->manager->isScopePolicyOverridden());

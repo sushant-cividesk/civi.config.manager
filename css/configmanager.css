@@ -390,3 +390,21 @@
 .crm-configmanager-block .civicfg-scope-unsaved[hidden] {display: none !important;}
 .crm-configmanager-block .civicfg-scope-unsaved {margin: -.25rem 0 .9rem;}
 .crm-configmanager-block .civicfg-scope-save {white-space: nowrap;}
+/* Alpha61 hotfix: scope dependency guidance. */
+.crm-configmanager-block .civicfg-scope-dependency-guide {margin: .75rem 0 1rem;}
+.crm-configmanager-block .civicfg-scope-dependency-guide > .description {margin: .25rem 0 .55rem;}
+.crm-configmanager-block .civicfg-scope-dependency-summary {margin: .55rem 0 0;}
+.crm-configmanager-block .civicfg-scope-dependency-summary[hidden] {display: none !important;}
+.crm-configmanager-block .civicfg-scope-dependency-summary ul {margin: .45rem 0 0 1.25rem;}
+.crm-configmanager-block .civicfg-scope-dependency-summary li {margin: .25rem 0;}
+.crm-configmanager-block .civicfg-scope-dependency-summary .civicfg-dependency-review {color: #664d03;}
+.crm-configmanager-block .civicfg-scope-relations {margin-top: .65rem; padding-top: .55rem; border-top: 1px dashed #d7dce2; font-size: .86rem;}
+.crm-configmanager-block .civicfg-scope-relations-label {margin-bottom: .2rem;}
+.crm-configmanager-block .civicfg-scope-relation-links {color: #5f6b7a; line-height: 1.45;}
+.crm-configmanager-block .civicfg-scope-used-by {margin-top: .2rem; color: #5f6b7a; line-height: 1.4;}
+.crm-configmanager-block .civicfg-scope-card-dependency-warning {margin-top: .45rem; padding: .45rem .55rem; border-radius: 4px; background: #fff3cd; color: #664d03; line-height: 1.4;}
+.crm-configmanager-block .civicfg-scope-card-dependency-warning[hidden] {display: none !important;}
+.crm-configmanager-block .civicfg-scope-card.has-dependency-warning {border-color: #e0a800;}
+.crm-configmanager-block .civicfg-scope-card.has-dependency-review {border-color: #d6b656;}
+.crm-configmanager-block .civicfg-manage-dependencies {margin-top: .45rem !important;}
+.crm-configmanager-block .civicfg-manage-dependencies[hidden] {display: none !important;}

@@ -163,8 +163,18 @@ function configmanager_civicrm_check(&$messages) {
     ]);
     $title = ts((string) ($health['title'] ?? 'Configuration Manager'));
     $level = (string) ($health['level'] ?? 'warning');
-    $severity = ($level === 'info') ? \Psr\Log\LogLevel::INFO : \Psr\Log\LogLevel::WARNING;
-    $icon = ($level === 'info') ? 'fa-check' : 'fa-exclamation-triangle';
+    if ($level === 'info') {
+      $severity = \Psr\Log\LogLevel::INFO;
+      $icon = 'fa-check';
+    }
+    elseif ($level === 'error') {
+      $severity = \Psr\Log\LogLevel::ERROR;
+      $icon = 'fa-exclamation-triangle';
+    }
+    else {
+      $severity = \Psr\Log\LogLevel::WARNING;
+      $icon = 'fa-exclamation-triangle';
+    }
 
     $messages[] = new \CRM_Utils_Check_Message(
       'configmanager_sync_status',

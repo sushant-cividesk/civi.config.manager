@@ -487,7 +487,165 @@ class ConfigManager {
       $cmp = ((int) $a['weight']) <=> ((int) $b['weight']);
       return $cmp !== 0 ? $cmp : strcmp((string) $a['label'], (string) $b['label']);
     });
+
+    // Scope dependencies are guidance for building a portable deployable set.
+    // They deliberately do not force a mode: an administrator may knowingly
+    // rely on configuration that already exists on the target environment.
+    $rules = $this->getScopeDependencyRules();
+    $labels = [];
+    foreach ($rows as $row) {
+      $labels[(string) $row['type']] = (string) $row['label'];
+    }
+    $dependents = [];
+    foreach ($rules as $sourceType => $dependencies) {
+      foreach ($dependencies as $dependency) {
+        $dependencyType = (string) ($dependency['type'] ?? '');
+        if ($dependencyType !== '' && isset($labels[$sourceType], $labels[$dependencyType])) {
+          $dependents[$dependencyType][] = [
+            'type' => (string) $sourceType,
+            'label' => (string) $labels[$sourceType],
+          ];
+        }
+      }
+    }
+
+    foreach ($rows as &$row) {
+      $type = (string) $row['type'];
+      $dependencies = [];
+      foreach ((array) ($rules[$type] ?? []) as $dependency) {
+        $dependencyType = (string) ($dependency['type'] ?? '');
+        if ($dependencyType === '' || !isset($labels[$dependencyType])) {
+          continue;
+        }
+        $dependencies[] = [
+          'type' => $dependencyType,
+          'label' => (string) $labels[$dependencyType],
+          'reason' => (string) ($dependency['reason'] ?? ''),
+        ];
+      }
+      $row['scope_dependencies'] = $dependencies;
+      $row['scope_dependency_types'] = implode(',', array_map(static function($dependency) {
+        return (string) $dependency['type'];
+      }, $dependencies));
+      $row['scope_dependents'] = array_values((array) ($dependents[$type] ?? []));
+    }
+    unset($row);
+
     return $rows;
+  }
+
+  /**
+   * Describe configuration types that are commonly referenced by another type.
+   *
+   * These are deployment-safety relationships, not hard database constraints.
+   * Import validation still checks the actual YAML dependencies and accepts a
+   * dependency that is already present in active CiviCRM. Keeping this map as
+   * guidance avoids silently widening scope while still making risky scope
+   * combinations visible before an export or import is attempted.
+   */
+  public function getScopeDependencyRules(): array {
+    return [
+      'custom-data' => [
+        ['type' => 'option-groups', 'reason' => 'Custom fields can use option groups for choice values.'],
+        ['type' => 'contact-types', 'reason' => 'Custom groups can be limited to contact types or subtypes.'],
+        ['type' => 'site-tokens', 'reason' => 'Portable custom configuration can reference site-provided tokens.'],
+      ],
+      'relationship-types' => [
+        ['type' => 'contact-types', 'reason' => 'Relationship types can be limited to contact types or subtypes.'],
+      ],
+      'searchkit-displays' => [
+        ['type' => 'searchkit-saved-searches', 'reason' => 'SearchKit displays belong to saved searches.'],
+      ],
+      'formbuilder-afforms' => [
+        ['type' => 'searchkit-saved-searches', 'reason' => 'Afforms can embed or depend on SearchKit saved searches.'],
+        ['type' => 'searchkit-displays', 'reason' => 'Afforms can embed SearchKit displays.'],
+      ],
+      'civirules' => [
+        ['type' => 'extensions', 'reason' => 'CiviRules configuration requires the CiviRules extension/provider to exist on the target.'],
+      ],
+      'site-tokens' => [
+        ['type' => 'extensions', 'reason' => 'Site token providers can be supplied by extensions that must exist on the target.'],
+      ],
+    ];
+  }
+
+  /**
+   * Return warnings for the currently saved scope dependency combination.
+   *
+   * @return array<int,array<string,string>>
+   */
+  public function getScopeDependencyWarnings(): array {
+    $rows = $this->getScopeTypeOptions();
+    $byType = [];
+    foreach ($rows as $row) {
+      $byType[(string) $row['type']] = $row;
+    }
+
+    $warnings = [];
+    foreach ($rows as $row) {
+      $sourceType = (string) $row['type'];
+      $sourcePolicy = $this->scope->getPolicy($sourceType);
+      $sourceMode = (string) ($sourcePolicy['mode'] ?? ConfigScope::MODE_IGNORE);
+      if (!in_array($sourceMode, [ConfigScope::MODE_ALL, ConfigScope::MODE_SELECTED], TRUE)) {
+        continue;
+      }
+      if ($sourceMode === ConfigScope::MODE_SELECTED && empty($sourcePolicy['selectors'])) {
+        continue;
+      }
+
+      foreach ((array) ($row['scope_dependencies'] ?? []) as $dependency) {
+        $dependencyType = (string) ($dependency['type'] ?? '');
+        if ($dependencyType === '' || !isset($byType[$dependencyType])) {
+          continue;
+        }
+        $dependencyRow = $byType[$dependencyType];
+        $dependencyPolicy = $this->scope->getPolicy($dependencyType);
+        $dependencyMode = (string) ($dependencyPolicy['mode'] ?? ConfigScope::MODE_IGNORE);
+        $sourceLabel = (string) $row['label'];
+        $dependencyLabel = (string) $dependencyRow['label'];
+        $reason = trim((string) ($dependency['reason'] ?? ''));
+
+        if ((string) ($dependencyRow['capability'] ?? '') === 'unavailable') {
+          $warnings[] = [
+            'level' => 'error',
+            'source_type' => $sourceType,
+            'dependency_type' => $dependencyType,
+            'message' => $sourceLabel . ' can reference ' . $dependencyLabel . ', but ' . $dependencyLabel . ' is unavailable on this site.' . ($reason !== '' ? ' ' . $reason : ''),
+          ];
+          continue;
+        }
+        if ($dependencyMode === ConfigScope::MODE_IGNORE) {
+          $warnings[] = [
+            'level' => 'warning',
+            'source_type' => $sourceType,
+            'dependency_type' => $dependencyType,
+            'message' => $sourceLabel . ' can reference ' . $dependencyLabel . ', but ' . $dependencyLabel . ' is ignored and will not be deployed in managed YAML.' . ($reason !== '' ? ' ' . $reason : ''),
+          ];
+        }
+        elseif ($dependencyMode === ConfigScope::MODE_WATCH) {
+          $warnings[] = [
+            'level' => 'warning',
+            'source_type' => $sourceType,
+            'dependency_type' => $dependencyType,
+            'message' => $sourceLabel . ' can reference ' . $dependencyLabel . ', but ' . $dependencyLabel . ' is monitor-only and will not be restored/imported.' . ($reason !== '' ? ' ' . $reason : ''),
+          ];
+        }
+        elseif ($dependencyMode === ConfigScope::MODE_SELECTED) {
+          $dependencySelectors = (array) ($dependencyPolicy['selectors'] ?? []);
+          $emptySelected = !$dependencySelectors;
+          $warnings[] = [
+            'level' => $emptySelected ? 'warning' : 'review',
+            'source_type' => $sourceType,
+            'dependency_type' => $dependencyType,
+            'message' => $emptySelected
+              ? $dependencyLabel . ' uses selected-item scope but no items are selected, so referenced dependencies will not be deployed.' . ($reason !== '' ? ' ' . $reason : '')
+              : $dependencyLabel . ' uses selected-item scope. Verify that every item referenced by ' . $sourceLabel . ' is included before promotion.' . ($reason !== '' ? ' ' . $reason : ''),
+          ];
+        }
+      }
+    }
+
+    return $warnings;
   }
 
   /**
@@ -2544,7 +2702,7 @@ class ConfigManager {
     $yamlRuntime = SimpleYaml::runtimeStatus();
     if (empty($yamlRuntime['available'])) {
       return [
-        'level' => 'warning',
+        'level' => 'error',
         'title' => 'Configuration Manager: YAML runtime dependency missing',
         'message' => (string) ($yamlRuntime['reason'] ?? 'No YAML parser is available.'),
         'sync_dir' => $syncDir,

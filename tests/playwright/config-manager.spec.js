@@ -212,6 +212,21 @@ test.describe('Configuration Manager scope settings', () => {
     await advanced.locator('summary').click();
     await expect(advanced).toHaveAttribute('open', '');
 
+    const customDataRow = page.locator('[data-civicfg-scope-row="custom-data"]');
+    if (await customDataRow.count()) {
+      await customDataRow.locator('[data-civicfg-scope-mode]').selectOption('all');
+      const optionGroupsRow = page.locator('[data-civicfg-scope-row="option-groups"]');
+      if (await optionGroupsRow.count()) {
+        await optionGroupsRow.locator('[data-civicfg-scope-mode]').selectOption('ignore');
+        await expect(page.locator('[data-civicfg-scope-dependency-summary]')).toBeVisible();
+        await expect(customDataRow.locator('[data-civicfg-scope-card-dependency-warning]')).toContainText('Option Groups');
+        const manageDependencies = customDataRow.locator('[data-civicfg-manage-dependencies]');
+        await expect(manageDependencies).toBeVisible();
+        await manageDependencies.click();
+        await expect(optionGroupsRow.locator('[data-civicfg-scope-mode]')).toHaveValue('all');
+      }
+    }
+
     const rows = page.locator('[data-civicfg-scope-row]');
     const selectable = page.locator('[data-civicfg-scope-select]:not([disabled])');
     expect(await selectable.count()).toBe(await rows.count());
