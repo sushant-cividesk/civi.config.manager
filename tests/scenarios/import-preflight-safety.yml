@@ -1,0 +1,53 @@
+id: CM-IMPORT-PREFLIGHT-SAFETY
+feature: Import reports the complete safety picture before writes and fail-closes destructive operations without portable identities
+level:
+  - unit
+  - integration
+  - browser
+fixtures:
+  factory: disposable source/target configuration with foreign site metadata, planned dependencies, identity collisions, and extension-provider weak identities
+  records:
+    planned_dependency:
+      option_group: pronouns_20230621235627
+      custom_field: Pronouns
+    option_value_rename:
+      stable_value: '3'
+      existing_name: '"Mary Ellis Bowler" <IntakeMgt@anvarlington.org>'
+      yaml_name: '"Mary Ellis Bowler" <maryellisbowler@anvarlington.org>'
+    monitor_only_provider:
+      entity: CiviRulesRule
+    local_id_children:
+      - CiviRulesRuleCondition
+      - CiviRulesRuleAction
+steps:
+  - Preview a foreign-site manifest together with another handler-level blocker and verify both are reported in the same preflight while no writes occur.
+  - Preview a new Option Group and a Custom Field which depends on that group in the same YAML bundle and verify the dependency is accepted as planned earlier in the import.
+  - Preview an OptionValue with the same stable value but a different machine name and verify the pair is blocked from automatic rename and delete-missing.
+  - Preview extension-provider YAML marked ambiguous or without safe delete capability and verify delete-missing is not planned for that provider.
+  - Preview CiviRules rule-condition and rule-action junction rows whose only provider identity is a numeric database ID and verify automatic cross-site create/update/delete remains disabled.
+  - Force a create/update runtime failure after a clean preflight and verify the global delete-missing phase never starts.
+  - Resolve every blocker and verify the Import action is shown only after a clean full preflight.
+expected:
+  all_preflight_blockers_reported_together: true
+  planned_dependencies_satisfy_dry_run: true
+  rename_collision_blocks_old_identity_delete: true
+  monitor_only_provider_delete_count: 0
+  local_numeric_civirules_delete_count: 0
+  delete_phase_skipped_after_write_failure: true
+  blocked_preview_has_no_apply_action: true
+negative_cases:
+  - site_id_mismatch_hides_later_dependency_or_identity_errors
+  - dependency_present_in_same_import_is_reported_missing_only_because_dry_run_did_not_write_it
+  - backup_monitor_only_provider_is_counted_as_delete
+  - rename_warning_is_followed_by_delete_of_the_old_identity
+  - local_numeric_id_is_used_as_cross_site_delete_identity
+  - delete_missing_runs_after_any_create_update_failure
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  restore_cross_site_setting: true
+  restore_database_snapshot: true
+  remove_temporary_files: true

@@ -15,8 +15,11 @@ class CiviRulesHandler extends AbstractHandler {
     'triggers' => ['entity' => 'CiviRulesTrigger', 'identity' => 'name', 'order' => ['name' => 'ASC']],
     'conditions' => ['entity' => 'CiviRulesCondition', 'identity' => 'name', 'order' => ['name' => 'ASC']],
     'actions' => ['entity' => 'CiviRulesAction', 'identity' => 'name', 'order' => ['name' => 'ASC']],
-    'rule-conditions' => ['entity' => 'CiviRulesRuleCondition', 'identity' => 'id', 'order' => ['id' => 'ASC']],
-    'rule-actions' => ['entity' => 'CiviRulesRuleAction', 'identity' => 'id', 'order' => ['id' => 'ASC']],
+    // Junction rows use database-local numeric IDs in the provider API. Keep
+    // them exportable for backup/diff visibility, but never use those IDs as
+    // cross-environment create/update/delete identities.
+    'rule-conditions' => ['entity' => 'CiviRulesRuleCondition', 'identity' => 'id', 'order' => ['id' => 'ASC'], 'portable' => FALSE],
+    'rule-actions' => ['entity' => 'CiviRulesRuleAction', 'identity' => 'id', 'order' => ['id' => 'ASC'], 'portable' => FALSE],
   ];
 
   public function getType(): string { return 'civirules'; }
@@ -78,6 +81,7 @@ class CiviRulesHandler extends AbstractHandler {
             'bucket' => $bucket,
             'name' => $identity,
             'identity_field' => $def['identity'],
+            'identity_portable' => $this->isPortableDefinition($def),
             'dependencies' => $this->dependenciesForRow($def['entity'], $row),
             'item' => $row,
           ],
@@ -101,6 +105,14 @@ class CiviRulesHandler extends AbstractHandler {
         $errors[] = ['file' => $filename, 'message' => 'CiviRules API4 entity is not available on this site: ' . ($entity ?: '[missing entity]') . '. Install/enable CiviRules before importing this YAML.'];
       }
       $row = (array) ($file['item'] ?? []);
+      $def = $this->definitionForEntity($entity);
+      if ($def !== NULL && !$this->isPortableDefinition($def)) {
+        $warnings[] = [
+          'file' => $filename,
+          'message' => $entity . ' is backup/monitor-only because its provider identity is a database-local numeric ID. Automatic cross-site create/update/delete stays blocked.',
+        ];
+        continue;
+      }
       if (!$this->identityField($row, (string) ($file['identity_field'] ?? ''))) {
         $errors[] = ['file' => $filename, 'message' => 'CiviRules item is missing a stable identity field. Re-export from source site.'];
       }
@@ -110,6 +122,7 @@ class CiviRulesHandler extends AbstractHandler {
 
   public function import(array $items, bool $dryRun = TRUE): array {
     $summary = $this->baseImportSummary($dryRun);
+    $summary['compatibility'] = [];
     $desired = [];
     foreach ($items as $filename => $file) {
       if (($file['type'] ?? '') !== 'civirules.item') {
@@ -119,6 +132,15 @@ class CiviRulesHandler extends AbstractHandler {
       $entity = (string) ($file['entity'] ?? '');
       if (!$this->entityAvailable($entity)) {
         $summary['errors'][] = ['file' => $filename, 'message' => 'CiviRules API4 entity is not available on this site: ' . $entity];
+        continue;
+      }
+      $def = $this->definitionForEntity($entity);
+      if ($def !== NULL && !$this->isPortableDefinition($def)) {
+        $summary['skip']++;
+        $summary['compatibility'][] = [
+          'file' => $filename,
+          'message' => $entity . ' remains backup/monitor-only because its provider identity is a database-local numeric ID. Automatic cross-site create/update/delete was not attempted.',
+        ];
         continue;
       }
       $identityField = (string) ($file['identity_field'] ?? 'name');
@@ -165,6 +187,12 @@ class CiviRulesHandler extends AbstractHandler {
         if (!$this->entityAvailable($entity)) {
           continue;
         }
+        if (!$this->isPortableDefinition($def)) {
+          $summary['compatibility'][] = [
+            'message' => $entity . ' delete-missing is disabled because its provider identity is a database-local numeric ID.',
+          ];
+          continue;
+        }
         foreach ($this->api4Get($entity, [], ['id', $def['identity']], $def['order']) as $existing) {
           $existing = (array) $existing;
           $field = $this->identityField($existing, $def['identity']);
@@ -181,6 +209,20 @@ class CiviRulesHandler extends AbstractHandler {
     }
     $summary['ok'] = empty($summary['errors']);
     return $summary;
+  }
+
+
+  private function definitionForEntity(string $entity): ?array {
+    foreach ($this->entities as $def) {
+      if ((string) ($def['entity'] ?? '') === $entity) {
+        return $def;
+      }
+    }
+    return NULL;
+  }
+
+  private function isPortableDefinition(array $def): bool {
+    return !array_key_exists('portable', $def) || !empty($def['portable']);
   }
 
   private function entityAvailable(string $entity): bool {

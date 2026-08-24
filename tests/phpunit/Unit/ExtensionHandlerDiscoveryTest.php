@@ -579,6 +579,59 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertArrayNotHasKey('short_desc', $clean);
   }
 
+  public function testDeleteSafetyRequiresPortableSourceIdentityAndDeleteCapability(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'recordSourceProviderDeleteSafety');
+    $method->setAccessible(TRUE);
+
+    // ExtensionHandler indexes provider definitions with definitionKey(),
+    // which lowercases extension|api|entity. Keep the regression fixture on
+    // the same canonical key shape used by production discovery.
+    $definitionKey = 'demo|api4|demoentity';
+    $definitions = [
+      $definitionKey => [
+        'key' => $definitionKey,
+        'extension' => 'demo',
+        'api' => 'api4',
+        'entity' => 'DemoEntity',
+      ],
+    ];
+
+    /** @var array<string, bool> $safe */
+    $safe = [];
+    $method->invokeArgs($handler, [&$safe, $definitions, 'demo', [
+      'api' => 'api4',
+      'entity' => 'DemoEntity',
+      'item' => [
+        'identity_confidence' => 'DISCOVERED_UNIQUE',
+        'capabilities' => ['create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
+      ],
+    ]]);
+    self::assertArrayHasKey($definitionKey, $safe);
+    self::assertTrue($safe[$definitionKey]);
+
+    $method->invokeArgs($handler, [&$safe, $definitions, 'demo', [
+      'api' => 'api4',
+      'entity' => 'DemoEntity',
+      'item' => [
+        'identity_confidence' => 'AMBIGUOUS',
+        'capabilities' => ['create' => FALSE, 'update' => FALSE, 'delete' => FALSE],
+      ],
+    ]]);
+    self::assertArrayHasKey($definitionKey, $safe);
+    self::assertFalse($safe[$definitionKey]);
+  }
+
+  public function testProviderDeleteSafetyFailsClosedWithoutPortableMatchMetadata(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'providerIdentitySafetyForDelete');
+    $method->setAccessible(TRUE);
+
+    self::assertSame('UNVERIFIED', $method->invoke($handler, [], ['match_fields' => []]));
+    self::assertSame('UNVERIFIED', $method->invoke($handler, [], ['match_fields' => ['id']]));
+    self::assertSame('SAFE', $method->invoke($handler, [], ['match_fields' => ['name']]));
+  }
+
   private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {
     $property = new ReflectionProperty($handler, 'identityRowsByDefinition');
     $property->setAccessible(TRUE);

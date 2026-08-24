@@ -30,6 +30,31 @@ final class PresenterTest extends TestCase {
     self::assertSame('Provider is backup/monitor-only.', $messages[0]['message']);
   }
 
+  public function testCompletePreflightTopLevelErrorsAreShown(): void {
+    $presenter = new Presenter();
+    $messages = $presenter->extractImportMessages([
+      'errors' => [
+        ['type' => 'option-groups', 'message' => 'Possible OptionValue identity rename detected.'],
+        ['type' => 'import', 'message' => 'Another preflight blocker.'],
+      ],
+      'validation' => [
+        'errors' => [
+          ['type' => 'manifest', 'message' => 'Manifest site_id does not match this site_id.'],
+        ],
+        'items' => [],
+      ],
+      'items' => [],
+    ]);
+
+    $text = implode("\n", array_map(static function(array $message): string {
+      return (string) $message['message'];
+    }, $messages));
+
+    self::assertStringContainsString('Possible OptionValue identity rename detected.', $text);
+    self::assertStringContainsString('Another preflight blocker.', $text);
+    self::assertStringContainsString('Manifest site_id does not match this site_id.', $text);
+  }
+
   public function testExtensionStatusChangeUsesPlainLanguageAndBothSides(): void {
     $presenter = new Presenter();
     $method = new ReflectionMethod($presenter, 'describeFieldChange');

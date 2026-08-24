@@ -88,8 +88,10 @@ Current import behavior:
 - Supported handlers treat YAML as the source of truth.
 - Import can create records that exist in YAML but not in CiviCRM.
 - Import can update records that differ between YAML and CiviCRM.
-- Import can delete supported records that exist in CiviCRM but not in YAML. Actual imports apply create/update first and then delete missing records in reverse dependency order where supported.
-- The UI uses a confirmation modal before applying import changes. The user must review the warning and type `IMPORT`.
+- Import can delete supported records that exist in CiviCRM but not in YAML. A complete dry-run preflight runs first and reports site-identity, YAML/dependency, rename, provider-capability, and handler blockers together before any database write.
+- Dependencies included in the same managed import are recognized during dry-run even when an earlier handler still needs to create them on the target. Ambiguous/backup-only provider identities and database-local numeric identities never authorize automatic delete-missing. Suspected machine-name renames block both automatic rename and deletion of the existing identity.
+- Actual imports apply create/update first for all managed types and start reverse-order delete-missing only when that entire write phase succeeds. A create/update runtime failure stops destructive cleanup and is reported as a partial apply requiring review/restore before retry.
+- The UI uses a confirmation modal before applying import changes. The Apply action is unavailable while the complete preflight has blocking errors; after a clean preview the user must review the warning and type `IMPORT`.
 - CiviCRM may assign a new numeric ID when a deleted record is recreated from YAML; dependencies should rely on stable machine names wherever possible.
 - Unsupported handlers are shown as not ready instead of applying partial changes.
 

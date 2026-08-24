@@ -357,12 +357,14 @@ class ExtensionHandler extends AbstractHandler {
     $desiredKeys = [];
     $definitions = $this->entityDefinitionsByKey();
     $desiredConfigKeys = $this->desiredConfigKeysForRuntimeFilter($definitions);
+    $providerDeleteSafe = [];
 
     foreach ($this->expandConfigIndexes($items) as $index) {
       $resolved = $this->resolveConfigDefinition($definitions, (string) $index['extension'], (string) $index['api'], (string) $index['entity']);
       if ($resolved !== NULL) {
         $definitionKey = (string) $resolved['key'];
         $desiredConfigKeys[$definitionKey] = $desiredConfigKeys[$definitionKey] ?? [];
+        $this->mergeProviderDeleteSafety($providerDeleteSafe, $definitionKey, !empty($index['delete_safe']));
       }
     }
 
@@ -384,11 +386,13 @@ class ExtensionHandler extends AbstractHandler {
       }
 
       foreach ($this->flattenBundledConfig($fullItem['config'] ?? []) as $configEntry) {
+        $this->recordSourceProviderDeleteSafety($providerDeleteSafe, $definitions, $key, $configEntry);
         $this->processExtensionConfigEntry($filename, $key, $configEntry, $definitions, $desiredConfigKeys, $dryRun, $summary);
       }
     }
 
     foreach ($this->expandExtensionConfigItems($items, $summary) as $configEntry) {
+      $this->recordSourceProviderDeleteSafety($providerDeleteSafe, $definitions, (string) $configEntry['extension'], $configEntry);
       $this->processExtensionConfigEntry($configEntry['filename'], $configEntry['extension'], $configEntry, $definitions, $desiredConfigKeys, $dryRun, $summary);
     }
 
@@ -397,7 +401,7 @@ class ExtensionHandler extends AbstractHandler {
         if (!isset($definitions[$definitionKey])) {
           continue;
         }
-        $this->deleteMissingBundledConfig($definitions[$definitionKey], $desiredForEntity, $dryRun, $summary);
+        $this->deleteMissingBundledConfig($definitions[$definitionKey], $desiredForEntity, !empty($providerDeleteSafe[$definitionKey]), $dryRun, $summary);
       }
 
       foreach ($current as $key => $status) {
@@ -564,8 +568,21 @@ class ExtensionHandler extends AbstractHandler {
     }
   }
 
-  private function deleteMissingBundledConfig(array $definition, array $desiredKeys, bool $dryRun, array &$summary): void {
+  private function deleteMissingBundledConfig(array $definition, array $desiredKeys, bool $sourceDeleteSafe, bool $dryRun, array &$summary): void {
+    if (!$sourceDeleteSafe) {
+      $summary['compatibility'][] = [
+        'message' => sprintf('%s %s delete-missing is disabled because the source YAML does not prove a write-safe portable identity for this provider.', $definition['api'], $definition['entity']),
+      ];
+      return;
+    }
+
     $rows = array_values(array_map(fn($row) => (array) $row, $this->fetchEntityRows($definition)));
+    if ($rows && $this->identitySafetyForRows($rows, $definition) !== 'SAFE') {
+      $summary['compatibility'][] = [
+        'message' => sprintf('%s %s delete-missing is disabled because the target provider rows do not expose a unique portable identity.', $definition['api'], $definition['entity']),
+      ];
+      return;
+    }
     foreach ($rows as $existing) {
       if (empty($existing['id'])) {
         continue;
@@ -709,6 +726,24 @@ class ExtensionHandler extends AbstractHandler {
     }
     $configItem = (array) ($configEntry['item'] ?? []);
     $row = (array) ($configItem['item'] ?? $configItem);
+    $sourceIdentityConfidence = strtoupper(trim((string) ($configItem['identity_confidence'] ?? ($configEntry['identity_confidence'] ?? ''))));
+    $sourceCapabilities = (array) ($configItem['capabilities'] ?? ($configEntry['capabilities'] ?? []));
+    if ($sourceIdentityConfidence === 'AMBIGUOUS') {
+      $summary['config']['skip']++;
+      $summary['compatibility'][] = [
+        'file' => $filename,
+        'message' => sprintf('%s %s remains backup/monitor-only because the source export marked its identity ambiguous. Automatic create/update/delete was not attempted.', $api, $entity),
+      ];
+      return;
+    }
+    if ($sourceCapabilities && (empty($sourceCapabilities['create']) || empty($sourceCapabilities['update']))) {
+      $summary['config']['skip']++;
+      $summary['compatibility'][] = [
+        'file' => $filename,
+        'message' => sprintf('%s %s remains backup/monitor-only because the source export did not authorize safe create/update capability.', $api, $entity),
+      ];
+      return;
+    }
     $identityField = (string) ($configItem['identity_field'] ?? ($configEntry['identity_field'] ?? ''));
     if ($identityField === '' || empty($row[$identityField])) {
       $identityField = (string) ($this->identityField($row, $definition) ?? '');
@@ -734,11 +769,54 @@ class ExtensionHandler extends AbstractHandler {
   }
 
   /**
-   * An explicit provider-subtype import represents the complete desired set
-   * for that provider, even when the selected YAML set contains zero records.
-   * This also makes pre-hotfix exports deletable when the user explicitly
-   * selects that provider during import.
+   * Record whether source YAML can authorize provider delete-missing.
+   *
+   * Destructive cleanup requires explicit portable identity confidence and
+   * delete capability from the source export. Legacy/incomplete metadata fails
+   * closed and remains export/compare-only until it is re-exported.
    */
+  private function recordSourceProviderDeleteSafety(array &$providerDeleteSafe, array $definitions, string $extensionKey, array $configEntry): void {
+    $resolved = $this->resolveConfigDefinition(
+      $definitions,
+      $extensionKey,
+      (string) ($configEntry['api'] ?? ''),
+      (string) ($configEntry['entity'] ?? '')
+    );
+    if ($resolved === NULL) {
+      return;
+    }
+    $configItem = (array) ($configEntry['item'] ?? []);
+    $identityConfidence = strtoupper(trim((string) ($configItem['identity_confidence'] ?? ($configEntry['identity_confidence'] ?? ''))));
+    $capabilities = (array) ($configItem['capabilities'] ?? ($configEntry['capabilities'] ?? []));
+    $safe = $identityConfidence !== ''
+      && $identityConfidence !== 'AMBIGUOUS'
+      && !empty($capabilities['delete']);
+    $this->mergeProviderDeleteSafety($providerDeleteSafe, (string) $resolved['key'], $safe);
+  }
+
+  private function mergeProviderDeleteSafety(array &$providerDeleteSafe, string $definitionKey, bool $safe): void {
+    if (!array_key_exists($definitionKey, $providerDeleteSafe)) {
+      $providerDeleteSafe[$definitionKey] = $safe;
+      return;
+    }
+    // One ambiguous/read-only source record makes the provider incomplete for
+    // destructive source-of-truth cleanup. Unsafe always wins.
+    $providerDeleteSafe[$definitionKey] = !empty($providerDeleteSafe[$definitionKey]) && $safe;
+  }
+
+  private function providerIdentitySafetyForDelete(array $rows, array $definition): string {
+    if ($rows) {
+      return $this->identitySafetyForRows($rows, $definition);
+    }
+    $matchFields = array_values(array_filter(array_map('strval', (array) ($definition['match_fields'] ?? [])), static function($field) {
+      return $field !== '' && strtolower($field) !== 'id';
+    }));
+    // An explicitly declared provider match key can safely represent an empty
+    // authoritative collection. Without one, an empty export cannot prove how
+    // target rows would be matched and therefore cannot authorize deletion.
+    return $matchFields ? 'SAFE' : 'UNVERIFIED';
+  }
+
   private function desiredConfigKeysForRuntimeFilter(array $definitions): array {
     $desired = [];
     if (!$this->hasRuntimeSubtypeFilter()) {
@@ -770,6 +848,8 @@ class ExtensionHandler extends AbstractHandler {
             'extension' => $extensionKey,
             'api' => (string) $row['api'],
             'entity' => (string) $row['entity'],
+            'identity_safety' => (string) ($row['identity_safety'] ?? ''),
+            'delete_safe' => !empty($row['delete_safe']),
           ];
         }
       }
@@ -797,6 +877,7 @@ class ExtensionHandler extends AbstractHandler {
           'name' => $item['name'] ?? NULL,
           'identity_field' => $item['identity_field'] ?? NULL,
           'identity_confidence' => $item['identity_confidence'] ?? NULL,
+          'capabilities' => (array) ($item['capabilities'] ?? []),
           'dependencies' => $item['dependencies'] ?? [],
           'item' => (array) ($item['item'] ?? []),
         ],
@@ -911,11 +992,14 @@ class ExtensionHandler extends AbstractHandler {
         // successfully. A failed provider must never look like an authoritative
         // empty desired set because that could authorize destructive cleanup on
         // import.
+        $identitySafety = $this->providerIdentitySafetyForDelete($providerRows, $definition);
         $index[$extensionKey][] = [
           'api' => $api,
           'entity' => $entity,
           'directory' => $this->safeName($extensionKey) . '/' . $this->safeName($api) . '/' . $this->safeName($entity),
           'count' => count($usedNames),
+          'identity_safety' => $identitySafety,
+          'delete_safe' => $identitySafety === 'SAFE' && !empty($definition['can_delete']),
         ];
       }
       catch (\Throwable $e) {

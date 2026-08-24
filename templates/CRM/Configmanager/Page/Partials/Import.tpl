@@ -9,7 +9,7 @@
         <summary>{ts}Import Preview{/ts}</summary>
         <div class="civicfg-panel-body">
           <div class="civicfg-actions">
-            {if $canImport and $importApplyTypes|@count gt 0}
+            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import YAML to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply YAML as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses YAML as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
                 <input type="hidden" name="_action" value="import_apply" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
@@ -56,7 +56,7 @@
           </div>
 
           <div class="civicfg-actions">
-            {if $canImport and $importApplyTypes|@count gt 0}
+            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import YAML to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply YAML as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses YAML as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
                 <input type="hidden" name="_action" value="import_apply" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}

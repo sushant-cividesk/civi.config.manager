@@ -2075,19 +2075,7 @@ class ConfigManager {
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
     $validationTypes = $this->getImportValidationTypeFilter($requestedTypes, $effectiveTypes);
     $applyTypes = $this->getImportApplyTypeFilter($requestedTypes, $effectiveTypes);
-    // Validate the complete import closure for normal type filters. Virtual
-    // extension-provider subtypes must retain their original filter so a
-    // SQLTasks-only import cannot be blocked by unrelated provider YAML.
-    $validation = $this->validate($validationTypes);
-    if (!$validation['ok']) {
-      return [
-        'ok' => FALSE,
-        'dry_run' => $dryRun,
-        'message' => 'Import stopped because validation failed.',
-        'validation' => $validation,
-      ];
-    }
-    $result = ['ok' => TRUE, 'dry_run' => $dryRun, 'applied' => !$dryRun && $yes, 'items' => []];
+
     $handlers = [];
     foreach ($this->getHandlers() as $handler) {
       if ($applyTypes && !in_array($handler->getType(), $applyTypes, TRUE)) {
@@ -2097,69 +2085,192 @@ class ConfigManager {
       $handlers[] = $handler;
     }
 
-    $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage);
-    if ($possibleRenames) {
-      $result['possible_renames'] = $possibleRenames;
-      if (!$dryRun && $yes) {
+    // Every dry-run sees the complete managed YAML dependency set. This lets a
+    // dependent type recognize prerequisites which are absent from the target
+    // DB today but are planned earlier in the same import (for example a new
+    // Option Group followed by a Custom Field which uses it).
+    $plannedDependencyNames = $this->collectImportPlannedDependencyNames($handlers, $storage);
+    foreach ($handlers as $handler) {
+      $this->setHandlerPlannedDependencyNames($handler, $plannedDependencyNames);
+    }
+
+    // Static validation and the handler dry-run are intentionally both run.
+    // A foreign site_id, a YAML/dependency problem, and a handler-level safety
+    // problem must be reported together in one preflight instead of forcing an
+    // operator through one blocker at a time.
+    $validation = $this->validate($validationTypes);
+    $preflight = $this->buildImportPreflight($handlers, $storage, $validation);
+
+    if ($dryRun || !$yes) {
+      return $preflight;
+    }
+
+    if (empty($preflight['ok'])) {
+      $preflight['dry_run'] = FALSE;
+      $preflight['applied'] = FALSE;
+      $preflight['message'] = 'Import stopped before writes because the complete preflight found blocking errors. Resolve all listed blockers and preview again.';
+      return $preflight;
+    }
+
+    $result = [
+      'ok' => TRUE,
+      'dry_run' => FALSE,
+      'applied' => TRUE,
+      'items' => [],
+      'preflight' => $preflight,
+    ];
+
+    // Apply create/update first for every type. Never enter delete-missing if
+    // any write fails: destructive cleanup must not run after a partial
+    // prerequisite/update phase.
+    foreach ($handlers as $handler) {
+      $this->setHandlerImportPhase($handler, TRUE, FALSE);
+      $files = $this->loadManagedYamlFiles($handler, $storage);
+      try {
+        $item = $handler->import($files, FALSE);
+      }
+      catch (\Throwable $e) {
+        $item = [
+          'type' => (string) $handler->getType(),
+          'status' => 'applied',
+          'dry_run' => FALSE,
+          'errors' => [['message' => $e->getMessage()]],
+          'warnings' => [],
+        ];
+      }
+      $item['phase'] = 'create_update';
+      $result['items'][] = $item;
+      if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
-        $result['applied'] = FALSE;
-        $result['message'] = 'Import stopped because possible configuration renames require review. Confirm the intended identity change, align YAML with the accepted identity, and preview the import again.';
-        return $result;
       }
     }
 
-    if (!$dryRun && $yes) {
-      // Apply create/update first for all types, then delete missing records in
-      // reverse order. Selected scope disables bulk delete-missing centrally:
-      // absence from a selective YAML set must never delete unselected config.
+    if (empty($result['ok'])) {
       foreach ($handlers as $handler) {
-        $this->setHandlerImportPhase($handler, TRUE, FALSE);
-        $files = $this->loadManagedYamlFiles($handler, $storage);
-        $item = $handler->import($files, FALSE);
-        $item['phase'] = 'create_update';
-        $result['items'][] = $item;
-        if (!empty($item['errors'])) {
-          $result['ok'] = FALSE;
-        }
-      }
-      foreach (array_reverse($handlers) as $handler) {
-        $this->setHandlerImportPhase($handler, FALSE, TRUE);
-        $files = $this->loadManagedYamlFiles($handler, $storage);
-        $item = $handler->import($files, FALSE);
-        $item['phase'] = 'delete_missing';
-        $result['items'][] = $item;
-        if (!empty($item['errors'])) {
-          $result['ok'] = FALSE;
-        }
         $this->setHandlerImportPhase($handler, TRUE, TRUE);
       }
-      if (!empty($result['ok'])) {
-        try {
-          $stateManager = new ConfigStateManager();
-          foreach ($handlers as $handler) {
-            $files = $this->loadManagedYamlFiles($handler, $storage);
-            $stateManager->acceptYamlBaseline($handler, $files, 'import');
-          }
-        }
-        catch (\Throwable $e) {
-          $result['state_warning'] = 'Import was applied successfully, but local baseline state could not be updated: ' . $e->getMessage();
-        }
-      }
+      $result['partial_apply'] = TRUE;
+      $result['delete_phase_skipped'] = TRUE;
+      $result['message'] = 'Import stopped after a create/update runtime failure. Delete-missing was not started. Review the errors and restore/retry from the pre-import database backup if required.';
       $result['summary_message'] = $this->buildImportSummaryMessage($result);
       return $result;
     }
 
+    foreach (array_reverse($handlers) as $handler) {
+      $this->setHandlerImportPhase($handler, FALSE, TRUE);
+      $files = $this->loadManagedYamlFiles($handler, $storage);
+      try {
+        $item = $handler->import($files, FALSE);
+      }
+      catch (\Throwable $e) {
+        $item = [
+          'type' => (string) $handler->getType(),
+          'status' => 'applied',
+          'dry_run' => FALSE,
+          'errors' => [['message' => $e->getMessage()]],
+          'warnings' => [],
+        ];
+      }
+      $item['phase'] = 'delete_missing';
+      $result['items'][] = $item;
+      if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
+        $result['ok'] = FALSE;
+      }
+      $this->setHandlerImportPhase($handler, TRUE, TRUE);
+    }
+
+    if (!empty($result['ok'])) {
+      try {
+        $stateManager = new ConfigStateManager();
+        foreach ($handlers as $handler) {
+          $files = $this->loadManagedYamlFiles($handler, $storage);
+          $stateManager->acceptYamlBaseline($handler, $files, 'import');
+        }
+      }
+      catch (\Throwable $e) {
+        $result['state_warning'] = 'Import was applied successfully, but local baseline state could not be updated: ' . $e->getMessage();
+      }
+    }
+    else {
+      $result['partial_apply'] = TRUE;
+    }
+
+    $result['summary_message'] = $this->buildImportSummaryMessage($result);
+    return $result;
+  }
+
+  private function buildImportPreflight(array $handlers, YamlFileStorage $storage, array $validation): array {
+    $result = [
+      'ok' => !empty($validation['ok']),
+      'dry_run' => TRUE,
+      'applied' => FALSE,
+      'validation' => $validation,
+      'items' => [],
+      'errors' => [],
+    ];
+
+    try {
+      $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage);
+      if ($possibleRenames) {
+        $result['possible_renames'] = $possibleRenames;
+        $result['ok'] = FALSE;
+        foreach ($possibleRenames as $candidate) {
+          $result['errors'][] = [
+            'type' => (string) ($candidate['type'] ?? 'import'),
+            'message' => 'Possible configuration identity rename requires review before import: '
+              . (string) ($candidate['old_config_key'] ?? '[old identity]') . ' -> '
+              . (string) ($candidate['new_config_key'] ?? '[new identity]') . '.',
+          ];
+        }
+      }
+    }
+    catch (\Throwable $e) {
+      $result['ok'] = FALSE;
+      $result['errors'][] = ['type' => 'import', 'message' => 'Rename preflight could not be completed: ' . $e->getMessage()];
+    }
+
     foreach ($handlers as $handler) {
       $this->setHandlerImportPhase($handler, TRUE, TRUE);
-      $files = $this->loadManagedYamlFiles($handler, $storage);
-      $item = $handler->import($files, $dryRun || !$yes);
+      try {
+        $files = $this->loadManagedYamlFiles($handler, $storage);
+        $item = $handler->import($files, TRUE);
+      }
+      catch (\Throwable $e) {
+        $item = [
+          'type' => (string) $handler->getType(),
+          'status' => 'dry_run',
+          'dry_run' => TRUE,
+          'errors' => [['message' => $e->getMessage()]],
+          'warnings' => [],
+        ];
+      }
       $result['items'][] = $item;
-      if (!empty($item['errors'])) {
+      if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
       }
     }
+
     $result['summary_message'] = $this->buildImportSummaryMessage($result);
     return $result;
+  }
+
+  private function collectImportPlannedDependencyNames(array $handlers, YamlFileStorage $storage): array {
+    $yamlByType = [];
+    foreach ($handlers as $handler) {
+      try {
+        $yamlByType[(string) $handler->getType()] = $this->loadManagedYamlFiles($handler, $storage);
+      }
+      catch (\Throwable $e) {
+        $yamlByType[(string) $handler->getType()] = [];
+      }
+    }
+    return $this->collectManagedYamlNames($yamlByType);
+  }
+
+  private function setHandlerPlannedDependencyNames($handler, array $plannedDependencyNames): void {
+    if (method_exists($handler, 'setPlannedDependencyNames')) {
+      $handler->setPlannedDependencyNames($plannedDependencyNames);
+    }
   }
 
   private function findPossibleRenameCandidates(array $handlers, YamlFileStorage $storage): array {

@@ -13,7 +13,7 @@ fixtures:
       site_id: qa_foreign_<run_id>
 steps:
   - Validate a manifest with the local site identifier while cross-site import is disabled and verify it is accepted.
-  - Validate a manifest with a different site identifier while cross-site import is disabled and verify import is blocked before writes.
+  - Validate a manifest with a different site identifier while cross-site import is disabled and verify import is blocked before writes while the same preflight still reports any additional YAML, dependency, rename, or handler-level blockers.
   - Enable reviewed cross-site import from Settings and verify the foreign manifest passes the site-family gate while normal YAML/dependency validation still runs.
   - Disable the switch again and verify the same foreign manifest is blocked again.
   - Run civicfg cross-site-import, civicfg cross-site-import --allow, and civicfg cross-site-import --deny and verify they route through the same API4 policy service used by the UI.

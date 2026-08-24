@@ -141,6 +141,30 @@ class OptionGroupHandler extends AbstractHandler {
       $group['name'] = $groupName;
       $desiredGroup = $this->cleanGroupValues($group);
       $existingGroup = $this->api4GetFirst('OptionGroup', [['name', '=', $groupName]], ['*']);
+      $yamlValues = (array) ($item['values'] ?? []);
+      $duplicateValueNames = $this->duplicateOptionValueNames($yamlValues);
+      $machineNameConflicts = $existingGroup
+        ? $this->findMachineNameConflicts($existingGroup, $yamlValues, $duplicateValueNames)
+        : [];
+      $protectedValueIds = [];
+      foreach ($machineNameConflicts as $valueName => $conflict) {
+        if (!empty($conflict['existing']['id'])) {
+          $protectedValueIds[(int) $conflict['existing']['id']] = TRUE;
+        }
+        $summary['errors'][] = [
+          'file' => $filename,
+          'name' => (string) $valueName,
+          'message' => 'Possible OptionValue identity rename detected from "' . ($conflict['existing']['name'] ?? '') . '" to "' . $valueName . '" for stable option value "' . ($conflict['desired']['value'] ?? '') . '". Automatic rename and delete-missing are blocked for this pair. Revert the machine name, or create a genuinely new option value with a new unique value.',
+        ];
+      }
+
+      // Direct handler calls must also fail closed. ConfigManager normally runs
+      // this same check during its complete dry-run preflight before any write,
+      // but never allow a caller to bypass that protection by invoking apply.
+      if (!$dryRun && $machineNameConflicts) {
+        $summary['values']['skip'] += count($machineNameConflicts);
+        continue;
+      }
 
       try {
         if ($existingGroup) {
@@ -168,8 +192,6 @@ class OptionGroupHandler extends AbstractHandler {
           }
         }
 
-        $yamlValues = (array) ($item['values'] ?? []);
-        $duplicateValueNames = $this->duplicateOptionValueNames($yamlValues);
         $desiredValueKeys = [];
         foreach ($yamlValues as $value) {
           $valueName = (string) ($value['name'] ?? '');
@@ -180,7 +202,10 @@ class OptionGroupHandler extends AbstractHandler {
           $desiredValue = $this->cleanOptionValueValues($value);
           $desiredValueKeys[$this->optionValueIdentityKey($desiredValue, $duplicateValueNames)] = TRUE;
           $existingValue = NULL;
-          $machineNameConflict = NULL;
+          if (isset($machineNameConflicts[$valueName])) {
+            $summary['values']['skip']++;
+            continue;
+          }
           if ($existingGroup) {
             $where = [
               ['option_group_id', '=', $existingGroup['id']],
@@ -190,22 +215,6 @@ class OptionGroupHandler extends AbstractHandler {
               $where[] = ['value', '=', (string) $desiredValue['value']];
             }
             $existingValue = $this->api4GetFirst('OptionValue', $where, ['*']);
-
-            if (!$existingValue && !isset($duplicateValueNames[$valueName]) && array_key_exists('value', $desiredValue) && $desiredValue['value'] !== NULL && $desiredValue['value'] !== '') {
-              $machineNameConflict = $this->api4GetFirst('OptionValue', [
-                ['option_group_id', '=', $existingGroup['id']],
-                ['value', '=', (string) $desiredValue['value']],
-              ], ['id', 'name', 'label', 'value']);
-              if ($machineNameConflict && ($machineNameConflict['name'] ?? '') !== $valueName) {
-                $summary['warnings'][] = [
-                  'file' => $filename,
-                  'name' => $valueName,
-                  'message' => 'Machine name appears to have changed from "' . $machineNameConflict['name'] . '" to "' . $valueName . '" for option value "' . $desiredValue['value'] . '". Machine names are identities and are not renamed automatically. Revert the name, or create a new option value with a new unique value.',
-                ];
-                $summary['values']['skip']++;
-                continue;
-              }
-            }
           }
 
           if (!$this->importWritesEnabled) {
@@ -237,7 +246,7 @@ class OptionGroupHandler extends AbstractHandler {
         }
 
         if ($existingGroup && $this->deleteMissingEnabled) {
-          $this->handleExtraOptionValues($existingGroup, $desiredValueKeys, $duplicateValueNames, $filename, $dryRun, $summary);
+          $this->handleExtraOptionValues($existingGroup, $desiredValueKeys, $duplicateValueNames, $protectedValueIds, $filename, $dryRun, $summary);
         }
       }
       catch (\Throwable $e) {
@@ -253,7 +262,48 @@ class OptionGroupHandler extends AbstractHandler {
     return $summary;
   }
 
-  private function handleExtraOptionValues(array $existingGroup, array $desiredValueKeys, array $duplicateValueNames, string $filename, bool $dryRun, array &$summary): void {
+
+  /**
+   * Find machine-name changes which reuse an existing stable option value.
+   *
+   * The option value is often referenced elsewhere. Treating a changed name as
+   * CREATE(new) + DELETE(old) would defeat the identity-rename safeguard and
+   * can break references. The pair is therefore a blocking preflight error.
+   */
+  private function findMachineNameConflicts(array $existingGroup, array $yamlValues, array $duplicateValueNames): array {
+    if (empty($existingGroup['id'])) {
+      return [];
+    }
+    $conflicts = [];
+    foreach ($yamlValues as $value) {
+      $value = (array) $value;
+      $valueName = (string) ($value['name'] ?? '');
+      $stableValue = array_key_exists('value', $value) && $value['value'] !== NULL ? (string) $value['value'] : '';
+      if ($valueName === '' || $stableValue === '' || isset($duplicateValueNames[$valueName])) {
+        continue;
+      }
+      $existingByName = $this->api4GetFirst('OptionValue', [
+        ['option_group_id', '=', $existingGroup['id']],
+        ['name', '=', $valueName],
+      ], ['id', 'name', 'label', 'value']);
+      if ($existingByName) {
+        continue;
+      }
+      $existingByValue = $this->api4GetFirst('OptionValue', [
+        ['option_group_id', '=', $existingGroup['id']],
+        ['value', '=', $stableValue],
+      ], ['id', 'name', 'label', 'value']);
+      if ($existingByValue && (string) ($existingByValue['name'] ?? '') !== $valueName) {
+        $conflicts[$valueName] = [
+          'existing' => $existingByValue,
+          'desired' => $value,
+        ];
+      }
+    }
+    return $conflicts;
+  }
+
+  private function handleExtraOptionValues(array $existingGroup, array $desiredValueKeys, array $duplicateValueNames, array $protectedValueIds, string $filename, bool $dryRun, array &$summary): void {
     if (empty($existingGroup['id'])) {
       return;
     }
@@ -268,6 +318,12 @@ class OptionGroupHandler extends AbstractHandler {
         continue;
       }
       if (isset($desiredValueKeys[$this->optionValueIdentityKey($existingValue, $duplicateValueNames)])) {
+        continue;
+      }
+      if (!empty($existingValue['id']) && isset($protectedValueIds[(int) $existingValue['id']])) {
+        // The incoming rename candidate was already counted as skipped above.
+        // Preserve the existing value without double-counting the same
+        // protected identity pair in the dry-run summary.
         continue;
       }
 

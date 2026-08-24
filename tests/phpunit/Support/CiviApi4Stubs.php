@@ -27,6 +27,18 @@ namespace Civi\Api4\Generic {
   }
 }
 
+namespace Civi\Api4 {
+  if (!class_exists(CiviRulesRuleCondition::class)) {
+    class CiviRulesRuleCondition {
+    }
+  }
+
+  if (!class_exists(CiviRulesRuleAction::class)) {
+    class CiviRulesRuleAction {
+    }
+  }
+}
+
 namespace {
   if (!class_exists('CRM_Utils_Hook')) {
     class CRM_Utils_Hook {

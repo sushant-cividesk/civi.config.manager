@@ -4,6 +4,7 @@ namespace Civi\ConfigManager\Handler;
 class CustomGroupHandler extends AbstractHandler {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
+  private array $plannedDependencyNames = [];
 
   public function setImportWriteEnabled(bool $enabled): self {
     $this->importWritesEnabled = $enabled;
@@ -12,6 +13,18 @@ class CustomGroupHandler extends AbstractHandler {
 
   public function setDeleteMissingEnabled(bool $enabled): self {
     $this->deleteMissingEnabled = $enabled;
+    return $this;
+  }
+
+  /**
+   * Provide managed YAML identities that are planned earlier in this import.
+   *
+   * Dry-run does not create prerequisite records, so dependent handlers must
+   * be able to recognize dependencies that are present in the same import
+   * bundle and will exist before the real write phase reaches them.
+   */
+  public function setPlannedDependencyNames(array $names): self {
+    $this->plannedDependencyNames = $names;
     return $this;
   }
 
@@ -133,7 +146,7 @@ class CustomGroupHandler extends AbstractHandler {
         $desiredFieldNames = [];
         foreach (($file['fields'] ?? []) as $field) {
           $field = $this->cleanValues((array) $field);
-          $this->resolveFieldOptionGroup($field, $filename, $summary);
+          $this->resolveFieldOptionGroup($field, $filename, $summary, $dryRun);
           if (empty($field['name'])) {
             $summary['errors'][] = ['file' => $filename, 'message' => 'Custom field is missing name.'];
             continue;
@@ -288,11 +301,18 @@ class CustomGroupHandler extends AbstractHandler {
     return is_scalar($value) ? (string) $value : '';
   }
 
-  private function resolveFieldOptionGroup(array &$field, string $filename, array &$summary): void {
+  private function resolveFieldOptionGroup(array &$field, string $filename, array &$summary, bool $dryRun): void {
     if (!empty($field['option_group_name'])) {
       $optionGroupName = (string) $field['option_group_name'];
       $optionGroup = $this->api4GetFirst('OptionGroup', [['name', '=', $optionGroupName]], ['id', 'name']);
       if (empty($optionGroup['id'])) {
+        if ($dryRun && !empty($this->plannedDependencyNames['option-groups'][$optionGroupName])) {
+          // The prerequisite is part of the same managed import. The real
+          // apply runs Option Groups before Custom Data, at which point this
+          // branch resolves the newly-created numeric ID normally.
+          unset($field['option_group_name']);
+          return;
+        }
         throw new \RuntimeException('Custom field ' . ($field['name'] ?? '') . ' requires missing option group: ' . $optionGroupName . '. Import option groups first or restore the dependency YAML file.');
       }
       $field['option_group_id'] = $optionGroup['id'];

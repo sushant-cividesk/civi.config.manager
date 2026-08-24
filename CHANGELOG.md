@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- Import preflight safety hotfix: preview now reports site-identity, YAML/dependency, rename, provider-capability, and handler blockers in one pass before any write; dependencies planned earlier in the same import satisfy later dry-run checks; OptionValue machine-name collisions block both rename and delete-missing; ambiguous/monitor-only extension providers and CiviRules numeric-ID junction rows cannot authorize destructive cleanup; and any create/update runtime failure prevents the global delete-missing phase from starting. Added focused regression/scenario coverage. No version bump.
+
 - Real-world DEV-to-stage-clone import hardening: Custom Group dependency export now treats `extends_entity_column_value` as ContactType IDs only for contact-based groups, so ActivityType and other entity-local IDs are no longer misreported as non-portable ContactType dependencies. Generic extension configuration now classifies `afsearch...` references as FormBuilder Afform dependencies instead of SearchDisplay dependencies. CLI/system exports and confirmed identity aliases now persist nullable audit-user fields as SQL `NULL` instead of binding `NULL` as an integer, eliminating baseline-state failures when no CiviCRM contact is logged in. No version bump.
 
 - Fixed SQLTasks 2.2.x compatibility by using its public API3 `Sqltask.getalltasks` collection action (with `get` hydration, `create` create/update, and `deletetask` delete) when native API4 `SqlTask` is absent; stale BAO-adapter metadata also falls back safely to this API. Unavailable scope providers now preserve their saved policy, permit only an explicit switch to **Ignore**, disable unsafe picker/watch/bulk controls, and synchronization errors are detailed only once.
