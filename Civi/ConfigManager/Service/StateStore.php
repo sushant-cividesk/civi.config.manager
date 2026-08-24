@@ -123,15 +123,15 @@ class StateStore {
       3 => [(string) $identity['identity_hash'], 'String'],
       4 => [(string) $identity['identity_method'], 'String'],
       5 => [(string) $identity['identity_confidence'], 'String'],
-      6 => [$yamlHash, 'String'],
-      7 => [$activeHash, 'String'],
       8 => [$state, 'String'],
       9 => [Canonicalizer::VERSION, 'Integer'],
       10 => [$now, 'String'],
     ];
+    $yamlHashSql = $this->nullableStringSql($yamlHash, 6, $params);
+    $activeHashSql = $this->nullableStringSql($activeHash, 7, $params);
     \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::OBJECT_TABLE . '
       (provider_key, config_key, identity_hash, identity_method, identity_confidence, yaml_hash, active_hash, sync_state, canonical_version, last_scanned_at)
-      VALUES (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10)
+      VALUES (%1, %2, %3, %4, %5, ' . $yamlHashSql . ', ' . $activeHashSql . ', %8, %9, %10)
       ON DUPLICATE KEY UPDATE
         config_key = VALUES(config_key),
         identity_method = VALUES(identity_method),
@@ -206,9 +206,22 @@ class StateStore {
     if ($encoded === FALSE) {
       throw new \RuntimeException('Could not encode Configuration Manager watch state.');
     }
+    $params = [
+      1 => [$handlerType, 'String'],
+      2 => [(string) $identity['provider_key'], 'String'],
+      3 => [(string) $identity['config_key'], 'String'],
+      4 => [(string) $identity['identity_hash'], 'String'],
+      5 => [$filename, 'String'],
+      6 => [$label, 'String'],
+      8 => [$encoded, 'String'],
+      9 => [$status, 'String'],
+      10 => [Canonicalizer::VERSION, 'Integer'],
+      11 => [date('Y-m-d H:i:s'), 'String'],
+    ];
+    $activeHashSql = $this->nullableStringSql($activeHash, 7, $params);
     \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::WATCH_TABLE . '
       (handler_type, provider_key, config_key, identity_hash, filename, display_label, active_hash, active_data, watch_status, canonical_version, last_scanned_at)
-      VALUES (%1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11)
+      VALUES (%1, %2, %3, %4, %5, %6, ' . $activeHashSql . ', %8, %9, %10, %11)
       ON DUPLICATE KEY UPDATE
         handler_type = VALUES(handler_type),
         config_key = VALUES(config_key),
@@ -218,19 +231,7 @@ class StateStore {
         active_data = VALUES(active_data),
         watch_status = VALUES(watch_status),
         canonical_version = VALUES(canonical_version),
-        last_scanned_at = VALUES(last_scanned_at)', [
-      1 => [$handlerType, 'String'],
-      2 => [(string) $identity['provider_key'], 'String'],
-      3 => [(string) $identity['config_key'], 'String'],
-      4 => [(string) $identity['identity_hash'], 'String'],
-      5 => [$filename, 'String'],
-      6 => [$label, 'String'],
-      7 => [$activeHash, 'String'],
-      8 => [$encoded, 'String'],
-      9 => [$status, 'String'],
-      10 => [Canonicalizer::VERSION, 'Integer'],
-      11 => [date('Y-m-d H:i:s'), 'String'],
-    ]);
+        last_scanned_at = VALUES(last_scanned_at)', $params);
   }
 
   public function deleteWatchState(string $providerKey, string $identityHash): void {
@@ -278,6 +279,21 @@ class StateStore {
       'accepted_source' => (string) $dao->accepted_source,
       'accepted_at' => (string) $dao->accepted_at,
     ];
+  }
+
+  /**
+   * Bind a nullable string without asking CiviCRM's SQL type layer to cast NULL.
+   *
+   * CRM_Core_DAO rejects NULL values declared as String. Nullable state columns
+   * therefore use a literal SQL NULL and only bind actual strings.
+   */
+  private function nullableStringSql(?string $value, int $index, array &$params): string {
+    if ($value === NULL) {
+      unset($params[$index]);
+      return 'NULL';
+    }
+    $params[$index] = [$value, 'String'];
+    return '%' . $index;
   }
 
   public function acceptBaseline(array $identity, array $canonicalData, string $hash, string $source): void {

@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- State tracking hotfix: diff/watch persistence now writes SQL `NULL` for nullable YAML/active hashes instead of binding PHP `NULL` as a CiviCRM `String`, eliminating `is not of type String` baseline/state warnings when an object exists only on one side of a comparison. Added nullable-state regression coverage. No version bump.
+
 - Import preflight safety hotfix: preview now reports site-identity, YAML/dependency, rename, provider-capability, and handler blockers in one pass before any write; dependencies planned earlier in the same import satisfy later dry-run checks; OptionValue machine-name collisions block both rename and delete-missing; ambiguous/monitor-only extension providers and CiviRules numeric-ID junction rows cannot authorize destructive cleanup; and any create/update runtime failure prevents the global delete-missing phase from starting. Added focused regression/scenario coverage. No version bump.
 
 - Real-world DEV-to-stage-clone import hardening: Custom Group dependency export now treats `extends_entity_column_value` as ContactType IDs only for contact-based groups, so ActivityType and other entity-local IDs are no longer misreported as non-portable ContactType dependencies. Generic extension configuration now classifies `afsearch...` references as FormBuilder Afform dependencies instead of SearchDisplay dependencies. CLI/system exports and confirmed identity aliases now persist nullable audit-user fields as SQL `NULL` instead of binding `NULL` as an integer, eliminating baseline-state failures when no CiviCRM contact is logged in. No version bump.
