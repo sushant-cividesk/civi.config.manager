@@ -2106,10 +2106,10 @@ class ExtensionHandler extends AbstractHandler {
       preg_match_all('/afsearch[A-Za-z0-9_:-]+/', $json, $matches);
       foreach (array_values(array_unique($matches[0] ?? [])) as $name) {
         $dependencies[] = [
-          'type' => 'searchkit-displays',
-          'entity' => 'SearchDisplay',
+          'type' => 'formbuilder-afforms',
+          'entity' => 'Afform',
           'name' => $name,
-          'reason' => 'Extension configuration references this SearchKit display.',
+          'reason' => 'Extension configuration references this FormBuilder Afform.',
         ];
       }
     }

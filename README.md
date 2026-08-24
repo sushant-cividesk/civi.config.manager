@@ -322,7 +322,7 @@ The export manifest is written to `manifest.yml`. Its `exported_with` value is r
 - Watch-only and ignored objects are never import/delete candidates. Watch fingerprints live in local operational state, not portable YAML.
 - Machine names are treated as identities.
 - Suspected machine-name renames are warned and skipped.
-- Dependency metadata is validated where available. Missing managed YAML dependencies are treated as import-blocking errors to avoid broken relationships. Reverse `required_by` metadata is also checked and reported as a warning when it appears stale or incomplete.
+- Dependency metadata is validated where available. Missing managed YAML dependencies are treated as import-blocking errors to avoid broken relationships. Reverse `required_by` metadata is also checked and reported as a warning when it appears stale or incomplete. Custom Group dependency metadata treats `extends_entity_column_value` as ContactType IDs only for contact-based groups, and generic extension `afsearch...` references are tracked as FormBuilder Afform dependencies so local entity IDs are not mistaken for portable identities.
 - Large scalar values such as HTML message-template bodies are truncated in UI previews; the YAML and field-level diff still carry the complete value.
 - Payment processor secrets are never exported.
 - Live transactional data is never exported.

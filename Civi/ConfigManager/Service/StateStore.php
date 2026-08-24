@@ -289,6 +289,7 @@ class StateStore {
     if ($encoded === FALSE) {
       throw new \RuntimeException('Could not encode Configuration Manager baseline data.');
     }
+    $acceptedBy = $this->loggedInContactId();
     $params = [
       1 => [(string) $identity['provider_key'], 'String'],
       2 => [(string) $identity['config_key'], 'String'],
@@ -298,11 +299,15 @@ class StateStore {
       6 => [Canonicalizer::VERSION, 'Integer'],
       7 => [$source, 'String'],
       8 => [date('Y-m-d H:i:s'), 'String'],
-      9 => [$this->loggedInContactId(), 'Integer'],
     ];
+    $acceptedBySql = 'NULL';
+    if ($acceptedBy !== NULL) {
+      $params[9] = [$acceptedBy, 'Integer'];
+      $acceptedBySql = '%9';
+    }
     \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::BASELINE_TABLE . '
       (provider_key, config_key, identity_hash, baseline_hash, baseline_data, canonical_version, accepted_source, accepted_at, accepted_by)
-      VALUES (%1, %2, %3, %4, %5, %6, %7, %8, %9)
+      VALUES (%1, %2, %3, %4, %5, %6, %7, %8, ' . $acceptedBySql . ')
       ON DUPLICATE KEY UPDATE
         config_key = VALUES(config_key),
         baseline_hash = VALUES(baseline_hash),
@@ -321,23 +326,29 @@ class StateStore {
       throw new \InvalidArgumentException('Identity aliases must stay within the same configuration provider.');
     }
     $this->ensureSchema();
-    \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::ALIAS_TABLE . '
-      (provider_key, old_config_key, old_identity_hash, new_config_key, new_identity_hash, confirmed_at, confirmed_by)
-      VALUES (%1, %2, %3, %4, %5, %6, %7)
-      ON DUPLICATE KEY UPDATE
-        old_config_key = VALUES(old_config_key),
-        new_config_key = VALUES(new_config_key),
-        new_identity_hash = VALUES(new_identity_hash),
-        confirmed_at = VALUES(confirmed_at),
-        confirmed_by = VALUES(confirmed_by)', [
+    $confirmedBy = $this->loggedInContactId();
+    $params = [
       1 => [(string) $oldIdentity['provider_key'], 'String'],
       2 => [(string) $oldIdentity['config_key'], 'String'],
       3 => [(string) $oldIdentity['identity_hash'], 'String'],
       4 => [(string) $newIdentity['config_key'], 'String'],
       5 => [(string) $newIdentity['identity_hash'], 'String'],
       6 => [date('Y-m-d H:i:s'), 'String'],
-      7 => [$this->loggedInContactId(), 'Integer'],
-    ]);
+    ];
+    $confirmedBySql = 'NULL';
+    if ($confirmedBy !== NULL) {
+      $params[7] = [$confirmedBy, 'Integer'];
+      $confirmedBySql = '%7';
+    }
+    \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::ALIAS_TABLE . '
+      (provider_key, old_config_key, old_identity_hash, new_config_key, new_identity_hash, confirmed_at, confirmed_by)
+      VALUES (%1, %2, %3, %4, %5, %6, ' . $confirmedBySql . ')
+      ON DUPLICATE KEY UPDATE
+        old_config_key = VALUES(old_config_key),
+        new_config_key = VALUES(new_config_key),
+        new_identity_hash = VALUES(new_identity_hash),
+        confirmed_at = VALUES(confirmed_at),
+        confirmed_by = VALUES(confirmed_by)', $params);
   }
 
   public function previousIdentityHash(string $providerKey, string $newIdentityHash): ?string {

@@ -226,15 +226,17 @@ class CustomGroupHandler extends AbstractHandler {
   private function dependenciesForGroup(array $group, array $fields): array {
     $dependencies = [];
     $seen = [];
-    foreach ((array) ($group['extends_entity_column_value'] ?? []) as $extendsValue) {
-      $contactTypeName = $this->resolveContactTypeDependencyName($extendsValue);
-      if ($contactTypeName !== '') {
-        $dependencies[] = [
-          'type' => 'contact-types',
-          'entity' => 'ContactType',
-          'name' => $contactTypeName,
-          'reason' => 'Custom group is scoped to this contact/sub-contact type.',
-        ];
+    if ($this->usesContactTypeScope((string) ($group['extends'] ?? ''))) {
+      foreach ((array) ($group['extends_entity_column_value'] ?? []) as $extendsValue) {
+        $contactTypeName = $this->resolveContactTypeDependencyName($extendsValue);
+        if ($contactTypeName !== '') {
+          $dependencies[] = [
+            'type' => 'contact-types',
+            'entity' => 'ContactType',
+            'name' => $contactTypeName,
+            'reason' => 'Custom group is scoped to this contact/sub-contact type.',
+          ];
+        }
       }
     }
     foreach ($fields as $field) {
@@ -255,6 +257,16 @@ class CustomGroupHandler extends AbstractHandler {
       }
     }
     return $dependencies;
+  }
+
+  /**
+   * Contact-based custom groups use extends_entity_column_value for contact
+   * subtype IDs. Other entities reuse that field for unrelated local IDs
+   * (for example ActivityType IDs), which must never be declared as
+   * ContactType dependencies.
+   */
+  private function usesContactTypeScope(string $extends): bool {
+    return in_array($extends, ['Contact', 'Individual', 'Organization', 'Household'], TRUE);
   }
 
 

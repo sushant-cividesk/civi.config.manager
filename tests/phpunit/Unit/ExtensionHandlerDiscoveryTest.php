@@ -10,6 +10,36 @@ use ReflectionMethod;
 use ReflectionProperty;
 
 final class ExtensionHandlerDiscoveryTest extends TestCase {
+  public function testAfsearchReferencesAreAfformDependencies(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'dependenciesForEntityRow');
+    $method->setAccessible(TRUE);
+
+    $dependencies = $method->invoke($handler, [
+      'layout' => [
+        ['name' => 'afsearchMembersNotCompatible'],
+        ['name' => 'afsearchVolunteersNotCompatible'],
+      ],
+    ], [
+      'extension' => 'org.civicrm.contactlayout',
+      'api' => 'api4',
+      'entity' => 'ContactLayout',
+    ]);
+
+    self::assertContains([
+      'type' => 'formbuilder-afforms',
+      'entity' => 'Afform',
+      'name' => 'afsearchMembersNotCompatible',
+      'reason' => 'Extension configuration references this FormBuilder Afform.',
+    ], $dependencies);
+    self::assertContains([
+      'type' => 'formbuilder-afforms',
+      'entity' => 'Afform',
+      'name' => 'afsearchVolunteersNotCompatible',
+      'reason' => 'Extension configuration references this FormBuilder Afform.',
+    ], $dependencies);
+  }
+
   public function testApi3EntityNameSupportsTopLevelAndActionDirectoryLayouts(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'api3EntityNameFromFile');
