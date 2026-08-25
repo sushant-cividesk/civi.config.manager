@@ -108,18 +108,42 @@ qa_stage() {
   printf '============================================================\n'
 }
 
-wait_for_http() {
-  local url="$1"
-  local attempts="${2:-90}"
-  local delay="${3:-2}"
+wait_for_app_http() {
+  local attempts="${1:-90}"
+  local delay="${2:-2}"
   local count
+
+  # The application deliberately runs only on an internal Docker network.
+  # A host-side curl to a published port is therefore not a reliable readiness
+  # check on all Docker implementations/runners. Probe Apache from inside the
+  # app container instead; this verifies the service we actually use for the
+  # CLI/integration tests without weakening outbound isolation.
   for count in $(seq 1 "${attempts}"); do
-    if curl --fail --silent --show-error --max-time 5 "${url}" >/dev/null 2>&1; then
+    if compose exec -T app php -r '
+      $errno = 0;
+      $errstr = "";
+      $socket = @fsockopen("127.0.0.1", 80, $errno, $errstr, 2.0);
+      if (!is_resource($socket)) {
+        exit(1);
+      }
+      stream_set_timeout($socket, 2);
+      fwrite($socket, "GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+      $status = fgets($socket);
+      fclose($socket);
+      if (!is_string($status) || !preg_match("~^HTTP/[0-9.]+ [1-5][0-9][0-9]~", trim($status))) {
+        exit(1);
+      }
+    ' >/dev/null 2>&1; then
       return 0
     fi
     sleep "${delay}"
   done
-  echo "Timed out waiting for ${url}" >&2
+
+  echo "Timed out waiting for the CiviCRM HTTP service inside the app container." >&2
+  echo "Container status:" >&2
+  compose ps >&2 || true
+  echo "Recent app logs:" >&2
+  compose logs --no-color --tail=120 app >&2 || true
   return 1
 }
 
@@ -146,7 +170,7 @@ compose exec -T -u www-data \
   -e CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
   app civicrm-docker-install
 
-wait_for_http "http://127.0.0.1:${CIVICRM_HTTP_PORT}/"
+wait_for_app_http
 
 qa_stage "Verify extension lifecycle"
 qa_stage "Run API and CLI smoke tests"
