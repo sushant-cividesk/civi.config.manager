@@ -1442,7 +1442,15 @@ class ExtensionHandler extends AbstractHandler {
     if (!class_exists($class) || !method_exists($class, 'get')) {
       return FALSE;
     }
+
     try {
+      // Generic discovery can only probe API4 entities whose get() action does
+      // not require provider-specific context, such as CiviImport's userJobID.
+      $method = new \ReflectionMethod($class, 'get');
+      if ($method->getNumberOfRequiredParameters() > 0) {
+        return FALSE;
+      }
+
       $class::get(FALSE)->setLimit(1)->execute();
       return TRUE;
     }
