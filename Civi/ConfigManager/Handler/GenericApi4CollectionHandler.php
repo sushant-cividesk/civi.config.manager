@@ -210,7 +210,7 @@ class GenericApi4CollectionHandler extends AbstractHandler {
         $desired = $this->cleanImportValues($row);
         $existing = $this->findExistingRow($identityField, $identityValue, $row, $desired, $summary, $filename);
         if ($existing) {
-          $this->applyExistingRow($existing, $desired, $dryRun, $summary);
+          $this->applyExistingRow($existing, $desired, $identityField, $identityValue, $dryRun, $summary);
         }
         else {
           $summary['create']++;
@@ -228,7 +228,7 @@ class GenericApi4CollectionHandler extends AbstractHandler {
                     'name' => $identityValue,
                     'message' => $this->entity . ' already existed on the target site, so import matched the existing record instead of creating a duplicate: ' . $identityValue,
                   ];
-                  $this->applyExistingRow($existing, $desired, $dryRun, $summary);
+                  $this->applyExistingRow($existing, $desired, $identityField, $identityValue, $dryRun, $summary);
                 }
                 else {
                   throw $createError;
@@ -356,11 +356,25 @@ class GenericApi4CollectionHandler extends AbstractHandler {
     return NULL;
   }
 
-  private function applyExistingRow(array $existing, array $desired, bool $dryRun, array &$summary): void {
+  private function applyExistingRow(array $existing, array $desired, string $identityField, string $identityValue, bool $dryRun, array &$summary): void {
     if ($this->desiredDiffers($existing, $desired)) {
       $summary['update']++;
       if (!$dryRun) {
-        $this->api4Update($this->entity, [['id', '=', $existing['id']]], $desired);
+        $where = [];
+        if (!empty($existing['id'])) {
+          $where[] = ['id', '=', $existing['id']];
+        }
+        elseif ($this->entity === 'SearchDisplay' && !empty($desired['saved_search_id'])) {
+          $where[] = ['name', '=', $identityValue];
+          $where[] = ['saved_search_id', '=', (int) $desired['saved_search_id']];
+        }
+        else {
+          // Some API4 virtual entities (notably Afform) have a stable machine
+          // name but no numeric id. Update by the same portable identity used
+          // to find the row instead of assuming every API4 record has id.
+          $where[] = [$identityField, '=', $identityValue];
+        }
+        $this->api4Update($this->entity, $where, $desired);
       }
     }
     else {

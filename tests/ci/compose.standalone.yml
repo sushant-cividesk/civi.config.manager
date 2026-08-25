@@ -17,6 +17,8 @@ services:
       CIVICFG_QA_RUN_ID: ${CIVICFG_QA_RUN_ID:-local}
       CIVICFG_QA_ROOT: /tmp/civicfg-qa
       CIVICFG_QA_ARTIFACTS: /qa-artifacts
+      HOME: /var/www/html
+      PATH: /var/www/html/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - private:/var/www/html/private
       - public:/var/www/html/public
@@ -60,12 +62,6 @@ services:
     networks:
       - isolated
 
-  mailpit:
-    image: axllent/mailpit:v1.30.4
-    hostname: civicfg-qa-mailpit
-    command: ["--max-messages", "100"]
-    networks:
-      - isolated
 
 volumes:
   private:
@@ -75,3 +71,4 @@ volumes:
 networks:
   isolated:
     driver: bridge
+    internal: true

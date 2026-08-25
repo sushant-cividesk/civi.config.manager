@@ -160,6 +160,9 @@ compose exec -T -u www-data app sh -lc '
   cv api Extension.enable keys=civi.config.manager
   cv flush
   cv api Extension.get key=civi.config.manager return=status --out=json
+  command -v civicfg
+  test "$(command -v civicfg)" = "/var/www/html/.local/bin/civicfg"
+  civicfg status --json
 ' | tee "${QA_ARTIFACT_DIR}/extension-lifecycle.log"
 
 if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
@@ -244,26 +247,29 @@ if grep -Ei 'PHP (Fatal error|Parse error)|Uncaught (Error|Exception)|Allowed me
   exit 1
 fi
 
-qa_stage "Verify mail isolation and source immutability"
+qa_stage "Verify outbound isolation and source immutability"
 if [[ -s "${QA_ARTIFACT_DIR}/mail-attempts.log" ]]; then
   echo "Email isolation failed: application code attempted to invoke PHP mail." >&2
   exit 1
 fi
 
-mail_total="$(compose exec -T app php -r '
-  $json = @file_get_contents("http://mailpit:8025/api/v1/messages");
-  if ($json === false) {
-    fwrite(STDERR, "Could not query Mailpit over the isolated Docker network.\n");
-    exit(2);
+# The QA application is attached only to an internal Docker network. Prove
+# that direct TCP egress is unavailable as well, so SMTP/HTTP cannot escape
+# even if application code bypasses PHP mail().
+if compose exec -T app php -r '
+  $errno = 0;
+  $errstr = "";
+  $socket = @fsockopen("1.1.1.1", 443, $errno, $errstr, 2.0);
+  if (is_resource($socket)) {
+    fclose($socket);
+    exit(0);
   }
-  $data = json_decode($json, true);
-  echo (int) ($data["total"] ?? -1);
-')"
-if [[ "${mail_total}" != "0" ]]; then
-  echo "Email isolation failed: Mailpit captured ${mail_total} message(s)." >&2
+  exit(1);
+'; then
+  echo "Network isolation failed: QA application can reach the public internet." >&2
   exit 1
 fi
-printf '{"mailpit_messages":%s,"status":"passed"}\n' "${mail_total}" \
+printf '{"php_mail_attempts":0,"external_network":"blocked","status":"passed"}\n' \
   > "${QA_ARTIFACT_DIR}/mail-isolation.json"
 
 SOURCE_STATE_AFTER="$(source_state)"

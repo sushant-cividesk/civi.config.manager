@@ -125,6 +125,38 @@ final class CliInstallerTest extends TestCase {
     self::assertFileExists($this->globalBin . '/civicfg');
   }
 
+  public function testDrupalSiteLocalComposerVendorIsDiscovered(): void {
+    $this->removeTree($this->projectRoot . '/vendor');
+    $drupalRoot = $this->projectRoot . '/web';
+    $siteVendor = $drupalRoot . '/sites/default/vendor';
+    mkdir($siteVendor . '/bin', 0775, TRUE);
+    file_put_contents($siteVendor . '/autoload.php', "<?php\n");
+
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($drupalRoot, 'legacy-drupal-site'));
+    $result = $installer->install();
+
+    self::assertTrue($result['ok']);
+    self::assertSame($siteVendor . '/bin/civicfg', $result['vendor_launcher']);
+    self::assertFileExists($siteVendor . '/bin/civicfg');
+  }
+
+  public function testGlobalPathDirectoryIsCreatedWhenPathAlreadyAdvertisesIt(): void {
+    putenv('CIVICFG_GLOBAL_BIN_DIR');
+    $home = $this->sandbox . '/home';
+    mkdir($home, 0775, TRUE);
+    $pathBin = $home . '/.local/bin';
+    putenv('HOME=' . $home);
+    putenv('PATH=' . $pathBin . ':/usr/bin:/bin');
+
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $result = $installer->install();
+
+    self::assertTrue($result['ok']);
+    self::assertSame($pathBin . '/civicfg', $result['global_launcher']);
+    self::assertFileExists($pathBin . '/civicfg');
+    self::assertTrue($installer->status()['registered']);
+  }
+
   public function testSharedGlobalLauncherSurvivesUntilLastProjectUninstalls(): void {
     $secondRoot = $this->sandbox . '/project-stage';
     mkdir($secondRoot . '/vendor/bin', 0775, TRUE);

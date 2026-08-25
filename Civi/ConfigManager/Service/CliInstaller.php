@@ -206,6 +206,16 @@ BASH;
     }
 
     $candidates = [];
+
+    // CiviDesk/legacy Drupal projects often keep a site-local Composer vendor
+    // tree under web/sites/default rather than at the detected CMS docroot.
+    // Check that layout before walking ancestors so lifecycle install can
+    // create vendor/bin/civicfg on real projects, not only in test fixtures.
+    $candidates[] = $root . DIRECTORY_SEPARATOR . 'sites' . DIRECTORY_SEPARATOR . 'default';
+    if (basename($root) !== 'web') {
+      $candidates[] = $root . DIRECTORY_SEPARATOR . 'web' . DIRECTORY_SEPARATOR . 'sites' . DIRECTORY_SEPARATOR . 'default';
+    }
+
     $cursor = $root;
     for ($i = 0; $i < 5; $i++) {
       $candidates[] = $cursor;
@@ -255,13 +265,13 @@ BASH;
 
     $pathDirs = $this->pathDirectories();
     foreach ($preferred as $dir) {
-      if (in_array($dir, $pathDirs, TRUE) && is_dir($dir) && is_writable($dir)) {
+      if (in_array($dir, $pathDirs, TRUE) && $this->directoryIsWritableOrCreatable($dir)) {
         return $dir;
       }
     }
 
     foreach ($pathDirs as $dir) {
-      if (!is_dir($dir) || !is_writable($dir) || basename($dir) !== 'bin') {
+      if (basename($dir) !== 'bin' || !$this->directoryIsWritableOrCreatable($dir)) {
         continue;
       }
       if ($home !== '' && (strpos($dir, $home . DIRECTORY_SEPARATOR) === 0 || $dir === $home)) {
@@ -270,6 +280,31 @@ BASH;
     }
 
     return NULL;
+  }
+
+  /**
+   * Return TRUE when a launcher directory exists and is writable or can be
+   * created below the first writable existing ancestor.
+   *
+   * This matters for common PATH entries such as $HOME/.local/bin: shells may
+   * advertise the directory before it exists, and extension install should be
+   * able to create it instead of silently giving up on the global command.
+   */
+  private function directoryIsWritableOrCreatable(string $dir): bool {
+    if (is_dir($dir)) {
+      return is_writable($dir);
+    }
+
+    $cursor = $dir;
+    while (!is_dir($cursor)) {
+      $parent = dirname($cursor);
+      if ($parent === $cursor) {
+        return FALSE;
+      }
+      $cursor = $parent;
+    }
+
+    return is_writable($cursor);
   }
 
   private function pathDirectories(): array {

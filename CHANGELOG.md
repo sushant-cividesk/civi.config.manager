@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- QA/CLI release-gate hotfix: standalone QA no longer depends on Mailpit; the disposable application network is now truly internal and the suite proves both blocked PHP mail and blocked direct internet egress. CLI install now discovers Drupal `sites/default/vendor/bin`, can create a PATH-advertised `$HOME/.local/bin`, and full QA verifies `civicfg` is callable by name immediately after extension enable. Generic API4 imports also update stable ID-less virtual entities by portable identity instead of assuming every row has a numeric `id`. No version bump.
+
 - State tracking hotfix: diff/watch persistence now writes SQL `NULL` for nullable YAML/active hashes instead of binding PHP `NULL` as a CiviCRM `String`, eliminating `is not of type String` baseline/state warnings when an object exists only on one side of a comparison. Added nullable-state regression coverage. No version bump.
 
 - Import preflight safety hotfix: preview now reports site-identity, YAML/dependency, rename, provider-capability, and handler blockers in one pass before any write; dependencies planned earlier in the same import satisfy later dry-run checks; OptionValue machine-name collisions block both rename and delete-missing; ambiguous/monitor-only extension providers and CiviRules numeric-ID junction rows cannot authorize destructive cleanup; and any create/update runtime failure prevents the global delete-missing phase from starting. Added focused regression/scenario coverage. No version bump.

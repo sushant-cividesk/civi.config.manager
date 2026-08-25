@@ -43,7 +43,7 @@ This makes the same command usable from Composer and non-Composer projects, incl
 
 ## Composer projects
 
-When the project has a Composer vendor directory, either form can be used:
+When the project has a Composer vendor directory, including a legacy Drupal site-local `sites/default/vendor`, either form can be used:
 
 ```bash
 vendor/bin/civicfg status
@@ -75,7 +75,8 @@ Selection order is:
 
 1. `CIVICFG_GLOBAL_BIN_DIR`, when explicitly set to a safe writable directory.
 2. One suitable writable `bin` directory already in `PATH`.
-3. No global installation. The extension-local CLI and Composer launcher, when available, continue to work.
+3. A safe `bin` directory already advertised in `PATH` but not created yet (for example `$HOME/.local/bin`) when its existing parent is writable; Configuration Manager creates the directory and launcher.
+4. No global installation. The extension-local CLI and Composer launcher, when available, continue to work.
 
 Example:
 

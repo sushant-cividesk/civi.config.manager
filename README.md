@@ -198,7 +198,7 @@ When `civicfg_scope` is code-owned, the Settings UI shows the scope as locked an
 
 ## CLI terminal access
 
-The extension owns one real CLI implementation at `bin/civicfg`. On install/enable it may create a single Composer launcher at `<vendor>/bin/civicfg` and one shared global `civicfg` dispatcher. The global dispatcher contains no project-specific extension path; it uses `cv` from `PATH` or a sibling Composer `vendor/bin/cv` launcher to bootstrap the current site and resolves the enabled extension path at runtime. Drupal 7/non-Composer sites therefore do not require a `vendor/bin` directory.
+The extension owns one real CLI implementation at `bin/civicfg`. On install/enable it creates a Composer launcher when a writable project vendor tree is available (including legacy Drupal `sites/default/vendor/bin`) and installs one shared global `civicfg` dispatcher when the runtime PATH exposes a safe writable or creatable bin directory such as `$HOME/.local/bin`. The global dispatcher contains no project-specific extension path; it uses `cv` from `PATH` or a sibling Composer `vendor/bin/cv` launcher to bootstrap the current site and resolves the enabled extension path at runtime. Drupal 7/non-Composer sites therefore do not require a project-root `vendor/bin` directory.
 
 Configuration Manager does not create project-bin aliases, `/var/www/html/bin` copies, or shell PATH helper files. Existing non-managed `civicfg` commands are never overwritten. A local ownership registry lets several projects share the global dispatcher safely; uninstall removes the global dispatcher only after the final registered project is removed. See `docs/CLI.md`.
 
