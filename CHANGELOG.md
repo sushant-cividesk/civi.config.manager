@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- Universal runtime-ignore/documentation hotfix: Configuration Manager now always excludes the proven volatile values `extensions/*/api3/Job/*.yml:item.last_run`, `extensions/*/api3/Job/*.yml:item.last_run_end`, `scheduled-jobs/*.yml:item.scheduled_run_date`, and `site-tokens/*.yml:item.modified_date`; administrator Config Ignore Values remain additive. The Settings UI shows built-in rules separately from project-specific rules. README and architecture documentation were rewritten as concise current-state documentation, with extended maintainer detail moved to `docs/DETAILED_REFERENCE.md`. No version bump.
+
 - QA/CLI release-gate hotfix: standalone QA no longer depends on Mailpit; the disposable application network is now truly internal and the suite proves both blocked PHP mail and blocked direct internet egress. CLI install now discovers Drupal `sites/default/vendor/bin`, can create a PATH-advertised `$HOME/.local/bin`, and full QA verifies `civicfg` is callable by name immediately after extension enable. Generic API4 imports also update stable ID-less virtual entities by portable identity instead of assuming every row has a numeric `id`. No version bump.
 
 - State tracking hotfix: diff/watch persistence now writes SQL `NULL` for nullable YAML/active hashes instead of binding PHP `NULL` as a CiviCRM `String`, eliminating `is not of type String` baseline/state warnings when an object exists only on one side of a comparison. Added nullable-state regression coverage. No version bump.

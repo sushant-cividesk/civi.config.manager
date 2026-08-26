@@ -1,280 +1,244 @@
 # Architecture
 
-Configuration Manager is organized around an API4/service layer, type-specific handlers, portable YAML storage, semantic configuration identity, local state/baseline tracking, and a thin CiviCRM UI/CLI layer.
+Configuration Manager is a conservative configuration-management layer for CiviCRM. It separates portable YAML from local operational state and routes UI, CLI, and API4 operations through one service layer so the same safety rules apply everywhere.
 
-Release history is maintained in `../CHANGELOG.md`. This document describes the current architecture only.
+This document describes current architecture only. Release history belongs in [`../CHANGELOG.md`](../CHANGELOG.md).
 
-## Runtime flow
+## System overview
 
 ```text
-UI / civicfg / cv api4
-  -> Civi\Api4\ConfigManager actions
-  -> Civi\ConfigManager\Service\ConfigManager
-  -> HandlerRegistry
-  -> HandlerInterface implementations
-  -> semantic identity + canonicalization + state services
-  -> YamlFileStorage / SimpleYaml
+Admin UI / civicfg / API4
+          |
+          v
+Civi\Api4\ConfigManager actions
+          |
+          v
+ConfigManager service
+          |
+          +--> HandlerRegistry --> type-specific handlers --> CiviCRM APIs
+          |
+          +--> ConfigIdentity / Canonicalizer / dependency policy
+          |
+          +--> StateStore / baseline classifier
+          |
+          +--> YamlFileStorage
+                     |
+                     v
+               portable YAML
 ```
 
-YAML is the portable/deployable configuration source. Configuration Manager's database tables store only local operational intelligence and accepted comparison baselines.
+**Portable state:** YAML files committed/deployed between environments.
+**Local state:** accepted baselines, fingerprints, watch history, and identity aliases stored in the local CiviCRM database.
 
-## API4 facade
+Local tables never replace YAML as the deployable source of truth.
 
-`Civi/Api4/ConfigManager.php` exposes the supported automation interface:
+## Core components
 
-- `ConfigManager.status`
-- `ConfigManager.listTypes`
-- `ConfigManager.export`
-- `ConfigManager.diff`
-- `ConfigManager.validate`
-- `ConfigManager.import`
-- `ConfigManager.confirmIdentityAlias`
+### API4 facade
 
-The API4 actions live under `Civi/Api4/Action/ConfigManager`. The `civicfg` CLI delegates to these API4 operations rather than duplicating configuration business logic.
+`Civi/Api4/ConfigManager.php` exposes the supported automation surface, including status, type discovery, export, diff, validate, import, and identity-alias confirmation.
 
-## Service layer
+The `civicfg` CLI delegates to these operations instead of implementing a second configuration engine.
 
-`Civi/ConfigManager/Service/ConfigManager.php` coordinates:
+### ConfigManager service
 
-- Sync directory resolution.
-- Managed handler filtering.
-- Full export and dry-run export.
-- Diff calculation and baseline-aware state enrichment.
-- YAML validation.
-- Import preview and two-phase import apply.
-- Dependency-aware stale YAML cleanup.
-- Accepted baseline updates after successful export/import.
-- Identity-alias confirmation.
-- Manifest writing with version metadata read from `info.xml`.
-- System-status and CLI health reporting.
+`Civi/ConfigManager/Service/ConfigManager.php` is the orchestration layer. It owns:
 
-Supporting services provide focused responsibilities:
+- sync-directory resolution;
+- scope filtering;
+- export and dry-run export;
+- field-level ignore processing;
+- diff and baseline-aware state classification;
+- validation and dependency checks;
+- import preflight and apply sequencing;
+- stale YAML cleanup;
+- accepted baseline updates; and
+- health/status information.
 
-- `ConfigIdentity` derives deterministic semantic configuration identities and confidence levels.
-- `Canonicalizer` produces type-preserving canonical values and versioned SHA-256 fingerprints.
-- `DiffStateClassifier` classifies two-way and baseline-aware three-way state.
-- `ConfigStateManager` connects handlers, canonical values, fingerprints, baselines, and object-state reporting.
-- `StateStore` persists rebuildable object state, accepted baselines, and confirmed identity aliases.
-- `CliInstaller` owns the project/global CLI launcher lifecycle.
+### Handler registry
 
-The service resolves relative sync directories from the CMS/project root where possible. The legacy value `../civicrm-config` is normalized to `civicrm-config`.
+`HandlerRegistry` defines built-in configuration types and dependency order. Each handler owns one type and is responsible for export, diff, validation, and import behavior for that type.
+
+Handlers must fail closed when identity, provider availability, or write capability is uncertain.
+
+### YAML storage
+
+`YamlFileStorage` reads and writes the configured sync directory and enforces relative-path and symlink safety. Files use human-readable names, but filenames are not authoritative cross-environment identity.
 
 ## Semantic identity
 
-Numeric database IDs and YAML filenames are not authoritative cross-environment identities.
+Numeric database IDs are local implementation details and are not portable identity.
 
-Every exported object receives a semantic `config_key` through `ConfigIdentity`. Identity preference is:
+`ConfigIdentity` prefers stable semantic keys in this order:
 
-1. Explicit `key_fields` or an explicit exported key.
-2. Strong machine fields such as `key`, `machine_name`, `name`, `name_a_b`, or `workflow_name`.
-3. A weak `title`/`label` identity only as an ambiguous read/diff fallback.
-4. Filename fallback only when no semantic identity exists; it is always marked ambiguous and is not safe for automatic writes.
+1. explicit key fields or an explicit exported key;
+2. stable machine fields such as `key`, `machine_name`, or `name`;
+3. weak labels/titles for read-only comparison only; and
+4. filename fallback only when no stronger identity exists.
 
-Identity metadata includes:
+Identity metadata records how the key was derived and whether it is safe for automatic writes. Ambiguous identities remain visible for backup, diff, and validation but cannot authorize destructive synchronization.
 
-- `provider_key`
-- `config_key`
-- `identity_hash` (SHA-256 of provider + semantic key)
-- `identity_method`
-- `identity_confidence`
-- `write_safe`
+A filename change with the same semantic identity is storage movement, not automatically a delete/create pair.
 
-Current confidence values are `EXPLICIT`, `API_VERIFIED`, `DISCOVERED_UNIQUE`, and `AMBIGUOUS`. Weak/ambiguous generic extension identities remain visible to export/diff/validation but are not automatically created, updated, or deleted.
+## Canonicalization and runtime values
 
-A filename can change while the semantic identity remains unchanged. Such a change is treated as a storage rename, not as a configuration delete/create pair.
+`Canonicalizer` produces deterministic, type-preserving values before hashing. Associative keys are sorted, scalar types are preserved, and only explicitly declared unordered collections are reordered.
 
-## Canonical fingerprints
+Runtime-only, sensitive, and operational metadata is removed before portable comparison when the handler or core policy explicitly defines it.
 
-`Canonicalizer` creates deterministic, type-preserving values before hashing. It:
+Configuration Manager also owns four universal runtime-value ignore rules:
 
-- Sorts associative-map keys.
-- Preserves scalar types (`1`, `"1"`, `true`, `null`, and `""` remain distinct).
-- Normalizes line endings.
-- Preserves list order by default.
-- Sorts only collection paths explicitly declared unordered.
-- Removes only exact/path-aware ignored, runtime, sensitive, and known operational metadata.
+```text
+extensions/*/api3/Job/*.yml:item.last_run
+extensions/*/api3/Job/*.yml:item.last_run_end
+scheduled-jobs/*.yml:item.scheduled_run_date
+site-tokens/*.yml:item.modified_date
+```
 
-Content fingerprints use SHA-256 and carry a `canonical_version`. If canonicalization rules change in a later development version, old fingerprints are not treated as directly comparable.
+These rules are always active. Administrator-defined `civicfg_ignore_values` rules are additional and are merged with the built-in set. This keeps volatile timestamps out of portable YAML semantics without using unsafe global timestamp wildcards.
 
-Operational metadata such as YAML schema/type markers, semantic identity declarations, dependency/index metadata, provider capabilities, and identity-confidence labels is excluded from the content fingerprint so changes in Configuration Manager's storage/discovery behavior do not appear as CiviCRM configuration drift. The portable configuration values themselves, including semantic references, remain fingerprinted.
+## Baselines and drift state
 
-## Baselines and three-way state
+A two-way comparison can only say whether YAML and active CiviCRM differ. An accepted baseline makes three-way classification possible.
 
-A normal two-way comparison can truthfully report only whether YAML and active CiviCRM match. An accepted baseline allows Configuration Manager to distinguish the direction and overlap of later changes.
-
-Without a baseline, the normal states are:
+Important states include:
 
 - `IN_SYNC`
-- `DIFFERENT`
 - `ONLY_IN_YAML`
 - `ONLY_IN_CIVICRM`
+- `ACTIVE_DRIFT`
+- `YAML_CHANGE`
+- `SYNCED_CHANGE`
+- `BOTH_CHANGED`
 
-With a baseline, the state engine can additionally report:
+For `BOTH_CHANGED`, canonical values are compared by path to distinguish non-conflicting divergence from a true conflict.
 
-- `ACTIVE_DRIFT` - YAML still matches the baseline but active CiviCRM changed.
-- `YAML_CHANGE` - active CiviCRM still matches the baseline but YAML changed.
-- `SYNCED_CHANGE` - YAML and active CiviCRM match each other at a state different from the baseline.
-- `BOTH_CHANGED` - YAML and active CiviCRM both changed away from the baseline.
+Baselines advance only after accepted synchronization events such as a successful real export or successful import. Running status or diff does not silently accept drift.
 
-For `BOTH_CHANGED`, canonical baseline/YAML/active values are compared by path. The result is either `NON_CONFLICTING_DIVERGENCE` or `CONFLICT` when the same field changed differently.
+## Local state
 
-Baselines advance only after an accepted synchronization event such as a successful real export or successful import. Running diff/status does not silently move the baseline.
+The extension uses local tables for rebuildable operational intelligence:
 
-## Local state tables
+- `civicrm_civicfg_object_state`
+- `civicrm_civicfg_baseline`
+- `civicrm_civicfg_identity_alias`
 
-The extension owns three tables:
+Object state can be rebuilt from active CiviCRM and YAML. Identity aliases exist only to preserve continuity after an explicitly reviewed machine-key rename.
 
-- `civicrm_civicfg_object_state` - rebuildable latest scan/fingerprint state.
-- `civicrm_civicfg_baseline` - accepted canonical comparison baseline.
-- `civicrm_civicfg_identity_alias` - explicitly confirmed old/new semantic identities for rename continuity.
+## Scope model
 
-`civicrm_civicfg_object_state` is disposable and can be rebuilt from YAML plus active CiviCRM. YAML never depends on these tables to remain understandable or deployable.
+Configuration Scope is stored per handler/type:
 
-Confirmed identity aliases preserve baseline continuity after an intentional machine-key rename. A rename suggestion is informational only: Configuration Manager does not automatically turn a suspected rename into an update. Real import is blocked while a possible rename still appears as a create/delete pair; the operator must review and align the accepted identity first.
+- **Manage everything**
+- **Manage selected items**
+- **Monitor only**
+- **Ignore**
 
-The tables are created on install/enable/upgrade and removed when Configuration Manager is uninstalled.
+Fresh installs default to Ignore. Existing installations preserve their prior policy unless explicitly changed.
 
-## Handler registry
+Selected-item scope stores semantic selectors rather than relying on local numeric IDs. Watch-only configuration is fingerprinted locally and does not enter managed YAML.
 
-`Civi/ConfigManager/Service/HandlerRegistry.php` defines the built-in config handlers and their order.
+## Import safety pipeline
 
-The current built-in handlers cover:
+Import is source-of-truth only for handlers that explicitly support writes.
 
-- Extensions
-- Option Groups and Values
-- Contact Types
-- Relationship Types
-- Location Types
-- Financial Types
-- Payment Processors
-- Custom Groups and Fields
-- CiviCRM Settings, limited by the local Settings Allowlist
-- Message Templates
-- Dedupe Rules
-- Scheduled Jobs
-- SearchKit Saved Searches
-- SearchKit Displays
-- FormBuilder Afforms
+The pipeline is:
 
-Other extensions can add metadata-driven API4 definitions through `hook_civicfg_entityDefinitions()` or advanced custom handlers through `hook_civicfg_configTypes()`.
+```text
+load YAML
+   |
+   v
+complete non-writing preflight
+   |- site identity
+   |- YAML/schema validation
+   |- dependency availability
+   |- rename/collision detection
+   |- provider capability and identity safety
+   `- per-handler dry-run
+   |
+   v
+create/update phase
+   |
+   +-- any failure --> stop; no delete phase
+   |
+   v
+delete-missing phase in reverse dependency order
+   |
+   v
+accept new baseline
+```
 
-Custom handlers should implement `Civi\ConfigManager\Handler\HandlerInterface`.
+Key invariants:
 
-## Handler contract
+- site mismatch does not hide later preflight blockers;
+- dependencies planned earlier in the same import may satisfy later dry-run checks;
+- ambiguous provider metadata cannot authorize delete-missing;
+- local numeric-ID-only junction records are not treated as portable cross-site configuration;
+- possible renames block real import until reviewed;
+- the UI does not expose Apply when preflight is blocked.
 
-Each handler is responsible for one config type and implements:
+## Contributed-extension configuration
 
-- `getType()` - machine name used in filters/API calls.
-- `getLabel()` - human-readable label.
-- `getDirectory()` - sync directory subdirectory.
-- `getWeight()` - dependency/order priority.
-- `export()` - returns YAML file definitions from active CiviCRM config.
-- `diff()` - compares active config with YAML files.
-- `validate()` - checks YAML format and identity requirements.
-- `import()` - applies supported YAML changes.
+Extension-owned configuration is discovered through safe settings attribution, API4/API3 provider discovery, and explicit Configuration Manager hooks.
 
-`AbstractHandler` provides semantic matching, canonical fingerprinting, focused field diffs, conservative rename suggestions, and validation defaults. Import defaults to `not_implemented` unless a handler overrides it.
+Discovery and write safety are separate decisions. A provider may be readable and exportable while still being backup/monitor-only.
 
-Handlers can expose canonicalization metadata through `getCanonicalizationOptions()` so runtime/sensitive paths and collection ordering are consistent between export, diff, state fingerprints, and baselines.
+Generic discovery must not guess provider-specific API context or portable identity. Providers with incomplete capability or ambiguous identity fail closed for automatic CRUD.
 
-## Contributed/custom extension configuration
+See [`EXTENSION_HOOKS.md`](EXTENSION_HOOKS.md) for supported integration points.
 
-Enabled extension configuration is discovered through safe settings attribution, API4/API3 provider discovery, and public Configuration Manager hooks.
+## Dependencies and semantic references
 
-Discovery and write safety are deliberately separate. A provider can be visible to export/diff without being safe for automatic import. Generic provider records with strong stable identities and supported write actions can be managed automatically; weak or generated providers are classified instead of guessed.
+Handlers and metadata-driven definitions may declare deployment dependencies and semantic reference fields.
 
-The real-fixture compatibility suite classifies each extension/provider as one of:
+On export, local numeric references are converted to stable semantic references where supported. On import, those references are resolved to the target environment's local IDs. Unresolved references are blockers, not silently copied numeric IDs.
 
-- `FULL`
-- `PARTIAL`
-- `NO_PORTABLE_CONFIG`
-- `UNSUPPORTED`
-- `ERROR` (provider discovery/read or test execution failure)
+Create/update runs in dependency order. Delete-missing runs in reverse order to reduce parent/child deletion hazards.
 
-`NO_PORTABLE_CONFIG` is a valid result for an installed extension and is not a test failure.
+## CLI architecture
 
-The production engine does not contain extension-name special cases for fixtures such as SQL Tasks. Real contrib extensions are used to improve generic discovery and provider metadata; explicit integration hooks are used only when provider semantics cannot be inferred safely.
+`bin/civicfg` is the authoritative CLI implementation.
 
-## Semantic references and dependencies
+`CliInstaller` can expose it through:
 
-Metadata-driven API4 definitions can declare `reference_fields`. On export, local numeric references are resolved into semantic API4 references containing stable key fields. On import, the semantic reference is resolved to the target environment's local ID. Declared references fail closed: an unresolved local ID is never exported as portable config, and imports accept only the configured target entity/provider and exact stable key fields.
+- a project Composer `vendor/bin/civicfg` launcher, including legacy Drupal `sites/default/vendor/bin`; and
+- a shared `civicfg` launcher in a safe writable or creatable `PATH` bin directory.
 
-For example, an environment-local `custom_group_id` should be represented by a stable group key where supported rather than copied as the raw numeric ID.
+The shared launcher does not hardcode one project's extension path. It bootstraps the current CiviCRM site with `cv`, verifies the extension is enabled, resolves the extension path at runtime, and delegates to that site's `bin/civicfg`.
 
-Reference definitions may also declare a `dependency_type`, allowing the existing dependency validation and ordering system to reason about the referenced configuration. Create/update operations run before delete operations, and deletes run in reverse handler order to reduce parent/child removal hazards.
+See [`CLI.md`](CLI.md) for lifecycle and troubleshooting details.
 
-## Scope UI and discovery
+## UI architecture
 
-Configuration Scope is stored as handler-level policy, but the normal Settings UI does not require administrators to write selector syntax. `Manage selected items` opens a lazy picker for one handler at a time. The picker enumerates that handler only, displays human labels/local IDs for orientation, and saves semantic `key:` selectors. Advanced numeric/name/key/path selectors remain available for automation and temporarily missing objects. Normal Settings rendering never calls handler `export()` merely to populate choices.
+The page wrapper remains thin. UI responsibilities are separated into request parsing, presentation, file transfer, permissions, and asset loading under `Civi/ConfigManager/UI/`.
 
-Capability labels are derived without active-record discovery. Built-in handlers with an import implementation are shown as full management, export-only handlers as export/compare, and generic contributed-extension configuration as mixed capability because individual discovered providers may be write-safe or backup/monitor-only. Provider identity limitations are compatibility information, not YAML-format failures.
+The UI calls the same service layer as API4/CLI. It does not maintain a separate import or diff implementation.
 
-## YAML file strategy
+## Extension points
 
-Handlers use split item files wherever practical so universal Configuration Scope can manage or watch individual objects safely. Current split-file handlers include Contact Types, Relationship Types, Location Types, Financial Types, Payment Processors, Dedupe Rules, Scheduled Jobs, SearchKit Saved Searches, SearchKit Displays, FormBuilder Afforms, Message Templates, allowlisted CiviCRM Settings, Custom Groups, Site Tokens, Extensions, and safely discovered extension-owned configuration. Aggregate objects such as an Option Group and its Option Values remain together where that relationship is the useful portable unit.
+Two supported extension mechanisms are available:
 
-Split-file YAML normally contains stable identity metadata and one portable record under `item` (or the handler-specific equivalent). The filename is a readable storage name only; semantic matching uses `config_key`/key fields instead of relying on the filename. A local database ID may be exposed to Configuration Scope only as a source selector and is not written as the portable cross-environment identity. Transitional import support may still read older development collection formats, while current exports use the split form.
+- metadata-driven entity/provider definitions for configuration that follows the generic model; and
+- custom handler registration for configuration requiring specialized semantics.
 
-## Import model
+Custom integrations must provide stable identity, explicit capability boundaries, and deterministic canonicalization. They must not bypass preflight or delete safety.
 
-Imports are YAML-source-of-truth for handlers that explicitly support writes.
+## QA architecture
 
-- Create/update/delete capability is provider-specific.
-- Weak/ambiguous identities are not automatically written.
-- YAML can revert active values to the accepted portable state.
-- The UI asks for confirmation before applying imports.
-- Dependency validation blocks missing managed dependencies.
-- Create/update runs before deletes; delete handling runs in reverse handler order.
-- Possible machine-identity renames are shown for review and block real import while they remain unresolved.
-- Unsupported handlers report `not_implemented` instead of partially applying changes.
-- A successful applied import advances the baseline. A baseline-write failure is reported as a state warning and does not incorrectly claim that the already-applied import failed.
+Fast QA covers syntax, scenarios, PHPUnit, and static analysis. Full QA starts a disposable CiviCRM stack with Docker Compose and real pinned extension fixtures.
 
-## CLI lifecycle
+The application test network is internal-only and PHP mail is intercepted. Full QA verifies extension lifecycle, CLI availability, round-trip behavior, contributed-provider behavior, source immutability, and blocked outbound network access.
 
-The authoritative CLI implementation is `bin/civicfg` inside this extension.
+Full QA must run from a host checkout with Docker available; it is intentionally not runnable from inside a normal `ddev ssh` container.
 
-`CliInstaller` may expose it through:
+See [`QA_AUTOMATION.md`](QA_AUTOMATION.md) and [`TESTING.md`](TESTING.md).
 
-- one optional Composer `<vendor>/bin/civicfg` launcher for a Composer project; and
-- one shared global `civicfg` dispatcher in a safe writable directory already on `PATH` (or explicitly configured by `CIVICFG_GLOBAL_BIN_DIR`).
+## Design principles
 
-The global dispatcher contains no project-specific extension path. At runtime it uses `cv` from `PATH` or a sibling Composer `vendor/bin/cv` launcher to bootstrap the current CiviCRM site, verifies Configuration Manager is enabled, resolves the current extension base path through CiviCRM, and delegates to that site's `bin/civicfg`.
-
-A small ownership registry lets multiple local projects share the global dispatcher. Uninstall unregisters the current local project and removes the managed global dispatcher only when the last registered project is gone. Non-managed files are never overwritten or deleted.
-
-Configuration Manager does not install project-root aliases, `/var/www/html/bin` copies, or shell PATH helper files. See `CLI.md`.
-
-## Storage layer
-
-`Civi/ConfigManager/Storage/YamlFileStorage.php` reads and writes YAML under the configured sync directory. It supports nested directories and enforces path/symlink safety.
-
-`Civi/ConfigManager/Util/SimpleYaml.php` uses available YAML support when possible and includes a simple fallback for the extension's supported YAML structures.
-
-## UI layer
-
-The route/page wrapper is intentionally thin:
-
-- `CRM/Configmanager/Page/Main.php`
-
-UI logic is split into focused classes:
-
-- `Civi/ConfigManager/UI/MainPage` - page controller.
-- `Civi/ConfigManager/UI/Request` - request parsing.
-- `Civi/ConfigManager/UI/Presenter` - display rows, labels, summaries, rename warnings, and diff view data.
-- `Civi/ConfigManager/UI/FileTransfer` - upload, ZIP handling, preview, and download.
-- `Civi/ConfigManager/UI/Permission` - permission constants and checks.
-- `Civi/ConfigManager/UI/AssetLoader` - CiviCRM resource loading.
-
-## Templates and assets
-
-Templates are CiviCRM-compatible Smarty files. Runtime CSS/JavaScript is dependency-free; no Node/npm build is required to use the extension.
-
-## Settings ownership
-
-`civicfg_sync_dir` can be UI-managed or code-owned. When defined in `civicrm.settings.php`, the UI treats the sync directory as environment-owned configuration and locks the field to avoid accidental changes.
-
-## Config ignore
-
-`civicfg_ignore_paths` stores relative YAML paths or simple wildcard patterns skipped by diff, validate, export, and import. `extensions/civi.config.manager.yml` is ignored by default to avoid self-management loops while the extension is running imports.
-
-Field-level Config Ignore rules remain supported separately from handler/provider runtime and sensitive-field metadata.
+1. **Portable identity over local IDs.**
+2. **One service layer for UI, API, and CLI.**
+3. **Readability does not imply write safety.**
+4. **No destructive action before complete preflight.**
+5. **Runtime noise is excluded narrowly, never with broad guesses.**
+6. **YAML remains understandable without local state tables.**
+7. **Failures are explicit and fail closed.**

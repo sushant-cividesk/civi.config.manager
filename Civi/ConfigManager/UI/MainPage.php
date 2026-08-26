@@ -395,6 +395,7 @@ class MainPage {
     $ignoreValues = array_values(array_unique(array_filter(array_map(function($value) {
       return trim(str_replace('\\', '/', (string) $value));
     }, $ignoreValues))));
+    $ignoreValues = array_values(array_diff($ignoreValues, $this->manager->getBuiltInIgnoreValueRules()));
     \Civi::settings()->set('civicfg_ignore_values', $ignoreValues);
 
     // Settings/scope/ignore changes alter what a future managed comparison
@@ -453,7 +454,8 @@ class MainPage {
     }
     sort($settingsAllowlist, SORT_NATURAL | SORT_FLAG_CASE);
     $ignorePaths = $this->manager->getIgnorePatterns();
-    $ignoreValues = $this->manager->getIgnoreValuePatterns();
+    $ignoreValues = $this->manager->getConfiguredIgnoreValueRules();
+    $builtInIgnoreValues = $this->manager->getBuiltInIgnoreValueRules();
     $siteId = $this->manager->getSiteIdentifier();
     $allowCrossSiteImport = (bool) \Civi::settings()->get('civicfg_allow_cross_site_import');
     $diffFiles = $this->presenter->extractDiffFiles($diffResult);
@@ -650,7 +652,8 @@ class MainPage {
     $this->page->assign('watchPanelOpen', $watchPanelOpen);
     $this->page->assign('settingsAllowlist', implode("\n", $settingsAllowlist));
     $this->page->assign('ignorePaths', implode("\n", $ignorePaths));
-    $this->page->assign('ignoreValues', implode("\n", array_map(fn($rule) => (string) ($rule['raw'] ?? ''), $ignoreValues)));
+    $this->page->assign('ignoreValues', implode("\n", $ignoreValues));
+    $this->page->assign('builtInIgnoreValues', implode("\n", $builtInIgnoreValues));
     $this->page->assign('siteId', $siteId);
     $this->page->assign('allowCrossSiteImport', $allowCrossSiteImport);
     $codeDefinedSyncDir = $this->getCodeDefinedSyncDir();

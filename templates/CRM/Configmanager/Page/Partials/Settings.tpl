@@ -199,10 +199,18 @@
           </div>
 
           <div class="civicfg-settings-field">
-            <label for="ignore_values"><strong>{ts}Ignore specific YAML values{/ts}</strong></label>
+            <label><strong>{ts}Built-in runtime value ignores{/ts}</strong></label>
+            <div>
+              <textarea class="crm-form-textarea" readonly="readonly">{$builtInIgnoreValues|escape}</textarea>
+              <p class="description">{ts}Always active. These volatile job/token timestamps are runtime state, not portable configuration, so they are excluded from diff, export, import, preview, and ZIP output on every installation.{/ts}</p>
+            </div>
+          </div>
+
+          <div class="civicfg-settings-field">
+            <label for="ignore_values"><strong>{ts}Additional Config Ignore Values{/ts}</strong></label>
             <div>
               <textarea id="ignore_values" name="ignore_values" class="crm-form-textarea">{$ignoreValues|escape}</textarea>
-              <p class="description">{ts}One field-level rule per line in path/to/file.yml:dot.path format. Use this only for deliberately environment-local values; do not ignore identities or required dependencies.{/ts}</p>
+              <p class="description">{ts}Optional project-specific rules, one per line in path/to/file.yml:dot.path format. These are merged with the built-in rules above. Do not ignore identities, required dependencies, or values that should deploy between environments.{/ts}</p>
             </div>
           </div>
 

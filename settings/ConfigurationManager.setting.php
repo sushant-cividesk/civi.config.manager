@@ -49,7 +49,7 @@ return [
     'default' => [],
     'add' => '5.0',
     'title' => ts('Configuration Manager Ignored YAML Values'),
-    'description' => ts('Relative YAML path plus dot-path rules ignored during diff, export, import, and single-file preview.'),
+    'description' => ts('Additional project-specific relative YAML path plus dot-path rules. These are merged with Configuration Manager built-in runtime-value ignores during diff, export, import, and preview.'),
     'is_domain' => 1,
     'is_contact' => 0,
   ],

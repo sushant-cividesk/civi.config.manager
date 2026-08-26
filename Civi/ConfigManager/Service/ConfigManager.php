@@ -7,6 +7,20 @@ use Civi\ConfigManager\Version;
 
 class ConfigManager {
   private const WATCH_HISTORY_LIMIT = 200;
+
+  /**
+   * Universal runtime-only YAML values excluded from portable configuration.
+   *
+   * These fields are maintained by CiviCRM while jobs/tokens run and are not
+   * meaningful deployment configuration. They are always ignored in addition
+   * to any administrator-defined Config Ignore Values.
+   */
+  private const BUILT_IN_IGNORE_VALUE_RULES = [
+    'extensions/*/api3/Job/*.yml:item.last_run',
+    'extensions/*/api3/Job/*.yml:item.last_run_end',
+    'scheduled-jobs/*.yml:item.scheduled_run_date',
+    'site-tokens/*.yml:item.modified_date',
+  ];
   private HandlerRegistry $registry;
   private ConfigScope $scope;
   private ?array $allHandlersCache = NULL;
@@ -2418,7 +2432,21 @@ class ConfigManager {
   }
 
 
-  public function getIgnoreValuePatterns(): array {
+  /**
+   * Return universal runtime-only ignore rules owned by the extension.
+   *
+   * @return string[]
+   */
+  public function getBuiltInIgnoreValueRules(): array {
+    return self::BUILT_IN_IGNORE_VALUE_RULES;
+  }
+
+  /**
+   * Return administrator-defined ignore rules only.
+   *
+   * @return string[]
+   */
+  public function getConfiguredIgnoreValueRules(): array {
     $configured = (array) \Civi::settings()->get('civicfg_ignore_values');
     $rules = [];
     foreach ($configured as $rule) {
@@ -2432,9 +2460,33 @@ class ConfigManager {
       if ($path === '' || $valuePath === '') {
         continue;
       }
-      $rules[] = ['path' => $path, 'value_path' => $valuePath, 'raw' => $path . ':' . $valuePath];
+      $raw = $path . ':' . $valuePath;
+      if (in_array($raw, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
+        continue;
+      }
+      $rules[$raw] = TRUE;
     }
-    return $rules;
+    $values = array_keys($rules);
+    sort($values, SORT_NATURAL | SORT_FLAG_CASE);
+    return $values;
+  }
+
+  /**
+   * Return the effective built-in + administrator Config Ignore Values.
+   */
+  public function getIgnoreValuePatterns(): array {
+    $effective = array_merge(self::BUILT_IN_IGNORE_VALUE_RULES, $this->getConfiguredIgnoreValueRules());
+    $rules = [];
+    foreach ($effective as $rule) {
+      [$path, $valuePath] = array_map('trim', explode(':', (string) $rule, 2));
+      $raw = trim($path, '/') . ':' . trim($valuePath);
+      $rules[$raw] = [
+        'path' => trim($path, '/'),
+        'value_path' => trim($valuePath),
+        'raw' => $raw,
+      ];
+    }
+    return array_values($rules);
   }
 
   private function filterIgnoredValuesInFiles(string $directory, array $files): array {
@@ -2807,7 +2859,7 @@ class ConfigManager {
     $rules = [];
     foreach ($existing as $rule) {
       $rule = trim(str_replace('\\', '/', (string) $rule));
-      if ($rule !== '') {
+      if ($rule !== '' && !in_array($rule, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
         $rules[$rule] = TRUE;
       }
     }
@@ -2816,7 +2868,10 @@ class ConfigManager {
       if ($valuePath === '' || strpos($valuePath, '..') !== FALSE) {
         continue;
       }
-      $rules[$relativePath . ':' . $valuePath] = TRUE;
+      $rule = $relativePath . ':' . $valuePath;
+      if (!in_array($rule, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
+        $rules[$rule] = TRUE;
+      }
     }
     $values = array_keys($rules);
     sort($values, SORT_NATURAL | SORT_FLAG_CASE);
