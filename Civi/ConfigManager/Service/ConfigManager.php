@@ -1,6 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Service;
 
+use Civi\ConfigManager\Handler\ScopePickerHintProviderInterface;
 use Civi\ConfigManager\Storage\YamlFileStorage;
 use Civi\ConfigManager\Util\SimpleYaml;
 use Civi\ConfigManager\Version;
@@ -708,6 +709,18 @@ class ConfigManager {
 
     $storage = new YamlFileStorage($this->getSyncDir());
     $exported = $this->attachScopeRelativePaths($handler, $handler->export());
+    $pickerHints = [];
+    if ($handler instanceof ScopePickerHintProviderInterface) {
+      try {
+        $pickerHints = (array) $handler->getScopePickerHints($exported);
+      }
+      catch (\Throwable $e) {
+        // Picker recommendations are optional UX metadata. Never make scope
+        // selection unavailable merely because a recommendation cannot be
+        // calculated on a particular CiviCRM/provider version.
+        $pickerHints = [];
+      }
+    }
     $partition = $this->scopePartition($handler, $exported, $storage, FALSE);
     $selectedKeys = array_fill_keys(array_map('strval', (array) ($partition['managed_config_keys'] ?? [])), TRUE);
     $identityService = new ConfigIdentity();
@@ -726,6 +739,7 @@ class ConfigManager {
       if ($this->isIgnoredPath($relative)) {
         continue;
       }
+      $pickerHint = (array) ($pickerHints[$filename] ?? []);
       $items[] = [
         'selector' => 'key:' . $configKey,
         'config_key' => $configKey,
@@ -735,6 +749,9 @@ class ConfigManager {
         'selected' => isset($selectedKeys[$configKey]),
         'write_safe' => !empty($identity['write_safe']),
         'identity_confidence' => (string) ($identity['identity_confidence'] ?? ''),
+        'recommended' => !empty($pickerHint['recommended']),
+        'reference' => !empty($pickerHint['reference']),
+        'recommendation' => trim((string) ($pickerHint['recommendation'] ?? '')),
       ];
     }
 
@@ -780,9 +797,20 @@ class ConfigManager {
     }
 
     usort($items, static function($a, $b) {
+      $recommendedCmp = ((int) !empty($b['recommended'])) <=> ((int) !empty($a['recommended']));
+      if ($recommendedCmp !== 0) {
+        return $recommendedCmp;
+      }
       $missingCmp = ((int) !empty($a['missing'])) <=> ((int) !empty($b['missing']));
       if ($missingCmp !== 0) {
         return $missingCmp;
+      }
+      // Reserved workflow reference templates are useful for advanced review,
+      // but CiviCRM itself hides them from the normal Message Templates list.
+      // Keep them selectable while placing them after live/user templates.
+      $referenceCmp = ((int) !empty($a['reference'])) <=> ((int) !empty($b['reference']));
+      if ($referenceCmp !== 0) {
+        return $referenceCmp;
       }
       return strnatcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
     });

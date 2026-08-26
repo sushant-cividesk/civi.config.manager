@@ -402,7 +402,7 @@
       modal._civicfgRow = null;
     }
 
-    function renderScopePickerItems(modal, items, currentSelectors) {
+    function renderScopePickerItems(modal, items, currentSelectors, autoSelectRecommended) {
       var list = modal.querySelector('#civicfg-scope-picker-list');
       var status = modal.querySelector('#civicfg-scope-picker-status');
       list.innerHTML = '';
@@ -412,33 +412,63 @@
 
       items.forEach(function(item, index) {
         var option = document.createElement('label');
-        option.className = 'civicfg-scope-picker-item' + (item.missing ? ' is-missing' : '') + (!item.write_safe && !item.missing ? ' is-readonly' : '');
-        option.setAttribute('data-search', ((item.label || '') + ' ' + (item.path || '') + ' ' + (item.source_id || '')).toLowerCase());
+        option.className = 'civicfg-scope-picker-item' + (item.missing ? ' is-missing' : '') + (!item.write_safe && !item.missing ? ' is-readonly' : '') + (item.recommended ? ' is-recommended' : '') + (item.reference ? ' is-reference' : '');
+        option.setAttribute('data-search', ((item.label || '') + ' ' + (item.path || '') + ' ' + (item.source_id || '') + ' ' + (item.recommendation || '')).toLowerCase());
         var checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = item.selector || '';
         checkbox.setAttribute('data-civicfg-scope-option', '1');
-        checkbox.checked = !!current[checkbox.value] || (hasCurrentSelectors && !!item.selected);
+        checkbox.checked = !!current[checkbox.value] || (hasCurrentSelectors && !!item.selected) || (!hasCurrentSelectors && autoSelectRecommended && !!item.recommended);
         var body = document.createElement('span');
         body.className = 'civicfg-scope-picker-item-body';
+        var titleLine = document.createElement('span');
+        titleLine.className = 'civicfg-scope-picker-title-line';
         var title = document.createElement('strong');
         title.textContent = item.label || item.path || ('Item ' + (index + 1));
+        titleLine.appendChild(title);
+        if (item.recommended) {
+          var recommendedBadge = document.createElement('span');
+          recommendedBadge.className = 'civicfg-badge good civicfg-scope-picker-badge';
+          recommendedBadge.textContent = 'Customized in CiviCRM';
+          titleLine.appendChild(recommendedBadge);
+        }
+        else if (item.reference) {
+          var referenceBadge = document.createElement('span');
+          referenceBadge.className = 'civicfg-badge civicfg-scope-picker-badge';
+          referenceBadge.textContent = 'System reference';
+          titleLine.appendChild(referenceBadge);
+        }
         var meta = document.createElement('span');
         meta.className = 'civicfg-muted civicfg-scope-picker-meta';
         var parts = [];
         if (item.path) { parts.push(item.path); }
         if (item.source_id) { parts.push('Local ID ' + item.source_id); }
+        if (item.recommendation) { parts.push(item.recommendation); }
         if (item.missing) { parts.push('Currently missing'); }
         else if (!item.write_safe) { parts.push('Backup/monitor only: automatic writes blocked'); }
         meta.textContent = parts.join(' • ');
-        body.appendChild(title);
+        body.appendChild(titleLine);
         if (parts.length) { body.appendChild(meta); }
         option.appendChild(checkbox);
         option.appendChild(body);
         list.appendChild(option);
       });
-      status.textContent = items.length ? (items.length + ' item(s) available') : 'No selectable items were found for this configuration type.';
+      var recommendedCount = items.filter(function(item) { return !!item.recommended; }).length;
+      var referenceCount = items.filter(function(item) { return !!item.reference; }).length;
+      if (!items.length) {
+        status.textContent = 'No selectable items were found for this configuration type.';
+      }
+      else if (recommendedCount > 0 && autoSelectRecommended) {
+        status.textContent = recommendedCount + ' customized workflow template(s) are shown first and pre-selected because CiviCRM currently shows Revert for them. ' + referenceCount + ' system reference template(s) are kept at the end for advanced use.';
+      }
+      else if (recommendedCount > 0) {
+        status.textContent = recommendedCount + ' customized workflow template(s) are shown first because CiviCRM currently shows Revert for them. Existing saved selections are kept; check or uncheck items explicitly before saving. ' + referenceCount + ' system reference template(s) are kept at the end for advanced use.';
+      }
+      else {
+        status.textContent = items.length + " item(s) available. No customized workflow template currently matches CiviCRM's Revert condition.";
+      }
       status.setAttribute('data-civicfg-total-items', String(items.length));
+      status.setAttribute('data-civicfg-base-status', status.textContent);
     }
 
     function filterScopePickerItems(modal, query) {
@@ -460,7 +490,7 @@
         status.textContent = visible + ' of ' + items.length + ' item(s) shown';
       }
       else {
-        status.textContent = items.length + ' item(s) available';
+        status.textContent = status.getAttribute('data-civicfg-base-status') || (items.length + ' item(s) available');
       }
     }
 
@@ -500,7 +530,9 @@
             return;
           }
           var loadedItems = data.items || [];
-          renderScopePickerItems(modal, loadedItems, currentSelectors);
+          var savedPolicy = data.policy || {};
+          var autoSelectRecommended = currentSelectors.length === 0 && String(savedPolicy.mode || '') !== 'selected';
+          renderScopePickerItems(modal, loadedItems, currentSelectors, autoSelectRecommended);
           var current = {};
           currentSelectors.forEach(function(selector) { current[selector] = true; });
           var hasCurrent = currentSelectors.length > 0;

@@ -1,7 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-class MessageTemplateHandler extends AbstractHandler {
+class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintProviderInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
@@ -74,6 +74,67 @@ class MessageTemplateHandler extends AbstractHandler {
       ];
     }
     return $files;
+  }
+
+  /**
+   * Identify workflow templates that CiviCRM would offer to revert.
+   *
+   * CiviCRM compares each workflow template with its reserved reference copy
+   * using the subject, text, and HTML fields. Reuse the already-exported API4
+   * data here so the scope picker follows that model without raw SQL or a
+   * version-specific dependency on the Message Templates admin page.
+   *
+   * @param array $exported
+   *   Files returned by export().
+   *
+   * @return array
+   *   Picker hints keyed by exported filename.
+   */
+  public function getScopePickerHints(array $exported): array {
+    $reservedByWorkflow = [];
+    $hints = [];
+    foreach ($exported as $file) {
+      $file = (array) $file;
+      $filename = (string) ($file['filename'] ?? '');
+      $template = (array) (($file['data']['template'] ?? []));
+      $workflow = trim((string) ($template['workflow_name'] ?? ''));
+      if ($workflow === '' || empty($template['is_reserved'])) {
+        continue;
+      }
+      $reservedByWorkflow[$workflow][] = $template;
+      if ($filename !== '') {
+        // CiviCRM's Message Templates screen does not list these reserved
+        // reference copies as editable workflow templates. Keep them available
+        // in advanced scope selection, but clearly classify them and sort them
+        // after the live templates so the picker mirrors core terminology.
+        $hints[$filename] = [
+          'reference' => TRUE,
+          'recommendation' => 'System reference used by CiviCRM Revert',
+        ];
+      }
+    }
+
+    foreach ($exported as $file) {
+      $file = (array) $file;
+      $filename = (string) ($file['filename'] ?? '');
+      $template = (array) (($file['data']['template'] ?? []));
+      $workflow = trim((string) ($template['workflow_name'] ?? ''));
+      if ($filename === '' || $workflow === '' || !empty($template['is_reserved'])) {
+        continue;
+      }
+
+      $references = (array) ($reservedByWorkflow[$workflow] ?? []);
+      if (count($references) !== 1 || !$this->workflowContentDiffers($template, (array) $references[0])) {
+        continue;
+      }
+
+      $hints[$filename] = [
+        'recommended' => TRUE,
+        'recommendation' => 'CiviCRM shows Revert for this customized workflow template',
+      ];
+    }
+
+    return $hints;
   }
 
   public function validate(array $items): array {
@@ -243,6 +304,26 @@ class MessageTemplateHandler extends AbstractHandler {
     }
     $used[$candidate] = TRUE;
     return $candidate;
+  }
+
+  /**
+   * Mirror the content fields used by CiviCRM's Revert availability check.
+   */
+  private function workflowContentDiffers(array $current, array $reserved): bool {
+    foreach (['msg_subject', 'msg_text', 'msg_html'] as $field) {
+      $currentValue = $current[$field] ?? NULL;
+      $reservedValue = $reserved[$field] ?? NULL;
+
+      // CiviCRM's historical comparison is SQL-based, where NULL does not
+      // satisfy an inequality comparison. Preserve that behavior here.
+      if ($currentValue === NULL || $reservedValue === NULL) {
+        continue;
+      }
+      if ((string) $currentValue !== (string) $reservedValue) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   private function safeName(string $name): string {

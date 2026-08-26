@@ -324,13 +324,17 @@
 .crm-configmanager-block .civicfg-scope-picker-box {width: min(860px, 92vw);}
 .crm-configmanager-block .civicfg-scope-search {width: 100%; margin: 0 0 .65rem;}
 .crm-configmanager-block .civicfg-scope-picker-status {margin: .35rem 0 .6rem; color: #5f6b7a;}
-.crm-configmanager-block .civicfg-scope-picker-list {display: grid; gap: .35rem; max-height: 52vh; overflow: auto; border: 1px solid #d7dce2; border-radius: 4px; padding: .35rem;}
+.crm-configmanager-block .civicfg-scope-picker-list {display: grid; gap: .45rem; max-height: 52vh; overflow: auto; border: 1px solid #d7dce2; border-radius: 4px; padding: .35rem;}
 .crm-configmanager-block .civicfg-scope-picker-item {display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; align-items: start; padding: .55rem; margin: 0; border-radius: 3px; cursor: pointer;}
 .crm-configmanager-block .civicfg-scope-picker-item:hover {background: #f3f6f8;}
 .crm-configmanager-block .civicfg-scope-picker-item.is-filtered {display: none !important;}
 .crm-configmanager-block .civicfg-scope-picker-item.is-missing {background: #fff8e5;}
 .crm-configmanager-block .civicfg-scope-picker-item.is-readonly {border-left: 3px solid #8aa4c2;}
+.crm-configmanager-block .civicfg-scope-picker-item.is-recommended {border-left: 3px solid #4f7f52; background: #f5fbf5;}
+.crm-configmanager-block .civicfg-scope-picker-item.is-reference {background: #f7f8fa;}
 .crm-configmanager-block .civicfg-scope-picker-item-body {display: flex; flex-direction: column; min-width: 0;}
+.crm-configmanager-block .civicfg-scope-picker-title-line {display: flex; flex-wrap: wrap; gap: .45rem; align-items: center;}
+.crm-configmanager-block .civicfg-scope-picker-badge {font-size: .74rem; padding: .1rem .4rem;}
 .crm-configmanager-block .civicfg-scope-picker-meta {font-size: .84rem; overflow-wrap: anywhere; margin-top: .15rem;}
 @media (max-width: 720px) {
   .crm-configmanager-block .civicfg-settings-field {grid-template-columns: 1fr;}
