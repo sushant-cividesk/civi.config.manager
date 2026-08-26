@@ -429,7 +429,7 @@
         if (item.recommended) {
           var recommendedBadge = document.createElement('span');
           recommendedBadge.className = 'civicfg-badge good civicfg-scope-picker-badge';
-          recommendedBadge.textContent = 'Customized in CiviCRM';
+          recommendedBadge.textContent = 'Overridden in CiviCRM';
           titleLine.appendChild(recommendedBadge);
         }
         else if (item.reference) {
