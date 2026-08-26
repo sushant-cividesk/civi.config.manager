@@ -9,7 +9,18 @@ class Canonicalizer {
   public const HASH_ALGORITHM = 'sha256';
 
   public function hash(array $data, array $options = []): string {
-    $canonical = $this->canonicalize($data, $options);
+    return $this->hashCanonical($this->canonicalize($data, $options));
+  }
+
+  /**
+   * Hash a value that has already been canonicalized.
+   *
+   * State tracking needs both the canonical document and its fingerprint. This
+   * avoids canonicalizing large YAML/config bodies twice for every object.
+   *
+   * @param mixed $canonical
+   */
+  public function hashCanonical($canonical): string {
     $json = json_encode($canonical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
     if ($json === FALSE) {
       throw new \RuntimeException('Could not encode canonical configuration for fingerprinting.');

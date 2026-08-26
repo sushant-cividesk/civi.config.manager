@@ -37,6 +37,55 @@ namespace Civi\Api4 {
     class CiviRulesRuleAction {
     }
   }
+
+
+  if (!class_exists(CivicfgPagingTestEntity::class)) {
+    class CivicfgPagingTestEntity {
+      public static array $rows = [];
+      public static int $executeCalls = 0;
+
+      public static function get(bool $checkPermissions = TRUE): CivicfgPagingGetAction {
+        return new CivicfgPagingGetAction();
+      }
+    }
+  }
+
+  if (!class_exists(CivicfgPagingGetAction::class)) {
+    class CivicfgPagingGetAction {
+      private int $limit = 0;
+      private int $offset = 0;
+
+      public function addSelect(...$fields): self {
+        return $this;
+      }
+
+      public function addWhere(...$condition): self {
+        return $this;
+      }
+
+      public function addOrderBy(string $field, string $direction): self {
+        return $this;
+      }
+
+      public function setLimit(int $limit): self {
+        $this->limit = $limit;
+        return $this;
+      }
+
+      public function setOffset(int $offset): self {
+        $this->offset = $offset;
+        return $this;
+      }
+
+      public function execute(): array {
+        CivicfgPagingTestEntity::$executeCalls++;
+        if ($this->limit <= 0) {
+          return array_slice(CivicfgPagingTestEntity::$rows, $this->offset);
+        }
+        return array_slice(CivicfgPagingTestEntity::$rows, $this->offset, $this->limit);
+      }
+    }
+  }
 }
 
 namespace {

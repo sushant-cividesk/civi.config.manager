@@ -35,6 +35,11 @@ class MainPage {
     $notice = NULL;
     $validationResult = NULL;
     $importResult = NULL;
+    $sessionValidationResult = \CRM_Core_Session::singleton()->get('civicfg_last_validation_result');
+    if (is_array($sessionValidationResult)) {
+      $validationResult = $sessionValidationResult;
+      \CRM_Core_Session::singleton()->set('civicfg_last_validation_result', NULL);
+    }
     $sessionImportResult = \CRM_Core_Session::singleton()->get('civicfg_last_import_result');
     if (is_array($sessionImportResult)) {
       $importResult = $sessionImportResult;
@@ -170,40 +175,29 @@ class MainPage {
         $importTypes = $this->request->getSelectedTypes();
         $importResult = $this->manager->import(FALSE, TRUE, $importTypes ?: []);
         \CRM_Core_Session::singleton()->set('civicfg_last_import_result', $importResult);
-        $afterDiff = $this->manager->diff([]);
-        $remaining = $this->presenter->countDiffChanges($afterDiff);
         $summaryMessage = (string) ($importResult['summary_message'] ?? '');
-        if (!empty($importResult['ok']) && $remaining === 0) {
-          $notice = trim(ts('Import complete. YAML files and active CiviCRM configuration now match.') . ' ' . $summaryMessage);
+        if (!empty($importResult['ok'])) {
+          // Do not run a second complete active/YAML diff in the same request.
+          // The redirect opens Synchronize, whose fresh request performs the
+          // authoritative post-import diff with a clean memory budget.
+          $notice = trim(ts('Import complete. Synchronize will verify the resulting configuration state.') . ' ' . $summaryMessage);
           $type = 'success';
-        }
-        elseif (!empty($importResult['ok'])) {
-          $notice = trim(ts('Import ran, but %1 pending change(s) remain. Review the remaining changes below.', [1 => $remaining]) . ' ' . $summaryMessage);
-          $type = 'warning';
         }
         else {
           $firstProblem = $this->presenter->firstImportProblem($importResult);
-          if ($remaining === 0) {
-            $notice = trim(ts('Import completed with non-blocking issue(s), and no pending configuration changes remain.') . ' ' . ($firstProblem ?: '') . ' ' . $summaryMessage);
-            $type = 'warning';
-          }
-          else {
-            $notice = trim(ts('Import found problems.') . ' ' . ($firstProblem ?: ts('Review the warnings or errors below.')) . ' ' . $summaryMessage);
-            $type = 'error';
-          }
+          $notice = trim(ts('Import found problems.') . ' ' . ($firstProblem ?: ts('Review the warnings or errors below.')) . ' ' . $summaryMessage);
+          $type = 'error';
         }
         $this->redirectWithNotice($notice, 'sync', $type);
       }
       elseif ($postAction === 'validate_files') {
         $validationResult = $this->manager->validate($types);
-        $op = 'sync';
-        $result = $this->manager->diff($types);
-
-        \CRM_Core_Session::setStatus(
+        \CRM_Core_Session::singleton()->set('civicfg_last_validation_result', $validationResult);
+        $this->redirectWithNotice(
           !empty($validationResult['ok'])
             ? ts('Validation passed. No YAML format problems were found for the selected files.')
             : ts('Validation found problems. Review the validation details below.'),
-          ts('Configuration Manager'),
+          'sync',
           !empty($validationResult['ok']) ? 'success' : 'error'
         );
       }

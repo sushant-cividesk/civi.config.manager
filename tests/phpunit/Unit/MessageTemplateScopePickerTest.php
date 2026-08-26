@@ -66,7 +66,7 @@ final class MessageTemplateScopePickerTest extends TestCase {
 
     self::assertStringContainsString("String(savedPolicy.mode || '') !== 'selected'", $javascript);
     self::assertStringContainsString('autoSelectRecommended && !!item.recommended', $javascript);
-    self::assertStringContainsString('Overridden in CiviCRM', $javascript);
+    self::assertStringContainsString('Customized in CiviCRM', $javascript);
     self::assertStringContainsString('System reference', $javascript);
     self::assertStringContainsString('Existing saved selections are kept', $javascript);
     self::assertStringContainsString('item.recommendation', $javascript);

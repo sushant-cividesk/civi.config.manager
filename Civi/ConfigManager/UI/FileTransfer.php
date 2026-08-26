@@ -14,7 +14,7 @@ use FilesystemIterator;
  * Handles import/export file transfers and single-file preview/downloads.
  */
 class FileTransfer {
-  private const MAX_UPLOAD_FILES = 500;
+  private const MAX_UPLOAD_FILES = 10000;
   private const MAX_YAML_FILE_BYTES = 5242880;
   private const MAX_ARCHIVE_BYTES = 52428800;
 
@@ -285,14 +285,9 @@ class FileTransfer {
     }
 
     // Build the archive from the *effective managed YAML set*, not by blindly
-    // copying every YAML file left on disk. Selected-scope backups may be kept
-    // locally after deselection for safety, but they must not leak back into a
-    // managed export archive.
-    $managedFiles = $manager->getManagedYamlArchiveFiles();
-    if (!$managedFiles) {
-      throw new RuntimeException('No managed YAML files are available for download.');
-    }
-
+    // copying every YAML file left on disk. Stream one handler/file at a time
+    // so a large managed set does not need to be parsed and retained in one
+    // giant PHP array before ZipArchive starts writing.
     $temporary = tempnam(sys_get_temp_dir(), 'civicfg-');
     if ($temporary === FALSE) {
       throw new RuntimeException('Could not create a temporary archive path.');
@@ -305,7 +300,7 @@ class FileTransfer {
     }
     $added = 0;
     try {
-      foreach ($managedFiles as $relative => $data) {
+      foreach ($manager->iterateManagedYamlArchiveFiles() as $relative => $data) {
         $relative = str_replace('\\', '/', (string) $relative);
         if (!$this->isSafeRelativeYamlPath($relative) && $relative !== 'manifest.yml') {
           continue;

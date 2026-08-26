@@ -38,6 +38,14 @@ The extension is intentionally conservative.
 
 See [Architecture](docs/ARCHITECTURE.md) for the design and [Testing](docs/TESTING.md) for release gates.
 
+## Large-site execution
+
+Configuration Manager is designed to keep collection work bounded rather than asking PHP/CiviCRM to materialize an entire site configuration in one API call. Core and contributed-provider collection reads use bounded pages where the provider supports paging, Manage Everything avoids item-selector copies, large validation/import passes retain compact dependency metadata, and managed ZIP creation processes one handler at a time.
+
+The extension does **not** raise PHP `memory_limit` as a workaround. Standard API3 `get` providers are paged; custom contributed collection actions that cannot demonstrate safe offset paging fail closed rather than being silently truncated or looped indefinitely. Import and validation also avoid immediately running another full synchronization scan in the same HTTP request; the redirected Synchronize request performs that verification with a fresh request memory budget.
+
+For very large sites, prefer the CLI for unattended operations so web-proxy request timeouts are not part of the execution path. The UI and CLI still use the same service and safety rules.
+
 ## Supported configuration
 
 Built-in handlers cover the core configuration used by most CiviCRM deployments, including:

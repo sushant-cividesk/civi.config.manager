@@ -224,7 +224,7 @@ class ConfigStateManager {
       'filename' => $filename,
       'identity' => $identity,
       'canonical' => $canonical,
-      'hash' => $this->canonicalizer->hash($data, $options),
+      'hash' => $this->canonicalizer->hashCanonical($canonical),
     ];
   }
 }

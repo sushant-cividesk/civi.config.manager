@@ -87,7 +87,12 @@ class ExtensionHandler extends AbstractHandler {
       $this->addExportError('Extension provider configuration could not be discovered: ' . $e->getMessage());
     }
 
-    $files = [];
+    // Reuse the split-provider file array instead of copying every provider
+    // document into a second accumulator before the extension status files are
+    // added. This matters on sites where contributed providers export hundreds
+    // or thousands of split YAML documents.
+    $files = (array) ($configExport['files'] ?? []);
+    unset($configExport['files']);
     foreach ($manager->getStatuses() as $key => $status) {
       $key = (string) $key;
       if (!$this->extensionMatchesRuntimeFilter($key)) {
@@ -114,9 +119,6 @@ class ExtensionHandler extends AbstractHandler {
         'filename' => $this->safeName($key) . '.yml',
         'data' => $data,
       ];
-    }
-    foreach (($configExport['files'] ?? []) as $file) {
-      $files[] = $file;
     }
     usort($files, fn($a, $b) => strcmp($a['filename'], $b['filename']));
     return $files;
@@ -583,6 +585,7 @@ class ExtensionHandler extends AbstractHandler {
       ];
       return;
     }
+    $identityCounts = $this->identityMultiplicityForRows($rows, $definition);
     foreach ($rows as $existing) {
       if (empty($existing['id'])) {
         continue;
@@ -593,7 +596,7 @@ class ExtensionHandler extends AbstractHandler {
       }
       $identity = (string) $existing[$identityField];
       $confidence = $this->identityConfidence($identityField, $definition);
-      if ($confidence === 'AMBIGUOUS' || !$this->identityValueIsUnique($rows, $identityField, $identity)) {
+      if ($confidence === 'AMBIGUOUS' || (($identityCounts[$identityField][$identity] ?? 0) !== 1)) {
         $summary['config']['skip']++;
         $summary['compatibility'][] = [
           'name' => $identity,
@@ -952,6 +955,7 @@ class ExtensionHandler extends AbstractHandler {
         }
 
         $providerRows = $this->identityRowsForDefinition($definition);
+        $identityCounts = $this->identityMultiplicityForRows($providerRows, $definition);
         $usedNames = [];
         foreach ($providerRows as $row) {
           $identityField = $this->identityField($row, $definition);
@@ -960,7 +964,7 @@ class ExtensionHandler extends AbstractHandler {
           }
           $identity = (string) $row[$identityField];
           $identityConfidence = $this->identityConfidence($identityField, $definition);
-          if ($identityConfidence !== 'AMBIGUOUS' && !$this->identityValueIsUnique($providerRows, $identityField, $identity)) {
+          if ($identityConfidence !== 'AMBIGUOUS' && (($identityCounts[$identityField][$identity] ?? 0) !== 1)) {
             $identityConfidence = 'AMBIGUOUS';
           }
           $safeExtension = $this->safeName($extensionKey);
@@ -1005,6 +1009,13 @@ class ExtensionHandler extends AbstractHandler {
       catch (\Throwable $e) {
         $provider = trim($extensionKey . ' ' . $api . ' ' . $entity);
         $this->addExportError('Extension configuration provider ' . ($provider !== '' ? $provider : '(unknown)') . ' could not be exported: ' . $e->getMessage());
+      }
+
+      finally {
+        // Export only needs one provider collection at a time. Release the
+        // identity cache before moving to the next extension provider so a
+        // large site does not retain every provider row for the whole request.
+        $this->invalidateIdentityRowsForDefinition($definition);
       }
     }
 
@@ -1577,10 +1588,14 @@ class ExtensionHandler extends AbstractHandler {
     $actions = array_merge(['get', 'get_all', 'getall'], $this->api3CollectionActionCandidates($this->api3EntityActions($entity)));
     foreach (array_values(array_unique($actions)) as $action) {
       try {
-        $params = ['sequential' => 1];
-        if ($action === 'get') {
-          $params['options'] = ['limit' => 1];
-        }
+        // Keep discovery probes bounded. API3's global options are safe for
+        // standard get and are also understood by well-behaved contributed
+        // collection actions; actions which ignore them are still executed only
+        // as a probe here and never looped.
+        $params = [
+          'sequential' => 1,
+          'options' => ['limit' => 1, 'offset' => 0],
+        ];
         civicrm_api3($entity, $action, $params);
         self::$api3ListActionByEntity[$cacheKey] = $action;
         return self::$api3ListActionByEntity[$cacheKey];
@@ -1733,7 +1748,10 @@ class ExtensionHandler extends AbstractHandler {
         throw new \RuntimeException('Contributed configuration provider is unavailable: API4 ' . $entity . '.');
       }
       try {
-        return (array) $class::get(FALSE)->addSelect('*')->execute();
+        // Use AbstractHandler's bounded API4 reader. Large contributed
+        // providers must not ask API4 to materialize the complete collection
+        // in one request.
+        return $this->api4Get($entity, [], ['*']);
       }
       catch (\Throwable $e) {
         throw new \RuntimeException('Could not read contributed configuration provider API4 ' . $entity . ': ' . $e->getMessage(), 0, $e);
@@ -1747,12 +1765,16 @@ class ExtensionHandler extends AbstractHandler {
 
     try {
       $action = (string) ($definition['list_action'] ?? 'get');
-      $params = ['sequential' => 1];
       if ($action === 'get') {
-        $params['options'] = ['limit' => 0];
+        $rows = $this->fetchApi3GetRowsPaged($entity);
       }
-      $result = civicrm_api3($entity, $action, $params);
-      $rows = $this->normalizeApi3Rows((array) $result);
+      else {
+        // Contributed get-all actions are not guaranteed to implement offset
+        // semantics. Ask for a bounded page once; if the provider honors API3
+        // options we page it, otherwise preserve the returned collection and
+        // never risk an infinite pagination loop.
+        $rows = $this->fetchApi3CollectionRowsConservatively($entity, $action);
+      }
 
       // A custom get-all action may intentionally return a lightweight list.
       // When the entity also has get and rows expose IDs, hydrate each row so
@@ -1764,7 +1786,11 @@ class ExtensionHandler extends AbstractHandler {
             continue;
           }
           try {
-            $detail = civicrm_api3($entity, 'get', ['sequential' => 1, 'id' => $row['id']]);
+            $detail = civicrm_api3($entity, 'get', [
+              'sequential' => 1,
+              'id' => $row['id'],
+              'options' => ['limit' => 1],
+            ]);
             $detailRows = $this->normalizeApi3Rows((array) $detail);
             if (!empty($detailRows[0])) {
               $rows[$index] = (array) $detailRows[0];
@@ -1783,6 +1809,100 @@ class ExtensionHandler extends AbstractHandler {
       }
       throw new \RuntimeException('Could not read contributed configuration provider API3 ' . $entity . '.' . (string) ($definition['list_action'] ?? 'get') . ': ' . $e->getMessage(), 0, $e);
     }
+  }
+
+  /**
+   * Read a normal API3 get collection in bounded pages.
+   */
+  private function fetchApi3GetRowsPaged(string $entity): array {
+    $rows = [];
+    $offset = 0;
+    $batchSize = 200;
+    while (TRUE) {
+      $result = civicrm_api3($entity, 'get', [
+        'sequential' => 1,
+        'options' => ['limit' => $batchSize, 'offset' => $offset],
+      ]);
+      $page = $this->normalizeApi3Rows((array) $result);
+      foreach ($page as $row) {
+        $rows[] = $row;
+      }
+      $count = count($page);
+      unset($page, $result);
+      if ($count < $batchSize) {
+        break;
+      }
+      $offset += $count;
+    }
+    return $rows;
+  }
+
+  /**
+   * Page a contributed read action only when it demonstrably honors offsets.
+   *
+   * Custom API3 get-all actions vary widely. The first call is bounded through
+   * API3 options. If a full page is returned, a second page is requested. A
+   * repeated page means the provider ignored offset; in that case fail closed
+   * rather than silently truncating or looping forever.
+   */
+  private function fetchApi3CollectionRowsConservatively(string $entity, string $action): array {
+    $batchSize = 200;
+    $result = civicrm_api3($entity, $action, [
+      'sequential' => 1,
+      'options' => ['limit' => $batchSize, 'offset' => 0],
+    ]);
+    $rows = $this->normalizeApi3Rows((array) $result);
+    unset($result);
+    if (count($rows) < $batchSize) {
+      return array_values($rows);
+    }
+
+    $offset = count($rows);
+    $seenPages = [$this->api3PageFingerprint($rows) => TRUE];
+    while (TRUE) {
+      $result = civicrm_api3($entity, $action, [
+        'sequential' => 1,
+        'options' => ['limit' => $batchSize, 'offset' => $offset],
+      ]);
+      $page = $this->normalizeApi3Rows((array) $result);
+      unset($result);
+      if (!$page) {
+        break;
+      }
+      $fingerprint = $this->api3PageFingerprint($page);
+      if (isset($seenPages[$fingerprint])) {
+        throw new \RuntimeException('Provider collection action does not honor bounded offset pagination; refusing an incomplete or unbounded export.');
+      }
+      $seenPages[$fingerprint] = TRUE;
+      foreach ($page as $row) {
+        $rows[] = $row;
+      }
+      $count = count($page);
+      unset($page);
+      if ($count < $batchSize) {
+        break;
+      }
+      $offset += $count;
+    }
+    return array_values($rows);
+  }
+
+  private function api3PageFingerprint(array $rows): string {
+    if (!$rows) {
+      return '';
+    }
+    $sample = [];
+    foreach (array_slice($rows, 0, 3) as $row) {
+      $row = (array) $row;
+      foreach (['id', 'key', 'name', 'machine_name', 'title'] as $field) {
+        if (array_key_exists($field, $row) && is_scalar($row[$field])) {
+          $sample[] = $field . '=' . (string) $row[$field];
+          continue 2;
+        }
+      }
+      $sample[] = sha1(serialize($row));
+    }
+    return sha1(implode('|', $sample));
   }
 
   /**
@@ -1809,7 +1929,7 @@ class ExtensionHandler extends AbstractHandler {
         $nativeApi4File = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'Civi' . DIRECTORY_SEPARATOR . 'Api4' . DIRECTORY_SEPARATOR . 'SqlTask.php';
         if ($this->loadApi4ClassFromProvider('SqlTask', $nativeApi4File)) {
           try {
-            return (array) \Civi\Api4\SqlTask::get(FALSE)->addSelect('*')->execute();
+            return $this->api4Get('SqlTask', [], ['*']);
           }
           catch (\Throwable $e) {
             throw new \RuntimeException('Could not read SQLTasks through native API4 fallback: ' . $e->getMessage(), 0, $e);
@@ -2090,6 +2210,12 @@ class ExtensionHandler extends AbstractHandler {
       return $this->identityRowsByDefinition[$key];
     }
 
+    // Keep the cache bounded to the provider currently being inspected. YAML
+    // for extension providers is naturally grouped, so this retains the useful
+    // no-repeat behavior without pinning every provider collection in memory
+    // for the lifetime of a full export/validate/import request.
+    $this->identityRowsByDefinition = [];
+
     $rows = [];
     foreach ($this->fetchEntityRows($definition) as $row) {
       $row = $this->cleanEntityRowForExport((array) $row, $definition);
@@ -2109,18 +2235,43 @@ class ExtensionHandler extends AbstractHandler {
       return 'UNVERIFIED';
     }
 
+    $counts = $this->identityMultiplicityForRows($rows, $definition);
     foreach ($rows as $row) {
       $row = (array) $row;
       $field = $this->identityField($row, $definition);
       if ($field === NULL || $this->identityConfidence($field, $definition) === 'AMBIGUOUS') {
         return 'UNSAFE';
       }
-      if (!$this->identityValueIsUnique($rows, $field, (string) $row[$field])) {
+      $identity = (string) $row[$field];
+      if (($counts[$field][$identity] ?? 0) !== 1) {
         return 'UNSAFE';
       }
     }
 
     return 'SAFE';
+  }
+
+  /**
+   * Build identity multiplicities in O(n) for provider-wide safety checks.
+   *
+   * Older code rescanned the complete provider collection for every row,
+   * making large providers quadratic during export/delete safety analysis.
+   * Keep one compact count map instead.
+   *
+   * @return array<string,array<string,int>>
+   */
+  private function identityMultiplicityForRows(array $rows, array $definition): array {
+    $counts = [];
+    foreach ($rows as $row) {
+      $row = (array) $row;
+      $field = $this->identityField($row, $definition);
+      if ($field === NULL || !array_key_exists($field, $row) || !is_scalar($row[$field])) {
+        continue;
+      }
+      $identity = (string) $row[$field];
+      $counts[$field][$identity] = ($counts[$field][$identity] ?? 0) + 1;
+    }
+    return $counts;
   }
 
   private function findExistingEntityRow(array $definition, string $identityField, string $identity): ?array {

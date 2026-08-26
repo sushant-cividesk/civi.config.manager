@@ -109,4 +109,19 @@ final class CanonicalizerTest extends TestCase {
 
     self::assertSame($service->hash($first), $service->hash($second));
   }
+
+  public function testPrecanonicalizedHashMatchesNormalHash(): void {
+    $canonicalizer = new Canonicalizer();
+    $data = [
+      'type' => 'example.item',
+      'item' => [
+        'name' => 'alpha',
+        'body' => str_repeat('Portable body ', 50),
+      ],
+    ];
+
+    $canonical = $canonicalizer->canonicalize($data);
+    self::assertSame($canonicalizer->hash($data), $canonicalizer->hashCanonical($canonical));
+  }
+
 }

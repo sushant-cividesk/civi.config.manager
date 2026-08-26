@@ -65,7 +65,9 @@ abstract class AbstractHandler implements HandlerInterface {
         ];
       }
 
-      if ($this->fingerprint($dbCompare) !== $this->fingerprint($fileCompare)) {
+      $fileFingerprint = $this->fingerprint($fileCompare);
+      $dbFingerprint = $this->fingerprint($dbCompare);
+      if ($dbFingerprint !== $fileFingerprint) {
         $fieldChanges = $this->structuredChanges($fileCompare, $dbCompare);
         if ($fieldChanges) {
           $changed[] = $fileRow['filename'];
@@ -76,8 +78,8 @@ abstract class AbstractHandler implements HandlerInterface {
             $dbCompare,
             $fieldChanges,
             $fileRow['identity'],
-            $this->fingerprint($fileCompare),
-            $this->fingerprint($dbCompare)
+            $fileFingerprint,
+            $dbFingerprint
           );
         }
       }
@@ -149,13 +151,25 @@ abstract class AbstractHandler implements HandlerInterface {
     ];
     $candidates = [];
 
+    // A valid rename candidate may differ only in the small identity-path set
+    // above. Bucket new records by provider + the remaining document content
+    // first, then run the exact structured-change check only inside matching
+    // buckets. This preserves the conservative rename semantics while avoiding
+    // an O(m*n) comparison when a large site has many added/missing objects.
+    $newBuckets = [];
+    foreach ($newKeys as $newKey) {
+      $new = $dbItems[$newKey];
+      $provider = (string) ($new['identity']['provider_key'] ?? '');
+      $signature = $this->renameStructuralSignature((array) $new['data']);
+      $newBuckets[$provider][$signature][] = $newKey;
+    }
+
     foreach ($missingKeys as $oldKey) {
       $old = $fileItems[$oldKey];
-      foreach ($newKeys as $newKey) {
+      $provider = (string) ($old['identity']['provider_key'] ?? '');
+      $signature = $this->renameStructuralSignature((array) $old['data']);
+      foreach ((array) ($newBuckets[$provider][$signature] ?? []) as $newKey) {
         $new = $dbItems[$newKey];
-        if (($old['identity']['provider_key'] ?? '') !== ($new['identity']['provider_key'] ?? '')) {
-          continue;
-        }
         $oldData = $this->normaliseDataForDiff((array) $old['data']);
         $newData = $this->normaliseDataForDiff((array) $new['data']);
         $changes = $this->structuredChanges($oldData, $newData);
@@ -168,7 +182,7 @@ abstract class AbstractHandler implements HandlerInterface {
           }
         }
         $candidates[] = [
-          'provider_key' => (string) ($old['identity']['provider_key'] ?? ''),
+          'provider_key' => $provider,
           'old_config_key' => (string) ($old['identity']['config_key'] ?? ''),
           'new_config_key' => (string) ($new['identity']['config_key'] ?? ''),
           'old_identity_hash' => (string) ($old['identity']['identity_hash'] ?? ''),
@@ -182,6 +196,24 @@ abstract class AbstractHandler implements HandlerInterface {
     }
 
     return $candidates;
+  }
+
+  /**
+   * Fingerprint non-identity content for near-linear rename candidate lookup.
+   */
+  private function renameStructuralSignature(array $data): string {
+    $data = $this->normaliseDataForDiff($data);
+    unset($data['key'], $data['name']);
+    if (isset($data['item']) && is_array($data['item'])) {
+      unset(
+        $data['item']['key'],
+        $data['item']['machine_name'],
+        $data['item']['name'],
+        $data['item']['name_a_b'],
+        $data['item']['workflow_name']
+      );
+    }
+    return $this->fingerprint($data);
   }
 
   /**
@@ -661,7 +693,88 @@ abstract class AbstractHandler implements HandlerInterface {
     ];
   }
 
+  /**
+   * Read an API4 collection in bounded pages.
+   *
+   * A number of Configuration Manager handlers intentionally read complete
+   * configuration collections. Executing one unbounded API4 Get can force the
+   * provider and API layer to materialize the entire result at once. Page the
+   * read centrally so every handler gets the same low-memory behavior without
+   * carrying provider-specific batching code.
+   */
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
+    $class = 'Civi\\Api4\\' . $entity;
+    if (!class_exists($class)) {
+      throw new \RuntimeException('API4 entity not available: ' . $entity . '. Install/enable the provider before managing this configuration type.');
+    }
+
+    $rows = [];
+    $offset = 0;
+    $batchSize = 200;
+    $seenPages = [];
+
+    while (TRUE) {
+      $action = $class::get(FALSE)->addSelect(...$select);
+      foreach ($where as $condition) {
+        $action->addWhere(...$condition);
+      }
+      foreach ($orderBy as $field => $direction) {
+        $action->addOrderBy($field, $direction);
+      }
+
+      // Standard API4 Get actions expose setLimit()/setOffset(). A custom
+      // action without those methods is executed exactly once rather than
+      // guessed at or looped unsafely.
+      $paged = method_exists($action, 'setLimit') && method_exists($action, 'setOffset');
+      if ($paged) {
+        $action->setLimit($batchSize)->setOffset($offset);
+      }
+
+      $page = array_values((array) $action->execute());
+      if ($paged && $page) {
+        $fingerprint = $this->collectionPageFingerprint($page);
+        if (isset($seenPages[$fingerprint])) {
+          throw new \RuntimeException('API4 provider pagination repeated a previous page for ' . $entity . '; refusing an incomplete or unbounded collection read.');
+        }
+        $seenPages[$fingerprint] = TRUE;
+      }
+      foreach ($page as $row) {
+        $rows[] = $row;
+      }
+
+      $pageCount = count($page);
+      unset($page, $action);
+      if (!$paged || $pageCount < $batchSize) {
+        break;
+      }
+      $offset += $pageCount;
+    }
+
+    return $rows;
+  }
+
+  /**
+   * Fingerprint a small page sample for pagination-loop protection.
+   */
+  private function collectionPageFingerprint(array $rows): string {
+    $sample = [];
+    foreach (array_slice($rows, 0, 3) as $row) {
+      $row = (array) $row;
+      foreach (['id', 'key', 'name', 'machine_name', 'title'] as $field) {
+        if (array_key_exists($field, $row) && is_scalar($row[$field])) {
+          $sample[] = $field . '=' . (string) $row[$field];
+          continue 2;
+        }
+      }
+      $sample[] = sha1(serialize($row));
+    }
+    return sha1(implode('|', $sample));
+  }
+
+  /**
+   * Fetch one API4 row without materializing the complete matching collection.
+   */
+  protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class)) {
       throw new \RuntimeException('API4 entity not available: ' . $entity . '. Install/enable the provider before managing this configuration type.');
@@ -670,15 +783,11 @@ abstract class AbstractHandler implements HandlerInterface {
     foreach ($where as $condition) {
       $action->addWhere(...$condition);
     }
-    foreach ($orderBy as $field => $direction) {
-      $action->addOrderBy($field, $direction);
+    if (method_exists($action, 'setLimit')) {
+      $action->setLimit(1);
     }
-    return (array) $action->execute();
-  }
-
-  protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
-    $rows = $this->api4Get($entity, $where, $select);
-    return $rows[0] ?? NULL;
+    $rows = array_values((array) $action->execute());
+    return isset($rows[0]) ? (array) $rows[0] : NULL;
   }
 
   protected function api4Create(string $entity, array $values): array {

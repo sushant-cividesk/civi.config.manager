@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Civi\ConfigManager\Tests\Unit;
 
+use Civi\ConfigManager\Handler\AbstractHandler;
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
@@ -73,5 +74,57 @@ final class ConfigManagerPerformanceTest extends TestCase {
 
     self::assertSame('Configuration Manager: In sync', $health['title']);
     self::assertSame('cached', $health['message']);
+  }
+
+  public function testLargeSiteHotPathsStayBoundedByContract(): void {
+    $managerSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Service/ConfigManager.php');
+    $extensionSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+    $transferSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/UI/FileTransfer.php');
+
+    self::assertStringContainsString('pruneExtensionIndexesForIgnoredOrFilteredConfig(array &$queue): void', $managerSource);
+    self::assertStringContainsString('addReverseDependencyMetadataToExportQueue(array &$queue): void', $managerSource);
+    self::assertStringContainsString('iterateManagedYamlArchiveFiles(): \Generator', $managerSource);
+    self::assertStringContainsString('renameStructuralSignature', (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/AbstractHandler.php'));
+    self::assertStringNotContainsString("'limit' => 0", $extensionSource);
+    self::assertStringContainsString('iterateManagedYamlArchiveFiles()', $transferSource);
+  }
+
+  public function testApi4CollectionReadsArePagedAndFirstLookupIsBounded(): void {
+    \Civi\Api4\CivicfgPagingTestEntity::$rows = [];
+    for ($i = 1; $i <= 450; $i++) {
+      \Civi\Api4\CivicfgPagingTestEntity::$rows[] = ['id' => $i, 'name' => 'Row ' . $i];
+    }
+    \Civi\Api4\CivicfgPagingTestEntity::$executeCalls = 0;
+
+    $handler = new PerformancePagingFixtureHandler();
+    $rows = $handler->readAll();
+
+    self::assertCount(450, $rows);
+    self::assertSame(1, $rows[0]['id']);
+    self::assertSame(450, $rows[449]['id']);
+    self::assertSame(3, \Civi\Api4\CivicfgPagingTestEntity::$executeCalls);
+
+    \Civi\Api4\CivicfgPagingTestEntity::$executeCalls = 0;
+    $first = $handler->readFirst();
+    self::assertSame(1, $first['id']);
+    self::assertSame(1, \Civi\Api4\CivicfgPagingTestEntity::$executeCalls);
+  }
+
+}
+
+
+final class PerformancePagingFixtureHandler extends AbstractHandler {
+  public function getType(): string { return 'performance-paging'; }
+  public function getLabel(): string { return 'Performance Paging'; }
+  public function getDirectory(): string { return 'performance-paging'; }
+  public function getWeight(): int { return 999; }
+  public function export(): array { return []; }
+
+  public function readAll(): array {
+    return $this->api4Get('CivicfgPagingTestEntity', [], ['id', 'name'], ['id' => 'ASC']);
+  }
+
+  public function readFirst(): array {
+    return (array) $this->api4GetFirst('CivicfgPagingTestEntity', [], ['id', 'name']);
   }
 }

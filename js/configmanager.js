@@ -429,7 +429,7 @@
         if (item.recommended) {
           var recommendedBadge = document.createElement('span');
           recommendedBadge.className = 'civicfg-badge good civicfg-scope-picker-badge';
-          recommendedBadge.textContent = 'Overridden in CiviCRM';
+          recommendedBadge.textContent = 'Customized in CiviCRM';
           titleLine.appendChild(recommendedBadge);
         }
         else if (item.reference) {
@@ -465,7 +465,7 @@
         status.textContent = recommendedCount + ' customized workflow template(s) are shown first because CiviCRM currently shows Revert for them. Existing saved selections are kept; check or uncheck items explicitly before saving. ' + referenceCount + ' system reference template(s) are kept at the end for advanced use.';
       }
       else {
-        status.textContent = items.length + " item(s) available. No customized workflow template currently matches CiviCRM's Revert condition.";
+        status.textContent = items.length + ' item(s) available. No customized workflow template currently matches CiviCRM's Revert condition.';
       }
       status.setAttribute('data-civicfg-total-items', String(items.length));
       status.setAttribute('data-civicfg-base-status', status.textContent);

@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha61-core
 
+- Large-site performance hotfix: collection-heavy API4 and standard API3 provider reads are now bounded in pages instead of using unbounded result sets; contributed-provider identity safety and rename detection avoid quadratic rescans; Manage Everything skips unnecessary selector partition copies; export queue metadata passes mutate in place and use compact type indexes; validation/import retain compact dependency metadata instead of all parsed YAML; state hashing reuses canonical data; managed ZIP downloads stream one handler at a time; and post-import/post-validation synchronization runs in a fresh request. No PHP memory-limit increase and no version bump.
+
 - Message Template picker follow-up: fixed the portable-selector regression assertion to use Configuration Manager's canonical `ConfigIdentity` format; the picker now clearly marks customized/revertible live templates, explains why they are pre-selected only on first selected-scope setup, and moves CiviCRM reserved system-reference copies to the end with an explicit label so the list matches the Message Templates admin model more closely. No version bump.
 
 - Message Template scope-picker hotfix: workflow templates that CiviCRM considers customized/revertible are detected from the same reserved-reference model and subject/text/HTML fields used by core, using the handler's existing API4 export data rather than raw SQL. Customized live templates are shown first and recommended in the picker; on the first transition into selected-item scope they are pre-checked, while later saved selections remain authoritative. No version bump.

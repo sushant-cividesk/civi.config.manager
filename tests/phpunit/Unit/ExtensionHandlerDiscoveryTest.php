@@ -632,6 +632,33 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertSame('SAFE', $method->invoke($handler, [], ['match_fields' => ['name']]));
   }
 
+
+
+  public function testProviderIdentityMultiplicityIsLinearAndDetectsDuplicates(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'identityMultiplicityForRows');
+    $method->setAccessible(TRUE);
+
+    $counts = (array) $method->invoke($handler, [
+      ['id' => 1, 'name' => 'one'],
+      ['id' => 2, 'name' => 'two'],
+      ['id' => 3, 'name' => 'two'],
+    ], [
+      'match_fields' => ['name'],
+    ]);
+
+    self::assertSame(1, $counts['name']['one']);
+    self::assertSame(2, $counts['name']['two']);
+  }
+
+  public function testExtensionProviderReadsDoNotUseUnlimitedApi3Get(): void {
+    $source = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+
+    self::assertStringNotContainsString("'limit' => 0", $source);
+    self::assertStringContainsString('fetchApi3GetRowsPaged', $source);
+    self::assertStringContainsString("'offset' => \$offset", $source);
+  }
+
   private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {
     $property = new ReflectionProperty($handler, 'identityRowsByDefinition');
     $property->setAccessible(TRUE);

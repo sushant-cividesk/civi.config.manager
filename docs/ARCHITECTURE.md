@@ -226,6 +226,23 @@ Two supported extension mechanisms are available:
 
 Custom integrations must provide stable identity, explicit capability boundaries, and deterministic canonicalization. They must not bypass preflight or delete safety.
 
+## Performance and batching model
+
+Large-site execution follows a bounded-memory model while preserving the same synchronous safety semantics:
+
+- standard API4 collection reads are paged centrally; single-row lookups request one row only;
+- standard API3 contributed-provider `get` reads use bounded `limit`/`offset` pages instead of `limit = 0`;
+- custom API3 collection actions are paged only when they demonstrate offset progress, otherwise the operation fails closed rather than truncating or looping;
+- provider identity multiplicity is indexed once in O(n), and possible-rename discovery buckets by non-identity content before exact comparison instead of comparing every added item with every missing item;
+- Manage Everything bypasses item-selector partition work, which avoids a second high-volume export array;
+- the export queue is the single owner of full YAML documents while reverse-dependency/stale-file passes use in-place updates and compact integer indexes;
+- validation and import dependency planning keep names/dependency metadata rather than retaining every parsed YAML document across all handlers;
+- canonical state is hashed once and reused when both canonical data and its fingerprint are required;
+- managed ZIP creation yields one handler/file at a time; and
+- post-write verification is performed by the next Synchronize request instead of running another full diff inside the import/validation HTTP request.
+
+The extension intentionally does not increase the host PHP memory limit. If a contributed provider cannot provide a safely pageable read surface, Configuration Manager reports that provider as unavailable/incomplete rather than weakening correctness. A future persisted background queue can add resumable multi-request execution without changing handler/import semantics, but it is not required for the bounded collection behavior above.
+
 ## QA architecture
 
 Fast QA covers syntax, scenarios, PHPUnit, and static analysis. Full QA starts a disposable CiviCRM stack with Docker Compose and real pinned extension fixtures.

@@ -1215,8 +1215,29 @@ class ConfigManager {
   }
 
   private function scopePartition($handler, array $files, YamlFileStorage $storage, bool $forExport = FALSE): array {
-    $manifest = $this->readManifest($storage);
     $type = (string) $handler->getType();
+    $policy = $this->scope->getPolicy($type);
+
+    // Manage-everything is the high-volume path and does not need per-item
+    // selector matching or a second copy of the exported file array. Avoiding
+    // attachScopeRelativePaths()+ConfigScope::partition() here substantially
+    // lowers peak memory on large real sites while preserving identical scope
+    // semantics.
+    if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL) {
+      return [
+        'policy' => $policy,
+        'managed' => $files,
+        'watched' => [],
+        'ignored' => [],
+        'managed_config_keys' => [],
+        'matched_selectors' => [],
+        'selector_config_keys' => [],
+        'unresolved_selectors' => [],
+        'missing_selectors' => [],
+      ];
+    }
+
+    $manifest = $this->readManifest($storage);
     $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, $type);
     return $this->scope->partition($type, $this->attachScopeRelativePaths($handler, $files), $forExport, $selectorMap);
   }
@@ -1371,6 +1392,7 @@ class ConfigManager {
         if ($handlerExportErrors === 0) {
           $successfulHandlers[] = $handler;
         }
+        unset($exported, $partition);
       }
       catch (\Throwable $e) {
         $summary['errors'][] = [
@@ -1380,8 +1402,9 @@ class ConfigManager {
       }
     }
 
-    $queue = $this->pruneExtensionIndexesForIgnoredOrFilteredConfig($queue);
-    $queue = $this->addReverseDependencyMetadataToExportQueue($queue);
+    $this->pruneExtensionIndexesForIgnoredOrFilteredConfig($queue);
+    $this->addReverseDependencyMetadataToExportQueue($queue);
+    $queueIndexesByType = $this->queueIndexesByType($queue);
     foreach ($queue as $file) {
       $summary['available'][] = [
         'type' => (string) ($file['type'] ?? ''),
@@ -1408,7 +1431,7 @@ class ConfigManager {
       }
     }
 
-    foreach ($this->findStaleYamlFilesForExport($storage, $successfulHandlers, $queue) as $staleFile) {
+    foreach ($this->findStaleYamlFilesForExport($storage, $successfulHandlers, $queue, $queueIndexesByType) as $staleFile) {
       if ($dryRun) {
         $summary['delete_planned'][] = (string) $staleFile['relative'];
         $summary['planned'][] = (string) $staleFile['relative'] . ' (delete stale YAML)';
@@ -1444,16 +1467,18 @@ class ConfigManager {
         $stateManager = new ConfigStateManager();
         foreach ($successfulHandlers as $handler) {
           $exportedForHandler = [];
-          foreach ($queue as $file) {
-            if (($file['type'] ?? '') !== $handler->getType()) {
+          foreach ((array) ($queueIndexesByType[(string) $handler->getType()] ?? []) as $queueIndex) {
+            $file = (array) ($queue[$queueIndex] ?? []);
+            if (!$file) {
               continue;
             }
             $exportedForHandler[] = [
-              'filename' => (string) $file['filename'],
-              'data' => (array) $file['data'],
+              'filename' => (string) ($file['filename'] ?? ''),
+              'data' => (array) ($file['data'] ?? []),
             ];
           }
           $stateManager->acceptExportedBaseline($handler, $exportedForHandler, 'export');
+          unset($exportedForHandler);
         }
       }
       catch (\Throwable $e) {
@@ -1515,38 +1540,45 @@ class ConfigManager {
    * @return array<string,array<string,mixed>> Relative path => YAML document.
    */
   public function getManagedYamlArchiveFiles(): array {
-    $storage = new YamlFileStorage($this->getSyncDir());
     $files = [];
-    $manifest = $this->readManifest($storage);
-    if ($manifest) {
-      $files['manifest.yml'] = $manifest;
+    foreach ($this->iterateManagedYamlArchiveFiles() as $relative => $data) {
+      $files[(string) $relative] = (array) $data;
     }
-    foreach ($this->getHandlers() as $handler) {
-      foreach ($this->loadManagedYamlFiles($handler, $storage) as $filename => $data) {
-        $relative = trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/');
-        if ($relative !== '' && !$this->isIgnoredPath($relative)) {
-          $files[$relative] = (array) $data;
-        }
-      }
-    }
-    ksort($files, SORT_NATURAL | SORT_FLAG_CASE);
     return $files;
   }
 
-  private function findStaleYamlFilesForExport(YamlFileStorage $storage, array $handlers, array $queue): array {
-    $stale = [];
-    $exportedByType = [];
-    foreach ($queue as $file) {
-      $type = (string) ($file['type'] ?? '');
-      $filename = (string) ($file['filename'] ?? '');
-      if ($type === '' || $filename === '') {
-        continue;
-      }
-      $exportedByType[$type][] = [
-        'filename' => $filename,
-        'data' => (array) ($file['data'] ?? []),
-      ];
+  /**
+   * Yield managed YAML archive documents one handler at a time.
+   *
+   * ZIP download uses this iterator directly so thousands of parsed YAML
+   * documents do not need to coexist in memory. The array-returning method
+   * above remains for API/backward compatibility.
+   *
+   * @return \Generator<string,array<string,mixed>>
+   */
+  public function iterateManagedYamlArchiveFiles(): \Generator {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $manifest = $this->readManifest($storage);
+    if ($manifest) {
+      yield 'manifest.yml' => $manifest;
     }
+    unset($manifest);
+
+    foreach ($this->getHandlers() as $handler) {
+      $managed = $this->loadManagedYamlFiles($handler, $storage);
+      ksort($managed, SORT_NATURAL | SORT_FLAG_CASE);
+      foreach ($managed as $filename => $data) {
+        $relative = trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/');
+        if ($relative !== '' && !$this->isIgnoredPath($relative)) {
+          yield $relative => (array) $data;
+        }
+      }
+      unset($managed);
+    }
+  }
+
+  private function findStaleYamlFilesForExport(YamlFileStorage $storage, array $handlers, array $queue, array $queueIndexesByType): array {
+    $stale = [];
 
     foreach ($handlers as $handler) {
       if (!$this->scope->allowsDeleteMissing((string) $handler->getType())) {
@@ -1556,7 +1588,17 @@ class ConfigManager {
       $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
       $files = $this->applyHandlerFileFilter($handler, $files);
       $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
-      $exported = $exportedByType[$handler->getType()] ?? [];
+      $exported = [];
+      foreach ((array) ($queueIndexesByType[(string) $handler->getType()] ?? []) as $queueIndex) {
+        $queued = (array) ($queue[$queueIndex] ?? []);
+        if (empty($queued['filename'])) {
+          continue;
+        }
+        $exported[] = [
+          'filename' => (string) $queued['filename'],
+          'data' => (array) ($queued['data'] ?? []),
+        ];
+      }
       $diff = $handler->diffFromExports($exported, $files);
       foreach ((array) ($diff['missing_in_db'] ?? []) as $filename) {
         $filename = (string) $filename;
@@ -1589,13 +1631,33 @@ class ConfigManager {
           'relative' => $relative,
         ];
       }
+      unset($files, $exported, $diff);
     }
     ksort($stale);
     return array_values($stale);
   }
 
 
-  private function pruneExtensionIndexesForIgnoredOrFilteredConfig(array $queue): array {
+  /**
+   * Keep a compact queue index instead of duplicating every exported document
+   * into additional per-type arrays. The queue itself remains the single owner
+   * of the full YAML data during an export request.
+   *
+   * @return array<string,int[]>
+   */
+  private function queueIndexesByType(array $queue): array {
+    $index = [];
+    foreach ($queue as $i => $file) {
+      $type = (string) ($file['type'] ?? '');
+      if ($type !== '') {
+        $index[$type][] = (int) $i;
+      }
+    }
+    return $index;
+  }
+
+
+  private function pruneExtensionIndexesForIgnoredOrFilteredConfig(array &$queue): void {
     $counts = [];
     foreach ($queue as $file) {
       $data = (array) ($file['data'] ?? []);
@@ -1640,10 +1702,9 @@ class ConfigManager {
       }
     }
     unset($file);
-    return $queue;
   }
 
-  private function addReverseDependencyMetadataToExportQueue(array $queue): array {
+  private function addReverseDependencyMetadataToExportQueue(array &$queue): void {
     $index = [];
     foreach ($queue as $i => $file) {
       foreach ($this->namesFromYamlFile((array) ($file['data'] ?? [])) as $name) {
@@ -1681,7 +1742,6 @@ class ConfigManager {
       }
     }
     unset($file);
-    return $queue;
   }
 
   private function uniqueDependencyLikeRows(array $rows): array {
@@ -1778,6 +1838,7 @@ class ConfigManager {
         if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files']) || !empty($item['scope_warnings'])) {
           $result['items'][] = $item;
         }
+        unset($activeFiles, $partition, $exported, $files, $item);
       }
       catch (\Throwable $e) {
         $result['errors'][] = ['type' => $handler->getType(), 'message' => $e->getMessage()];
@@ -1828,7 +1889,8 @@ class ConfigManager {
     $this->activeDependencyNamesCache = [];
     $storage = new YamlFileStorage($this->getSyncDir());
     $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
-    $yamlByType = [];
+    $availableNames = [];
+    $dependencyMetadata = [];
     $normalisedFilter = $this->normaliseTypeFilter($typeFilter);
     $baseFilter = $this->baseTypesFromFilter($normalisedFilter);
 
@@ -1839,18 +1901,35 @@ class ConfigManager {
       $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
       try {
         $files = $this->loadManagedYamlFiles($handler, $storage);
-        $yamlByType[$handler->getType()] = $files;
+        $handlerType = (string) $handler->getType();
+        foreach ($files as $filename => $file) {
+          $file = (array) $file;
+          foreach ($this->namesFromYamlFile($file) as $name) {
+            $availableNames[$handlerType][(string) $name] = TRUE;
+          }
+          $dependencies = $this->extractDependenciesFromYamlFile($file);
+          $requiredBy = $this->extractRequiredByFromYamlFile($file);
+          if ($dependencies || $requiredBy) {
+            $dependencyMetadata[$handlerType][(string) $filename] = [
+              'dependencies' => $dependencies,
+              'required_by' => $requiredBy,
+            ];
+          }
+        }
         $validation = $handler->validate($files);
         $result['items'][] = $validation;
         if (empty($validation['valid'])) {
           $result['ok'] = FALSE;
         }
+        // Handler validation is complete; retain only compact dependency/name
+        // metadata for the cross-type pass instead of every parsed YAML body.
+        unset($files);
       }
       catch (\Throwable $e) {
         $result['errors'][] = ['type' => $handler->getType(), 'message' => $e->getMessage()];
       }
     }
-    $this->addDependencyWarnings($result, $yamlByType);
+    $this->addDependencyWarningsFromMetadata($result, $availableNames, $dependencyMetadata);
     try {
       $this->addManifestValidation($result, $storage->readFile('manifest.yml'));
     }
@@ -1861,8 +1940,7 @@ class ConfigManager {
     return $result;
   }
 
-  private function addDependencyWarnings(array &$result, array $yamlByType): void {
-    $available = $this->collectManagedYamlNames($yamlByType);
+  private function addDependencyWarningsFromMetadata(array &$result, array $available, array $dependencyMetadata): void {
     $registeredTypes = [];
     foreach ($this->getAllHandlers() as $handler) {
       $registeredTypes[$handler->getType()] = $handler->getLabel();
@@ -1878,12 +1956,12 @@ class ConfigManager {
       }
     }
 
-    foreach ($yamlByType as $type => $files) {
+    foreach ($dependencyMetadata as $type => $files) {
       if (!isset($itemIndex[$type])) {
         continue;
       }
-      foreach ($files as $filename => $file) {
-        foreach ($this->extractDependenciesFromYamlFile((array) $file) as $dependency) {
+      foreach ($files as $filename => $metadata) {
+        foreach ((array) ($metadata['dependencies'] ?? []) as $dependency) {
           $dependencyType = (string) ($dependency['type'] ?? '');
           $dependencyName = (string) ($dependency['name'] ?? '');
           if ($dependencyType === '' || $dependencyName === '') {
@@ -1915,7 +1993,7 @@ class ConfigManager {
             'message' => $message,
           ];
         }
-        foreach ($this->extractRequiredByFromYamlFile((array) $file) as $requiredBy) {
+        foreach ((array) ($metadata['required_by'] ?? []) as $requiredBy) {
           $requiredByType = (string) ($requiredBy['type'] ?? '');
           $requiredByName = (string) ($requiredBy['name'] ?? '');
           if ($requiredByType === '' || $requiredByName === '' || !isset($managedTypes[$requiredByType])) {
@@ -2164,13 +2242,21 @@ class ConfigManager {
       return $preflight;
     }
 
+    // The complete preflight can contain every managed YAML document's
+    // validation/dry-run diagnostics. Once it is green, retain only its compact
+    // outcome during the write phases; keeping the full preview alive alongside
+    // active provider collections needlessly doubles peak import memory.
     $result = [
       'ok' => TRUE,
       'dry_run' => FALSE,
       'applied' => TRUE,
       'items' => [],
-      'preflight' => $preflight,
+      'preflight' => [
+        'ok' => TRUE,
+        'summary_message' => (string) ($preflight['summary_message'] ?? ''),
+      ],
     ];
+    unset($preflight, $validation);
 
     // Apply create/update first for every type. Never enter delete-missing if
     // any write fails: destructive cleanup must not run after a partial
@@ -2190,6 +2276,7 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
+      unset($files);
       $item['phase'] = 'create_update';
       $result['items'][] = $item;
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
@@ -2223,6 +2310,7 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
+      unset($files);
       $item['phase'] = 'delete_missing';
       $result['items'][] = $item;
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
@@ -2237,6 +2325,7 @@ class ConfigManager {
         foreach ($handlers as $handler) {
           $files = $this->loadManagedYamlFiles($handler, $storage);
           $stateManager->acceptYamlBaseline($handler, $files, 'import');
+          unset($files);
         }
       }
       catch (\Throwable $e) {
@@ -2296,6 +2385,7 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
+      unset($files);
       $result['items'][] = $item;
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
@@ -2307,16 +2397,25 @@ class ConfigManager {
   }
 
   private function collectImportPlannedDependencyNames(array $handlers, YamlFileStorage $storage): array {
-    $yamlByType = [];
+    $available = [];
     foreach ($handlers as $handler) {
+      $type = (string) $handler->getType();
       try {
-        $yamlByType[(string) $handler->getType()] = $this->loadManagedYamlFiles($handler, $storage);
+        $files = $this->loadManagedYamlFiles($handler, $storage);
+        foreach ($files as $file) {
+          foreach ($this->namesFromYamlFile((array) $file) as $name) {
+            $available[$type][(string) $name] = TRUE;
+          }
+        }
+        unset($files);
       }
       catch (\Throwable $e) {
-        $yamlByType[(string) $handler->getType()] = [];
+        if (!isset($available[$type])) {
+          $available[$type] = [];
+        }
       }
     }
-    return $this->collectManagedYamlNames($yamlByType);
+    return $available;
   }
 
   private function setHandlerPlannedDependencyNames($handler, array $plannedDependencyNames): void {
@@ -2340,6 +2439,7 @@ class ConfigManager {
         $candidate['label'] = $handler->getLabel();
         $candidates[] = $candidate;
       }
+      unset($files, $partition, $exported, $diff);
     }
     return $candidates;
   }
