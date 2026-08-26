@@ -58,18 +58,30 @@ Built-in handlers cover the core configuration used by most CiviCRM deployments,
 
 Capability is evaluated at runtime. A readable provider is not automatically considered write-safe.
 
-## Built-in runtime value ignores
+## Config Ignore
 
-Some values are runtime state rather than portable configuration. Configuration Manager always excludes these four fields from diff, export, import, preview, and ZIP output:
+Configuration Manager uses one **Config Ignore** rule list for both whole YAML files and individual values:
 
 ```text
+path/to/file.yml
+path/to/file.yml:dot.path
+```
+
+The first form ignores the whole file. The second keeps the file managed and ignores only the named value. Wildcards are supported in the YAML path portion.
+
+Five safety/runtime rules are built in and always active:
+
+```text
+extensions/civi.config.manager.yml
 extensions/*/api3/Job/*.yml:item.last_run
 extensions/*/api3/Job/*.yml:item.last_run_end
 scheduled-jobs/*.yml:item.scheduled_run_date
 site-tokens/*.yml:item.modified_date
 ```
 
-These defaults are owned by the extension and apply on both new and existing installations. Administrators can add project-specific **Config Ignore Values** in Settings; custom rules are merged with the built-in defaults rather than replacing them.
+The self-extension YAML is excluded to prevent Configuration Manager from changing its own extension state during an import. The four field-level rules remove proven runtime timestamps without hiding the rest of those configuration objects.
+
+Administrators can add project-specific whole-file or field-level rules in the same Settings control. Older `civicfg_ignore_values` data is still read for compatibility and is migrated into the unified Config Ignore setting the next time Settings is saved.
 
 Do not use broad timestamp wildcards. Fields such as `created_date`, `modified_date`, or environment settings may be meaningful for other entity types and should be ignored only when the handler or project explicitly proves they are non-portable.
 

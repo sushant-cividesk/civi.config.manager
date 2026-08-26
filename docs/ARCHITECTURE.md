@@ -86,16 +86,19 @@ A filename change with the same semantic identity is storage movement, not autom
 
 Runtime-only, sensitive, and operational metadata is removed before portable comparison when the handler or core policy explicitly defines it.
 
-Configuration Manager also owns four universal runtime-value ignore rules:
+Configuration Manager exposes one Config Ignore rule model. A rule without `:` excludes a whole YAML file/path; a `path.yml:dot.path` rule excludes only one value while keeping the rest of the file managed.
+
+Five rules are built in:
 
 ```text
+extensions/civi.config.manager.yml
 extensions/*/api3/Job/*.yml:item.last_run
 extensions/*/api3/Job/*.yml:item.last_run_end
 scheduled-jobs/*.yml:item.scheduled_run_date
 site-tokens/*.yml:item.modified_date
 ```
 
-These rules are always active. Administrator-defined `civicfg_ignore_values` rules are additional and are merged with the built-in set. This keeps volatile timestamps out of portable YAML semantics without using unsafe global timestamp wildcards.
+These rules are always active. `civicfg_ignore_paths` is the canonical administrator setting and may contain both forms. The older `civicfg_ignore_values` setting is read only for upgrade compatibility and is migrated into the unified rule list when Settings is saved. Whole-file and value-level filtering still use separate internal execution paths so a field rule can never accidentally suppress an entire configuration object.
 
 ## Baselines and drift state
 

@@ -83,13 +83,9 @@ class MainPage {
         if (!empty($_POST['allow_cross_site_import'])) {
           \CRM_Core_Session::setStatus(ts('Experimental cross-site import is enabled. Keep it off for normal dev/stage/prod synchronization and use it only for a reviewed one-off migration between different sites.'), ts('Configuration Manager'), 'warning');
         }
-        $ignoreValueRaw = trim((string) ($_POST['ignore_values'] ?? ''));
-        if ($ignoreValueRaw !== '') {
-          \CRM_Core_Session::setStatus(ts('Config Ignore Values is active. Ignored YAML fields are excluded during diff, export, import, and preview so environments can keep local values. Do not ignore identity fields, dependency fields, or required configuration relationships.'), ts('Configuration Manager'), 'warning');
-        }
         $ignoreRaw = trim((string) ($_POST['ignore_paths'] ?? ''));
         if ($ignoreRaw !== '') {
-          \CRM_Core_Session::setStatus(ts('Config Ignore is active. Ignored YAML files are skipped during diff, validate, export, import, single-file preview, and ZIP download. Make sure ignored files are not required dependencies for non-ignored configuration.'), ts('Configuration Manager'), 'warning');
+          \CRM_Core_Session::setStatus(ts('Config Ignore is active. Whole-file rules exclude matching YAML files; path:dot.path rules exclude only selected values while keeping the rest of the file managed. Review ignored dependencies and never ignore portable identity fields.'), ts('Configuration Manager'), 'warning');
           try {
             foreach ($this->manager->getIgnoredDependencyWarnings() as $warning) {
               \CRM_Core_Session::setStatus($warning, ts('Configuration Manager'), 'warning');
@@ -384,19 +380,8 @@ class MainPage {
     \Civi::settings()->set('civicfg_settings_allowlist', $allowlist);
 
     $ignoreRaw = (string) ($_POST['ignore_paths'] ?? '');
-    $ignorePaths = preg_split('/[\r\n,]+/', $ignoreRaw);
-    $ignorePaths = array_values(array_unique(array_filter(array_map(function($value) {
-      return trim(str_replace('\\', '/', (string) $value), '/');
-    }, $ignorePaths))));
-    \Civi::settings()->set('civicfg_ignore_paths', $ignorePaths);
-
-    $ignoreValuesRaw = (string) ($_POST['ignore_values'] ?? '');
-    $ignoreValues = preg_split('/[\r\n,]+/', $ignoreValuesRaw);
-    $ignoreValues = array_values(array_unique(array_filter(array_map(function($value) {
-      return trim(str_replace('\\', '/', (string) $value));
-    }, $ignoreValues))));
-    $ignoreValues = array_values(array_diff($ignoreValues, $this->manager->getBuiltInIgnoreValueRules()));
-    \Civi::settings()->set('civicfg_ignore_values', $ignoreValues);
+    $ignoreRules = preg_split('/[\r\n,]+/', $ignoreRaw) ?: [];
+    $this->manager->setConfiguredIgnoreRules($ignoreRules);
 
     // Settings/scope/ignore changes alter what a future managed comparison
     // means. Scope saving initializes any newly enabled watch baseline and
@@ -453,9 +438,7 @@ class MainPage {
       }
     }
     sort($settingsAllowlist, SORT_NATURAL | SORT_FLAG_CASE);
-    $ignorePaths = $this->manager->getIgnorePatterns();
-    $ignoreValues = $this->manager->getConfiguredIgnoreValueRules();
-    $builtInIgnoreValues = $this->manager->getBuiltInIgnoreValueRules();
+    $ignoreRules = $this->manager->getIgnoreRules();
     $siteId = $this->manager->getSiteIdentifier();
     $allowCrossSiteImport = (bool) \Civi::settings()->get('civicfg_allow_cross_site_import');
     $diffFiles = $this->presenter->extractDiffFiles($diffResult);
@@ -651,9 +634,7 @@ class MainPage {
     $this->page->assign('watchDetectedCount', $watchDetectedCount);
     $this->page->assign('watchPanelOpen', $watchPanelOpen);
     $this->page->assign('settingsAllowlist', implode("\n", $settingsAllowlist));
-    $this->page->assign('ignorePaths', implode("\n", $ignorePaths));
-    $this->page->assign('ignoreValues', implode("\n", $ignoreValues));
-    $this->page->assign('builtInIgnoreValues', implode("\n", $builtInIgnoreValues));
+    $this->page->assign('ignorePaths', implode("\n", $ignoreRules));
     $this->page->assign('siteId', $siteId);
     $this->page->assign('allowCrossSiteImport', $allowCrossSiteImport);
     $codeDefinedSyncDir = $this->getCodeDefinedSyncDir();

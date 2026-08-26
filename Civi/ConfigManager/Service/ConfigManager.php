@@ -21,6 +21,16 @@ class ConfigManager {
     'scheduled-jobs/*.yml:item.scheduled_run_date',
     'site-tokens/*.yml:item.modified_date',
   ];
+
+  /**
+   * Universal whole-file rules owned by the extension.
+   *
+   * Configuration Manager must never manage its own extension-status YAML
+   * while it is executing an import.
+   */
+  private const BUILT_IN_IGNORE_FILE_RULES = [
+    'extensions/civi.config.manager.yml',
+  ];
   private HandlerRegistry $registry;
   private ConfigScope $scope;
   private ?array $allHandlersCache = NULL;
@@ -2353,17 +2363,9 @@ class ConfigManager {
   }
 
   public function getIgnorePatterns(): array {
-    $configured = (array) \Civi::settings()->get('civicfg_ignore_paths');
-    $defaults = [
-      // Avoid self-management loops. Teams may remove this in settings if they
-      // intentionally want Configuration Manager to manage its own extension state.
-      'extensions/' . Version::EXTENSION_KEY . '.yml',
-    ];
-    $patterns = array_merge($defaults, $configured);
-    $patterns = array_values(array_unique(array_filter(array_map(function($pattern) {
-      return trim(str_replace('\\', '/', (string) $pattern));
-    }, $patterns))));
-    return $patterns;
+    return array_values(array_filter($this->getIgnoreRules(), static function(string $rule): bool {
+      return strpos($rule, ':') === FALSE;
+    }));
   }
 
   private function filterIgnoredFiles(string $directory, array $files): array {
@@ -2442,29 +2444,34 @@ class ConfigManager {
   }
 
   /**
-   * Return administrator-defined ignore rules only.
+   * Return every universal rule shown in the single Config Ignore control.
    *
    * @return string[]
    */
-  public function getConfiguredIgnoreValueRules(): array {
-    $configured = (array) \Civi::settings()->get('civicfg_ignore_values');
+  public function getBuiltInIgnoreRules(): array {
+    return array_merge(self::BUILT_IN_IGNORE_FILE_RULES, self::BUILT_IN_IGNORE_VALUE_RULES);
+  }
+
+  /**
+   * Return administrator-defined whole-file and field-level ignore rules.
+   *
+   * civicfg_ignore_values is still read for upgrade compatibility. New writes
+   * use civicfg_ignore_paths as the one canonical Config Ignore setting.
+   *
+   * @return string[]
+   */
+  public function getConfiguredIgnoreRules(): array {
+    $configured = array_merge(
+      (array) \Civi::settings()->get('civicfg_ignore_paths'),
+      (array) \Civi::settings()->get('civicfg_ignore_values')
+    );
     $rules = [];
     foreach ($configured as $rule) {
-      $rule = trim(str_replace('\\', '/', (string) $rule));
-      if ($rule === '' || strpos($rule, ':') === FALSE) {
+      $normalized = $this->normalizeIgnoreRule((string) $rule);
+      if ($normalized === NULL || in_array($normalized, $this->getBuiltInIgnoreRules(), TRUE)) {
         continue;
       }
-      [$path, $valuePath] = array_map('trim', explode(':', $rule, 2));
-      $path = trim($path, '/');
-      $valuePath = trim($valuePath);
-      if ($path === '' || $valuePath === '') {
-        continue;
-      }
-      $raw = $path . ':' . $valuePath;
-      if (in_array($raw, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
-        continue;
-      }
-      $rules[$raw] = TRUE;
+      $rules[$normalized] = TRUE;
     }
     $values = array_keys($rules);
     sort($values, SORT_NATURAL | SORT_FLAG_CASE);
@@ -2472,12 +2479,62 @@ class ConfigManager {
   }
 
   /**
+   * Return the complete effective Config Ignore rule list.
+   *
+   * A rule without ':' ignores a whole YAML file/path. A rule with ':' keeps
+   * the file managed and ignores only the named dot-path value.
+   *
+   * @return string[]
+   */
+  public function getIgnoreRules(): array {
+    return array_values(array_unique(array_merge($this->getBuiltInIgnoreRules(), $this->getConfiguredIgnoreRules())));
+  }
+
+  /**
+   * Save the one administrator-facing Config Ignore rule list.
+   *
+   * Built-in rules are never persisted because they are always effective.
+   * Legacy civicfg_ignore_values data is migrated into civicfg_ignore_paths.
+   *
+   * @param array<int, mixed> $rules
+   * @return string[]
+   */
+  public function setConfiguredIgnoreRules(array $rules): array {
+    $configured = [];
+    foreach ($rules as $rule) {
+      $normalized = $this->normalizeIgnoreRule((string) $rule);
+      if ($normalized === NULL || in_array($normalized, $this->getBuiltInIgnoreRules(), TRUE)) {
+        continue;
+      }
+      $configured[$normalized] = TRUE;
+    }
+    $values = array_keys($configured);
+    sort($values, SORT_NATURAL | SORT_FLAG_CASE);
+    \Civi::settings()->set('civicfg_ignore_paths', $values);
+    \Civi::settings()->set('civicfg_ignore_values', []);
+    return $values;
+  }
+
+  /**
+   * Return administrator-defined ignore rules only.
+   *
+   * @return string[]
+   */
+  public function getConfiguredIgnoreValueRules(): array {
+    return array_values(array_filter($this->getConfiguredIgnoreRules(), static function(string $rule): bool {
+      return strpos($rule, ':') !== FALSE;
+    }));
+  }
+
+  /**
    * Return the effective built-in + administrator Config Ignore Values.
    */
   public function getIgnoreValuePatterns(): array {
-    $effective = array_merge(self::BUILT_IN_IGNORE_VALUE_RULES, $this->getConfiguredIgnoreValueRules());
     $rules = [];
-    foreach ($effective as $rule) {
+    foreach ($this->getIgnoreRules() as $rule) {
+      if (strpos($rule, ':') === FALSE) {
+        continue;
+      }
       [$path, $valuePath] = array_map('trim', explode(':', (string) $rule, 2));
       $raw = trim($path, '/') . ':' . trim($valuePath);
       $rules[$raw] = [
@@ -2487,6 +2544,28 @@ class ConfigManager {
       ];
     }
     return array_values($rules);
+  }
+
+  private function normalizeIgnoreRule(string $rule): ?string {
+    $rule = trim(str_replace('\\', '/', $rule));
+    if ($rule === '') {
+      return NULL;
+    }
+
+    if (strpos($rule, ':') === FALSE) {
+      $path = trim($rule, '/');
+      if ($path === '' || strpos($path, '..') !== FALSE) {
+        return NULL;
+      }
+      return $path;
+    }
+
+    [$path, $valuePath] = array_map('trim', explode(':', $rule, 2));
+    $path = trim($path, '/');
+    if ($path === '' || $valuePath === '' || strpos($path, '..') !== FALSE || strpos($valuePath, '..') !== FALSE) {
+      return NULL;
+    }
+    return $path . ':' . $valuePath;
   }
 
   private function filterIgnoredValuesInFiles(string $directory, array $files): array {
@@ -2838,16 +2917,9 @@ class ConfigManager {
     if ($relativePath === '' || strpos($relativePath, '..') !== FALSE) {
       throw new \RuntimeException('Invalid ignore path.');
     }
-    $patterns = (array) \Civi::settings()->get('civicfg_ignore_paths');
-    $patterns = array_values(array_unique(array_filter(array_map(function($value) {
-      return trim(str_replace('\\', '/', (string) $value), '/');
-    }, $patterns))));
-    if (!in_array($relativePath, $patterns, TRUE)) {
-      $patterns[] = $relativePath;
-      sort($patterns, SORT_NATURAL | SORT_FLAG_CASE);
-      \Civi::settings()->set('civicfg_ignore_paths', $patterns);
-    }
-    return $patterns;
+    $rules = $this->getConfiguredIgnoreRules();
+    $rules[] = $relativePath;
+    return $this->setConfiguredIgnoreRules($rules);
   }
 
   public function addIgnoreValueRules(string $relativePath, array $valuePaths): array {
@@ -2855,28 +2927,15 @@ class ConfigManager {
     if ($relativePath === '' || strpos($relativePath, '..') !== FALSE) {
       throw new \RuntimeException('Invalid ignore path.');
     }
-    $existing = (array) \Civi::settings()->get('civicfg_ignore_values');
-    $rules = [];
-    foreach ($existing as $rule) {
-      $rule = trim(str_replace('\\', '/', (string) $rule));
-      if ($rule !== '' && !in_array($rule, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
-        $rules[$rule] = TRUE;
-      }
-    }
+    $rules = $this->getConfiguredIgnoreRules();
     foreach ($valuePaths as $valuePath) {
       $valuePath = trim((string) $valuePath);
       if ($valuePath === '' || strpos($valuePath, '..') !== FALSE) {
         continue;
       }
-      $rule = $relativePath . ':' . $valuePath;
-      if (!in_array($rule, self::BUILT_IN_IGNORE_VALUE_RULES, TRUE)) {
-        $rules[$rule] = TRUE;
-      }
+      $rules[] = $relativePath . ':' . $valuePath;
     }
-    $values = array_keys($rules);
-    sort($values, SORT_NATURAL | SORT_FLAG_CASE);
-    \Civi::settings()->set('civicfg_ignore_values', $values);
-    return $values;
+    return $this->setConfiguredIgnoreRules($rules);
   }
 
 

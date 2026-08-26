@@ -131,9 +131,9 @@ Settings include:
 
 `Monitor only` and `Monitor everything else` are deliberately non-destructive. Watched objects are fingerprinted only during an explicit watch scan; they are not exported to YAML and cannot be imported, restored, or deleted until they are moved into managed scope.
 
-Config Ignore accepts one relative YAML path or wildcard per line. Ignored files are skipped during diff, validate, export, and import. `extensions/civi.config.manager.yml` and legacy self-extension YAML keys are ignored by default to avoid self-management loops; remove it only if you intentionally want this extension to manage its own extension status.
+Config Ignore uses one rule list. `path/to/file.yml` or a wildcard excludes an entire YAML file; `path/to/file.yml:dot.path` excludes only that value while keeping the rest of the file managed. Example: `settings/theme_frontend.yml:item.value` lets dev/stage/prod keep a different local theme while other settings in the file remain portable. Rules apply consistently to diff, validate, export, import, single-file preview, and ZIP download as appropriate.
 
-Config Ignore Values accepts field-level rules in `path/to/file.yml:dot.path` format. Example: `settings/theme_frontend.yml:item.value` lets dev/stage/prod keep a different local theme while other managed settings remain portable. Ignored values are removed before diff, export, import, single-file preview, and ZIP download.
+`extensions/civi.config.manager.yml` is always ignored to avoid self-management loops. Four proven volatile job/token timestamp fields are also built-in field-level ignores. Older values stored in `civicfg_ignore_values` remain readable for compatibility and are migrated into the unified Config Ignore setting when Settings is saved.
 
 The Site Identifier is generated automatically and written to `manifest.yml`. A cloned dev/stage/prod database keeps the same value, so same-site environment sync works without manual setup. A different site receives a different value and import validation blocks the YAML unless Experimental Cross-site Import is enabled for a reviewed one-off migration.
 
