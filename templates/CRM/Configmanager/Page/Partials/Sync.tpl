@@ -1,6 +1,7 @@
   {if $op eq 'sync'}
     <div class="civicfg-actions">
       {if $managedScopeConfigured && $canExport}<form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export YAML Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
         <input type="hidden" name="_action" value="export_write" />
         {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
         <button type="submit" class="button"><span>{if $initialExportRequired}{ts}Create Initial Export{/ts}{else}{ts}Export{/ts}{/if}</span></button>
@@ -8,6 +9,7 @@
       {if $managedScopeConfigured && !$initialExportRequired && $canImport}<a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}"><span>{ts}Import{/ts}</span></a>{/if}
       {if $managedScopeConfigured && !$initialExportRequired}
         <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
           <input type="hidden" name="_action" value="validate_files" />
           {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
           <button type="submit" class="button"><span>{ts}Validate{/ts}</span></button>
@@ -15,6 +17,7 @@
       {/if}
       {if $canAdminister && $watchedScopeConfigured}
         <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
           <input type="hidden" name="_action" value="scan_watch" />
           {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
           <button type="submit" class="button"><span>{ts}Scan Watched Config{/ts}</span></button>
@@ -141,9 +144,12 @@
         </details>
 
         <details class="civicfg-panel civicfg-files-panel" {if $diffFiles|@count lt 6}open="open"{/if}>
-          <summary>{ts}Changes to Review{/ts}{if $diffFiles|@count gt 5} <span class="civicfg-muted">({$diffFiles|@count|escape} {ts}items{/ts})</span>{/if}</summary>
+          <summary>{ts}Changes to Review{/ts}{if $diffTotal gt 5} <span class="civicfg-muted">({$diffTotal|escape} {ts}items{/ts})</span>{/if}</summary>
           <div class="civicfg-panel-body">
             <p class="description">{ts}Only managed configuration with a real difference is listed here. The short explanation highlights useful changes; technical metadata and the complete field comparison stay under Details.{/ts}</p>
+            {if $diffPageCount gt 1}
+              <div class="civicfg-pagination-summary">{ts}Showing page{/ts} {$diffPage|escape} {ts}of{/ts} {$diffPageCount|escape} ({$diffTotal|escape} {ts}changed items total{/ts}). {ts}Field-level details load only when opened.{/ts}</div>
+            {/if}
             <div class="civicfg-file-lines">
               {foreach from=$diffFiles item=file}
                 <div class="civicfg-file-card civicfg-state-{$file.status|escape}">
@@ -168,6 +174,7 @@
                     <button type="button" class="button civicfg-action-secondary civicfg-line-button" data-civicfg-open="{$file.id|escape}"><span>{ts}Details{/ts}</span></button>
                     {if $canImport && ($file.status neq 'new_in_db' || $file.delete_allowed)}
                       <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Revert Active CiviCRM From YAML" data-civicfg-confirm-word="REVERT" data-civicfg-confirm-button="Revert" data-civicfg-confirm-message="This will apply this YAML file back to active CiviCRM. If the YAML file has dependencies, those dependency YAML files are applied with it. If the YAML file does not exist, the matching managed CiviCRM record is removed only when that scope permits deletion." data-civicfg-confirm-warning="Only the selected managed file and its dependency closure are reverted: {$file.path|escape}.">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                         <input type="hidden" name="_action" value="revert_file" />
                         <input type="hidden" name="path" value="{$file.path|escape}" />
                         <button type="submit" class="button civicfg-action-apply civicfg-line-button"><span>{ts}Restore from YAML{/ts}</span></button>
@@ -180,6 +187,13 @@
                 </div>
               {/foreach}
             </div>
+            {if $diffPageCount gt 1}
+              <div class="civicfg-actions civicfg-pagination-actions">
+                {if $diffPrevUrl}<a class="button" href="{$diffPrevUrl|escape}"><span>{ts}Previous 100{/ts}</span></a>{/if}
+                <span class="civicfg-muted">{ts}Page{/ts} {$diffPage|escape} / {$diffPageCount|escape}</span>
+                {if $diffNextUrl}<a class="button" href="{$diffNextUrl|escape}"><span>{ts}Next 100{/ts}</span></a>{/if}
+              </div>
+            {/if}
           </div>
         </details>
       {/if}
@@ -230,6 +244,7 @@
                 </div>
                 {if $canAdminister}
                   <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Clear Watch History" data-civicfg-confirm-word="CLEAR" data-civicfg-confirm-button="Clear history" data-civicfg-confirm-message="This clears the local list of previously detected watch-only changes. Monitoring fingerprints and baselines are kept." data-civicfg-confirm-warning="This does not change CiviCRM configuration or YAML.">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                     <input type="hidden" name="_action" value="clear_watch_history" />
                     <button type="submit" class="button civicfg-action-secondary"><span>{ts}Clear history{/ts}</span></button>
                   </form>

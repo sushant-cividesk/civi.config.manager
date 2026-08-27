@@ -1,7 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintProviderInterface {
+class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintProviderInterface, StreamingHandlerInterface, StreamingImportHandlerInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
@@ -25,9 +25,18 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
   }
 
   public function export(): array {
-    $rows = $this->api4Get('MessageTemplate', [], ['id', 'msg_title', 'msg_subject', 'msg_text', 'msg_html', 'workflow_name', 'is_default', 'is_reserved', 'is_active'], ['workflow_name' => 'ASC', 'msg_title' => 'ASC', 'id' => 'ASC']);
+    return iterator_to_array($this->iterateExport(), FALSE);
+  }
+
+  public function iterateExport(): iterable {
+    $select = ['id', 'msg_title', 'msg_subject', 'msg_text', 'msg_html', 'workflow_name', 'is_default', 'is_reserved', 'is_active'];
+    $order = ['workflow_name' => 'ASC', 'msg_title' => 'ASC', 'id' => 'ASC'];
+
+    // User-defined templates use msg_title as identity. Keep only compact title
+    // multiplicities in the first pass so duplicate titles can be marked unsafe
+    // without retaining message bodies or all rows in memory.
     $userTitleCounts = [];
-    foreach ($rows as $row) {
+    foreach ($this->api4Iterate('MessageTemplate', [], $select, $order) as $row) {
       $row = (array) $row;
       if (empty($row['workflow_name']) && !empty($row['msg_title'])) {
         $title = (string) $row['msg_title'];
@@ -35,9 +44,8 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
       }
     }
 
-    $files = [];
     $used = [];
-    foreach ($rows as $row) {
+    foreach ($this->api4Iterate('MessageTemplate', [], $select, $order) as $row) {
       $row = (array) $row;
       $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
       $folder = !empty($row['workflow_name']) || !empty($row['is_reserved']) ? 'system' : 'user';
@@ -59,7 +67,7 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
 
       unset($row['id']);
       $filename = $folder . '/' . $this->uniqueFileName($base, $used) . '.yml';
-      $files[] = [
+      yield [
         'filename' => $filename,
         'source_id' => $sourceId,
         'data' => [
@@ -73,7 +81,6 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
         ],
       ];
     }
-    return $files;
   }
 
   /**
@@ -160,8 +167,12 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = $this->baseImportSummary($dryRun);
-    $currentFiles = $this->currentExportedTemplatesByFilename();
+    $currentFiles = $this->deleteMissingEnabled ? $this->currentExportedTemplatesByFilename() : [];
     $seenFiles = [];
     foreach ($items as $filename => $file) {
       $seenFiles[$filename] = TRUE;
@@ -221,9 +232,14 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
 
   private function currentExportedTemplatesByFilename(): array {
     $files = [];
-    foreach ($this->export() as $file) {
+    foreach ($this->iterateExport() as $file) {
       if (!empty($file['filename'])) {
-        $files[(string) $file['filename']] = (array) ($file['data']['template'] ?? []);
+        $template = (array) ($file['data']['template'] ?? []);
+        $files[(string) $file['filename']] = [
+          'workflow_name' => $template['workflow_name'] ?? NULL,
+          'msg_title' => $template['msg_title'] ?? NULL,
+          'is_default' => $template['is_default'] ?? NULL,
+        ];
       }
     }
     return $files;

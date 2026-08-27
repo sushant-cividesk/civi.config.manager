@@ -8,6 +8,14 @@ use Civi\ConfigManager\Util\SimpleYaml;
 abstract class AbstractHandler implements HandlerInterface {
 
   /**
+   * Guard for the legacy api4Get() override bridge used by api4Iterate().
+   *
+   * Third-party/test subclasses which override the historical materialized
+   * api4Get() helper must keep working after alpha62 introduced generators.
+   */
+  private bool $api4GetOverrideBridgeActive = FALSE;
+
+  /**
    * Report whether this handler can read its runtime provider on this site.
    *
    * Handlers backed by optional API4 entities override this method. The
@@ -256,8 +264,15 @@ abstract class AbstractHandler implements HandlerInterface {
       // If a semantic key occurs more than once, none of those records is safe
       // to match automatically. Keep every duplicate visible under a stable
       // synthetic key and mark every copy ambiguous, including the first one.
+      $occurrences = [];
       foreach ($rows as $row) {
-        $duplicateKey = $configKey . '|duplicate=' . rawurlencode((string) $row['filename']);
+        $fingerprint = $this->fingerprint($this->normaliseDataForDiff((array) $row['data']));
+        $baseDuplicateKey = $configKey
+          . '|duplicate=' . rawurlencode((string) $row['filename'])
+          . '|fingerprint=' . $fingerprint;
+        $occurrence = ($occurrences[$baseDuplicateKey] ?? 0) + 1;
+        $occurrences[$baseDuplicateKey] = $occurrence;
+        $duplicateKey = $baseDuplicateKey . '|occurrence=' . $occurrence;
         $row['identity']['config_key'] = $duplicateKey;
         $row['identity']['identity_hash'] = hash('sha256', $duplicateKey);
         $row['identity']['identity_method'] = 'duplicate_identity_fallback';
@@ -694,40 +709,73 @@ abstract class AbstractHandler implements HandlerInterface {
   }
 
   /**
-   * Read an API4 collection in bounded pages.
+   * Iterate an API4 collection in bounded pages without retaining prior pages.
    *
-   * A number of Configuration Manager handlers intentionally read complete
-   * configuration collections. Executing one unbounded API4 Get can force the
-   * provider and API layer to materialize the entire result at once. Page the
-   * read centrally so every handler gets the same low-memory behavior without
-   * carrying provider-specific batching code.
+   * This is the primitive large-site handlers should use. api4Get() remains a
+   * compatibility helper for legacy/small code paths and intentionally builds
+   * an array from this iterator.
+   *
+   * @return \Generator<int,array<string,mixed>>
    */
-  protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
+  protected function api4Iterate(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): \Generator {
+    // Preserve the pre-alpha62 protected extension seam: a subclass may
+    // override api4Get() to provide custom/test provider semantics. Route that
+    // explicit override through the generator once, while guarding parent-call
+    // recursion. Built-in handlers continue on the true streaming path.
+    $api4GetMethod = new \ReflectionMethod($this, 'api4Get');
+    if (!$this->api4GetOverrideBridgeActive && $api4GetMethod->getDeclaringClass()->getName() !== self::class) {
+      $this->api4GetOverrideBridgeActive = TRUE;
+      try {
+        foreach ($this->api4Get($entity, $where, $select, $orderBy) as $row) {
+          yield (array) $row;
+        }
+      }
+      finally {
+        $this->api4GetOverrideBridgeActive = FALSE;
+      }
+      return;
+    }
+
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class)) {
       throw new \RuntimeException('API4 entity not available: ' . $entity . '. Install/enable the provider before managing this configuration type.');
     }
 
-    $rows = [];
     $offset = 0;
     $batchSize = 200;
     $seenPages = [];
+    $orderFields = array_keys($orderBy);
+    $firstOrderField = isset($orderFields[0]) ? (string) $orderFields[0] : '';
+    $idSelected = in_array('*', $select, TRUE) || in_array('id', $select, TRUE);
+    $useIdCursor = $firstOrderField === 'id'
+      && strtoupper((string) ($orderBy['id'] ?? '')) === 'ASC'
+      && $idSelected;
+    $lastId = NULL;
 
     while (TRUE) {
       $action = $class::get(FALSE)->addSelect(...$select);
       foreach ($where as $condition) {
         $action->addWhere(...$condition);
       }
+      if ($useIdCursor && $lastId !== NULL) {
+        // Database-local IDs are execution cursors only. They never become
+        // portable Configuration Manager identity. Keyset paging avoids
+        // offset skips/repeats when a numeric-ID collection changes earlier
+        // in the result set while it is being scanned.
+        $action->addWhere('id', '>', $lastId);
+      }
       foreach ($orderBy as $field => $direction) {
         $action->addOrderBy($field, $direction);
       }
 
-      // Standard API4 Get actions expose setLimit()/setOffset(). A custom
-      // action without those methods is executed exactly once rather than
-      // guessed at or looped unsafely.
-      $paged = method_exists($action, 'setLimit') && method_exists($action, 'setOffset');
+      $hasLimit = method_exists($action, 'setLimit');
+      $hasOffset = method_exists($action, 'setOffset');
+      $paged = $hasLimit && ($useIdCursor || $hasOffset);
       if ($paged) {
-        $action->setLimit($batchSize)->setOffset($offset);
+        $action->setLimit($batchSize);
+        if (!$useIdCursor) {
+          $action->setOffset($offset);
+        }
       }
 
       $page = array_values((array) $action->execute());
@@ -738,19 +786,42 @@ abstract class AbstractHandler implements HandlerInterface {
         }
         $seenPages[$fingerprint] = TRUE;
       }
-      foreach ($page as $row) {
-        $rows[] = $row;
-      }
 
       $pageCount = count($page);
+      $nextLastId = $lastId;
+      foreach ($page as $row) {
+        $row = (array) $row;
+        if ($useIdCursor) {
+          if (!isset($row['id']) || !is_numeric($row['id'])) {
+            throw new \RuntimeException('API4 provider ' . $entity . ' was configured for numeric-ID cursor paging but returned a row without a numeric id.');
+          }
+          $rowId = (int) $row['id'];
+          if ($nextLastId !== NULL && $rowId <= $nextLastId) {
+            throw new \RuntimeException('API4 provider ' . $entity . ' did not make forward progress for numeric-ID cursor paging.');
+          }
+          $nextLastId = $rowId;
+        }
+        yield $row;
+      }
       unset($page, $action);
+
       if (!$paged || $pageCount < $batchSize) {
         break;
       }
-      $offset += $pageCount;
+      if ($useIdCursor) {
+        $lastId = $nextLastId;
+      }
+      else {
+        $offset += $pageCount;
+      }
     }
+  }
 
-    return $rows;
+  /**
+   * Backward-compatible materialized API4 collection read.
+   */
+  protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
+    return iterator_to_array($this->api4Iterate($entity, $where, $select, $orderBy), FALSE);
   }
 
   /**

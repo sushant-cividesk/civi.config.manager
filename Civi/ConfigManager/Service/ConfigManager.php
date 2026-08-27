@@ -2,6 +2,8 @@
 namespace Civi\ConfigManager\Service;
 
 use Civi\ConfigManager\Handler\ScopePickerHintProviderInterface;
+use Civi\ConfigManager\Handler\StreamingHandlerInterface;
+use Civi\ConfigManager\Handler\StreamingImportHandlerInterface;
 use Civi\ConfigManager\Storage\YamlFileStorage;
 use Civi\ConfigManager\Util\SimpleYaml;
 use Civi\ConfigManager\Version;
@@ -1268,36 +1270,115 @@ class ConfigManager {
    * bulk import.
    */
   private function loadManagedYamlFiles($handler, YamlFileStorage $storage): array {
-    $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
-    $files = $this->applyHandlerFileFilter($handler, $files);
-    $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
-    $policy = $this->scope->getPolicy((string) $handler->getType());
-    if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL) {
-      return $files;
-    }
-    if (($policy['mode'] ?? '') !== ConfigScope::MODE_SELECTED) {
-      return [];
-    }
-    $manifest = $this->readManifest($storage);
-    $selectorMap = $this->scope->portableSelectorMapFromManifest($manifest, (string) $handler->getType());
-    $exportLikeFiles = [];
-    foreach ($files as $filename => $data) {
-      $exportLikeFiles[] = [
-        'filename' => (string) $filename,
-        'relative_path' => trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/'),
-        'data' => (array) $data,
-      ];
-    }
-    $partition = $this->scope->partition((string) $handler->getType(), $exportLikeFiles, FALSE, $selectorMap);
-    return $this->scope->filterYamlFiles(
-      (string) $handler->getType(),
-      $files,
-      array_map('strval', (array) ($partition['managed_config_keys'] ?? []))
-    );
+    return iterator_to_array($this->iterateManagedYamlFilesForHandler($handler, $storage), TRUE);
   }
 
-  public function export(bool $dryRun = TRUE, array $typeFilter = []): array {
+  /**
+   * Import one handler without materializing its full managed YAML set when
+   * the handler supports the streaming import contract.
+   */
+  private function importManagedYamlForHandler($handler, YamlFileStorage $storage, bool $dryRun): array {
+    if ($handler instanceof StreamingImportHandlerInterface) {
+      return $handler->importIterable($this->iterateManagedYamlFilesForHandler($handler, $storage), $dryRun);
+    }
+    return $handler->import($this->loadManagedYamlFiles($handler, $storage), $dryRun);
+  }
+
+  /**
+   * Validate large streaming handlers one document at a time.
+   *
+   * Core streaming handlers perform file-local schema/identity validation;
+   * cross-file dependencies are checked separately from compact metadata in
+   * addDependencyWarningsFromMetadata(). This keeps validation bounded while
+   * preserving the complete preflight barrier.
+   */
+  private function validateManagedYamlForHandler($handler, YamlFileStorage $storage): array {
+    if (!($handler instanceof StreamingHandlerInterface)) {
+      return $handler->validate($this->loadManagedYamlFiles($handler, $storage));
+    }
+
+    $result = [
+      'type' => (string) $handler->getType(),
+      'valid' => TRUE,
+      'warnings' => [],
+      'errors' => [],
+      'count' => 0,
+    ];
+    foreach ($this->iterateManagedYamlFilesForHandler($handler, $storage) as $filename => $file) {
+      $validation = (array) $handler->validate([(string) $filename => (array) $file]);
+      $result['count']++;
+      foreach ((array) ($validation['warnings'] ?? []) as $warning) {
+        $result['warnings'][] = $warning;
+      }
+      foreach ((array) ($validation['errors'] ?? []) as $error) {
+        $result['errors'][] = $error;
+      }
+      if (empty($validation['valid'])) {
+        $result['valid'] = FALSE;
+      }
+    }
+    $result['valid'] = $result['valid'] && empty($result['errors']);
+    return $result;
+  }
+
+  /**
+   * Yield only YAML owned by the handler's effective managed scope.
+   *
+   * Unlike loadManagedYamlFiles(), this never parses the complete handler
+   * directory into one PHP array. Selected scope is resolved from the portable
+   * config_keys already recorded in manifest.yml; if those keys are missing,
+   * it fails closed and yields no documents.
+   *
+   * @return \Generator<string,array<string,mixed>>
+   */
+  private function iterateManagedYamlFilesForHandler($handler, YamlFileStorage $storage): \Generator {
+    $policy = $this->scope->getPolicy((string) $handler->getType());
+    $mode = (string) ($policy['mode'] ?? ConfigScope::MODE_ALL);
+    if (!in_array($mode, [ConfigScope::MODE_ALL, ConfigScope::MODE_SELECTED], TRUE)) {
+      return;
+    }
+
+    $portableSelectorMap = [];
+    if ($mode === ConfigScope::MODE_SELECTED) {
+      $manifest = $this->readManifest($storage);
+      $portableSelectorMap = $this->scope->portableSelectorMapFromManifest($manifest, (string) $handler->getType());
+      unset($manifest);
+    }
+
+    $directory = trim((string) $handler->getDirectory(), '/');
+    foreach ($storage->iterateDirectory((string) $handler->getDirectory()) as $filename => $data) {
+      $filename = (string) $filename;
+      $relative = $directory === '' ? $filename : $directory . '/' . ltrim($filename, '/');
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $filtered = $this->applyHandlerFileFilter($handler, [$filename => (array) $data]);
+      if (!array_key_exists($filename, $filtered)) {
+        continue;
+      }
+      $data = $this->applyIgnoredValueRules($relative, (array) $filtered[$filename]);
+      if ($mode === ConfigScope::MODE_SELECTED) {
+        // Evaluate one YAML document at a time using the same selector aliases,
+        // resolved selector map, and portable manifest aliases as the original
+        // partition() path. Looking only at manifest config_keys breaks archives
+        // after identity-format migrations and ignores a currently configured
+        // selector which still matches the YAML by name/path.
+        $partition = $this->scope->partition((string) $handler->getType(), [[
+          'filename' => $filename,
+          'relative_path' => $relative,
+          'data' => $data,
+        ]], FALSE, $portableSelectorMap);
+        if (empty($partition['managed'])) {
+          continue;
+        }
+      }
+      yield $filename => $data;
+    }
+  }
+
+  public function export(bool $dryRun = TRUE, array $typeFilter = [], ?callable $progress = NULL): array {
     $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot());
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
     $dependencyTypes = $requestedTypes ? array_values(array_diff($effectiveTypes, $requestedTypes)) : [];
@@ -1319,171 +1400,232 @@ class ConfigManager {
       'message' => NULL,
     ];
 
-    $queue = [];
+    $workspace = new StagedExportWorkspace($storage);
     $successfulHandlers = [];
     $scopeManifestUpdates = [];
-
-    // Keep scope modes that do not depend on resolved selected-item keys
-    // explicit in manifest.yml before handler export. This prevents stale
-    // metadata (for example, extensions: ignore) from surviving after an
-    // administrator saves Manage everything, even if that handler later
-    // reports a provider-specific export error. Selected mode is still written
-    // only after a successful partition because it needs resolved portable keys.
-    foreach ($this->getScopeTypeOptions() as $scopeType) {
-      $type = (string) ($scopeType['type'] ?? '');
-      if ($type === '') {
-        continue;
+    $resolvedPartitions = [];
+    $stagedActiveFingerprints = [];
+    $eligibleHandlers = [];
+    foreach ($this->getHandlers() as $candidateHandler) {
+      if (!$effectiveTypes || in_array($candidateHandler->getType(), $effectiveTypes, TRUE)) {
+        $eligibleHandlers[] = $candidateHandler;
       }
-      $policy = $this->scope->getPolicy($type);
-      if (!in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_ALL, ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
-        continue;
-      }
-      $scopeManifestUpdates[$type] = $this->scope->manifestEntry($type, ['policy' => $policy]);
     }
+    $totalSteps = max(1, count($eligibleHandlers) + 3);
+    $completedSteps = 0;
+    $processedItems = 0;
+    $this->reportProgress($progress, $completedSteps, $totalSteps, 'Preparing export', 'Building a staged configuration snapshot.', $processedItems);
 
-    foreach ($this->getHandlers() as $handler) {
-      if ($effectiveTypes && !in_array($handler->getType(), $effectiveTypes, TRUE)) {
-        continue;
+    try {
+      // Scope modes which do not need resolved selected-item keys can be
+      // represented before provider discovery. The live manifest is not touched
+      // until the complete staged snapshot has passed every handler.
+      foreach ($this->getScopeTypeOptions() as $scopeType) {
+        $type = (string) ($scopeType['type'] ?? '');
+        if ($type === '') {
+          continue;
+        }
+        $policy = $this->scope->getPolicy($type);
+        if (!in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_ALL, ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
+          continue;
+        }
+        $scopeManifestUpdates[$type] = $this->scope->manifestEntry($type, ['policy' => $policy]);
       }
-      $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
-      try {
-        $exported = $handler->export();
-        $handlerExportErrors = $this->consumeHandlerExportErrors($handler, $summary['errors']);
-        $partition = $this->scopePartition($handler, $exported, $storage, TRUE);
+
+      foreach ($eligibleHandlers as $handler) {
+        $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
         $handlerType = (string) $handler->getType();
         $handlerPolicy = $this->scope->getPolicy($handlerType);
-        if ($handlerExportErrors === 0 || (string) ($handlerPolicy['mode'] ?? '') !== ConfigScope::MODE_SELECTED) {
-          $scopeManifestUpdates[$handlerType] = $this->scope->manifestEntry($handlerType, $partition);
-        }
-        if (!$dryRun && $handlerExportErrors === 0) {
-          $this->scope->persistResolvedMatches($handlerType, $partition);
-        }
-        foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
-          $summary['warnings'][] = [
-            'type' => $handler->getType(),
-            'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.',
-          ];
-        }
-        foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
-          $summary['warnings'][] = [
-            'type' => $handler->getType(),
-            'message' => 'Configured managed object is currently missing from CiviCRM: ' . (string) $selector . '. Existing YAML backup is preserved for review or restore.',
-          ];
-        }
-        foreach ((array) ($partition['managed'] ?? []) as $file) {
-          $relative = trim($handler->getDirectory(), '/') . '/' . $file['filename'];
-          if ($this->isIgnoredPath($relative)) {
-            $summary['skipped'][] = $relative . ' (ignored)';
-            continue;
+        $handlerLabel = (string) $handler->getLabel();
+        $this->reportProgress($progress, $completedSteps, $totalSteps, 'Exporting ' . $handlerLabel, 'Streaming active configuration to the staged snapshot.', $processedItems);
+
+        try {
+          // Manage Everything is the large-site path. Stream each document
+          // directly to disk so there is never a handler-wide export array or a
+          // site-wide queue of complete YAML documents in memory.
+          if (($handlerPolicy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL
+            && $handler instanceof StreamingHandlerInterface) {
+            $partition = [
+              'policy' => $handlerPolicy,
+              'managed_config_keys' => [],
+              'matched_selectors' => [],
+              'selector_config_keys' => [],
+              'unresolved_selectors' => [],
+              'missing_selectors' => [],
+            ];
+            foreach ($handler->iterateExport() as $file) {
+              $this->stageExportFile($workspace, $handler, (array) $file, $summary);
+              $processedItems++;
+              if (($processedItems % 25) === 0) {
+                $this->reportProgress($progress, $completedSteps, $totalSteps, 'Exporting ' . $handlerLabel, 'Streaming active configuration to the staged snapshot.', $processedItems);
+              }
+            }
           }
-          $queue[] = [
-            'type' => $handler->getType(),
-            'label' => $handler->getLabel(),
-            'directory' => $handler->getDirectory(),
-            'filename' => $file['filename'],
-            'relative' => $relative,
-            'data' => $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? [])),
+          else {
+            // Selected/watch/ignore and legacy third-party handlers retain the
+            // compatibility contract. They are staged transactionally even if
+            // their old HandlerInterface::export() implementation materializes
+            // one handler collection.
+            $exported = $handler->export();
+            $partition = $this->scopePartition($handler, $exported, $storage, TRUE);
+            foreach ((array) ($partition['managed'] ?? []) as $file) {
+              $this->stageExportFile($workspace, $handler, (array) $file, $summary);
+              $processedItems++;
+            }
+            unset($exported);
+          }
+
+          $handlerExportErrors = $this->consumeHandlerExportErrors($handler, $summary['errors']);
+          if ($handlerExportErrors === 0 || (string) ($handlerPolicy['mode'] ?? '') !== ConfigScope::MODE_SELECTED) {
+            $scopeManifestUpdates[$handlerType] = $this->scope->manifestEntry($handlerType, $partition);
+          }
+
+          foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
+            $summary['warnings'][] = [
+              'type' => $handlerType,
+              'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.',
+            ];
+          }
+          foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
+            $summary['warnings'][] = [
+              'type' => $handlerType,
+              'message' => 'Configured managed object is currently missing from CiviCRM: ' . (string) $selector . '. Existing YAML backup is preserved for review or restore.',
+            ];
+          }
+
+          if ($handlerExportErrors === 0) {
+            $successfulHandlers[] = $handler;
+            $resolvedPartitions[$handlerType] = [
+              'policy' => (array) ($partition['policy'] ?? $handlerPolicy),
+              'matched_selectors' => (array) ($partition['matched_selectors'] ?? []),
+              'selector_config_keys' => (array) ($partition['selector_config_keys'] ?? []),
+              'managed_config_keys' => array_values(array_map('strval', (array) ($partition['managed_config_keys'] ?? []))),
+            ];
+          }
+          unset($partition);
+          $completedSteps++;
+          $this->reportProgress($progress, $completedSteps, $totalSteps, 'Exported ' . $handlerLabel, 'Handler snapshot completed.', $processedItems);
+        }
+        catch (\Throwable $e) {
+          $summary['errors'][] = [
+            'type' => $handlerType,
+            'message' => $e->getMessage(),
           ];
         }
-        // A handler can return useful partial backup files while reporting that
-        // one contributed provider could not be read. Keep those files, but do
-        // not authorize stale-file deletion or baseline acceptance for that
-        // incomplete handler.
-        if ($handlerExportErrors === 0) {
-          $successfulHandlers[] = $handler;
+      }
+
+      // A staged export is an all-or-nothing snapshot. Provider failure,
+      // duplicate path, or any other handler error leaves the previous live
+      // YAML tree untouched instead of publishing a partial snapshot.
+      if ($summary['errors']) {
+        $summary['ok'] = FALSE;
+        $summary['message'] = 'Export staging failed. The previous YAML snapshot was left unchanged.';
+        return $summary;
+      }
+
+      // Freeze a compact fingerprint of the active-derived staged documents
+      // before reverse dependency metadata is added. We re-scan active CiviCRM
+      // immediately before publish; a manual/admin change during staging must
+      // never produce a mixed snapshot.
+      foreach ($successfulHandlers as $handler) {
+        $policy = $this->scope->getPolicy((string) $handler->getType());
+        if (($policy['mode'] ?? ConfigScope::MODE_ALL) !== ConfigScope::MODE_ALL) {
+          continue;
         }
-        unset($exported, $partition);
+        $stagedActiveFingerprints[(string) $handler->getType()] = $this->compactSnapshotFromYamlStorage(
+          $handler,
+          $workspace->getStageStorage()
+        );
       }
-      catch (\Throwable $e) {
-        $summary['errors'][] = [
-          'type' => $handler->getType(),
-          'message' => $e->getMessage(),
-        ];
-      }
-    }
 
-    $this->pruneExtensionIndexesForIgnoredOrFilteredConfig($queue);
-    $this->addReverseDependencyMetadataToExportQueue($queue);
-    $queueIndexesByType = $this->queueIndexesByType($queue);
-    foreach ($queue as $file) {
-      $summary['available'][] = [
-        'type' => (string) ($file['type'] ?? ''),
-        'label' => (string) ($file['label'] ?? $file['type'] ?? ''),
-        'directory' => (string) ($file['directory'] ?? ''),
-        'file' => (string) ($file['filename'] ?? ''),
-        'path' => (string) ($file['relative'] ?? ''),
-      ];
-    }
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Finalizing staged YAML', 'Rebuilding provider indexes and reverse dependency metadata.', $processedItems);
+      $this->pruneExtensionIndexesInStagedExport($workspace);
+      $this->addReverseDependencyMetadataToStagedExport($workspace);
+      $completedSteps++;
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Staged YAML finalized', 'Calculating the publish and stale-file plan.', $processedItems);
 
-    if (!$dryRun) {
       $existingManifest = $this->readManifest($storage);
       $existingScope = (array) ($existingManifest['managed_scope'] ?? []);
       foreach ($scopeManifestUpdates as $type => $scopeEntry) {
         $existingScope[$type] = $scopeEntry;
       }
       ksort($existingScope, SORT_NATURAL | SORT_FLAG_CASE);
-      $manifest = $this->getManifestData($existingScope);
-      if (!$storage->isSame('', 'manifest.yml', $manifest)) {
-        $summary['written'][] = $storage->write('', 'manifest.yml', $manifest);
-      }
-      else {
-        $summary['skipped'][] = 'manifest.yml';
-      }
-    }
+      $workspace->stage('__manifest__', '', 'manifest.yml', $this->getManifestData($existingScope));
 
-    foreach ($this->findStaleYamlFilesForExport($storage, $successfulHandlers, $queue, $queueIndexesByType) as $staleFile) {
+      $stalePaths = $this->findStaleYamlPathsForStagedExport(
+        $storage,
+        $workspace,
+        $successfulHandlers,
+        $requestedTypes
+      );
+      $preview = $workspace->preview($stalePaths);
+
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Verifying active snapshot', 'Checking that CiviCRM configuration did not change while export was staged.', $processedItems);
+      foreach ($successfulHandlers as $handler) {
+        $type = (string) $handler->getType();
+        if (!array_key_exists($type, $stagedActiveFingerprints)) {
+          continue;
+        }
+        $this->assertActiveSnapshotMatches($handler, $stagedActiveFingerprints[$type]);
+      }
+
       if ($dryRun) {
-        $summary['delete_planned'][] = (string) $staleFile['relative'];
-        $summary['planned'][] = (string) $staleFile['relative'] . ' (delete stale YAML)';
-      }
-      else {
-        $summary['deleted'][] = $storage->delete((string) $staleFile['directory'], (string) $staleFile['filename']);
-      }
-    }
-
-    foreach ($queue as $file) {
-      $data = $this->applyIgnoredValueRules((string) $file['relative'], (array) $file['data']);
-      $isSame = $storage->isSame((string) $file['directory'], (string) $file['filename'], $data);
-      if ($dryRun) {
-        if (!$isSame) {
-          $summary['planned'][] = (string) $file['relative'];
+        foreach ($preview['write'] as $relative) {
+          $summary['planned'][] = $relative;
         }
-        else {
-          $summary['skipped'][] = (string) $file['relative'];
+        foreach ($preview['delete'] as $relative) {
+          $summary['delete_planned'][] = $relative;
+          $summary['planned'][] = $relative . ' (delete stale YAML)';
+        }
+        foreach ($preview['skip'] as $relative) {
+          $summary['skipped'][] = $relative;
         }
       }
       else {
-        if ($isSame) {
-          $summary['skipped'][] = (string) $file['relative'];
-        }
-        else {
-          $summary['written'][] = $storage->write((string) $file['directory'], (string) $file['filename'], $data);
-        }
-      }
-    }
+        $this->reportProgress($progress, $completedSteps, $totalSteps, 'Publishing YAML snapshot', 'Atomically committing staged files; manifest.yml will be written last.', $processedItems);
+        $published = $workspace->publish($stalePaths);
+        $summary['written'] = $published['written'];
+        $summary['deleted'] = $published['deleted'];
+        $summary['skipped'] = array_values(array_unique(array_merge($summary['skipped'], $published['skipped'])));
 
-    if (!$dryRun && empty($summary['errors'])) {
-      try {
-        $stateManager = new ConfigStateManager();
-        foreach ($successfulHandlers as $handler) {
-          $exportedForHandler = [];
-          foreach ((array) ($queueIndexesByType[(string) $handler->getType()] ?? []) as $queueIndex) {
-            $file = (array) ($queue[$queueIndex] ?? []);
-            if (!$file) {
-              continue;
+        // Persist selected-scope aliases only after the filesystem commit.
+        foreach ($resolvedPartitions as $type => $partition) {
+          $this->scope->persistResolvedMatches((string) $type, (array) $partition);
+        }
+        $completedSteps++;
+        $this->reportProgress($progress, $completedSteps, $totalSteps, 'YAML snapshot committed', 'Updating local synchronization baseline.', $processedItems);
+
+        // Accept baseline state one staged YAML document at a time. This keeps
+        // canonicalization memory bounded and ensures the baseline represents
+        // the exact snapshot which was just committed.
+        try {
+          $stateManager = new ConfigStateManager();
+          $stageStorage = $workspace->getStageStorage();
+          foreach ($successfulHandlers as $handler) {
+            $directory = trim((string) $handler->getDirectory(), '/');
+            foreach ($stageStorage->iterateDirectory($directory) as $filename => $data) {
+              $stateManager->acceptYamlBaselineItem($handler, (string) $filename, (array) $data, 'export');
             }
-            $exportedForHandler[] = [
-              'filename' => (string) ($file['filename'] ?? ''),
-              'data' => (array) ($file['data'] ?? []),
-            ];
           }
-          $stateManager->acceptExportedBaseline($handler, $exportedForHandler, 'export');
-          unset($exportedForHandler);
+        }
+        catch (\Throwable $e) {
+          $summary['warnings'][] = ['type' => 'state', 'message' => 'YAML export succeeded, but local baseline state could not be updated: ' . $e->getMessage()];
         }
       }
-      catch (\Throwable $e) {
-        $summary['warnings'][] = ['type' => 'state', 'message' => 'YAML export succeeded, but local baseline state could not be updated: ' . $e->getMessage()];
+      if ($dryRun) {
+        $completedSteps++;
       }
+      $completedSteps = $totalSteps;
+      $this->reportProgress($progress, $completedSteps, $totalSteps, $dryRun ? 'Export preview complete' : 'Export complete', 'Configuration snapshot processing finished.', $processedItems);
+    }
+    catch (\Throwable $e) {
+      $summary['errors'][] = ['type' => 'export', 'message' => $e->getMessage()];
+      $summary['ok'] = FALSE;
+      $summary['message'] = 'Export failed. The previous YAML snapshot was preserved or rolled back.';
+      return $summary;
+    }
+    finally {
+      $workspace->cleanup();
     }
 
     $summary['ok'] = empty($summary['errors']);
@@ -1494,6 +1636,145 @@ class ConfigManager {
       $summary['message'] = 'No files written. YAML files already match the active database configuration.';
     }
     return $summary;
+  }
+
+  private function reportProgress(?callable $progress, int $completed, int $total, string $label, string $message, int $processedItems = 0): void {
+    if ($progress === NULL) {
+      return;
+    }
+    $total = max(1, $total);
+    $completed = max(0, min($completed, $total));
+    $progress([
+      'completed' => $completed,
+      'total' => $total,
+      'percent' => (int) floor(($completed / $total) * 100),
+      'label' => $label,
+      'message' => $message,
+      'processed_items' => max(0, $processedItems),
+    ]);
+  }
+
+  /**
+   * Build compact identity/hash state from staged or live YAML documents.
+   * Whole documents are released after each hash is calculated.
+   */
+  private function compactSnapshotFromYamlStorage($handler, YamlFileStorage $storage): array {
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $groups = [];
+    foreach ($storage->iterateDirectory($directory) as $filename => $data) {
+      $filename = ltrim((string) $filename, '/');
+      $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $row = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, (array) $data, $identityService, $canonicalizer, $options);
+      $groups[(string) $row['identity']['config_key']][] = $row;
+      unset($row, $data);
+    }
+    $indexed = $this->indexCompactDiffGroups($groups);
+    $result = [];
+    foreach ($indexed as $key => $row) {
+      $result[(string) $key] = (string) ($row['hash'] ?? '');
+    }
+    ksort($result, SORT_STRING);
+    return $result;
+  }
+
+  /**
+   * Re-scan active CiviCRM and fail closed if it changed after export staging.
+   */
+  private function assertActiveSnapshotMatches($handler, array $expected): void {
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $groups = [];
+    $rows = $handler instanceof StreamingHandlerInterface ? $handler->iterateExport() : $handler->export();
+    foreach ($rows as $file) {
+      $file = (array) $file;
+      $filename = ltrim((string) ($file['filename'] ?? ''), '/');
+      if ($filename === '') {
+        continue;
+      }
+      $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $data = $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? []));
+      $row = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, $data, $identityService, $canonicalizer, $options);
+      $groups[(string) $row['identity']['config_key']][] = $row;
+      unset($data, $row);
+    }
+    $errors = [];
+    if ($this->consumeHandlerExportErrors($handler, $errors) > 0) {
+      throw new \RuntimeException('Active provider verification failed after export staging: ' . (string) ($errors[0]['message'] ?? 'provider scan incomplete'));
+    }
+    $indexed = $this->indexCompactDiffGroups($groups);
+    $actual = [];
+    foreach ($indexed as $key => $row) {
+      $actual[(string) $key] = (string) ($row['hash'] ?? '');
+    }
+    ksort($actual, SORT_STRING);
+    if ($actual !== $expected) {
+      throw new \RuntimeException('Active CiviCRM configuration changed while export was being staged. Export was aborted before publish; the previous YAML snapshot remains unchanged.');
+    }
+  }
+
+  /**
+   * Compact current active state for the handler's managed import scope.
+   */
+  private function compactManagedActiveSnapshot($handler, YamlFileStorage $storage): array {
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $groups = [];
+    $policy = $this->scope->getPolicy((string) $handler->getType());
+
+    if ($handler instanceof StreamingHandlerInterface && (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL)) {
+      $files = $handler->iterateExport();
+    }
+    else {
+      $partition = $this->scopePartition($handler, $handler->export(), $storage, FALSE);
+      $files = (array) ($partition['managed'] ?? []);
+    }
+
+    foreach ($files as $file) {
+      $file = (array) $file;
+      $filename = ltrim((string) ($file['filename'] ?? ''), '/');
+      if ($filename === '') {
+        continue;
+      }
+      $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $data = $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? []));
+      $row = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, $data, $identityService, $canonicalizer, $options);
+      $groups[(string) $row['identity']['config_key']][] = $row;
+      unset($data, $row);
+    }
+
+    $errors = [];
+    if ($this->consumeHandlerExportErrors($handler, $errors) > 0) {
+      throw new \RuntimeException((string) ($errors[0]['message'] ?? 'Active provider scan was incomplete.'));
+    }
+    $indexed = $this->indexCompactDiffGroups($groups);
+    $result = [];
+    foreach ($indexed as $key => $row) {
+      $result[(string) $key] = (string) ($row['hash'] ?? '');
+    }
+    ksort($result, SORT_STRING);
+    return $result;
+  }
+
+  private function assertManagedActiveSnapshotMatches($handler, YamlFileStorage $storage, array $expected, string $message): void {
+    if ($this->compactManagedActiveSnapshot($handler, $storage) !== $expected) {
+      throw new \RuntimeException($message);
+    }
   }
 
   /**
@@ -1565,16 +1846,190 @@ class ConfigManager {
     unset($manifest);
 
     foreach ($this->getHandlers() as $handler) {
-      $managed = $this->loadManagedYamlFiles($handler, $storage);
-      ksort($managed, SORT_NATURAL | SORT_FLAG_CASE);
-      foreach ($managed as $filename => $data) {
+      foreach ($this->iterateManagedYamlFilesForHandler($handler, $storage) as $filename => $data) {
         $relative = trim((string) $handler->getDirectory(), '/') . '/' . ltrim((string) $filename, '/');
         if ($relative !== '' && !$this->isIgnoredPath($relative)) {
           yield $relative => (array) $data;
         }
       }
-      unset($managed);
     }
+  }
+
+  /**
+   * Stage one exported document and keep only compact response metadata in PHP.
+   */
+  private function stageExportFile(StagedExportWorkspace $workspace, $handler, array $file, array &$summary): void {
+    $filename = ltrim((string) ($file['filename'] ?? ''), '/');
+    if ($filename === '') {
+      throw new \RuntimeException('Handler ' . $handler->getType() . ' returned an export row without a filename.');
+    }
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+    if ($this->isIgnoredPath($relative)) {
+      $summary['skipped'][] = $relative . ' (ignored)';
+      return;
+    }
+
+    $data = $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? []));
+    $workspace->stage((string) $handler->getType(), $directory, $filename, $data);
+    $summary['available'][] = [
+      'type' => (string) $handler->getType(),
+      'label' => (string) $handler->getLabel(),
+      'directory' => $directory,
+      'file' => $filename,
+      'path' => $relative,
+    ];
+  }
+
+  /**
+   * Recalculate extension provider indexes from the documents which actually
+   * survived ignore/scope filtering in the staged snapshot.
+   */
+  private function pruneExtensionIndexesInStagedExport(StagedExportWorkspace $workspace): void {
+    $stage = $workspace->getStageStorage();
+    $counts = [];
+    foreach ($stage->iterateDirectory('extensions') as $filename => $data) {
+      $data = (array) $data;
+      if (($data['type'] ?? '') !== 'extension_config.item') {
+        continue;
+      }
+      $extension = (string) ($data['extension'] ?? '');
+      $api = (string) ($data['api'] ?? '');
+      $entity = (string) ($data['entity'] ?? '');
+      if ($extension === '' || $api === '' || $entity === '') {
+        continue;
+      }
+      $key = $api . ':' . $entity;
+      $counts[$extension][$key] = ($counts[$extension][$key] ?? 0) + 1;
+    }
+
+    foreach ($stage->iterateDirectory('extensions') as $filename => $data) {
+      $data = (array) $data;
+      if (($data['type'] ?? '') !== 'extension.item' || empty($data['config_index']) || !is_array($data['config_index'])) {
+        continue;
+      }
+      $extensionData = (array) ($data['extension'] ?? []);
+      $extensionKey = (string) ($extensionData['key'] ?? ($data['key'] ?? ''));
+      $filteredIndex = [];
+      foreach ((array) $data['config_index'] as $row) {
+        $row = (array) $row;
+        $api = (string) ($row['api'] ?? '');
+        $entity = (string) ($row['entity'] ?? '');
+        $key = $api . ':' . $entity;
+        $count = (int) ($counts[$extensionKey][$key] ?? 0);
+        if ($api === '' || $entity === '' || $count <= 0) {
+          continue;
+        }
+        $row['count'] = $count;
+        $filteredIndex[] = $row;
+      }
+      if ($filteredIndex) {
+        $data['config_index'] = $filteredIndex;
+      }
+      else {
+        unset($data['config_index']);
+      }
+      $workspace->rewrite('extensions/' . ltrim((string) $filename, '/'), $data);
+    }
+  }
+
+  /**
+   * Add reverse dependency metadata using three bounded passes over staged
+   * YAML. Only names, paths, and dependency edges are retained in memory.
+   */
+  private function addReverseDependencyMetadataToStagedExport(StagedExportWorkspace $workspace): void {
+    $stage = $workspace->getStageStorage();
+    $files = $workspace->files();
+    $nameIndex = [];
+
+    foreach ($files as $relative => $metadata) {
+      if ($relative === 'manifest.yml') {
+        continue;
+      }
+      $data = $stage->readFile($relative);
+      foreach ($this->namesFromYamlFile($data) as $name) {
+        $nameIndex[(string) $metadata['type']][(string) $name][] = $relative;
+      }
+      unset($data);
+    }
+
+    $requiredBy = [];
+    foreach ($files as $relative => $metadata) {
+      if ($relative === 'manifest.yml') {
+        continue;
+      }
+      $data = $stage->readFile($relative);
+      $sourceNames = $this->namesFromYamlFile($data);
+      $sourceName = $sourceNames[0] ?? $relative;
+      foreach ($this->extractDependenciesFromYamlFile($data) as $dependency) {
+        $dependencyType = (string) ($dependency['type'] ?? '');
+        $dependencyName = (string) ($dependency['name'] ?? '');
+        if ($dependencyType === '' || $dependencyName === '') {
+          continue;
+        }
+        foreach ((array) ($nameIndex[$dependencyType][$dependencyName] ?? []) as $targetRelative) {
+          if ($targetRelative === $relative) {
+            continue;
+          }
+          $requiredBy[$targetRelative][] = [
+            'type' => (string) $metadata['type'],
+            'name' => (string) $sourceName,
+            'path' => $relative,
+            'reason' => (string) ($dependency['reason'] ?? 'This YAML item depends on this configuration.'),
+          ];
+        }
+      }
+      unset($data);
+    }
+
+    foreach ($requiredBy as $relative => $rows) {
+      $data = $stage->readFile((string) $relative);
+      $existing = isset($data['required_by']) && is_array($data['required_by']) ? (array) $data['required_by'] : [];
+      $data['required_by'] = $this->uniqueDependencyLikeRows(array_merge($existing, (array) $rows));
+      $workspace->rewrite((string) $relative, $data);
+      unset($data);
+    }
+  }
+
+  /**
+   * Find stale files by path after a complete successful handler stage.
+   * Selected/provider-subset exports never authorize delete-missing.
+   *
+   * @param object[] $handlers
+   * @param string[] $requestedTypes
+   * @return string[]
+   */
+  private function findStaleYamlPathsForStagedExport(
+    YamlFileStorage $storage,
+    StagedExportWorkspace $workspace,
+    array $handlers,
+    array $requestedTypes
+  ): array {
+    $stale = [];
+    $allStaged = $workspace->files();
+    foreach ($handlers as $handler) {
+      $type = (string) $handler->getType();
+      if (!$this->scope->allowsDeleteMissing($type)) {
+        continue;
+      }
+      // Dependency expansion and provider-specific filters are intentionally
+      // non-destructive. Delete-missing is authorized only for a full export or
+      // when the complete handler type itself was explicitly requested.
+      if ($requestedTypes && !in_array($type, $requestedTypes, TRUE)) {
+        continue;
+      }
+      $desired = $workspace->pathSetForType($type);
+      foreach ($storage->iterateYamlPaths((string) $handler->getDirectory()) as $relative) {
+        $relative = (string) $relative;
+        if ($relative === '' || isset($allStaged[$relative]) || isset($desired[$relative]) || $this->isIgnoredPath($relative)) {
+          continue;
+        }
+        $stale[$relative] = TRUE;
+      }
+    }
+    $paths = array_keys($stale);
+    sort($paths, SORT_NATURAL | SORT_FLAG_CASE);
+    return $paths;
   }
 
   private function findStaleYamlFilesForExport(YamlFileStorage $storage, array $handlers, array $queue, array $queueIndexesByType): array {
@@ -1809,6 +2264,30 @@ class ConfigManager {
       }
       $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
       try {
+        $policy = $this->scope->getPolicy((string) $handler->getType());
+        $useCompactStreaming = $handler instanceof StreamingHandlerInterface
+          && (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL);
+
+        if ($useCompactStreaming) {
+          $compact = $this->buildCompactStreamingDiff($handler, $storage, $result['errors']);
+          $item = $compact['item'];
+          if ($stateManager !== NULL) {
+            try {
+              $item = $stateManager->enrichCompactDiff($handler, $compact['active'], $compact['desired'], $item);
+            }
+            catch (\Throwable $e) {
+              $result['state_warning'] = 'Configuration diff succeeded, but local state/baseline tracking could not be updated: ' . $e->getMessage();
+              $stateManager = NULL;
+            }
+          }
+          $item = $this->filterIgnoredDiffItem($item, $handler->getDirectory());
+          if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files'])) {
+            $result['items'][] = $item;
+          }
+          unset($compact, $item);
+          continue;
+        }
+
         $files = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
         $files = $this->applyHandlerFileFilter($handler, $files);
         $files = $this->filterIgnoredValuesInFiles($handler->getDirectory(), $files);
@@ -1847,6 +2326,331 @@ class ConfigManager {
     $result['ok'] = empty($result['errors']);
     $this->cacheHealthFromDiff($result);
     return $result;
+  }
+
+  /**
+   * Build a summary-first diff for streaming handlers without keeping full
+   * active/YAML documents or field-level diffs in memory.
+   *
+   * @return array{item:array<string,mixed>,active:array<string,array<string,mixed>>,desired:array<string,array<string,mixed>>}
+   */
+  private function buildCompactStreamingDiff($handler, YamlFileStorage $storage, array &$errors): array {
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $activeGroups = [];
+    $desiredGroups = [];
+
+    foreach ($handler->iterateExport() as $file) {
+      $file = (array) $file;
+      $filename = ltrim((string) ($file['filename'] ?? ''), '/');
+      if ($filename === '') {
+        continue;
+      }
+      $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+      if ($this->isIgnoredPath($relative)) {
+        continue;
+      }
+      $data = $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? []));
+      $row = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, $data, $identityService, $canonicalizer, $options);
+      $activeGroups[(string) $row['identity']['config_key']][] = $row;
+      unset($data, $row);
+    }
+
+    $exportErrorCount = $this->consumeHandlerExportErrors($handler, $errors);
+    if ($exportErrorCount > 0) {
+      throw new \RuntimeException('Active provider scan was incomplete. Diff was aborted for this configuration type instead of presenting a partial result.');
+    }
+
+    foreach ($this->iterateManagedYamlFilesForHandler($handler, $storage) as $filename => $data) {
+      $filename = ltrim((string) $filename, '/');
+      $relative = $directory === '' ? $filename : $directory . '/' . $filename;
+      $row = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, (array) $data, $identityService, $canonicalizer, $options);
+      $desiredGroups[(string) $row['identity']['config_key']][] = $row;
+      unset($row, $data);
+    }
+
+    $active = $this->indexCompactDiffGroups($activeGroups);
+    $desired = $this->indexCompactDiffGroups($desiredGroups);
+    unset($activeGroups, $desiredGroups);
+
+    $activeKeys = array_keys($active);
+    $desiredKeys = array_keys($desired);
+    $newKeys = array_values(array_diff($activeKeys, $desiredKeys));
+    $missingKeys = array_values(array_diff($desiredKeys, $activeKeys));
+    $commonKeys = array_values(array_intersect($activeKeys, $desiredKeys));
+    $changed = [];
+    $newInDb = [];
+    $missingInDb = [];
+    $renamed = [];
+    $files = [];
+
+    foreach ($commonKeys as $key) {
+      $a = $active[$key];
+      $y = $desired[$key];
+      if ((string) $a['filename'] !== (string) $y['filename']) {
+        $renamed[] = ['config_key' => (string) $y['identity']['config_key'], 'from' => (string) $y['filename'], 'to' => (string) $a['filename']];
+      }
+      if ((string) $a['hash'] === (string) $y['hash']) {
+        continue;
+      }
+      $changed[] = (string) $y['filename'];
+      $files[] = $this->compactDiffFile($y, $a, 'changed', $key);
+    }
+
+    foreach ($newKeys as $key) {
+      $row = $active[$key];
+      $newInDb[] = (string) $row['filename'];
+      $files[] = $this->compactDiffFile(NULL, $row, 'new_in_db', $key);
+    }
+    foreach ($missingKeys as $key) {
+      $row = $desired[$key];
+      $missingInDb[] = (string) $row['filename'];
+      $files[] = $this->compactDiffFile($row, NULL, 'missing_in_db', $key);
+    }
+
+    $possibleRenames = $this->compactPossibleRenameCandidates($newKeys, $missingKeys, $active, $desired);
+    usort($files, static function(array $a, array $b): int {
+      return strnatcasecmp((string) ($a['path'] ?? ''), (string) ($b['path'] ?? ''));
+    });
+
+    $item = [
+      'type' => (string) $handler->getType(),
+      'label' => (string) $handler->getLabel(),
+      'db_count' => count($active),
+      'file_count' => count($desired),
+      'status' => ($changed || $newInDb || $missingInDb) ? 'changed' : 'in_sync',
+      'changed' => $changed,
+      'new_in_db' => $newInDb,
+      'missing_in_db' => $missingInDb,
+      'renamed' => $renamed,
+      'possible_renames' => $possibleRenames,
+      'files' => $files,
+      'summary_first' => TRUE,
+      'details_lazy' => TRUE,
+    ];
+
+    return ['item' => $item, 'active' => $active, 'desired' => $desired];
+  }
+
+  private function compactDiffRow(string $handlerType, string $filename, string $relative, array $data, ConfigIdentity $identityService, Canonicalizer $canonicalizer, array $options): array {
+    $identity = $identityService->identify($handlerType, $data, $filename);
+    $canonical = $canonicalizer->canonicalize($data, $options);
+    $hash = $canonicalizer->hashCanonical($canonical);
+
+    // A second compact fingerprint deliberately ignores the common machine
+    // identity fields. It is used only to suggest a possible rename and never
+    // grants write permission.
+    $rename = $canonical;
+    if (is_array($rename)) {
+      unset($rename['key'], $rename['name']);
+      if (isset($rename['item']) && is_array($rename['item'])) {
+        unset($rename['item']['key'], $rename['item']['machine_name'], $rename['item']['name'], $rename['item']['name_a_b'], $rename['item']['workflow_name']);
+      }
+    }
+    $renameSignature = $canonicalizer->hashCanonical($rename);
+    unset($canonical, $rename);
+
+    return [
+      'filename' => $filename,
+      'path' => $relative,
+      'identity' => $identity,
+      'hash' => $hash,
+      'rename_signature' => $renameSignature,
+    ];
+  }
+
+  /**
+   * Preserve every duplicate semantic identity under a deterministic synthetic
+   * key. Compact scans must never silently overwrite one occurrence with the
+   * next.
+   */
+  private function indexCompactDiffGroups(array $groups): array {
+    $index = [];
+    foreach ($groups as $configKey => $rows) {
+      $rows = array_values((array) $rows);
+      if (count($rows) === 1) {
+        $index[(string) $configKey] = $rows[0];
+        continue;
+      }
+      $occurrences = [];
+      foreach ($rows as $row) {
+        $base = (string) $configKey
+          . '|duplicate=' . rawurlencode((string) $row['filename'])
+          . '|fingerprint=' . (string) $row['hash'];
+        $occurrence = ($occurrences[$base] ?? 0) + 1;
+        $occurrences[$base] = $occurrence;
+        $key = $base . '|occurrence=' . $occurrence;
+        $row['identity']['config_key'] = $key;
+        $row['identity']['identity_hash'] = hash('sha256', $key);
+        $row['identity']['identity_method'] = 'duplicate_identity_fallback';
+        $row['identity']['identity_confidence'] = ConfigIdentity::AMBIGUOUS;
+        $row['identity']['write_safe'] = FALSE;
+        $index[$key] = $row;
+      }
+    }
+    ksort($index, SORT_STRING);
+    return $index;
+  }
+
+  private function compactDiffFile(?array $yaml, ?array $active, string $status, string $compactKey): array {
+    $row = $yaml ?: $active;
+    $identity = (array) ($row['identity'] ?? []);
+    $filename = (string) ($row['filename'] ?? '');
+    $path = (string) ($row['path'] ?? $filename);
+    return [
+      'file' => $filename,
+      'path' => $path,
+      'status' => $status,
+      'config_key' => (string) ($identity['config_key'] ?? ''),
+      'identity_hash' => (string) ($identity['identity_hash'] ?? ''),
+      'identity_method' => (string) ($identity['identity_method'] ?? ''),
+      'identity_confidence' => (string) ($identity['identity_confidence'] ?? ''),
+      'write_safe' => !empty($identity['write_safe']),
+      'yaml_hash' => $yaml['hash'] ?? NULL,
+      'active_hash' => $active['hash'] ?? NULL,
+      'canonical_version' => Canonicalizer::VERSION,
+      'change_count' => $status === 'changed' ? 1 : 0,
+      'changes' => [],
+      'diff' => 'Field-level details are calculated on demand.',
+      'details_lazy' => TRUE,
+      '_compact_key' => $compactKey,
+    ];
+  }
+
+  private function compactPossibleRenameCandidates(array $newKeys, array $missingKeys, array $active, array $desired): array {
+    $buckets = [];
+    foreach ($newKeys as $key) {
+      $row = (array) ($active[$key] ?? []);
+      $provider = (string) (($row['identity']['provider_key'] ?? ''));
+      $signature = (string) ($row['rename_signature'] ?? '');
+      if ($provider !== '' && $signature !== '') {
+        $buckets[$provider][$signature][] = $key;
+      }
+    }
+    $candidates = [];
+    foreach ($missingKeys as $oldKey) {
+      $old = (array) ($desired[$oldKey] ?? []);
+      $provider = (string) (($old['identity']['provider_key'] ?? ''));
+      $signature = (string) ($old['rename_signature'] ?? '');
+      foreach ((array) ($buckets[$provider][$signature] ?? []) as $newKey) {
+        $new = (array) ($active[$newKey] ?? []);
+        $candidates[] = [
+          'provider_key' => $provider,
+          'old_config_key' => (string) ($old['identity']['config_key'] ?? ''),
+          'new_config_key' => (string) ($new['identity']['config_key'] ?? ''),
+          'old_identity_hash' => (string) ($old['identity']['identity_hash'] ?? ''),
+          'new_identity_hash' => (string) ($new['identity']['identity_hash'] ?? ''),
+          'from' => (string) ($old['filename'] ?? ''),
+          'to' => (string) ($new['filename'] ?? ''),
+          'changes' => [],
+          'requires_confirmation' => TRUE,
+          'details_lazy' => TRUE,
+        ];
+      }
+    }
+    return $candidates;
+  }
+
+  /**
+   * Calculate field-level details for one managed path on demand.
+   *
+   * Normal Synchronize scans keep only compact hashes. This endpoint loads at
+   * most one YAML document and one matching active object, so large sites do
+   * not pay the field-diff memory cost until an administrator opens Details.
+   */
+  public function getDiffDetail(string $relativePath): array {
+    $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
+    if ($relativePath === '' || strpos($relativePath, '..') !== FALSE || $this->isIgnoredPath($relativePath)) {
+      throw new \RuntimeException('Invalid or ignored Configuration Manager detail path.');
+    }
+
+    $resolved = $this->resolveHandlerPath($relativePath);
+    if (!$resolved) {
+      throw new \RuntimeException('No managed configuration handler owns path: ' . $relativePath);
+    }
+    $handler = $resolved['handler'];
+    $filename = (string) $resolved['filename'];
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $identityService = new ConfigIdentity();
+    $yaml = [];
+    $targetConfigKey = '';
+
+    if ($storage->exists((string) $resolved['directory'], $filename)) {
+      $data = $this->applyIgnoredValueRules($relativePath, $storage->readFile($relativePath));
+      $filtered = $this->applyHandlerFileFilter($handler, [$filename => $data]);
+      if (array_key_exists($filename, $filtered)) {
+        $data = (array) $filtered[$filename];
+        $yaml[$filename] = $data;
+        $targetConfigKey = (string) $identityService->identify((string) $handler->getType(), $data, $filename)['config_key'];
+      }
+    }
+
+    $matches = [];
+    $exported = $handler instanceof StreamingHandlerInterface ? $handler->iterateExport() : $handler->export();
+    foreach ($exported as $file) {
+      $file = (array) $file;
+      $activeFilename = ltrim((string) ($file['filename'] ?? ''), '/');
+      if ($activeFilename === '') {
+        continue;
+      }
+      $activeRelative = $this->relativePathForHandlerFile($handler, $activeFilename);
+      if ($this->isIgnoredPath($activeRelative)) {
+        continue;
+      }
+      $activeData = $this->applyIgnoredValueRules($activeRelative, (array) ($file['data'] ?? []));
+      $activeIdentity = $identityService->identify((string) $handler->getType(), $activeData, $activeFilename);
+      if ($activeFilename === $filename || ($targetConfigKey !== '' && (string) $activeIdentity['config_key'] === $targetConfigKey)) {
+        $matches[] = ['filename' => $activeFilename, 'data' => $activeData];
+      }
+      if ($activeFilename === $filename) {
+        // Exact path is stronger than a semantic rename match.
+        break;
+      }
+    }
+    $detailErrors = [];
+    if ($this->consumeHandlerExportErrors($handler, $detailErrors) > 0) {
+      throw new \RuntimeException((string) ($detailErrors[0]['message'] ?? 'Active provider scan was incomplete.'));
+    }
+
+    if (count($matches) > 1) {
+      $exact = array_values(array_filter($matches, static function(array $row) use ($filename): bool {
+        return (string) $row['filename'] === $filename;
+      }));
+      if (count($exact) === 1) {
+        $matches = $exact;
+      }
+      else {
+        throw new \RuntimeException('More than one active object matches this semantic identity. Field details are ambiguous and automatic writes remain blocked.');
+      }
+    }
+
+    $active = [];
+    if ($matches) {
+      $active[] = ['filename' => (string) $matches[0]['filename'], 'data' => (array) $matches[0]['data']];
+    }
+    $diff = $handler->diffFromExports($active, $yaml);
+    $files = (array) ($diff['files'] ?? []);
+    if (!$files && !empty($diff['renamed'])) {
+      return [
+        'ok' => TRUE,
+        'type' => (string) $handler->getType(),
+        'label' => (string) $handler->getLabel(),
+        'path' => $relativePath,
+        'renamed' => (array) $diff['renamed'],
+        'file' => NULL,
+      ];
+    }
+
+    $file = $files ? (array) reset($files) : NULL;
+    return [
+      'ok' => TRUE,
+      'type' => (string) $handler->getType(),
+      'label' => (string) $handler->getLabel(),
+      'path' => $relativePath,
+      'file' => $file,
+    ];
   }
 
   /**
@@ -1900,9 +2704,8 @@ class ConfigManager {
       }
       $this->prepareHandlerForTypeFilter($handler, $normalisedFilter);
       try {
-        $files = $this->loadManagedYamlFiles($handler, $storage);
         $handlerType = (string) $handler->getType();
-        foreach ($files as $filename => $file) {
+        foreach ($this->iterateManagedYamlFilesForHandler($handler, $storage) as $filename => $file) {
           $file = (array) $file;
           foreach ($this->namesFromYamlFile($file) as $name) {
             $availableNames[$handlerType][(string) $name] = TRUE;
@@ -1916,14 +2719,13 @@ class ConfigManager {
             ];
           }
         }
-        $validation = $handler->validate($files);
+        $validation = $this->validateManagedYamlForHandler($handler, $storage);
         $result['items'][] = $validation;
         if (empty($validation['valid'])) {
           $result['ok'] = FALSE;
         }
         // Handler validation is complete; retain only compact dependency/name
         // metadata for the cross-type pass instead of every parsed YAML body.
-        unset($files);
       }
       catch (\Throwable $e) {
         $result['errors'][] = ['type' => $handler->getType(), 'message' => $e->getMessage()];
@@ -2019,7 +2821,8 @@ class ConfigManager {
           continue;
         }
         try {
-          foreach ($handler->export() as $file) {
+          $rows = $handler instanceof StreamingHandlerInterface ? $handler->iterateExport() : $handler->export();
+          foreach ($rows as $file) {
             $file = (array) $file;
             foreach ($this->namesFromYamlFile((array) ($file['data'] ?? [])) as $activeName) {
               $names[(string) $activeName] = TRUE;
@@ -2199,8 +3002,9 @@ class ConfigManager {
     return TRUE;
   }
 
-  public function import(bool $dryRun = TRUE, bool $yes = FALSE, array $typeFilter = []): array {
+  public function import(bool $dryRun = TRUE, bool $yes = FALSE, array $typeFilter = [], ?callable $progress = NULL): array {
     $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot());
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
     $validationTypes = $this->getImportValidationTypeFilter($requestedTypes, $effectiveTypes);
@@ -2215,6 +3019,13 @@ class ConfigManager {
       $handlers[] = $handler;
     }
 
+    $handlerCount = count($handlers);
+    $willApply = !$dryRun && $yes;
+    $totalSteps = max(1, 2 + ($handlerCount * ($willApply ? 5 : 2)));
+    $completedSteps = 0;
+    $processedItems = 0;
+    $this->reportProgress($progress, 0, $totalSteps, 'Preparing import', 'Reading managed YAML and building dependency context.', 0);
+
     // Every dry-run sees the complete managed YAML dependency set. This lets a
     // dependent type recognize prerequisites which are absent from the target
     // DB today but are planned earlier in the same import (for example a new
@@ -2223,15 +3034,31 @@ class ConfigManager {
     foreach ($handlers as $handler) {
       $this->setHandlerPlannedDependencyNames($handler, $plannedDependencyNames);
     }
+    $completedSteps++;
+    $this->reportProgress($progress, $completedSteps, $totalSteps, 'Dependency plan ready', 'Validating the complete YAML set before any write.', $processedItems);
 
     // Static validation and the handler dry-run are intentionally both run.
     // A foreign site_id, a YAML/dependency problem, and a handler-level safety
     // problem must be reported together in one preflight instead of forcing an
     // operator through one blocker at a time.
     $validation = $this->validate($validationTypes);
-    $preflight = $this->buildImportPreflight($handlers, $storage, $validation);
+    $completedSteps++;
+    $this->reportProgress($progress, $completedSteps, $totalSteps, 'YAML validation complete', 'Checking rename safety and handler dry-runs.', $processedItems);
+    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function(array $event) use (&$completedSteps, $totalSteps, &$processedItems, $progress) {
+      $completedSteps++;
+      $processedItems += (int) ($event['processed_items'] ?? 0);
+      $this->reportProgress(
+        $progress,
+        $completedSteps,
+        $totalSteps,
+        (string) ($event['label'] ?? 'Import preflight'),
+        (string) ($event['message'] ?? 'Checking import safety.'),
+        $processedItems
+      );
+    }, $willApply);
 
     if ($dryRun || !$yes) {
+      $this->reportProgress($progress, $totalSteps, $totalSteps, 'Import preview complete', 'Complete non-writing preflight finished.', $processedItems);
       return $preflight;
     }
 
@@ -2239,6 +3066,7 @@ class ConfigManager {
       $preflight['dry_run'] = FALSE;
       $preflight['applied'] = FALSE;
       $preflight['message'] = 'Import stopped before writes because the complete preflight found blocking errors. Resolve all listed blockers and preview again.';
+      $this->reportProgress($progress, $totalSteps, $totalSteps, 'Import blocked safely', 'Preflight found blocking errors; zero writes were performed.', $processedItems);
       return $preflight;
     }
 
@@ -2246,6 +3074,7 @@ class ConfigManager {
     // validation/dry-run diagnostics. Once it is green, retain only its compact
     // outcome during the write phases; keeping the full preview alive alongside
     // active provider collections needlessly doubles peak import memory.
+    $preflightFingerprints = (array) ($preflight['_active_fingerprints'] ?? []);
     $result = [
       'ok' => TRUE,
       'dry_run' => FALSE,
@@ -2257,15 +3086,24 @@ class ConfigManager {
       ],
     ];
     unset($preflight, $validation);
+    $postWriteFingerprints = [];
 
     // Apply create/update first for every type. Never enter delete-missing if
     // any write fails: destructive cleanup must not run after a partial
     // prerequisite/update phase.
     foreach ($handlers as $handler) {
+      $handlerLabel = (string) $handler->getLabel();
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Applying ' . $handlerLabel, 'Create/update phase. Delete-missing has not started.', $processedItems);
       $this->setHandlerImportPhase($handler, TRUE, FALSE);
-      $files = $this->loadManagedYamlFiles($handler, $storage);
       try {
-        $item = $handler->import($files, FALSE);
+        $type = (string) $handler->getType();
+        if (isset($preflightFingerprints[$type])) {
+          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $preflightFingerprints[$type], 'Import conflict: active CiviCRM changed after preflight. No write was performed for this handler.');
+        }
+        $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
+        if (empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']))) {
+          $postWriteFingerprints[$type] = $this->compactManagedActiveSnapshot($handler, $storage);
+        }
       }
       catch (\Throwable $e) {
         $item = [
@@ -2276,9 +3114,11 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
-      unset($files);
       $item['phase'] = 'create_update';
       $result['items'][] = $item;
+      $processedItems += $this->countImportItemActivity($item);
+      $completedSteps++;
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Applied ' . $handlerLabel, 'Create/update phase step complete.', $processedItems);
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
       }
@@ -2292,14 +3132,20 @@ class ConfigManager {
       $result['delete_phase_skipped'] = TRUE;
       $result['message'] = 'Import stopped after a create/update runtime failure. Delete-missing was not started. Review the errors and restore/retry from the pre-import database backup if required.';
       $result['summary_message'] = $this->buildImportSummaryMessage($result);
+      $this->reportProgress($progress, $totalSteps, $totalSteps, 'Import stopped safely', 'A create/update failed; delete-missing was not started.', $processedItems);
       return $result;
     }
 
     foreach (array_reverse($handlers) as $handler) {
+      $handlerLabel = (string) $handler->getLabel();
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Cleaning ' . $handlerLabel, 'Delete-missing phase after all create/update steps succeeded.', $processedItems);
       $this->setHandlerImportPhase($handler, FALSE, TRUE);
-      $files = $this->loadManagedYamlFiles($handler, $storage);
       try {
-        $item = $handler->import($files, FALSE);
+        $type = (string) $handler->getType();
+        if (isset($postWriteFingerprints[$type])) {
+          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $postWriteFingerprints[$type], 'Import conflict: active CiviCRM changed after create/update. Delete-missing was not started for this handler.');
+        }
+        $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
       }
       catch (\Throwable $e) {
         $item = [
@@ -2310,9 +3156,11 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
-      unset($files);
       $item['phase'] = 'delete_missing';
       $result['items'][] = $item;
+      $processedItems += $this->countImportItemActivity($item);
+      $completedSteps++;
+      $this->reportProgress($progress, $completedSteps, $totalSteps, 'Cleaned ' . $handlerLabel, 'Delete-missing phase step complete.', $processedItems);
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
       }
@@ -2323,9 +3171,15 @@ class ConfigManager {
       try {
         $stateManager = new ConfigStateManager();
         foreach ($handlers as $handler) {
-          $files = $this->loadManagedYamlFiles($handler, $storage);
-          $stateManager->acceptYamlBaseline($handler, $files, 'import');
-          unset($files);
+          $directory = trim((string) $handler->getDirectory(), '/');
+          foreach ($storage->iterateDirectory($directory) as $filename => $data) {
+            if ($this->isIgnoredPath(($directory === '' ? '' : $directory . '/') . (string) $filename)) {
+              continue;
+            }
+            $stateManager->acceptYamlBaselineItem($handler, (string) $filename, (array) $data, 'import');
+          }
+          $completedSteps++;
+          $this->reportProgress($progress, $completedSteps, $totalSteps, 'Recording ' . $handler->getLabel() . ' baseline', 'Synchronization baseline updated from committed YAML.', $processedItems);
         }
       }
       catch (\Throwable $e) {
@@ -2337,10 +3191,11 @@ class ConfigManager {
     }
 
     $result['summary_message'] = $this->buildImportSummaryMessage($result);
+    $this->reportProgress($progress, $totalSteps, $totalSteps, !empty($result['ok']) ? 'Import complete' : 'Import completed with errors', 'Import processing finished.', $processedItems);
     return $result;
   }
 
-  private function buildImportPreflight(array $handlers, YamlFileStorage $storage, array $validation): array {
+  private function buildImportPreflight(array $handlers, YamlFileStorage $storage, array $validation, ?callable $stepProgress = NULL, bool $captureFingerprints = FALSE): array {
     $result = [
       'ok' => !empty($validation['ok']),
       'dry_run' => TRUE,
@@ -2351,7 +3206,15 @@ class ConfigManager {
     ];
 
     try {
-      $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage);
+      $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage, function($handler) use ($stepProgress) {
+        if ($stepProgress !== NULL) {
+          $stepProgress([
+            'label' => 'Checked ' . $handler->getLabel() . ' identities',
+            'message' => 'Rename/identity safety check complete.',
+            'processed_items' => 0,
+          ]);
+        }
+      });
       if ($possibleRenames) {
         $result['possible_renames'] = $possibleRenames;
         $result['ok'] = FALSE;
@@ -2373,8 +3236,7 @@ class ConfigManager {
     foreach ($handlers as $handler) {
       $this->setHandlerImportPhase($handler, TRUE, TRUE);
       try {
-        $files = $this->loadManagedYamlFiles($handler, $storage);
-        $item = $handler->import($files, TRUE);
+        $item = $this->importManagedYamlForHandler($handler, $storage, TRUE);
       }
       catch (\Throwable $e) {
         $item = [
@@ -2385,8 +3247,26 @@ class ConfigManager {
           'warnings' => [],
         ];
       }
-      unset($files);
       $result['items'][] = $item;
+      if ($captureFingerprints && empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']))) {
+        try {
+          $result['_active_fingerprints'][(string) $handler->getType()] = $this->compactManagedActiveSnapshot($handler, $storage);
+        }
+        catch (\Throwable $e) {
+          $result['ok'] = FALSE;
+          $result['errors'][] = [
+            'type' => (string) $handler->getType(),
+            'message' => 'Could not capture the preflight active fingerprint: ' . $e->getMessage(),
+          ];
+        }
+      }
+      if ($stepProgress !== NULL) {
+        $stepProgress([
+          'label' => 'Preflighted ' . $handler->getLabel(),
+          'message' => 'Handler dry-run completed with no writes.',
+          'processed_items' => $this->countImportItemActivity($item),
+        ]);
+      }
       if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
         $result['ok'] = FALSE;
       }
@@ -2401,13 +3281,11 @@ class ConfigManager {
     foreach ($handlers as $handler) {
       $type = (string) $handler->getType();
       try {
-        $files = $this->loadManagedYamlFiles($handler, $storage);
-        foreach ($files as $file) {
+        foreach ($this->iterateManagedYamlFilesForHandler($handler, $storage) as $file) {
           foreach ($this->namesFromYamlFile((array) $file) as $name) {
             $available[$type][(string) $name] = TRUE;
           }
         }
-        unset($files);
       }
       catch (\Throwable $e) {
         if (!isset($available[$type])) {
@@ -2424,13 +3302,26 @@ class ConfigManager {
     }
   }
 
-  private function findPossibleRenameCandidates(array $handlers, YamlFileStorage $storage): array {
+  private function findPossibleRenameCandidates(array $handlers, YamlFileStorage $storage, ?callable $stepProgress = NULL): array {
     $candidates = [];
     foreach ($handlers as $handler) {
-      $files = $this->loadManagedYamlFiles($handler, $storage);
-      $partition = $this->scopePartition($handler, $handler->export(), $storage, FALSE);
-      $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), (array) ($partition['managed'] ?? []));
-      $diff = $handler->diffFromExports($exported, $files);
+      $policy = $this->scope->getPolicy((string) $handler->getType());
+      if ($handler instanceof StreamingHandlerInterface && (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL)) {
+        $errors = [];
+        $compact = $this->buildCompactStreamingDiff($handler, $storage, $errors);
+        if ($errors) {
+          throw new \RuntimeException((string) ($errors[0]['message'] ?? 'Active provider scan failed during rename preflight.'));
+        }
+        $diff = (array) ($compact['item'] ?? []);
+        unset($compact);
+      }
+      else {
+        $files = $this->loadManagedYamlFiles($handler, $storage);
+        $partition = $this->scopePartition($handler, $handler->export(), $storage, FALSE);
+        $exported = $this->filterIgnoredValuesInExportFiles($handler->getDirectory(), (array) ($partition['managed'] ?? []));
+        $diff = $handler->diffFromExports($exported, $files);
+        unset($files, $partition, $exported);
+      }
       foreach ((array) ($diff['possible_renames'] ?? []) as $candidate) {
         if (!is_array($candidate)) {
           continue;
@@ -2439,9 +3330,25 @@ class ConfigManager {
         $candidate['label'] = $handler->getLabel();
         $candidates[] = $candidate;
       }
-      unset($files, $partition, $exported, $diff);
+      unset($diff);
+      if ($stepProgress !== NULL) {
+        $stepProgress($handler);
+      }
     }
     return $candidates;
+  }
+
+  private function countImportItemActivity(array $item): int {
+    $count = 0;
+    foreach (['create', 'update', 'delete', 'skip', 'install', 'enable', 'disable'] as $key) {
+      $count += (int) ($item[$key] ?? 0);
+    }
+    foreach (['groups', 'values', 'settings', 'config'] as $group) {
+      foreach (['create', 'update', 'delete', 'skip'] as $key) {
+        $count += (int) (($item[$group][$key] ?? 0));
+      }
+    }
+    return $count;
   }
 
   private function buildImportSummaryMessage(array $result): string {
@@ -2806,13 +3713,28 @@ class ConfigManager {
   public function getIgnoredDependencyWarnings(): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $warnings = [];
-    $yamlByType = [];
+    $available = [];
     foreach ($this->getHandlers() as $handler) {
-      $yamlByType[$handler->getType()] = $this->filterIgnoredFiles($handler->getDirectory(), $storage->readDirectory($handler->getDirectory()));
+      $type = (string) $handler->getType();
+      $directory = trim((string) $handler->getDirectory(), '/');
+      foreach ($storage->iterateDirectory((string) $handler->getDirectory()) as $filename => $file) {
+        $relative = $directory === '' ? (string) $filename : $directory . '/' . (string) $filename;
+        if ($this->isIgnoredPath($relative)) {
+          continue;
+        }
+        foreach ($this->namesFromYamlFile((array) $file) as $name) {
+          $available[$type][(string) $name] = TRUE;
+        }
+      }
     }
-    $available = $this->collectManagedYamlNames($yamlByType);
-    foreach ($yamlByType as $type => $files) {
-      foreach ($files as $filename => $file) {
+    foreach ($this->getHandlers() as $handler) {
+      $type = (string) $handler->getType();
+      $directory = trim((string) $handler->getDirectory(), '/');
+      foreach ($storage->iterateDirectory((string) $handler->getDirectory()) as $filename => $file) {
+        $relative = $directory === '' ? (string) $filename : $directory . '/' . (string) $filename;
+        if ($this->isIgnoredPath($relative)) {
+          continue;
+        }
         foreach ($this->extractDependenciesFromYamlFile((array) $file) as $dependency) {
           $dependencyType = (string) ($dependency['type'] ?? '');
           $dependencyName = (string) ($dependency['name'] ?? '');
@@ -2840,6 +3762,7 @@ class ConfigManager {
     }
 
     $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot());
     $selected = $this->resolveHandlerPath($relativePath);
     if (!$selected) {
       throw new \RuntimeException('No managed handler owns YAML path: ' . $relativePath);
@@ -3000,7 +3923,7 @@ class ConfigManager {
     $index = [];
     foreach ($this->getAllHandlers() as $handler) {
       $directory = trim((string) $handler->getDirectory(), '/');
-      foreach ($storage->readDirectory($handler->getDirectory()) as $filename => $file) {
+      foreach ($storage->iterateDirectory($handler->getDirectory()) as $filename => $file) {
         $relative = $directory === '' ? (string) $filename : $directory . '/' . (string) $filename;
         foreach ($this->namesFromYamlFile((array) $file) as $name) {
           $index[$handler->getType()][(string) $name][] = $relative;
@@ -3019,6 +3942,19 @@ class ConfigManager {
       }
     }
     return NULL;
+  }
+
+  /**
+   * True when an uploaded YAML path belongs to a currently registered handler.
+   * Custom handlers registered through the normal hook are therefore accepted
+   * without maintaining a hard-coded directory allowlist.
+   */
+  public function ownsManagedYamlPath(string $relativePath): bool {
+    $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
+    if ($relativePath === 'manifest.yml') {
+      return TRUE;
+    }
+    return $relativePath !== '' && $this->resolveHandlerPath($relativePath) !== NULL;
   }
 
   private function handlerPathParts($handler, string $relativePath): ?array {

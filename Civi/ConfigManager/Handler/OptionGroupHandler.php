@@ -1,7 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-class OptionGroupHandler extends AbstractHandler {
+class OptionGroupHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
@@ -27,16 +27,20 @@ class OptionGroupHandler extends AbstractHandler {
   }
 
   public function export(): array {
-    $groups = $this->api4Get('OptionGroup', [], ['id', 'name', 'title', 'description', 'data_type', 'is_reserved', 'is_active'], ['name' => 'ASC']);
-    $files = [];
-    foreach ($groups as $group) {
+    return iterator_to_array($this->iterateExport(), FALSE);
+  }
+
+  public function iterateExport(): iterable {
+    foreach ($this->api4Iterate('OptionGroup', [], ['id', 'name', 'title', 'description', 'data_type', 'is_reserved', 'is_active'], ['name' => 'ASC']) as $group) {
+      $group = (array) $group;
       $sourceId = isset($group['id']) && is_scalar($group['id']) ? (int) $group['id'] : NULL;
-      $values = $this->api4Get('OptionValue', [["option_group_id", "=", $group['id']]], ['name', 'label', 'value', 'description', 'weight', 'is_default', 'is_optgroup', 'is_reserved', 'is_active', 'component_id', 'domain_id', 'visibility_id'], ['weight' => 'ASC', 'name' => 'ASC']);
+      $values = $this->api4Get('OptionValue', [['option_group_id', '=', $group['id']]], ['name', 'label', 'value', 'description', 'weight', 'is_default', 'is_optgroup', 'is_reserved', 'is_active', 'component_id', 'domain_id', 'visibility_id'], ['weight' => 'ASC', 'name' => 'ASC']);
       unset($group['id']);
       foreach ($values as &$value) {
         unset($value['id'], $value['option_group_id']);
       }
-      $files[] = [
+      unset($value);
+      yield [
         'filename' => $this->safeName($group['name']) . '.yml',
         'source_id' => $sourceId,
         'data' => [
@@ -48,8 +52,8 @@ class OptionGroupHandler extends AbstractHandler {
           'values' => array_values($values),
         ],
       ];
+      unset($values);
     }
-    return $files;
   }
 
   public function validate(array $items): array {
@@ -117,6 +121,10 @@ class OptionGroupHandler extends AbstractHandler {
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = [
       'type' => $this->getType(),
       'status' => $dryRun ? 'dry_run' : 'applied',

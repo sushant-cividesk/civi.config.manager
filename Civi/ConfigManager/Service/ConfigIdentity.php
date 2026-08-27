@@ -102,6 +102,16 @@ class ConfigIdentity {
       $confidence = self::AMBIGUOUS;
     }
 
+    // Handlers may deliberately export a row for backup/monitor visibility
+    // while declaring that its provider identity is not portable (for example,
+    // duplicate CiviRules action names). Never let generic strong-field
+    // discovery upgrade such a document back to write-safe.
+    if ((array_key_exists('identity_portable', $data) && empty($data['identity_portable']))
+      || (($data['identity_confidence'] ?? '') === self::AMBIGUOUS)) {
+      $confidence = self::AMBIGUOUS;
+      $method .= '+declared_ambiguous';
+    }
+
     $configKey = $provider . '|' . $this->escapeIdentity($identity);
 
     return [

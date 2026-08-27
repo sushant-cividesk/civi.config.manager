@@ -78,6 +78,15 @@ class YamlFileStorage {
    * @param array<string, mixed> $data
    */
   public function write(string $directory, string $filename, array $data): string {
+    return $this->writeRaw($directory, $filename, $this->dump($data));
+  }
+
+  /**
+   * Atomically write already-rendered YAML bytes without reparsing/redumping.
+   * This is used by staged export publish/rollback so the exact staged bytes
+   * become the committed snapshot.
+   */
+  public function writeRaw(string $directory, string $filename, string $contents): string {
     $this->ensureRoot();
     $path = $this->getPath($directory, $filename);
     $dir = dirname($path);
@@ -93,7 +102,7 @@ class YamlFileStorage {
     }
 
     try {
-      $bytes = file_put_contents($temporary, $this->dump($data), LOCK_EX);
+      $bytes = file_put_contents($temporary, $contents, LOCK_EX);
       if ($bytes === FALSE) {
         throw new \RuntimeException('Could not write temporary config file: ' . $temporary);
       }
@@ -109,6 +118,23 @@ class YamlFileStorage {
     }
 
     return $path;
+  }
+
+  public function readRaw(string $relativePath): ?string {
+    $relativePath = $this->normaliseRelativePath($relativePath, FALSE);
+    $path = $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    $this->assertPathInsideRoot($path);
+    if (is_link($path)) {
+      throw new \RuntimeException('Refusing to read a symbolic link: ' . $path);
+    }
+    if (!is_file($path)) {
+      return NULL;
+    }
+    $contents = file_get_contents($path);
+    if ($contents === FALSE) {
+      throw new \RuntimeException('Could not read config file: ' . $path);
+    }
+    return $contents;
   }
 
   public function delete(string $directory, string $filename): string {
@@ -157,15 +183,18 @@ class YamlFileStorage {
   }
 
   /**
-   * @return array<string, array<string, mixed>>
+   * Yield YAML documents one at a time. Only relative path strings are kept in
+   * memory so directory order is deterministic without retaining parsed YAML.
+   *
+   * @return \Generator<string,array<string,mixed>>
    */
-  public function readDirectory(string $directory): array {
+  public function iterateDirectory(string $directory): \Generator {
     $directory = $this->normaliseRelativePath($directory, TRUE);
     $path = $directory === ''
       ? $this->root
       : $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
     if (!is_dir($path)) {
-      return [];
+      return;
     }
 
     $root = realpath($this->root);
@@ -174,7 +203,7 @@ class YamlFileStorage {
       throw new \RuntimeException('Refusing to read outside the config directory.');
     }
 
-    $items = [];
+    $paths = [];
     $iterator = new \RecursiveIteratorIterator(
       new \RecursiveDirectoryIterator($realPath, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::CURRENT_AS_FILEINFO)
     );
@@ -185,11 +214,61 @@ class YamlFileStorage {
       if ($file->isFile() && preg_match('/\.ya?ml$/i', $file->getFilename())) {
         $relative = substr($file->getPathname(), strlen($realPath) + 1);
         $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
-        $items[$relative] = SimpleYaml::parseFile($file->getPathname());
+        $paths[$relative] = $file->getPathname();
       }
     }
-    ksort($items);
-    return $items;
+    ksort($paths, SORT_NATURAL | SORT_FLAG_CASE);
+
+    foreach ($paths as $relative => $filePath) {
+      yield (string) $relative => SimpleYaml::parseFile((string) $filePath);
+    }
+  }
+
+  /**
+   * Yield YAML relative paths without parsing their contents.
+   *
+   * @return \Generator<int,string>
+   */
+  public function iterateYamlPaths(string $directory = ''): \Generator {
+    $directory = $this->normaliseRelativePath($directory, TRUE);
+    $path = $directory === ''
+      ? $this->root
+      : $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
+    if (!is_dir($path)) {
+      return;
+    }
+    $root = realpath($this->root);
+    $realPath = realpath($path);
+    if ($root === FALSE || $realPath === FALSE || !$this->pathIsWithinRoot($realPath, $root)) {
+      throw new \RuntimeException('Refusing to enumerate outside the config directory.');
+    }
+    $paths = [];
+    $iterator = new \RecursiveIteratorIterator(
+      new \RecursiveDirectoryIterator($realPath, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::CURRENT_AS_FILEINFO)
+    );
+    foreach ($iterator as $file) {
+      if ($file->isLink()) {
+        continue;
+      }
+      if ($file->isFile() && preg_match('/\.ya?ml$/i', $file->getFilename())) {
+        $relative = substr($file->getPathname(), strlen($root) + 1);
+        $paths[] = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+      }
+    }
+    sort($paths, SORT_NATURAL | SORT_FLAG_CASE);
+    foreach ($paths as $relative) {
+      yield (string) $relative;
+    }
+  }
+
+  /**
+   * Compatibility helper for callers that genuinely need an in-memory map.
+   * High-volume paths should use iterateDirectory().
+   *
+   * @return array<string, array<string, mixed>>
+   */
+  public function readDirectory(string $directory): array {
+    return iterator_to_array($this->iterateDirectory($directory), TRUE);
   }
 
   private function ensureDirectoryInsideRoot(string $dir): void {

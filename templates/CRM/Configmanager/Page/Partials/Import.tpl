@@ -6,11 +6,12 @@
       <div class="messages status no-popup">{ts}Nothing to import from the sync directory. If changes are listed as In CiviCRM on the Synchronize tab, use Export to write them to YAML first.{/ts}</div>
     {else}
       <details class="civicfg-panel" open="open">
-        <summary>{ts}Import Preview{/ts}</summary>
+        <summary>{ts}Import Preview{/ts}{if $diffTotal gt 0} <span class="civicfg-muted">({$diffTotal|escape} {ts}changed items{/ts})</span>{/if}</summary>
         <div class="civicfg-panel-body">
           <div class="civicfg-actions">
             {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import YAML to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply YAML as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses YAML as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                 <input type="hidden" name="_action" value="import_apply" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
                 <button type="submit" class="button"><span>{ts}Import{/ts}</span></button>
@@ -19,6 +20,9 @@
             <a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}"><span>{ts}Back{/ts}</span></a>
           </div>
 
+          {if $diffPageCount gt 1}
+            <div class="civicfg-pagination-summary">{ts}Showing page{/ts} {$diffPage|escape} {ts}of{/ts} {$diffPageCount|escape}. {ts}The Import action still applies the full selected managed type after complete server-side preflight; this list is paginated only for review.{/ts}</div>
+          {/if}
           <div class="civicfg-change-list">
             {foreach from=$importPlan item=item}
               <div class="civicfg-file-card civicfg-state-{$item.status|escape}">
@@ -55,9 +59,17 @@
             {/foreach}
           </div>
 
+          {if $diffPageCount gt 1}
+            <div class="civicfg-actions civicfg-pagination-actions">
+              {if $diffPrevUrl}<a class="button" href="{$diffPrevUrl|escape}"><span>{ts}Previous 100{/ts}</span></a>{/if}
+              <span class="civicfg-muted">{ts}Page{/ts} {$diffPage|escape} / {$diffPageCount|escape}</span>
+              {if $diffNextUrl}<a class="button" href="{$diffNextUrl|escape}"><span>{ts}Next 100{/ts}</span></a>{/if}
+            </div>
+          {/if}
           <div class="civicfg-actions">
             {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import YAML to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply YAML as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses YAML as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                 <input type="hidden" name="_action" value="import_apply" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
                 <button type="submit" class="button"><span>{ts}Import{/ts}</span></button>
@@ -75,6 +87,7 @@
       <div class="civicfg-panel-body">
         <p class="description">{ts}Upload one YAML file into the sync directory. After upload, review Synchronize before importing to CiviCRM.{/ts}</p>
         <form method="post" enctype="multipart/form-data" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
           <input type="hidden" name="_action" value="import_single_yaml" />
           <div class="civicfg-form-grid">
             <label for="single_type">{ts}Type{/ts}</label>
@@ -97,6 +110,7 @@
       <div class="civicfg-panel-body">
         <p class="description">{ts}Upload a full config archive. YAML files are staged into the sync directory; no CiviCRM records are changed until you review and import.{/ts}</p>
         <form method="post" enctype="multipart/form-data" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
           <input type="hidden" name="_action" value="import_zip_archive" />
           <div class="civicfg-form-grid">
             <label for="zip_archive">{ts}ZIP Archive{/ts}</label>

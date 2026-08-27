@@ -10,7 +10,7 @@ class Request {
     if (in_array($op, ['status', 'diff', 'validate'], TRUE)) {
       return 'sync';
     }
-    $allowed = ['sync', 'import', 'export', 'settings', 'single-export-json', 'scope-options-json', 'download-archive', 'download-single'];
+    $allowed = ['sync', 'import', 'export', 'settings', 'single-export-json', 'scope-options-json', 'download-archive', 'download-single', 'operation-stream', 'operation-start-json', 'operation-step-json', 'operation-status-json', 'diff-detail-json'];
     return in_array($op, $allowed, TRUE) ? $op : 'sync';
   }
 

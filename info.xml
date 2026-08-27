@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-18</releaseDate>
-  <version>0.1.0-alpha61-core</version>
+  <releaseDate>2026-08-27</releaseDate>
+  <version>0.1.0-alpha62-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 61 development build with same-version QA hotfixes: safe first-run scope, dependency-aware settings guidance, watch history, standalone YAML runtime packaging, SQLTasks provider compatibility, and fail-closed PHP 7.4/CiviCRM 5.76 runtime-provider handling, runtime CRUD capability checks, and SQLTasks API4 bootstrap compatibility.</comments>
+  <comments>Alpha 62 architecture build with bounded-memory API/YAML iteration, staged and rollback-safe export, optimistic snapshot conflict checks, provider ownership and CiviRules identity hardening, summary-first lazy diff, CSRF protection, operation locking, persistent queue-backed web progress, and low-memory stress contracts.</comments>
 </extension>

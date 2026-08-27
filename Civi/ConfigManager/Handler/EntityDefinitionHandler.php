@@ -8,7 +8,7 @@ namespace Civi\ConfigManager\Handler;
  * stable keys, exported fields, runtime fields, and dependencies without
  * writing a full handler class.
  */
-class EntityDefinitionHandler extends AbstractHandler {
+class EntityDefinitionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
   private array $definition;
   private string $type;
   private string $label;
@@ -76,43 +76,54 @@ class EntityDefinitionHandler extends AbstractHandler {
   }
 
   public function export(): array {
+    $files = iterator_to_array($this->iterateExport(), FALSE);
+    usort($files, static function(array $a, array $b): int {
+      return strnatcasecmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? ''));
+    });
+    return $files;
+  }
+
+  public function iterateExport(): iterable {
     $this->assertUsableDefinition();
     $select = $this->selectFields();
-    $rows = $this->api4Get($this->entity, $this->where, $select, $this->orderBy);
-    $items = [];
 
-    foreach ($rows as $row) {
-      $row = (array) $row;
-      $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
-      $row = $this->prepareExportRow($row);
+    if (!$this->splitFiles) {
+      $rows = [];
+      foreach ($this->api4Iterate($this->entity, $this->where, $select, $this->orderBy) as $rawRow) {
+        $row = $this->prepareExportRow((array) $rawRow);
+        if ($this->buildKey($row) !== '') {
+          $rows[] = $row;
+        }
+      }
+      yield [
+        'filename' => $this->safeFilePart($this->type) . '.yml',
+        'data' => [
+          'schema_version' => 1,
+          'type' => $this->type . '.collection',
+          'entity' => $this->entity,
+          'key_fields' => $this->keyFields,
+          'dependencies' => $this->normalizedDependencies(),
+          'capabilities' => $this->capabilities(),
+          'items' => $rows,
+        ],
+      ];
+      return;
+    }
+
+    foreach ($this->api4Iterate($this->entity, $this->where, $select, $this->orderBy) as $rawRow) {
+      $rawRow = (array) $rawRow;
+      $sourceId = isset($rawRow['id']) && is_scalar($rawRow['id']) ? (int) $rawRow['id'] : NULL;
+      $row = $this->prepareExportRow($rawRow);
       $key = $this->buildKey($row);
       if ($key === '') {
         continue;
       }
-      $items[] = [
+      yield [
         'filename' => $this->fileNameForKey($key),
         'source_id' => $sourceId,
         'data' => $this->itemDocument($row, $key),
       ];
     }
-
-    if ($this->splitFiles) {
-      usort($items, fn($a, $b) => strcmp($a['filename'], $b['filename']));
-      return $items;
-    }
-
-    return [[
-      'filename' => $this->safeFilePart($this->type) . '.yml',
-      'data' => [
-        'schema_version' => 1,
-        'type' => $this->type . '.collection',
-        'entity' => $this->entity,
-        'key_fields' => $this->keyFields,
-        'dependencies' => $this->normalizedDependencies(),
-        'capabilities' => $this->capabilities(),
-        'items' => array_values(array_map(fn($item) => $item['data']['item'], $items)),
-      ],
-    ]];
   }
 
   public function validate(array $items): array {
@@ -168,6 +179,10 @@ class EntityDefinitionHandler extends AbstractHandler {
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = [
       'type' => $this->type,
       'status' => $dryRun ? 'dry_run' : 'applied',
@@ -182,7 +197,9 @@ class EntityDefinitionHandler extends AbstractHandler {
 
     if (!$this->importable) {
       $summary['warnings'][] = ['message' => 'Import is disabled for this entity definition.'];
-      $summary['skip'] = count($items);
+      foreach ($items as $_filename => $_item) {
+        $summary['skip']++;
+      }
       $summary['ok'] = TRUE;
       return $summary;
     }
@@ -397,7 +414,7 @@ class EntityDefinitionHandler extends AbstractHandler {
 
   private function deleteMissingRows(array $desiredKeys, bool $dryRun, array &$summary): void {
     $select = array_values(array_unique(array_merge(['id'], $this->keyFields)));
-    foreach ($this->api4Get($this->entity, $this->where, $select, $this->orderBy) as $existing) {
+    foreach ($this->api4Iterate($this->entity, $this->where, $select, $this->orderBy) as $existing) {
       $existing = (array) $existing;
       if (empty($existing['id'])) {
         continue;
@@ -414,23 +431,21 @@ class EntityDefinitionHandler extends AbstractHandler {
     }
   }
 
-  private function expandItems(array $items, array &$summary): array {
-    $rows = [];
+  private function expandItems(iterable $items, array &$summary): iterable {
     foreach ($items as $filename => $file) {
       $type = (string) ($file['type'] ?? '');
       if ($type === $this->type . '.collection') {
         foreach ((array) ($file['items'] ?? []) as $row) {
-          $rows[] = ['filename' => $filename, 'row' => (array) $row];
+          yield ['filename' => $filename, 'row' => (array) $row];
         }
       }
       elseif ($type === $this->type . '.item') {
-        $rows[] = ['filename' => $filename, 'row' => (array) ($file['item'] ?? [])];
+        yield ['filename' => $filename, 'row' => (array) ($file['item'] ?? [])];
       }
       else {
         $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid type. Expected ' . $this->type . '.item or ' . $this->type . '.collection.'];
       }
     }
-    return $rows;
   }
 
   private function itemDocument(array $row, string $key): array {

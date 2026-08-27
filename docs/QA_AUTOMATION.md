@@ -76,6 +76,20 @@ Every functional change should add or update a file in `tests/scenarios`. `compo
 
 Development scenarios must not depend on existing client records, production identifiers, real outbound services, or another test running first.
 
+
+## Alpha62 large-site architecture coverage
+
+Alpha62 adds a dependency-free architecture contract (`tests/ci/alpha62-contract.php`) plus a bounded-memory stress gate:
+
+```bash
+composer test:alpha62-contract
+composer qa:stress
+```
+
+The stress gate runs with `memory_limit=256M` and exercises 5,000 API4 rows, 5,000 YAML files, duplicate staged-path rejection, and rollback after a forced mid-publish failure. The alpha62 developer scenario additionally captures compact/lazy Synchronize, CiviRules duplicate identity safety, optimistic export/import conflicts, global create/update-before-delete safety, CSRF, persistent progress reconnect, queue locking, completed-task idempotency, and fail-closed indeterminate retry behavior.
+
+This dependency-free gate supplements rather than replaces PHPUnit, PHPStan, PHPCompatibility, the isolated Standalone lifecycle, Drupal 7/CiviCRM 5.76 testing, WordPress testing, or real contributed-provider fixtures.
+
 ## Alpha59 scope UI coverage
 
 Alpha59 adds regression coverage for lazy per-handler scope discovery, semantic picker selectors, full relative `path:` selectors, missing selected identities, mode-dependent browser controls, generated `civicrm.settings.php` examples, cheap handler capability labels, and contributed-provider compatibility notes that do not inflate YAML validation warnings. Settings page load must continue to avoid handler export/discovery work until the administrator explicitly opens a picker.

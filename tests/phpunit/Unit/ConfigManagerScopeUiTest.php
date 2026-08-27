@@ -571,7 +571,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('all', $manifest['managed_scope']['extensions']['mode'] ?? NULL);
   }
 
-  public function testPartialHandlerErrorKeepsSafeExportAndNeverDeletesStaleYaml(): void {
+  public function testPartialHandlerErrorKeepsPreviousSnapshotAndNeverPublishesPartialYaml(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);
     \Civi::settings()->set('civicfg_scope_default_mode', 'ignore');
@@ -607,12 +607,12 @@ final class ConfigManagerScopeUiTest extends TestCase {
     $result = $manager->export(FALSE);
 
     self::assertFalse($result['ok']);
-    self::assertFileExists($root . '/extensions/safe-extension.yml');
+    self::assertFileDoesNotExist($root . '/extensions/safe-extension.yml');
     self::assertFileExists($root . '/extensions/stale-provider.yml');
     self::assertSame('extensions', $result['errors'][0]['type'] ?? NULL);
     self::assertStringContainsString('could not be read', (string) ($result['errors'][0]['message'] ?? ''));
     $manifest = SimpleYaml::parseFile($root . '/manifest.yml');
-    self::assertSame('all', $manifest['managed_scope']['extensions']['mode'] ?? NULL);
+    self::assertSame('ignore', $manifest['managed_scope']['extensions']['mode'] ?? NULL);
   }
 
   public function testPartialSelectedHandlerErrorPreservesExistingSelectedManifest(): void {

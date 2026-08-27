@@ -14,6 +14,125 @@
       }, 7000);
     });
 
+    function civicfgDisplayValue(value) {
+      if (value === null || typeof value === 'undefined') { return '(not set)'; }
+      if (typeof value === 'string') { return value; }
+      try { return JSON.stringify(value, null, 2); }
+      catch (e) { return String(value); }
+    }
+
+    function populateLazyIgnoreFields(detailModal, changes) {
+      if (!detailModal || !detailModal.id) { return; }
+      var ignoreModal = document.getElementById(detailModal.id + '-ignore');
+      if (!ignoreModal) { return; }
+      var host = ignoreModal.querySelector('[data-civicfg-ignore-field-host]');
+      var choice = ignoreModal.querySelector('[data-civicfg-ignore-lazy-choice]');
+      if (!host || !choice) { return; }
+      host.textContent = '';
+      var seen = {};
+      (changes || []).forEach(function(change) {
+        var path = change && change.path ? String(change.path) : '';
+        if (!path || seen[path]) { return; }
+        seen[path] = true;
+        var label = document.createElement('label');
+        var box = document.createElement('input');
+        box.type = 'checkbox';
+        box.name = 'value_path[]';
+        box.value = path;
+        label.appendChild(box);
+        label.appendChild(document.createTextNode(' ' + path + ' '));
+        var code = document.createElement('code');
+        code.textContent = path;
+        label.appendChild(code);
+        host.appendChild(label);
+      });
+      if (host.children.length) {
+        choice.hidden = false;
+      }
+    }
+
+    function loadLazyDiffDetail(modal) {
+      if (!modal || modal.getAttribute('data-civicfg-diff-detail') !== '1') { return; }
+      if (modal.getAttribute('data-civicfg-detail-loaded') === '1' || modal.getAttribute('data-civicfg-detail-loading') === '1') { return; }
+      var host = modal.querySelector('[data-civicfg-lazy-detail-host]');
+      var endpoint = modal.getAttribute('data-civicfg-detail-url') || '';
+      var path = modal.getAttribute('data-civicfg-path') || '';
+      if (!host || !endpoint || !path) { return; }
+      modal.setAttribute('data-civicfg-detail-loading', '1');
+      host.textContent = 'Loading field-level details…';
+      var url = new URL(endpoint, window.location.href);
+      url.searchParams.set('path', path);
+      fetch(url.toString(), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function(response) {
+          if (!response.ok) { throw new Error('Server returned HTTP ' + response.status + '.'); }
+          return response.json();
+        })
+        .then(function(payload) {
+          if (!payload || payload.ok !== true) {
+            throw new Error(payload && payload.error ? payload.error : 'Could not load diff details.');
+          }
+          host.textContent = '';
+          var file = payload.file || null;
+          if (!file) {
+            var note = document.createElement('p');
+            note.className = 'description';
+            note.textContent = payload.renamed && payload.renamed.length
+              ? 'Only the portable YAML filename changed for this configuration item.'
+              : 'No field-level differences remain for this item.';
+            host.appendChild(note);
+            populateLazyIgnoreFields(modal, []);
+            modal.setAttribute('data-civicfg-detail-loaded', '1');
+            return;
+          }
+          var changes = Array.isArray(file.changes) ? file.changes : [];
+          if (changes.length) {
+            var table = document.createElement('table');
+            table.className = 'civicfg-diff-table';
+            var thead = document.createElement('thead');
+            var headerRow = document.createElement('tr');
+            ['Field', 'YAML File', 'Active CiviCRM'].forEach(function(title) {
+              var th = document.createElement('th'); th.textContent = title; headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow); table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            changes.forEach(function(change) {
+              var tr = document.createElement('tr');
+              var fieldCell = document.createElement('td');
+              var strong = document.createElement('strong');
+              strong.textContent = change.path || 'value';
+              fieldCell.appendChild(strong);
+              var oldCell = document.createElement('td'); oldCell.className = 'civicfg-diff-old';
+              var oldPre = document.createElement('pre'); oldPre.className = 'civicfg-diff-value'; oldPre.textContent = civicfgDisplayValue(change.old); oldCell.appendChild(oldPre);
+              var newCell = document.createElement('td'); newCell.className = 'civicfg-diff-new';
+              var newPre = document.createElement('pre'); newPre.className = 'civicfg-diff-value'; newPre.textContent = civicfgDisplayValue(change.new); newCell.appendChild(newPre);
+              tr.appendChild(fieldCell); tr.appendChild(oldCell); tr.appendChild(newCell); tbody.appendChild(tr);
+            });
+            table.appendChild(tbody); host.appendChild(table);
+          }
+          else {
+            var noChanges = document.createElement('p');
+            noChanges.className = 'description';
+            noChanges.textContent = 'No field-level differences were returned.';
+            host.appendChild(noChanges);
+          }
+          var details = document.createElement('details');
+          var summary = document.createElement('summary'); summary.textContent = 'Show Diff Text'; details.appendChild(summary);
+          var pre = document.createElement('pre'); pre.className = 'civicfg-diff'; pre.textContent = file.diff || ''; details.appendChild(pre); host.appendChild(details);
+          populateLazyIgnoreFields(modal, changes);
+          modal.setAttribute('data-civicfg-detail-loaded', '1');
+        })
+        .catch(function(error) {
+          host.textContent = '';
+          var message = document.createElement('div');
+          message.className = 'messages error no-popup';
+          message.textContent = error && error.message ? error.message : 'Could not load field-level details.';
+          host.appendChild(message);
+        })
+        .then(function() {
+          modal.removeAttribute('data-civicfg-detail-loading');
+        });
+    }
+
     document.querySelectorAll('.crm-configmanager-block [data-civicfg-open]').forEach(function(btn) {
       btn.addEventListener('click', function(ev) {
         ev.preventDefault();
@@ -22,6 +141,11 @@
           modal.hidden = false;
           modal.setAttribute('aria-hidden', 'false');
           modal.classList.add('is-open');
+          loadLazyDiffDetail(modal);
+          if (modal.id && /-ignore$/.test(modal.id)) {
+            var detailModal = document.getElementById(modal.id.replace(/-ignore$/, ''));
+            loadLazyDiffDetail(detailModal);
+          }
           modal.querySelectorAll('form').forEach(function(form) {
             var fileRadio = form.querySelector('input[data-civicfg-ignore-file]');
             if (fileRadio && fileRadio.checked) {
@@ -633,7 +757,12 @@
 
     function showProgress(title, text) {
       var host = document.querySelector('.crm-configmanager-block') || document.body;
-      if (document.getElementById('civicfg-progress-overlay')) { return; }
+      var existing = document.getElementById('civicfg-progress-overlay');
+      if (existing) {
+        existing.querySelector('.civicfg-progress-title').textContent = title || 'Working...';
+        existing.querySelector('.civicfg-progress-text').textContent = text || 'Progress is saved on the server while this operation runs.';
+        return existing;
+      }
       host.classList.add('is-busy');
       var overlay = document.createElement('div');
       overlay.id = 'civicfg-progress-overlay';
@@ -642,11 +771,225 @@
         '<div class="civicfg-progress-box" role="alert" aria-live="assertive">' +
           '<div class="civicfg-progress-title"></div>' +
           '<div class="civicfg-progress-text"></div>' +
-          '<div class="civicfg-progress-bar"><span class="civicfg-progress-fill"></span></div>' +
+          '<div class="civicfg-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="civicfg-progress-fill"></span></div>' +
+          '<div class="civicfg-progress-meta"><span class="civicfg-progress-percent">0%</span><span class="civicfg-progress-step"></span><span class="civicfg-progress-items"></span></div>' +
         '</div>';
       overlay.querySelector('.civicfg-progress-title').textContent = title || 'Working...';
-      overlay.querySelector('.civicfg-progress-text').textContent = text || 'Please wait. Do not refresh or leave this page.';
+      overlay.querySelector('.civicfg-progress-text').textContent = text || 'Progress is saved on the server while this operation runs.';
       host.appendChild(overlay);
+      return overlay;
+    }
+
+    function updateProgress(event) {
+      var overlay = showProgress(event.label || 'Working...', event.message || 'Processing configuration.');
+      var percent = Math.max(0, Math.min(100, parseInt(event.percent || 0, 10)));
+      var bar = overlay.querySelector('.civicfg-progress-bar');
+      var fill = overlay.querySelector('.civicfg-progress-fill');
+      var percentNode = overlay.querySelector('.civicfg-progress-percent');
+      var stepNode = overlay.querySelector('.civicfg-progress-step');
+      var itemsNode = overlay.querySelector('.civicfg-progress-items');
+      if (fill) { fill.style.width = percent + '%'; }
+      if (bar) { bar.setAttribute('aria-valuenow', String(percent)); }
+      if (percentNode) { percentNode.textContent = percent + '%'; }
+      if (stepNode) {
+        var completed = parseInt(event.completed || 0, 10);
+        var total = parseInt(event.total || 0, 10);
+        stepNode.textContent = total > 0 ? ('Step ' + completed + ' of ' + total) : '';
+      }
+      if (itemsNode) {
+        var items = parseInt(event.processed_items || 0, 10);
+        itemsNode.textContent = items > 0 ? ('Processed: ' + items + ' item' + (items === 1 ? '' : 's')) : '';
+      }
+    }
+
+    function isStreamedOperationForm(form) {
+      var action = form ? form.querySelector('input[name="_action"]') : null;
+      var value = action ? action.value : '';
+      return value === 'export_write' || value === 'import_apply';
+    }
+
+    function runStreamedOperation(form) {
+      if (!form || form.getAttribute('data-civicfg-stream-running') === '1') { return; }
+      form.setAttribute('data-civicfg-stream-running', '1');
+      form.removeAttribute('data-civicfg-confirmed');
+      var p = progressTextForForm(form);
+      updateProgress({label: p[0], message: 'Creating a persistent Configuration Manager job.', percent: 0, completed: 0, total: 1, processed_items: 0});
+      form.querySelectorAll('button[type=submit]').forEach(function(btn) { btn.disabled = true; });
+
+      var startUrl = new URL(form.action || window.location.href, window.location.href);
+      startUrl.searchParams.set('op', 'operation-start-json');
+      var formData = new FormData(form);
+      var csrf = String(formData.get('civicfg_csrf') || '');
+      var pollTimer = null;
+      var stopped = false;
+      var activeJobId = 0;
+      var links = null;
+
+      function fetchJson(url, options) {
+        return fetch(url, options || {credentials: 'same-origin'}).then(function(response) {
+          if (!response.ok) {
+            throw new Error('Server returned HTTP ' + response.status + '.');
+          }
+          return response.json();
+        }).then(function(payload) {
+          if (!payload || payload.ok === false) {
+            throw new Error(payload && payload.error ? payload.error : 'Configuration operation request failed.');
+          }
+          return payload;
+        });
+      }
+
+      function updateFromJob(job) {
+        if (!job) { return; }
+        var status = String(job.status || 'queued');
+        var label = String(job.current || '').trim();
+        if (!label) {
+          label = status === 'queued' ? 'Queued' : (status === 'running' ? 'Working' : 'Configuration operation');
+        }
+        var message = String(job.message || '').trim();
+        if (!message) {
+          message = status === 'queued'
+            ? 'The operation is queued in CiviCRM and will start on the next worker step.'
+            : 'Progress is saved on the server. You can refresh or reopen this page without restarting the job.';
+        }
+        updateProgress({
+          label: label,
+          message: message,
+          percent: parseInt(job.percent || 0, 10),
+          completed: parseInt(job.completed || 0, 10),
+          total: parseInt(job.total || 1, 10),
+          processed_items: parseInt(job.processed_items || 0, 10)
+        });
+      }
+
+      function isTerminal(job) {
+        var status = String(job && job.status || '');
+        return status === 'complete' || status === 'failed' || status === 'blocked';
+      }
+
+      function stopPolling() {
+        if (pollTimer) {
+          window.clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      function finishFromStatus(payload) {
+        if (stopped) { return; }
+        stopped = true;
+        stopPolling();
+        var job = payload && payload.job ? payload.job : {};
+        var ok = String(job.status || '') === 'complete';
+        updateProgress({
+          label: ok ? 'Complete' : 'Stopped safely',
+          message: payload.terminal_message || job.error || (ok ? 'Configuration operation finished.' : 'Configuration operation stopped.'),
+          percent: ok ? 100 : parseInt(job.percent || 0, 10),
+          completed: parseInt(job.completed || 0, 10),
+          total: parseInt(job.total || 1, 10),
+          processed_items: parseInt(job.processed_items || 0, 10)
+        });
+        window.setTimeout(function() {
+          window.location.href = (links && links.redirect_url) || payload.redirect_url || window.location.href;
+        }, 500);
+      }
+
+      function pollStatus(delay) {
+        if (stopped || !links || !links.status_url) { return; }
+        stopPolling();
+        pollTimer = window.setTimeout(function() {
+          fetchJson(links.status_url, {credentials: 'same-origin', headers: {'Accept': 'application/json'}}).then(function(payload) {
+            if (payload.status_url || payload.step_url || payload.redirect_url) {
+              links = payload;
+            }
+            updateFromJob(payload.job);
+            if (isTerminal(payload.job)) {
+              finishFromStatus(payload);
+              return;
+            }
+            pollStatus(750);
+          }).catch(function() {
+            // A transient polling failure is not an operation failure. The job
+            // is persistent, so keep trying while the worker request runs.
+            pollStatus(1500);
+          });
+        }, Math.max(0, delay || 0));
+      }
+
+      function refreshTerminalStatus() {
+        if (!links || !links.status_url) { return; }
+        fetchJson(links.status_url, {credentials: 'same-origin', headers: {'Accept': 'application/json'}}).then(function(payload) {
+          updateFromJob(payload.job);
+          if (isTerminal(payload.job)) {
+            finishFromStatus(payload);
+          }
+        }).catch(function() {
+          pollStatus(1000);
+        });
+      }
+
+      function advanceQueue() {
+        if (stopped || !links || !links.step_url || !activeJobId) { return; }
+        var stepBody = new FormData();
+        stepBody.set('_action', 'operation_step');
+        stepBody.set('civicfg_csrf', csrf);
+        stepBody.set('job_id', String(activeJobId));
+        fetchJson(links.step_url, {
+          method: 'POST',
+          body: stepBody,
+          credentials: 'same-origin',
+          headers: {'Accept': 'application/json'}
+        }).then(function(payload) {
+          updateFromJob(payload.job);
+          if (isTerminal(payload.job)) {
+            refreshTerminalStatus();
+            return;
+          }
+          // Future queue plans may contain several bounded items. Advance only
+          // after the previous runNext() request returned; the server-side
+          // worker lock additionally prevents overlapping consumers.
+          window.setTimeout(advanceQueue, payload.job && payload.job.worker_busy ? 1000 : 100);
+        }).catch(function(error) {
+          // A proxy timeout does not mean PHP failed. Keep polling the durable
+          // job, and retry advancement later; the worker lock prevents overlap.
+          updateProgress({
+            label: 'Checking saved job',
+            message: 'The worker connection was interrupted. Server-side job state is still being checked; this does not restart the operation.',
+            percent: 0,
+            completed: 0,
+            total: 1,
+            processed_items: 0
+          });
+          window.setTimeout(advanceQueue, 2000);
+        });
+      }
+
+      fetchJson(startUrl.toString(), {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        headers: {'Accept': 'application/json'}
+      }).then(function(payload) {
+        if (!payload.job || !payload.job.id) {
+          throw new Error('The server did not return a persistent Configuration Manager job ID.');
+        }
+        activeJobId = parseInt(payload.job.id, 10);
+        links = payload;
+        updateFromJob(payload.job);
+        if (isTerminal(payload.job)) {
+          refreshTerminalStatus();
+          return;
+        }
+        pollStatus(250);
+        advanceQueue();
+      }).catch(function(error) {
+        stopped = true;
+        stopPolling();
+        var overlay = showProgress('Operation failed to start', error && error.message ? error.message : 'Configuration operation failed to start.');
+        var percentNode = overlay.querySelector('.civicfg-progress-percent');
+        if (percentNode) { percentNode.textContent = 'Failed'; }
+        form.removeAttribute('data-civicfg-stream-running');
+        form.querySelectorAll('button[type=submit]').forEach(function(btn) { btn.disabled = false; });
+      });
     }
 
     function progressTextForForm(form) {
@@ -658,7 +1001,7 @@
       if (value === 'revert_file') { return ['Reverting active CiviCRM', 'Applying the selected YAML file and dependencies back to CiviCRM.']; }
       if (value === 'ignore_config') { return ['Saving ignore rule', 'Updating Config Ignore settings.']; }
       if (value === 'save_settings') { return ['Saving settings', 'Updating Configuration Manager settings.']; }
-      return ['Working', 'Please wait. Do not refresh or leave this page.'];
+      return ['Working', 'Progress is saved on the server while this operation runs.'];
     }
 
     function ensureConfirmModal() {
@@ -696,7 +1039,6 @@
     document.querySelectorAll('.crm-configmanager-block form[data-civicfg-confirm-modal]').forEach(function(form) {
       form.addEventListener('submit', function(ev) {
         if (form.getAttribute('data-civicfg-confirmed') === '1') {
-          form.removeAttribute('data-civicfg-confirmed');
           return;
         }
         ev.preventDefault();
@@ -727,9 +1069,15 @@
           closeConfirmModal(modal);
           if (target) {
             target.setAttribute('data-civicfg-confirmed', '1');
-            var p = progressTextForForm(target);
-            showProgress(p[0], p[1]);
-            target.submit();
+            if (target.requestSubmit) {
+              target.requestSubmit();
+            }
+            else if (isStreamedOperationForm(target)) {
+              runStreamedOperation(target);
+            }
+            else {
+              target.submit();
+            }
           }
         };
         modal.hidden = false;
@@ -740,8 +1088,13 @@
     });
 
     document.querySelectorAll('.crm-configmanager-block form').forEach(function(form) {
-      form.addEventListener('submit', function() {
+      form.addEventListener('submit', function(ev) {
         if (form.hasAttribute('data-civicfg-confirm-modal') && form.getAttribute('data-civicfg-confirmed') !== '1') {
+          return;
+        }
+        if (isStreamedOperationForm(form)) {
+          ev.preventDefault();
+          runStreamedOperation(form);
           return;
         }
         var p = progressTextForForm(form);

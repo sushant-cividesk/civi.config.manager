@@ -238,3 +238,16 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 - SQLTasks 2.2.x (API3-only) must discover `Sqltask` with `list_action=getalltasks`, hydrate rows through `get`, retain create/update through `create`, and delete through `deletetask`; no BAO adapter may be required.
 - An unavailable provider with a previously managed/selected/watch policy must preserve that saved policy when unrelated settings are saved, while the UI permits only an explicit switch to Ignore and disables bulk/picker/watch/advanced-selection controls.
 - Synchronize must show one compact error summary plus one detailed Synchronization Errors panel, not duplicate the same provider message twice.
+
+## Alpha62 bounded-memory and operation-safety gate
+
+Run the release-specific architecture and low-memory contracts before the heavier integration suites:
+
+```bash
+composer test:alpha62-contract
+composer qa:stress
+```
+
+`qa:stress` fixes PHP `memory_limit` at 256 MB and verifies 5,000 API4 records and 5,000 YAML files can be traversed without whole-collection materialization. It also forces a duplicate staged path and a mid-publish storage failure to prove export publication blocks/rolls back coherently. The alpha62 scenario contract covers compact lazy diff, CiviRules ambiguity/provider ownership, optimistic concurrency checks, create/update-before-delete safety, CSRF, operation/queue locking, persistent progress reconnect, completed-item idempotency, and fail-closed indeterminate retries.
+
+These gates do not replace the PHP 7.4 compatibility matrix or full CMS/CiviCRM lifecycle tests.

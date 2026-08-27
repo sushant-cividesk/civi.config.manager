@@ -40,11 +40,11 @@ See [Architecture](docs/ARCHITECTURE.md) for the design and [Testing](docs/TESTI
 
 ## Large-site execution
 
-Configuration Manager is designed to keep collection work bounded rather than asking PHP/CiviCRM to materialize an entire site configuration in one API call. Core and contributed-provider collection reads use bounded pages where the provider supports paging, Manage Everything avoids item-selector copies, large validation/import passes retain compact dependency metadata, and managed ZIP creation processes one handler at a time.
+Alpha62 changes the large-site path from “paged reads accumulated into one large request array” to true API/YAML iteration for the high-volume built-in handlers. Export writes to an isolated staging workspace, revalidates the active CiviCRM fingerprint before publication, journals filesystem changes, deletes stale YAML only after the stage succeeds, and publishes `manifest.yml` last. Synchronize keeps compact identity/hash summaries and loads field-level Details lazily, with 100 summaries per page. Import/validation stream managed YAML for the high-volume handlers and preserve the complete-preflight and create/update-before-delete barriers.
 
-The extension does **not** raise PHP `memory_limit` as a workaround. Standard API3 `get` providers are paged; custom contributed collection actions that cannot demonstrate safe offset paging fail closed rather than being silently truncated or looped indefinitely. Import and validation also avoid immediately running another full synchronization scan in the same HTTP request; the redirected Synchronize request performs that verification with a fresh request memory budget.
+The extension does **not** raise PHP `memory_limit`. `composer qa:stress` exercises 5,000 API4 rows and 5,000 YAML files under a 256 MB ceiling. Providers that cannot be read safely fail closed instead of being silently truncated.
 
-For very large sites, prefer the CLI for unattended operations so web-proxy request timeouts are not part of the execution path. The UI and CLI still use the same service and safety rules.
+Web Export/Import uses persistent CiviCRM job metadata and SQL Queue orchestration. The progress bar is driven by server phase/count/processed-item events and can reconnect to the active job after a browser refresh. Alpha62 deliberately blocks an indeterminate previously-running mutating queue item rather than blindly replaying it; fine-grained per-handler/object automatic cursor resume remains a post-alpha62 improvement. CLI operations continue to use the same ConfigManager safety/service layer synchronously.
 
 ## Supported configuration
 

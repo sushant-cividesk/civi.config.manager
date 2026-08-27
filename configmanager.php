@@ -58,12 +58,15 @@ function _configmanager_lifecycle(bool $installCli = TRUE, bool $removeCli = FAL
     $installer = new \Civi\ConfigManager\Service\CliInstaller();
     $installer->ensureSiteIdentifier();
     $stateStore = new \Civi\ConfigManager\Service\StateStore();
+    $operationStore = new \Civi\ConfigManager\Service\OperationStore();
     if ($removeCli) {
       $installer->uninstall();
+      $operationStore->dropSchema();
       $stateStore->dropSchema();
     }
     else {
       $stateStore->ensureSchema();
+      $operationStore->ensureSchema();
       if ($installCli) {
         $installer->install();
       }

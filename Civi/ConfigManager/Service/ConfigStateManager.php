@@ -104,6 +104,72 @@ class ConfigStateManager {
     return $diff;
   }
 
+  /**
+   * Enrich a summary-first diff using compact identity/hash rows only.
+   *
+   * Full canonical documents are intentionally absent here. When both sides
+   * changed, the summary marks the item for detailed review; the single-item
+   * detail endpoint performs the full three-way field analysis on demand.
+   *
+   * @param array<string,array{identity:array,hash:string|null}> $active
+   * @param array<string,array{identity:array,hash:string|null}> $desired
+   */
+  public function enrichCompactDiff($handler, array $active, array $desired, array $diff): array {
+    if (!$this->store->isAvailable()) {
+      return $diff;
+    }
+    $allKeys = array_values(array_unique(array_merge(array_keys($active), array_keys($desired))));
+    $states = [];
+    foreach ($allKeys as $key) {
+      $activeRow = $active[$key] ?? NULL;
+      $yamlRow = $desired[$key] ?? NULL;
+      $identity = $activeRow['identity'] ?? $yamlRow['identity'];
+      $providerKey = (string) $identity['provider_key'];
+      $identityHash = (string) $identity['identity_hash'];
+      $baseline = $this->baselineForIdentity($providerKey, $identityHash);
+      if ($baseline && (int) ($baseline['canonical_version'] ?? 0) !== Canonicalizer::VERSION) {
+        $baseline = NULL;
+      }
+      $yamlHash = $yamlRow['hash'] ?? NULL;
+      $activeHash = $activeRow['hash'] ?? NULL;
+      $state = $this->classifier->classify($baseline['baseline_hash'] ?? NULL, $yamlHash, $activeHash);
+      $details = [
+        'config_key' => (string) $identity['config_key'],
+        'identity_hash' => (string) $identity['identity_hash'],
+        'identity_method' => (string) $identity['identity_method'],
+        'identity_confidence' => (string) $identity['identity_confidence'],
+        'write_safe' => !empty($identity['write_safe']),
+        'yaml_hash' => $yamlHash,
+        'active_hash' => $activeHash,
+        'baseline_hash' => $baseline['baseline_hash'] ?? NULL,
+        'sync_state' => $state,
+        'canonical_version' => Canonicalizer::VERSION,
+      ];
+      if ($state === 'BOTH_CHANGED') {
+        $details['merge_state'] = 'REVIEW_REQUIRED';
+      }
+      $states[$key] = $details;
+      $this->store->upsertObjectState($identity, $yamlHash, $activeHash, $state);
+    }
+
+    foreach ((array) ($diff['files'] ?? []) as $index => $file) {
+      $key = (string) ($file['_compact_key'] ?? '');
+      if ($key !== '' && isset($states[$key])) {
+        $diff['files'][$index] = array_merge($file, $states[$key]);
+      }
+      unset($diff['files'][$index]['_compact_key']);
+    }
+
+    $counts = [];
+    foreach ($states as $state) {
+      $name = (string) $state['sync_state'];
+      $counts[$name] = ($counts[$name] ?? 0) + 1;
+    }
+    ksort($counts, SORT_STRING);
+    $diff['state_summary'] = $counts;
+    return $diff;
+  }
+
   public function acceptExportedBaseline($handler, array $exported, string $source): void {
     $handlerType = (string) $handler->getType();
     $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
@@ -124,6 +190,19 @@ class ConfigStateManager {
     foreach ($this->indexYaml($handlerType, $yaml, $options) as $row) {
       $this->store->acceptBaseline($row['identity'], $row['canonical'], $row['hash'], $source);
     }
+  }
+
+  /**
+   * Accept one YAML document without materializing a handler-wide collection.
+   */
+  public function acceptYamlBaselineItem($handler, string $filename, array $data, string $source): void {
+    if (!$this->store->isAvailable()) {
+      return;
+    }
+    $handlerType = (string) $handler->getType();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $row = $this->buildRow($handlerType, $filename, $data, $options);
+    $this->store->acceptBaseline($row['identity'], $row['canonical'], $row['hash'], $source);
   }
 
   public function rebuildObjectState(): void {
@@ -170,8 +249,15 @@ class ConfigStateManager {
         continue;
       }
 
+      $occurrences = [];
       foreach ($group as $row) {
-        $duplicateKey = $configKey . '|duplicate=' . rawurlencode((string) $row['filename']);
+        $fingerprint = (string) ($row['hash'] ?? hash('sha256', serialize($row['canonical'] ?? [])));
+        $baseDuplicateKey = $configKey
+          . '|duplicate=' . rawurlencode((string) $row['filename'])
+          . '|fingerprint=' . $fingerprint;
+        $occurrence = ($occurrences[$baseDuplicateKey] ?? 0) + 1;
+        $occurrences[$baseDuplicateKey] = $occurrence;
+        $duplicateKey = $baseDuplicateKey . '|occurrence=' . $occurrence;
         $row['identity']['config_key'] = $duplicateKey;
         $row['identity']['identity_hash'] = hash('sha256', $duplicateKey);
         $row['identity']['identity_method'] = 'duplicate_identity_fallback';

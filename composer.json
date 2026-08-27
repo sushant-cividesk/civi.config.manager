@@ -36,6 +36,7 @@
   },
   "scripts": {
     "lint:php": "bash tests/ci/php-lint.sh",
+    "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
     "test:scenarios": "php tests/ci/validate-scenarios.php",
     "test:unit": "phpunit --configuration phpunit.xml.dist",
     "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
@@ -45,12 +46,14 @@
     "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
     "qa:fast": [
       "@lint:php",
+      "@test:alpha62-contract",
       "@test:scenarios",
       "@test:unit",
       "@analyse",
       "@compatibility"
     ],
     "qa:full": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
-    "qa:full-ui": "bash tests/ci/run-local-ui.sh"
+    "qa:full-ui": "bash tests/ci/run-local-ui.sh",
+    "qa:stress": "php -d memory_limit=256M tests/ci/alpha62-stress.php"
   }
 }

@@ -226,22 +226,37 @@ Two supported extension mechanisms are available:
 
 Custom integrations must provide stable identity, explicit capability boundaries, and deterministic canonicalization. They must not bypass preflight or delete safety.
 
-## Performance and batching model
+## Performance, staging, and operation model
 
-Large-site execution follows a bounded-memory model while preserving the same synchronous safety semantics:
+Large-site execution follows a bounded-memory model:
 
-- standard API4 collection reads are paged centrally; single-row lookups request one row only;
-- standard API3 contributed-provider `get` reads use bounded `limit`/`offset` pages instead of `limit = 0`;
-- custom API3 collection actions are paged only when they demonstrate offset progress, otherwise the operation fails closed rather than truncating or looping;
-- provider identity multiplicity is indexed once in O(n), and possible-rename discovery buckets by non-identity content before exact comparison instead of comparing every added item with every missing item;
-- Manage Everything bypasses item-selector partition work, which avoids a second high-volume export array;
-- the export queue is the single owner of full YAML documents while reverse-dependency/stale-file passes use in-place updates and compact integer indexes;
-- validation and import dependency planning keep names/dependency metadata rather than retaining every parsed YAML document across all handlers;
-- canonical state is hashed once and reused when both canonical data and its fingerprint are required;
-- managed ZIP creation yields one handler/file at a time; and
-- post-write verification is performed by the next Synchronize request instead of running another full diff inside the import/validation HTTP request.
+- API4 collection reads expose generators and request bounded pages; ascending numeric-`id` scans use `id > last_id` keyset paging where explicitly safe, while other providers use guarded bounded offset paging; single-row lookups request one row only.
+- Standard API3 contributed-provider `get` reads use bounded pages. Custom collection actions are used only when their provider semantics can be handled safely; incomplete/repeating pagination fails closed.
+- YAML directories expose one-document-at-a-time iterators. Materialized reads remain compatibility wrappers for legacy/custom handlers.
+- High-volume built-in handlers stream Export, validation, and Import. Compact identity/hash/dependency metadata is retained where a whole-operation view is required instead of retaining every parsed document.
+- Provider identity multiplicity and rename safety use compact indexes rather than O(n²) rescans.
+- Synchronize scans compact identity/hash summaries first. Field-level details are calculated only when an administrator requests one object, and summary rendering is paginated.
+- The extension never raises the host PHP `memory_limit`. A provider that cannot be read safely fails closed instead of being silently truncated.
 
-The extension intentionally does not increase the host PHP memory limit. If a contributed provider cannot provide a safely pageable read surface, Configuration Manager reports that provider as unavailable/incomplete rather than weakening correctness. A future persisted background queue can add resumable multi-request execution without changing handler/import semantics, but it is not required for the bounded collection behavior above.
+A real Export is a staged filesystem transaction rather than a sequence of independent live writes:
+
+1. acquire the Configuration Manager operation lock for the sync root;
+2. stream desired YAML into an isolated staging workspace;
+3. validate global output-path uniqueness and build compact dependency/manifest metadata;
+4. fingerprint/re-read active CiviCRM before publication and abort if it changed during staging;
+5. journal/replace changed YAML;
+6. move confirmed stale YAML only after all replacements are ready;
+7. publish `manifest.yml` last;
+8. restore the journal if publication fails; and
+9. accept the new local baseline only after successful publication.
+
+Import preserves the complete-preflight barrier. Static validation, dependency checks, rename/identity/provider checks, and handler dry-run complete before the first write. Every create/update phase finishes before delete-missing can begin. Any create/update failure prevents the global delete phase. Compact active fingerprints are checked again before writes and before delete-missing so an external/manual change becomes a conflict instead of a blind overwrite.
+
+### Persistent web operations and progress
+
+Alpha62 persists browser Export/Import operation metadata in `civicrm_civicfg_job` and `civicrm_civicfg_job_item` and uses CiviCRM's persistent SQL Queue as the web-operation control plane. Queue payloads contain compact IDs rather than YAML/configuration documents. The browser starts a job, advances at most one queue item per request, and polls durable status. Progress percentage, phase, handler, processed-item count, heartbeat, and memory telemetry come from server callbacks; no synthetic bouncing progress animation is used.
+
+A separate queue-consumer lock prevents concurrent browser requests from consuming the same job. A durable completed item is safe to acknowledge again after a lost response. If a previous mutating worker is found in an indeterminate `running` state, alpha62 blocks the operation instead of replaying it blindly. This is an explicit alpha safety boundary: the current job contains one bounded-memory Export/Import execution item, so fine-grained per-handler/object cursor resume after a killed worker is not yet claimed. A fresh reviewed operation is required after that blocked state.
 
 ## QA architecture
 

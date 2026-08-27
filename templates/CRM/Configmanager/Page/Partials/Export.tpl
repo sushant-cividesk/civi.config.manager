@@ -14,6 +14,7 @@
         {/if}
         <div class="civicfg-actions">
           <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export YAML Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
             <input type="hidden" name="_action" value="export_write" />
             {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
             <button type="submit" class="button"><span>{ts}Export{/ts}</span></button>

@@ -1,7 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-class CustomGroupHandler extends AbstractHandler {
+class CustomGroupHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
   private array $plannedDependencyNames = [];
@@ -40,11 +40,14 @@ class CustomGroupHandler extends AbstractHandler {
   }
 
   public function export(): array {
-    $groups = $this->api4Get('CustomGroup', [], ['id', 'name', 'title', 'extends', 'extends_entity_column_id', 'extends_entity_column_value', 'style', 'collapse_display', 'help_pre', 'help_post', 'weight', 'is_active', 'is_multiple', 'min_multiple', 'max_multiple', 'collapse_adv_display', 'is_reserved', 'is_public'], ['name' => 'ASC']);
-    $files = [];
-    foreach ($groups as $group) {
+    return iterator_to_array($this->iterateExport(), FALSE);
+  }
+
+  public function iterateExport(): iterable {
+    foreach ($this->api4Iterate('CustomGroup', [], ['id', 'name', 'title', 'extends', 'extends_entity_column_id', 'extends_entity_column_value', 'style', 'collapse_display', 'help_pre', 'help_post', 'weight', 'is_active', 'is_multiple', 'min_multiple', 'max_multiple', 'collapse_adv_display', 'is_reserved', 'is_public'], ['name' => 'ASC']) as $group) {
+      $group = (array) $group;
       $sourceId = isset($group['id']) && is_scalar($group['id']) ? (int) $group['id'] : NULL;
-      $fields = $this->api4Get('CustomField', [["custom_group_id", "=", $group['id']]], ['name', 'label', 'data_type', 'html_type', 'default_value', 'is_required', 'is_searchable', 'is_search_range', 'weight', 'help_pre', 'help_post', 'attributes', 'is_active', 'is_view', 'options_per_line', 'text_length', 'start_date_years', 'end_date_years', 'date_format', 'time_format', 'note_columns', 'note_rows', 'column_name', 'option_group_id'], ['weight' => 'ASC', 'name' => 'ASC']);
+      $fields = $this->api4Get('CustomField', [['custom_group_id', '=', $group['id']]], ['name', 'label', 'data_type', 'html_type', 'default_value', 'is_required', 'is_searchable', 'is_search_range', 'weight', 'help_pre', 'help_post', 'attributes', 'is_active', 'is_view', 'options_per_line', 'text_length', 'start_date_years', 'end_date_years', 'date_format', 'time_format', 'note_columns', 'note_rows', 'column_name', 'option_group_id'], ['weight' => 'ASC', 'name' => 'ASC']);
       unset($group['id']);
       foreach ($fields as &$field) {
         unset($field['id'], $field['custom_group_id']);
@@ -56,7 +59,8 @@ class CustomGroupHandler extends AbstractHandler {
           }
         }
       }
-      $files[] = [
+      unset($field);
+      yield [
         'filename' => 'groups/' . $this->safeName($group['name']) . '.yml',
         'source_id' => $sourceId,
         'data' => [
@@ -68,8 +72,8 @@ class CustomGroupHandler extends AbstractHandler {
           'fields' => $fields,
         ],
       ];
+      unset($fields);
     }
-    return $files;
   }
 
   public function validate(array $items): array {
@@ -99,6 +103,10 @@ class CustomGroupHandler extends AbstractHandler {
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = $this->baseImportSummary($dryRun);
     $desiredGroupNames = [];
     foreach ($items as $filename => $file) {
@@ -197,8 +205,7 @@ class CustomGroupHandler extends AbstractHandler {
   }
 
   private function deleteFieldsMissingFromYaml(int $groupId, string $groupName, array $desiredFieldNames, bool $dryRun, array &$summary): void {
-    $existingFields = $this->api4Get('CustomField', [['custom_group_id', '=', $groupId]], ['id', 'name', 'label'], ['name' => 'ASC']);
-    foreach ($existingFields as $field) {
+    foreach ($this->api4Iterate('CustomField', [['custom_group_id', '=', $groupId]], ['id', 'name', 'label'], ['name' => 'ASC']) as $field) {
       $name = (string) ($field['name'] ?? '');
       if ($name === '' || isset($desiredFieldNames[$name])) {
         continue;
@@ -215,8 +222,7 @@ class CustomGroupHandler extends AbstractHandler {
   }
 
   private function deleteGroupsMissingFromYaml(array $desiredGroupNames, bool $dryRun, array &$summary): void {
-    $existingGroups = $this->api4Get('CustomGroup', [], ['id', 'name', 'title', 'is_reserved'], ['name' => 'ASC']);
-    foreach ($existingGroups as $group) {
+    foreach ($this->api4Iterate('CustomGroup', [], ['id', 'name', 'title', 'is_reserved'], ['name' => 'ASC']) as $group) {
       $name = (string) ($group['name'] ?? '');
       if ($name === '' || isset($desiredGroupNames[$name])) {
         continue;

@@ -1,6 +1,7 @@
   {if $op eq 'settings'}
     <h3>{ts}Settings{/ts}</h3>
     <form class="civicfg-settings-form" data-civicfg-settings-form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}" data-civicfg-scope-options-url="{$scopeOptionsUrl|escape}">
+          <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
       <input type="hidden" name="_action" value="save_settings" />
 
       <div class="civicfg-settings-section">

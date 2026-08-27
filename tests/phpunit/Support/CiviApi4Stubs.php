@@ -54,12 +54,14 @@ namespace Civi\Api4 {
     class CivicfgPagingGetAction {
       private int $limit = 0;
       private int $offset = 0;
+      private array $where = [];
 
       public function addSelect(...$fields): self {
         return $this;
       }
 
       public function addWhere(...$condition): self {
+        $this->where[] = $condition;
         return $this;
       }
 
@@ -79,10 +81,19 @@ namespace Civi\Api4 {
 
       public function execute(): array {
         CivicfgPagingTestEntity::$executeCalls++;
-        if ($this->limit <= 0) {
-          return array_slice(CivicfgPagingTestEntity::$rows, $this->offset);
+        $rows = CivicfgPagingTestEntity::$rows;
+        foreach ($this->where as $condition) {
+          if (($condition[0] ?? NULL) === 'id' && ($condition[1] ?? NULL) === '>') {
+            $afterId = (int) ($condition[2] ?? 0);
+            $rows = array_values(array_filter($rows, static function(array $row) use ($afterId): bool {
+              return (int) ($row['id'] ?? 0) > $afterId;
+            }));
+          }
         }
-        return array_slice(CivicfgPagingTestEntity::$rows, $this->offset, $this->limit);
+        if ($this->limit <= 0) {
+          return array_slice($rows, $this->offset);
+        }
+        return array_slice($rows, $this->offset, $this->limit);
       }
     }
   }

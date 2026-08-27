@@ -1,0 +1,67 @@
+id: CM-ALPHA62-LARGE-SITE-OPERATION-SAFETY
+feature: Bounded-memory export/import/diff operations preserve snapshot, identity, concurrency, and retry safety at large scale
+level:
+  - unit
+  - integration
+  - browser
+fixtures:
+  factory: disposable 5000-object configuration set with CiviRules duplicate identities and forced provider/publish failures
+  records:
+    api4_rows: 5000
+    yaml_files: 5000
+    changed_files: 3
+    duplicate_civirules_names:
+      - emailapi_send
+      - emailapi_send
+      - emailapi_send
+steps:
+  - Export 5000 API4-backed objects with a 256M PHP memory ceiling and verify bounded iteration and staged publication.
+  - Enumerate 5000 YAML files and verify they are parsed one document at a time.
+  - Compare 2500 in-sync objects with only 3 changed and verify Synchronize initially returns compact summaries with lazy field details.
+  - Force duplicate CiviRules names and verify the rows remain visible but are marked ambiguous and automatic CRUD/delete is blocked.
+  - Force two objects to the same relative YAML path and verify export aborts before live YAML changes.
+  - Force a provider failure before staging completes and verify the previous YAML snapshot remains unchanged.
+  - Force a publish failure after one replacement and verify the journal restores overwritten/stale files and preserves the previous manifest.
+  - Change active CiviCRM after export staging and verify fingerprint revalidation prevents mixed-snapshot publish.
+  - Change active CiviCRM after import preflight and verify the handler write is blocked as a conflict.
+  - Force a create/update failure and verify the global delete-missing phase never starts.
+  - Start two web operations for the same sync root and verify only one operation/queue worker owns the lock.
+  - Lose a completed queue HTTP response and verify the durable complete item is not executed again.
+  - Present an indeterminate running queue item and verify alpha62 blocks blind replay and requires a fresh plan.
+  - Submit each mutating UI action without a valid CSRF token and verify it is rejected.
+  - Refresh the browser while a persistent operation is active and verify status reconnects to the same job/progress counters.
+expected:
+  peak_memory_bounded_below_256m: true
+  previous_snapshot_preserved_on_stage_failure: true
+  rollback_restores_coherent_snapshot: true
+  manifest_published_last: true
+  duplicate_paths_block_export: true
+  ambiguous_civirules_write_count: 0
+  concurrent_second_operation_write_count: 0
+  delete_phase_after_write_failure_count: 0
+  completed_queue_retry_write_count: 0
+  indeterminate_queue_retry_is_blocked: true
+  csrf_required_for_mutations: true
+  diff_details_lazy: true
+  progress_is_server_derived: true
+negative_cases:
+  - raise_php_memory_limit_to_hide_unbounded_loading
+  - render_all_field_diffs_for_all_changed_files_on_initial_sync_page
+  - silently_overwrite_duplicate_export_path
+  - treat_duplicate_civirules_name_as_portable_identity
+  - delete_stale_yaml_before_complete_successful_stage
+  - publish_after_active_snapshot_changes_during_stage
+  - overwrite_active_config_changed_after_import_preflight
+  - run_delete_missing_after_any_create_update_failure
+  - allow_two_queue_workers_for_same_job
+  - blindly_replay_indeterminate_mutating_queue_item
+  - accept_mutating_post_without_valid_csrf_token
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  restore_database_snapshot: true
+  remove_temporary_files: true
+  remove_operation_jobs: true

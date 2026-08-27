@@ -1,7 +1,7 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-class GenericApi4CollectionHandler extends AbstractHandler {
+class GenericApi4CollectionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
   private string $type;
   private string $label;
   private string $directory;
@@ -59,13 +59,17 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   }
 
   public function export(): array {
-    $rawRows = $this->api4Get($this->entity, [], array_values(array_unique(array_merge(['id'], $this->select))), $this->orderBy);
-    $rows = array_map(function($row) {
-      return $this->cleanExportRow((array) $row);
-    }, $rawRows);
+    return iterator_to_array($this->iterateExport(), FALSE);
+  }
 
+  public function iterateExport(): iterable {
+    $select = array_values(array_unique(array_merge(['id'], $this->select)));
     if (!$this->splitFiles) {
-      return [[
+      $rows = [];
+      foreach ($this->api4Iterate($this->entity, [], $select, $this->orderBy) as $rawRow) {
+        $rows[] = $this->cleanExportRow((array) $rawRow);
+      }
+      yield [
         'filename' => $this->fileName,
         'data' => [
           'schema_version' => 1,
@@ -74,11 +78,11 @@ class GenericApi4CollectionHandler extends AbstractHandler {
           'dependencies' => $this->collectionDependencies($rows),
           'items' => $rows,
         ],
-      ]];
+      ];
+      return;
     }
 
-    $files = [];
-    foreach ($rawRows as $rawRow) {
+    foreach ($this->api4Iterate($this->entity, [], $select, $this->orderBy) as $rawRow) {
       $rawRow = (array) $rawRow;
       $sourceId = isset($rawRow['id']) && is_scalar($rawRow['id']) ? (int) $rawRow['id'] : NULL;
       $row = $this->cleanExportRow($rawRow);
@@ -87,7 +91,7 @@ class GenericApi4CollectionHandler extends AbstractHandler {
         continue;
       }
       $name = (string) $row[$identityField];
-      $files[] = [
+      yield [
         'filename' => $this->fileNameForRow($row, $name),
         'source_id' => $sourceId,
         'data' => [
@@ -102,9 +106,6 @@ class GenericApi4CollectionHandler extends AbstractHandler {
         ],
       ];
     }
-
-    usort($files, fn($a, $b) => strcmp($a['filename'], $b['filename']));
-    return $files;
   }
 
   public function validate(array $items): array {
@@ -174,6 +175,10 @@ class GenericApi4CollectionHandler extends AbstractHandler {
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = [
       'type' => $this->getType(),
       'status' => $dryRun ? 'dry_run' : 'applied',
@@ -270,8 +275,7 @@ class GenericApi4CollectionHandler extends AbstractHandler {
     if ($this->entity === 'SearchDisplay' && in_array('saved_search_id.name', $this->select, TRUE)) {
       $select[] = 'saved_search_id.name';
     }
-    $existingRows = $this->api4Get($this->entity, [], array_values(array_unique($select)), $this->orderBy);
-    foreach ($existingRows as $existing) {
+    foreach ($this->api4Iterate($this->entity, [], array_values(array_unique($select)), $this->orderBy) as $existing) {
       $existing = (array) $existing;
       if (empty($existing['id'])) {
         continue;
@@ -394,23 +398,21 @@ class GenericApi4CollectionHandler extends AbstractHandler {
     return $message;
   }
 
-  private function expandFilesToRows(array $items, array &$summary): array {
-    $rows = [];
+  private function expandFilesToRows(iterable $items, array &$summary): iterable {
     foreach ($items as $filename => $file) {
       $type = (string) ($file['type'] ?? '');
       if ($type === $this->type . '.collection') {
         foreach (($file['items'] ?? []) as $row) {
-          $rows[] = ['filename' => $filename, 'row' => (array) $row];
+          yield ['filename' => $filename, 'row' => (array) $row];
         }
       }
       elseif ($type === $this->type . '.item') {
-        $rows[] = ['filename' => $filename, 'row' => (array) ($file['item'] ?? [])];
+        yield ['filename' => $filename, 'row' => (array) ($file['item'] ?? [])];
       }
       else {
         $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid type. Expected ' . $this->type . '.collection or ' . $this->type . '.item.'];
       }
     }
-    return $rows;
   }
 
   private function getIdentityField(array $row): ?string {

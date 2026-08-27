@@ -6,7 +6,7 @@ namespace Civi\ConfigManager\Handler;
  * CiviRules extension exposes them. On sites without CiviRules/API4 metadata it
  * fails validation clearly instead of silently importing incomplete rules.
  */
-class CiviRulesHandler extends AbstractHandler {
+class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
@@ -53,26 +53,51 @@ class CiviRulesHandler extends AbstractHandler {
   public function setDeleteMissingEnabled(bool $enabled): self { $this->deleteMissingEnabled = $enabled; return $this; }
 
   public function export(): array {
+    return iterator_to_array($this->iterateExport(), FALSE);
+  }
+
+  public function iterateExport(): iterable {
     $availability = $this->getRuntimeAvailability();
     if (empty($availability['available'])) {
       throw new \RuntimeException((string) $availability['reason']);
     }
 
-    $files = [];
     foreach ($this->entities as $bucket => $def) {
       if (!$this->entityAvailable($def['entity'])) {
         continue;
       }
-      foreach ($this->api4Get($def['entity'], [], ['*'], $def['order']) as $row) {
-        $row = (array) $row;
-        $sourceId = isset($row['id']) && is_scalar($row['id']) ? (int) $row['id'] : NULL;
-        $row = $this->cleanRow($row, $def);
+
+      // Count semantic identities first using only compact strings. This is a
+      // deliberate second provider pass: it prevents ambiguous names from being
+      // mistaken for portable identities without retaining all provider rows.
+      $counts = [];
+      foreach ($this->api4Iterate($def['entity'], [], ['*'], $def['order']) as $rawRow) {
+        $row = $this->cleanRow((array) $rawRow, $def);
+        $identity = $this->identityValue($row, $def);
+        if ($identity !== '') {
+          $counts[$identity] = ($counts[$identity] ?? 0) + 1;
+        }
+      }
+
+      foreach ($this->api4Iterate($def['entity'], [], ['*'], $def['order']) as $rawRow) {
+        $rawRow = (array) $rawRow;
+        $sourceId = isset($rawRow['id']) && is_scalar($rawRow['id']) ? (int) $rawRow['id'] : NULL;
+        $row = $this->cleanRow($rawRow, $def);
         $identity = $this->identityValue($row, $def);
         if ($identity === '') {
           continue;
         }
-        $files[] = [
-          'filename' => $bucket . '/' . $this->safeName($identity) . '.yml',
+        $portable = $this->isPortableDefinition($def) && (($counts[$identity] ?? 0) === 1);
+        $filename = $bucket . '/' . $this->safeName($identity) . '.yml';
+        if (!$portable) {
+          // A duplicate semantic name is not a portable CRUD identity. Keep
+          // each row visible as a deterministic backup/monitor document while
+          // preventing import/delete from guessing which live row it means.
+          $suffix = $this->nonPortableFingerprint($row);
+          $filename = $bucket . '/' . $this->safeName($identity) . '--ambiguous-' . substr($suffix, 0, 12) . '.yml';
+        }
+        yield [
+          'filename' => $filename,
           'source_id' => $sourceId,
           'data' => [
             'schema_version' => 1,
@@ -81,15 +106,14 @@ class CiviRulesHandler extends AbstractHandler {
             'bucket' => $bucket,
             'name' => $identity,
             'identity_field' => $def['identity'],
-            'identity_portable' => $this->isPortableDefinition($def),
+            'identity_portable' => $portable,
+            'identity_confidence' => $portable ? 'DISCOVERED_UNIQUE' : 'AMBIGUOUS',
             'dependencies' => $this->dependenciesForRow($def['entity'], $row),
             'item' => $row,
           ],
         ];
       }
     }
-    usort($files, fn($a, $b) => strcmp($a['filename'], $b['filename']));
-    return $files;
   }
 
   public function validate(array $items): array {
@@ -113,6 +137,13 @@ class CiviRulesHandler extends AbstractHandler {
         ];
         continue;
       }
+      if (empty($file['identity_portable']) || (($file['identity_confidence'] ?? '') === 'AMBIGUOUS')) {
+        $warnings[] = [
+          'file' => $filename,
+          'message' => $entity . ' is backup/monitor-only because this exported row does not have a proven unique portable identity. Automatic create/update/delete stays blocked.',
+        ];
+        continue;
+      }
       if (!$this->identityField($row, (string) ($file['identity_field'] ?? ''))) {
         $errors[] = ['file' => $filename, 'message' => 'CiviRules item is missing a stable identity field. Re-export from source site.'];
       }
@@ -121,6 +152,10 @@ class CiviRulesHandler extends AbstractHandler {
   }
 
   public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->importIterable($items, $dryRun);
+  }
+
+  public function importIterable(iterable $items, bool $dryRun = TRUE): array {
     $summary = $this->baseImportSummary($dryRun);
     $summary['compatibility'] = [];
     $desired = [];
@@ -140,6 +175,14 @@ class CiviRulesHandler extends AbstractHandler {
         $summary['compatibility'][] = [
           'file' => $filename,
           'message' => $entity . ' remains backup/monitor-only because its provider identity is a database-local numeric ID. Automatic cross-site create/update/delete was not attempted.',
+        ];
+        continue;
+      }
+      if (empty($file['identity_portable']) || (($file['identity_confidence'] ?? '') === 'AMBIGUOUS')) {
+        $summary['skip']++;
+        $summary['compatibility'][] = [
+          'file' => $filename,
+          'message' => $entity . ' remains backup/monitor-only because this row does not have a proven unique portable identity. Automatic create/update/delete was not attempted.',
         ];
         continue;
       }
@@ -193,14 +236,37 @@ class CiviRulesHandler extends AbstractHandler {
           ];
           continue;
         }
-        foreach ($this->api4Get($entity, [], ['id', $def['identity']], $def['order']) as $existing) {
+        // Delete-missing is safe only when every live row has a unique semantic
+        // identity. A duplicate live name means YAML cannot authorize deletion
+        // of either occurrence without guessing which record it represents.
+        $liveCounts = [];
+        foreach ($this->api4Iterate($entity, [], ['id', $def['identity']], $def['order']) as $existing) {
           $existing = (array) $existing;
           $field = $this->identityField($existing, $def['identity']);
-          if (!$field || isset($desired[$entity][$field . ':' . (string) $existing[$field]])) {
+          if ($field) {
+            $value = (string) $existing[$field];
+            $liveCounts[$value] = ($liveCounts[$value] ?? 0) + 1;
+          }
+        }
+        foreach ($this->api4Iterate($entity, [], ['id', $def['identity']], $def['order']) as $existing) {
+          $existing = (array) $existing;
+          $field = $this->identityField($existing, $def['identity']);
+          if (!$field) {
+            continue;
+          }
+          $identityValue = (string) $existing[$field];
+          if (($liveCounts[$identityValue] ?? 0) !== 1) {
+            $summary['compatibility'][] = [
+              'name' => $identityValue,
+              'message' => $entity . ' delete-missing was skipped for duplicate identity "' . $identityValue . '" because it is not safe to map automatically.',
+            ];
+            continue;
+          }
+          if (isset($desired[$entity][$field . ':' . $identityValue])) {
             continue;
           }
           $summary['delete']++;
-          $summary['warnings'][] = ['name' => (string) $existing[$field], 'message' => $entity . ' exists in CiviCRM but not YAML and will be deleted: ' . (string) $existing[$field]];
+          $summary['warnings'][] = ['name' => $identityValue, 'message' => $entity . ' exists in CiviCRM but not YAML and will be deleted: ' . $identityValue];
           if (!$dryRun) {
             $this->api4Delete($entity, [['id', '=', (int) $existing['id']]]);
           }
@@ -266,6 +332,11 @@ class CiviRulesHandler extends AbstractHandler {
       }
     }
     return $dependencies;
+  }
+
+  private function nonPortableFingerprint(array $row): string {
+    ksort($row);
+    return hash('sha256', serialize($row));
   }
 
   private function safeName(string $name): string {

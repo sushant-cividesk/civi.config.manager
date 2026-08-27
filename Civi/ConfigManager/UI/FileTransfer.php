@@ -173,6 +173,10 @@ class FileTransfer {
       throw new RuntimeException('The uploaded YAML file could not be parsed.');
     }
     $targetRoot = rtrim($manager->getSyncDir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . trim($handler->getDirectory(), DIRECTORY_SEPARATOR);
+    $relativeTarget = trim($handler->getDirectory(), '/') . '/' . ltrim($filename, '/');
+    if (!$manager->ownsManagedYamlPath($relativeTarget)) {
+      throw new RuntimeException('The YAML upload path is not owned by a registered Configuration Manager handler.');
+    }
     $target = $targetRoot . DIRECTORY_SEPARATOR . $filename;
     $this->safeWriteUploadedFile($_FILES['single_yaml']['tmp_name'], $target, $manager->getSyncDir());
     return ts('YAML file uploaded to %1. Review Synchronize before importing.', [1 => trim($handler->getDirectory(), '/') . '/' . $filename]);
@@ -211,7 +215,7 @@ class FileTransfer {
         }
         $normalisedName = str_replace('\\', '/', $name);
         $identity = strtolower($normalisedName);
-        if (isset($seen[$identity]) || !$this->isSafeRelativeYamlPath($normalisedName) || $this->zipEntryIsSymlink($zip, $i)) {
+        if (isset($seen[$identity]) || !$this->isSafeRelativeYamlPath($normalisedName) || !$manager->ownsManagedYamlPath($normalisedName) || $this->zipEntryIsSymlink($zip, $i)) {
           $skipped++;
           continue;
         }
