@@ -36,6 +36,11 @@ class OperationStore {
       progress_total INT UNSIGNED NOT NULL DEFAULT 1,
       processed_items INT UNSIGNED NOT NULL DEFAULT 0,
       progress_percent TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      progress_known TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      phase_index SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+      phase_total SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+      item_completed INT UNSIGNED NOT NULL DEFAULT 0,
+      item_total INT UNSIGNED NOT NULL DEFAULT 0,
       current_handler VARCHAR(191) NULL,
       current_message TEXT NULL,
       result_json MEDIUMTEXT NULL,
@@ -61,6 +66,9 @@ class OperationStore {
       provider_key VARCHAR(191) NULL,
       phase VARCHAR(64) NOT NULL,
       action VARCHAR(64) NULL,
+      payload_json MEDIUMTEXT NULL,
+      retry_safe TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      sequence_no INT UNSIGNED NOT NULL DEFAULT 0,
       config_key TEXT NULL,
       relative_path TEXT NULL,
       yaml_hash CHAR(64) NULL,
@@ -77,6 +85,18 @@ class OperationStore {
       KEY civicfg_job_item_status (job_id, status),
       CONSTRAINT fk_civicfg_job_item_job FOREIGN KEY (job_id) REFERENCES ' . self::JOB_TABLE . ' (id) ON DELETE CASCADE
     ) ENGINE=InnoDB');
+
+    // Alpha63 upgrades existing alpha62 tables in place. Keep migrations
+    // idempotent for older MySQL/MariaDB versions by checking information_schema
+    // before each ADD COLUMN instead of relying on IF NOT EXISTS syntax.
+    $this->ensureColumn(self::JOB_TABLE, 'progress_known', 'TINYINT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::JOB_TABLE, 'phase_index', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::JOB_TABLE, 'phase_total', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::JOB_TABLE, 'item_completed', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::JOB_TABLE, 'item_total', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::ITEM_TABLE, 'payload_json', 'MEDIUMTEXT NULL');
+    $this->ensureColumn(self::ITEM_TABLE, 'retry_safe', 'TINYINT UNSIGNED NOT NULL DEFAULT 0');
+    $this->ensureColumn(self::ITEM_TABLE, 'sequence_no', 'INT UNSIGNED NOT NULL DEFAULT 0');
 
     self::$schemaEnsured = TRUE;
   }
@@ -113,7 +133,17 @@ class OperationStore {
     return (int) \CRM_Core_DAO::singleValueQuery('SELECT LAST_INSERT_ID()');
   }
 
-  public function createItem(int $jobId, string $itemKey, string $phase, ?string $handlerType = NULL, ?string $action = NULL): void {
+  /** @param array<string,mixed> $payload */
+  public function createItem(
+    int $jobId,
+    string $itemKey,
+    string $phase,
+    ?string $handlerType = NULL,
+    ?string $action = NULL,
+    array $payload = [],
+    bool $retrySafe = FALSE,
+    int $sequenceNo = 0
+  ): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
     $params = [
@@ -122,13 +152,17 @@ class OperationStore {
       3 => [$handlerType ?? '', 'String'],
       4 => [$phase, 'String'],
       5 => [$action ?? '', 'String'],
-      6 => ['queued', 'String'],
-      7 => [$now, 'String'],
+      6 => [$this->encodeJson($payload), 'String'],
+      7 => [$retrySafe ? 1 : 0, 'Integer'],
+      8 => [max(0, $sequenceNo), 'Integer'],
+      9 => ['queued', 'String'],
+      10 => [$now, 'String'],
     ];
     \CRM_Core_DAO::executeQuery('INSERT INTO ' . self::ITEM_TABLE . '
-      (job_id, item_key, handler_type, phase, action, status, updated_at)
-      VALUES (%1, %2, NULLIF(%3, \'\'), %4, NULLIF(%5, \'\'), %6, %7)
-      ON DUPLICATE KEY UPDATE handler_type = VALUES(handler_type), phase = VALUES(phase), action = VALUES(action), updated_at = VALUES(updated_at)', $params);
+      (job_id, item_key, handler_type, phase, action, payload_json, retry_safe, sequence_no, status, updated_at)
+      VALUES (%1, %2, NULLIF(%3, \'\'), %4, NULLIF(%5, \'\'), %6, %7, %8, %9, %10)
+      ON DUPLICATE KEY UPDATE handler_type = VALUES(handler_type), phase = VALUES(phase), action = VALUES(action),
+        payload_json = VALUES(payload_json), retry_safe = VALUES(retry_safe), sequence_no = VALUES(sequence_no), updated_at = VALUES(updated_at)', $params);
   }
 
   public function findActiveJob(string $syncRootHash): ?array {
@@ -166,7 +200,7 @@ class OperationStore {
   /** @return array<int,array<string,mixed>> */
   public function getItems(int $jobId): array {
     $this->ensureSchema();
-    $dao = \CRM_Core_DAO::executeQuery('SELECT * FROM ' . self::ITEM_TABLE . ' WHERE job_id = %1 ORDER BY id ASC', [1 => [$jobId, 'Integer']]);
+    $dao = \CRM_Core_DAO::executeQuery('SELECT * FROM ' . self::ITEM_TABLE . ' WHERE job_id = %1 ORDER BY sequence_no ASC, id ASC', [1 => [$jobId, 'Integer']]);
     $items = [];
     while ($dao->fetch()) {
       $items[] = $this->itemFromDao($dao);
@@ -178,12 +212,19 @@ class OperationStore {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::JOB_TABLE . '
-      SET status = %1, phase = %2, heartbeat_at = %3, updated_at = %3, retry_count = retry_count + 1
+      SET status = %1, phase = %2, heartbeat_at = %3, updated_at = %3
       WHERE id = %4', [
       1 => ['running', 'String'],
       2 => [$phase, 'String'],
       3 => [$now, 'String'],
       4 => [$jobId, 'Integer'],
+    ]);
+  }
+
+  public function incrementRetry(int $jobId): void {
+    $this->ensureSchema();
+    \CRM_Core_DAO::executeQuery('UPDATE ' . self::JOB_TABLE . ' SET retry_count = retry_count + 1 WHERE id = %1', [
+      1 => [$jobId, 'Integer'],
     ]);
   }
 
@@ -193,28 +234,39 @@ class OperationStore {
     $completed = max(0, (int) ($event['completed'] ?? 0));
     $total = max(1, (int) ($event['total'] ?? 1));
     $processed = max(0, (int) ($event['processed_items'] ?? 0));
-    $percent = isset($event['percent']) ? (int) $event['percent'] : (int) floor(($completed / $total) * 100);
+    $known = !empty($event['progress_known']);
+    $percent = isset($event['percent']) ? (int) $event['percent'] : ($known ? (int) floor(($completed / $total) * 100) : 0);
     $percent = max(0, min(100, $percent));
     $label = trim((string) ($event['label'] ?? ($event['current'] ?? '')));
     $message = trim((string) ($event['message'] ?? ''));
     $phase = trim((string) ($event['phase'] ?? 'running')) ?: 'running';
+    $phaseIndex = max(0, (int) ($event['phase_index'] ?? 0));
+    $phaseTotal = max(0, (int) ($event['phase_total'] ?? 0));
+    $itemCompleted = max(0, (int) ($event['item_completed'] ?? 0));
+    $itemTotal = max(0, (int) ($event['item_total'] ?? 0));
     $now = date('Y-m-d H:i:s');
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::JOB_TABLE . '
       SET phase = %1, progress_completed = %2, progress_total = %3, processed_items = %4,
-          progress_percent = %5, current_handler = NULLIF(%6, \'\'), current_message = NULLIF(%7, \'\'),
-          memory_current = %8, memory_peak = %9, heartbeat_at = %10, updated_at = %10
-      WHERE id = %11', [
+          progress_percent = %5, progress_known = %6, phase_index = %7, phase_total = %8,
+          item_completed = %9, item_total = %10, current_handler = NULLIF(%11, \'\'), current_message = NULLIF(%12, \'\'),
+          memory_current = %13, memory_peak = %14, heartbeat_at = %15, updated_at = %15
+      WHERE id = %16', [
       1 => [$phase, 'String'],
       2 => [$completed, 'Integer'],
       3 => [$total, 'Integer'],
       4 => [$processed, 'Integer'],
       5 => [$percent, 'Integer'],
-      6 => [$label, 'String'],
-      7 => [$message, 'String'],
-      8 => [memory_get_usage(TRUE), 'Integer'],
-      9 => [memory_get_peak_usage(TRUE), 'Integer'],
-      10 => [$now, 'String'],
-      11 => [$jobId, 'Integer'],
+      6 => [$known ? 1 : 0, 'Integer'],
+      7 => [$phaseIndex, 'Integer'],
+      8 => [$phaseTotal, 'Integer'],
+      9 => [$itemCompleted, 'Integer'],
+      10 => [$itemTotal, 'Integer'],
+      11 => [$label, 'String'],
+      12 => [$message, 'String'],
+      13 => [memory_get_usage(TRUE), 'Integer'],
+      14 => [memory_get_peak_usage(TRUE), 'Integer'],
+      15 => [$now, 'String'],
+      16 => [$jobId, 'Integer'],
     ]);
   }
 
@@ -231,7 +283,7 @@ class OperationStore {
    * Mark a job blocked when its previous worker outcome is indeterminate.
    *
    * A killed PHP request may have performed part of a mutating handler before
-   * losing the HTTP response. Until alpha62 has per-object persisted cursors,
+   * losing the HTTP response. If a live-mutating alpha63 work unit has no durable terminal result,
    * automatically replaying that same item would be less safe than stopping.
    */
   public function blockJob(int $jobId, string $message, array $result = []): void {
@@ -244,7 +296,12 @@ class OperationStore {
     $now = date('Y-m-d H:i:s');
     $encoded = $this->encodeJson($result);
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::JOB_TABLE . '
-      SET status = %1, phase = %1, progress_percent = CASE WHEN %1 = \'complete\' THEN 100 ELSE progress_percent END,
+      SET status = %1, phase = %1,
+          progress_percent = CASE WHEN %1 = \'complete\' THEN 100 ELSE progress_percent END,
+          progress_known = CASE WHEN %1 = \'complete\' THEN 1 ELSE progress_known END,
+          progress_completed = CASE WHEN %1 = \'complete\' THEN progress_total ELSE progress_completed END,
+          phase_index = CASE WHEN %1 = \'complete\' THEN phase_total ELSE phase_index END,
+          item_completed = CASE WHEN %1 = \'complete\' AND item_total > 0 THEN item_total ELSE item_completed END,
           result_json = %2, error_message = NULLIF(%3, \'\'), memory_current = %4, memory_peak = %5,
           heartbeat_at = %6, updated_at = %6, finished_at = %6
       WHERE id = %7', [
@@ -287,6 +344,19 @@ class OperationStore {
     ]);
   }
 
+  public function resetItemForRetry(int $jobId, string $itemKey): void {
+    $this->ensureSchema();
+    $now = date('Y-m-d H:i:s');
+    \CRM_Core_DAO::executeQuery('UPDATE ' . self::ITEM_TABLE . '
+      SET status = %1, error_message = NULL, result_json = NULL, started_at = NULL, finished_at = NULL, updated_at = %2
+      WHERE job_id = %3 AND item_key = %4', [
+      1 => ['queued', 'String'],
+      2 => [$now, 'String'],
+      3 => [$jobId, 'Integer'],
+      4 => [$itemKey, 'String'],
+    ]);
+  }
+
   /** @return array<string,mixed> */
   private function jobFromDao($dao): array {
     return [
@@ -303,6 +373,11 @@ class OperationStore {
       'total' => max(1, (int) $dao->progress_total),
       'processed_items' => (int) $dao->processed_items,
       'percent' => (int) $dao->progress_percent,
+      'progress_known' => !empty($dao->progress_known),
+      'phase_index' => (int) ($dao->phase_index ?? 0),
+      'phase_total' => (int) ($dao->phase_total ?? 0),
+      'item_completed' => (int) ($dao->item_completed ?? 0),
+      'item_total' => (int) ($dao->item_total ?? 0),
       'current' => (string) ($dao->current_handler ?? ''),
       'message' => (string) ($dao->current_message ?? ''),
       'result' => $this->decodeJson((string) ($dao->result_json ?? ''), []),
@@ -327,6 +402,9 @@ class OperationStore {
       'provider_key' => (string) ($dao->provider_key ?? ''),
       'phase' => (string) $dao->phase,
       'action' => (string) ($dao->action ?? ''),
+      'payload' => $this->decodeJson((string) ($dao->payload_json ?? ''), []),
+      'retry_safe' => !empty($dao->retry_safe),
+      'sequence_no' => (int) ($dao->sequence_no ?? 0),
       'config_key' => (string) ($dao->config_key ?? ''),
       'relative_path' => (string) ($dao->relative_path ?? ''),
       'yaml_hash' => (string) ($dao->yaml_hash ?? ''),
@@ -339,6 +417,20 @@ class OperationStore {
       'updated_at' => (string) $dao->updated_at,
       'finished_at' => (string) ($dao->finished_at ?? ''),
     ];
+  }
+
+  private function ensureColumn(string $table, string $column, string $definition): void {
+    $exists = (int) \CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %1 AND COLUMN_NAME = %2', [
+      1 => [$table, 'String'],
+      2 => [$column, 'String'],
+    ]);
+    if ($exists > 0) {
+      return;
+    }
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+      throw new \RuntimeException('Unsafe Configuration Manager schema identifier.');
+    }
+    \CRM_Core_DAO::executeQuery('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $definition);
   }
 
   private function encodeJson($value): string {

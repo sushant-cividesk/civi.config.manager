@@ -99,6 +99,9 @@
 .crm-configmanager-block .civicfg-progress-bar {height: 14px; background: #3d4652; border-radius: 999px; overflow: hidden;}
 .crm-configmanager-block .civicfg-progress-fill {display: block; height: 100%; width: 0; background: #7db6ff; border-radius: 999px; transition: width .2s ease;}
 .crm-configmanager-block .civicfg-progress-meta {display: flex; gap: 1rem; justify-content: space-between; margin-top: .65rem; font-size: .9rem; opacity: .9;}
+.crm-configmanager-block .civicfg-progress-heartbeat {margin-top: .8rem; font-size: .82rem; opacity: .72;}
+.crm-configmanager-block .civicfg-progress-unknown .civicfg-progress-bar {height: 8px; opacity: .65;}
+.crm-configmanager-block .civicfg-progress-unknown .civicfg-progress-fill {width: 0 !important; transition: none;}
 .crm-configmanager-block.is-busy button,
 .crm-configmanager-block.is-busy input,
 .crm-configmanager-block.is-busy select,

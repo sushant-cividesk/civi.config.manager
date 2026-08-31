@@ -40,11 +40,21 @@ See [Architecture](docs/ARCHITECTURE.md) for the design and [Testing](docs/TESTI
 
 ## Large-site execution
 
-Alpha62 changes the large-site path from “paged reads accumulated into one large request array” to true API/YAML iteration for the high-volume built-in handlers. Export writes to an isolated staging workspace, revalidates the active CiviCRM fingerprint before publication, journals filesystem changes, deletes stale YAML only after the stage succeeds, and publishes `manifest.yml` last. Synchronize keeps compact identity/hash summaries and loads field-level Details lazily, with 100 summaries per page. Import/validation stream managed YAML for the high-volume handlers and preserve the complete-preflight and create/update-before-delete barriers.
+Alpha63 keeps the bounded-memory streaming model introduced in alpha62 and makes the web execution model genuinely multi-unit. High-volume CiviRules and discovered extension providers are scanned once into a private disk spool while compact identity multiplicities are calculated, then temporary YAML is built from that spool. Staging also records compact identity/hash/name/dependency metadata so finalization does not repeatedly parse thousands of YAML documents merely to rebuild indexes.
 
-The extension does **not** raise PHP `memory_limit`. `composer qa:stress` exercises 5,000 API4 rows and 5,000 YAML files under a 256 MB ceiling. Providers that cannot be read safely fail closed instead of being silently truncated.
+A web Export is a durable plan: prepare private workspace -> scan/stage handler or provider units -> finalize compact metadata -> re-scan active CiviCRM immediately before publication -> publish the verified snapshot with `manifest.yml` last -> record baselines -> complete. A durable publication journal can restore the previous coherent YAML tree if a PHP worker dies after live filesystem mutation begins. Import similarly uses full preflight -> create/update units -> delete-missing units -> baseline -> complete; no delete unit can run if preflight or any create/update unit fails.
 
-Web Export/Import uses persistent CiviCRM job metadata and SQL Queue orchestration. The progress bar is driven by server phase/count/processed-item events and can reconnect to the active job after a browser refresh. Alpha62 deliberately blocks an indeterminate previously-running mutating queue item rather than blindly replaying it; fine-grained per-handler/object automatic cursor resume remains a post-alpha62 improvement. CLI operations continue to use the same ConfigManager safety/service layer synchronously.
+The extension does **not** raise PHP `memory_limit`. `composer qa:stress` runs both the alpha62 API/YAML iterator stress and alpha63 disk-spool/persistent-workspace recovery stress under a 256 MB ceiling. Providers which cannot be read safely fail closed instead of being silently truncated.
+
+### Ambiguous identities
+
+A duplicate or otherwise unproven source identity is preserved as a **monitor-only snapshot**. Each occurrence receives a deterministic fingerprint/occurrence filename, remains visible to Export/Synchronize, and has automatic create/update/delete disabled. Intentional monitor-only YAML does not block unrelated safe imports. This is different from a source YAML item which was proven portable but matches multiple rows on the target: that is a blocking preflight conflict and causes zero writes. Delete-missing safety is evaluated per identity, so one ambiguous row cannot authorize deletion and also does not disable safe cleanup for unrelated unique rows. Local database IDs are never portable identity.
+
+### Web progress
+
+CiviCRM SQL Queue stores one durable item per bounded work unit rather than one giant Export/Import request. The browser advances at most one queue item per request and polls persisted status. WordPress/PHP session locks are released before worker advancement so status polls remain responsive. Progress text names the actual action and configuration scope (for example, `Scanning active CiviCRM — CiviRules Actions` or `Safety verification before publishing YAML`), reports real phases/processed records/heartbeats, and does not fabricate a percentage when the total is unknown. Browser refresh reconnects to the saved job; the UI does not claim that closing the browser creates an independent background worker.
+
+Retry-safe read/stage/baseline units may be replayed after an interrupted worker. Indeterminate live-mutating units are blocked rather than blindly replayed. CLI operations continue to use the same ConfigManager safety/service layer synchronously and respect an active persistent job lock for the same sync root.
 
 ## Supported configuration
 

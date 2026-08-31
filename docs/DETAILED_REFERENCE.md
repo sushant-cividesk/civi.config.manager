@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha62-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha63-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -22,7 +22,9 @@ Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when t
 
 ## Development and beta policy
 
-`0.1.0-alpha62-core` is the large-site architecture alpha built on the complete alpha61 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha63-core` is the durable large-site execution and ambiguity-safety alpha built on the complete alpha62 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+
+Alpha63 specifically adds deterministic monitor-only snapshots for duplicate/unproven identities, per-identity delete safety, disk-spooled one-pass provider reads, durable multi-item Queue plans, persistent staging metadata, hard-interruption YAML publish recovery, WordPress session-lock release, and semantic phase/heartbeat progress. The safety distinction is deliberate: intentional source monitor-only rows are skipped without blocking unrelated safe items, while a source identity which was proven portable but becomes ambiguous on the target is a blocking preflight conflict.
 
 ## Purpose
 

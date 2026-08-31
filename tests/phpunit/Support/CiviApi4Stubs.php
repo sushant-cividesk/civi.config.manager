@@ -28,16 +28,34 @@ namespace Civi\Api4\Generic {
 }
 
 namespace Civi\Api4 {
+  if (!class_exists(CivicfgEmptyGetAction::class)) {
+    class CivicfgEmptyGetAction {
+      public function addSelect(...$fields): self { return $this; }
+      public function addWhere(...$condition): self { return $this; }
+      public function addOrderBy(string $field, string $direction): self { return $this; }
+      public function setLimit(int $limit): self { return $this; }
+      public function setOffset(int $offset): self { return $this; }
+      public function execute(): array { return []; }
+    }
+  }
+
   if (!class_exists(CiviRulesRuleCondition::class)) {
     class CiviRulesRuleCondition {
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
     }
   }
 
   if (!class_exists(CiviRulesRuleAction::class)) {
     class CiviRulesRuleAction {
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
     }
   }
 
+  if (!class_exists(CiviRulesAction::class)) {
+    class CiviRulesAction {
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
+    }
+  }
 
   if (!class_exists(CivicfgPagingTestEntity::class)) {
     class CivicfgPagingTestEntity {

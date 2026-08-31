@@ -1,0 +1,66 @@
+id: CM-ALPHA63-AMBIGUITY-QUEUE-PERFORMANCE
+feature: Alpha63 monitor-only ambiguity, durable queue execution, recovery, and large-site progress safety
+level:
+  - unit
+  - integration
+  - browser
+fixtures:
+  factory: disposable CiviCRM configuration dataset with CiviRules duplicates, portable target conflicts, queue interruption, and large export volume
+  records:
+    duplicate_civirules_actions:
+      - emailapi_send
+      - emailapi_send
+    portable_target_duplicate_count: 2
+    large_export_yaml_minimum: 2000
+    retry_safe_queue_unit: export_stage
+    non_retry_safe_queue_unit: import_create_update
+steps:
+  - Create two CiviRules actions with the same portable name and identical managed content.
+  - Run initial Export and confirm both rows are emitted with distinct --ambiguous-<fingerprint>-01/-02 paths.
+  - Confirm both YAML documents are marked monitor_only and no local database ID is used as portable identity.
+  - Synchronize twice and confirm the unchanged ambiguous fingerprint multiset remains stable with no filename churn.
+  - Import a snapshot containing intentional monitor-only rows plus an unrelated portable create/update and confirm the monitor-only rows are skipped while the safe item is previewed/applied normally.
+  - Create two target rows matching one YAML item that is marked portable and confirm full import preflight blocks with zero writes.
+  - Confirm duplicate target identities are excluded individually from delete-missing while unrelated unique identities remain eligible.
+  - Run a 2000+ YAML Export and confirm the UI names the current phase/configuration group and does not display a fabricated percentage when the total is unknown.
+  - Refresh the page during staging and confirm it reconnects to the persisted job without restarting completed work units.
+  - Confirm a second Export/Import/Revert for the same sync root is blocked while the first job is active.
+  - Interrupt a retry-safe staging work unit and confirm it may replay after the worker lock is free.
+  - Interrupt an import mutation work unit and confirm the job blocks rather than blindly replaying the mutation.
+  - Simulate an interrupted YAML publication with a durable publish journal and confirm recovery restores the prior coherent snapshot before the job is blocked.
+  - Complete Export, run Synchronize, and confirm zero unexpected diff; run Export again and confirm unchanged files are not rewritten.
+expected:
+  ambiguous_source_paths_are_unique: true
+  ambiguous_source_crud_count: 0
+  portable_target_conflict_write_count: 0
+  unrelated_safe_import_continues: true
+  per_identity_delete_safety: true
+  progress_messages_are_semantic: true
+  fabricated_unknown_percentage: false
+  browser_refresh_reconnects: true
+  concurrent_second_operation_write_count: 0
+  retry_safe_stage_replay_allowed: true
+  indeterminate_mutation_replay_allowed: false
+  interrupted_publish_restores_previous_snapshot: true
+  repeated_export_has_no_unnecessary_rewrite: true
+negative_cases:
+  - use_local_database_id_as_portable_identity
+  - collapse_identical_ambiguous_rows_into_one_restorable_object
+  - allow_ambiguous_source_row_to_create_update_or_delete
+  - treat_portable_source_identity_ambiguous_on_target_as_nonblocking
+  - disable_delete_missing_for_all_unique_provider_rows_because_one_identity_is_ambiguous
+  - fabricate_progress_percentage_when_total_is_unknown
+  - blindly_replay_indeterminate_live_mutation
+  - publish_manifest_before_verified_yaml_snapshot
+  - continue_delete_missing_after_create_update_failure
+isolation:
+  disposable_database: true
+  temporary_sync_directory: true
+  persistent_queue_jobs_are_test_only: true
+  outbound_network: blocked
+  outbound_email: blocked
+cleanup:
+  restore_database_snapshot: true
+  remove_temporary_files: true
+  remove_operation_jobs: true
+  clear_test_civirules_rows: true

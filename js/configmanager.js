@@ -771,8 +771,9 @@
         '<div class="civicfg-progress-box" role="alert" aria-live="assertive">' +
           '<div class="civicfg-progress-title"></div>' +
           '<div class="civicfg-progress-text"></div>' +
-          '<div class="civicfg-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="civicfg-progress-fill"></span></div>' +
-          '<div class="civicfg-progress-meta"><span class="civicfg-progress-percent">0%</span><span class="civicfg-progress-step"></span><span class="civicfg-progress-items"></span></div>' +
+          '<div class="civicfg-progress-bar" role="progressbar"><span class="civicfg-progress-fill"></span></div>' +
+          '<div class="civicfg-progress-meta"><span class="civicfg-progress-percent">Running</span><span class="civicfg-progress-step"></span><span class="civicfg-progress-items"></span></div>' +
+          '<div class="civicfg-progress-heartbeat"></div>' +
         '</div>';
       overlay.querySelector('.civicfg-progress-title').textContent = title || 'Working...';
       overlay.querySelector('.civicfg-progress-text').textContent = text || 'Progress is saved on the server while this operation runs.';
@@ -780,25 +781,78 @@
       return overlay;
     }
 
+    function heartbeatAgeText(value) {
+      if (!value) { return ''; }
+      var normalized = String(value).replace(' ', 'T');
+      if (!/[zZ]|[+-]\d\d:?\d\d$/.test(normalized)) {
+        normalized += 'Z';
+      }
+      var timestamp = Date.parse(normalized);
+      if (!isFinite(timestamp)) { return ''; }
+      var seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+      if (seconds < 2) { return 'Server update: just now'; }
+      if (seconds < 60) { return 'Server update: ' + seconds + 's ago'; }
+      var minutes = Math.floor(seconds / 60);
+      return 'Server update: ' + minutes + 'm ago';
+    }
+
     function updateProgress(event) {
-      var overlay = showProgress(event.label || 'Working...', event.message || 'Processing configuration.');
+      var overlay = showProgress(event.label || 'Working...', event.message || 'Processing saved Configuration Manager work.');
+      var known = event.progress_known === true || event.progress_known === 1 || event.progress_known === '1';
       var percent = Math.max(0, Math.min(100, parseInt(event.percent || 0, 10)));
       var bar = overlay.querySelector('.civicfg-progress-bar');
       var fill = overlay.querySelector('.civicfg-progress-fill');
       var percentNode = overlay.querySelector('.civicfg-progress-percent');
       var stepNode = overlay.querySelector('.civicfg-progress-step');
       var itemsNode = overlay.querySelector('.civicfg-progress-items');
-      if (fill) { fill.style.width = percent + '%'; }
-      if (bar) { bar.setAttribute('aria-valuenow', String(percent)); }
-      if (percentNode) { percentNode.textContent = percent + '%'; }
+      var heartbeatNode = overlay.querySelector('.civicfg-progress-heartbeat');
+
+      if (known) {
+        overlay.classList.remove('civicfg-progress-unknown');
+        if (fill) { fill.style.width = percent + '%'; }
+        if (bar) {
+          bar.setAttribute('aria-valuemin', '0');
+          bar.setAttribute('aria-valuemax', '100');
+          bar.setAttribute('aria-valuenow', String(percent));
+          bar.removeAttribute('aria-valuetext');
+        }
+        if (percentNode) { percentNode.textContent = percent + '%'; }
+      }
+      else {
+        overlay.classList.add('civicfg-progress-unknown');
+        if (fill) { fill.style.width = '0'; }
+        if (bar) {
+          bar.removeAttribute('aria-valuemin');
+          bar.removeAttribute('aria-valuemax');
+          bar.removeAttribute('aria-valuenow');
+          bar.setAttribute('aria-valuetext', 'Progress total is not known yet');
+        }
+        if (percentNode) { percentNode.textContent = event.status === 'queued' ? 'Queued' : 'Running'; }
+      }
+
       if (stepNode) {
-        var completed = parseInt(event.completed || 0, 10);
-        var total = parseInt(event.total || 0, 10);
-        stepNode.textContent = total > 0 ? ('Step ' + completed + ' of ' + total) : '';
+        var phaseIndex = parseInt(event.phase_index || 0, 10);
+        var phaseTotal = parseInt(event.phase_total || 0, 10);
+        var itemCompleted = parseInt(event.item_completed || 0, 10);
+        var itemTotal = parseInt(event.item_total || 0, 10);
+        if (phaseTotal > 0 && phaseIndex > 0) {
+          stepNode.textContent = 'Phase ' + phaseIndex + ' of ' + phaseTotal;
+        }
+        else if (itemTotal > 0) {
+          stepNode.textContent = itemCompleted + ' / ' + itemTotal + ' in this work unit';
+        }
+        else {
+          stepNode.textContent = '';
+        }
       }
       if (itemsNode) {
         var items = parseInt(event.processed_items || 0, 10);
-        itemsNode.textContent = items > 0 ? ('Processed: ' + items + ' item' + (items === 1 ? '' : 's')) : '';
+        itemsNode.textContent = items > 0 ? ('Processed: ' + items + ' record' + (items === 1 ? '' : 's')) : '';
+      }
+      if (heartbeatNode) {
+        var heartbeat = heartbeatAgeText(event.heartbeat_at || '');
+        var reconnect = event.terminal ? '' : ' Job state is saved; refreshing this page will reconnect.';
+        heartbeatNode.textContent = heartbeat + (heartbeat && reconnect ? ' · ' : '') + reconnect;
       }
     }
 
@@ -813,7 +867,7 @@
       form.setAttribute('data-civicfg-stream-running', '1');
       form.removeAttribute('data-civicfg-confirmed');
       var p = progressTextForForm(form);
-      updateProgress({label: p[0], message: 'Creating a persistent Configuration Manager job.', percent: 0, completed: 0, total: 1, processed_items: 0});
+      updateProgress({label: p[0], message: 'Creating a persistent Configuration Manager job. No changes have been made yet.', progress_known: false, status: 'queued', processed_items: 0});
       form.querySelectorAll('button[type=submit]').forEach(function(btn) { btn.disabled = true; });
 
       var startUrl = new URL(form.action || window.location.href, window.location.href);
@@ -844,21 +898,26 @@
         var status = String(job.status || 'queued');
         var label = String(job.current || '').trim();
         if (!label) {
-          label = status === 'queued' ? 'Queued' : (status === 'running' ? 'Working' : 'Configuration operation');
+          label = status === 'queued' ? (String(job.operation || 'Operation') + ' queued') : (status === 'running' ? 'Processing Configuration Manager work' : 'Configuration operation');
         }
         var message = String(job.message || '').trim();
         if (!message) {
           message = status === 'queued'
-            ? 'The operation is queued in CiviCRM and will start on the next worker step.'
-            : 'Progress is saved on the server. You can refresh or reopen this page without restarting the job.';
+            ? 'Waiting for the first bounded worker unit. No active CiviCRM configuration or live YAML has been changed.'
+            : 'The server is processing the named work unit. Saved job state will be used if this page is refreshed.';
         }
         updateProgress({
           label: label,
           message: message,
+          status: status,
+          progress_known: !!job.progress_known,
           percent: parseInt(job.percent || 0, 10),
-          completed: parseInt(job.completed || 0, 10),
-          total: parseInt(job.total || 1, 10),
-          processed_items: parseInt(job.processed_items || 0, 10)
+          phase_index: parseInt(job.phase_index || 0, 10),
+          phase_total: parseInt(job.phase_total || 0, 10),
+          item_completed: parseInt(job.item_completed || 0, 10),
+          item_total: parseInt(job.item_total || 0, 10),
+          processed_items: parseInt(job.processed_items || 0, 10),
+          heartbeat_at: job.heartbeat_at || ''
         });
       }
 
@@ -883,10 +942,16 @@
         updateProgress({
           label: ok ? 'Complete' : 'Stopped safely',
           message: payload.terminal_message || job.error || (ok ? 'Configuration operation finished.' : 'Configuration operation stopped.'),
+          status: String(job.status || ''),
+          terminal: true,
+          progress_known: ok || !!job.progress_known,
           percent: ok ? 100 : parseInt(job.percent || 0, 10),
-          completed: parseInt(job.completed || 0, 10),
-          total: parseInt(job.total || 1, 10),
-          processed_items: parseInt(job.processed_items || 0, 10)
+          phase_index: parseInt(job.phase_index || 0, 10),
+          phase_total: parseInt(job.phase_total || 0, 10),
+          item_completed: parseInt(job.item_completed || 0, 10),
+          item_total: parseInt(job.item_total || 0, 10),
+          processed_items: parseInt(job.processed_items || 0, 10),
+          heartbeat_at: job.heartbeat_at || ''
         });
         window.setTimeout(function() {
           window.location.href = (links && links.redirect_url) || payload.redirect_url || window.location.href;
@@ -954,9 +1019,8 @@
           updateProgress({
             label: 'Checking saved job',
             message: 'The worker connection was interrupted. Server-side job state is still being checked; this does not restart the operation.',
-            percent: 0,
-            completed: 0,
-            total: 1,
+            progress_known: false,
+            status: 'running',
             processed_items: 0
           });
           window.setTimeout(advanceQueue, 2000);
@@ -995,8 +1059,8 @@
     function progressTextForForm(form) {
       var action = form.querySelector('input[name="_action"]');
       var value = action ? action.value : '';
-      if (value.indexOf('import') === 0) { return ['Importing configuration', 'Applying YAML to CiviCRM. This may create, update, or delete supported records.']; }
-      if (value.indexOf('export') === 0) { return ['Exporting configuration', 'Writing active CiviCRM configuration to YAML files.']; }
+      if (value.indexOf('import') === 0) { return ['Preparing managed import', 'Creating a durable import job. Full preflight will finish before any active CiviCRM write.']; }
+      if (value.indexOf('export') === 0) { return ['Preparing managed export', 'Creating a durable staged-export job. Live YAML will not change until safety verification succeeds.']; }
       if (value === 'validate_files') { return ['Validating configuration', 'Checking YAML files and dependency metadata.']; }
       if (value === 'revert_file') { return ['Reverting active CiviCRM', 'Applying the selected YAML file and dependencies back to CiviCRM.']; }
       if (value === 'ignore_config') { return ['Saving ignore rule', 'Updating Config Ignore settings.']; }

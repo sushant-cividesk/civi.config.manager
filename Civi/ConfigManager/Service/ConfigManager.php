@@ -2,6 +2,7 @@
 namespace Civi\ConfigManager\Service;
 
 use Civi\ConfigManager\Handler\ScopePickerHintProviderInterface;
+use Civi\ConfigManager\Handler\ChunkedStreamingHandlerInterface;
 use Civi\ConfigManager\Handler\StreamingHandlerInterface;
 use Civi\ConfigManager\Handler\StreamingImportHandlerInterface;
 use Civi\ConfigManager\Storage\YamlFileStorage;
@@ -1638,6 +1639,544 @@ class ConfigManager {
     return $summary;
   }
 
+
+  /**
+   * Build the durable alpha63 web-export plan.
+   *
+   * Staging work is split by handler and, where supported, by provider/bucket.
+   * The final optimistic verification remains immediately adjacent to publish so
+   * a manual CiviCRM edit cannot slip between a per-handler verification task
+   * and live YAML publication.
+   *
+   * @return array<int,array<string,mixed>>
+   */
+  public function buildQueuedExportPlan(array $typeFilter = []): array {
+    $requestedTypes = $this->normaliseTypeFilter($typeFilter);
+    $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
+    $handlers = [];
+    foreach ($this->getHandlers() as $handler) {
+      if ($effectiveTypes && !in_array((string) $handler->getType(), $effectiveTypes, TRUE)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
+      $handlers[] = $handler;
+    }
+
+    $tasks = [[
+      'key' => 'export:prepare',
+      'action' => 'export_prepare',
+      'phase' => 'prepare',
+      'phase_index' => 1,
+      'phase_total' => 6,
+      'label' => 'Preparing export workspace',
+      'message' => 'Creating a private temporary workspace. Active CiviCRM and live YAML are unchanged.',
+      'retry_safe' => TRUE,
+    ]];
+
+    foreach ($handlers as $handler) {
+      $type = (string) $handler->getType();
+      $policy = $this->scope->getPolicy($type);
+      if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL
+        && $handler instanceof ChunkedStreamingHandlerInterface) {
+        foreach ($handler->getExportUnits() as $unit) {
+          $unit = (array) $unit;
+          $unitKey = (string) ($unit['key'] ?? '');
+          if ($unitKey === '') {
+            continue;
+          }
+          $tasks[] = [
+            'key' => 'export:stage:' . $type . ':' . substr(hash('sha256', $unitKey), 0, 16),
+            'action' => 'export_stage',
+            'phase' => 'stage',
+            'phase_index' => 2,
+            'phase_total' => 6,
+            'handler_type' => $type,
+            'unit_key' => $unitKey,
+            'label' => 'Scanning active CiviCRM — ' . (string) ($unit['label'] ?? $handler->getLabel()),
+            'message' => 'Reading this configuration group once and building its temporary YAML snapshot. Live YAML is unchanged.',
+            'retry_safe' => TRUE,
+          ];
+        }
+      }
+      else {
+        $tasks[] = [
+          'key' => 'export:stage:' . $type,
+          'action' => 'export_stage',
+          'phase' => 'stage',
+          'phase_index' => 2,
+          'phase_total' => 6,
+          'handler_type' => $type,
+          'unit_key' => '__handler__',
+          'label' => 'Scanning active CiviCRM — ' . $handler->getLabel(),
+          'message' => (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_SELECTED)
+            ? 'Resolving the selected configuration scope and building temporary YAML. Live YAML is unchanged.'
+            : 'Reading active configuration and building temporary YAML. Live YAML is unchanged.',
+          'retry_safe' => TRUE,
+        ];
+      }
+    }
+
+    $tasks[] = [
+      'key' => 'export:metadata',
+      'action' => 'export_metadata',
+      'phase' => 'metadata',
+      'phase_index' => 3,
+      'phase_total' => 6,
+      'label' => 'Finalizing temporary YAML metadata',
+      'message' => 'Rebuilding extension indexes, dependency links, manifest scope, and stale-file plan from compact staging metadata.',
+      'retry_safe' => TRUE,
+    ];
+    $tasks[] = [
+      'key' => 'export:verify-publish',
+      'action' => 'export_verify_publish',
+      'phase' => 'verify_publish',
+      'phase_index' => 4,
+      'phase_total' => 6,
+      'label' => 'Safety verification before publishing YAML',
+      'message' => 'Rechecking active CiviCRM immediately before publication. If anything changed, live YAML will remain untouched.',
+      'retry_safe' => FALSE,
+    ];
+    foreach ($handlers as $handler) {
+      $tasks[] = [
+        'key' => 'export:baseline:' . (string) $handler->getType(),
+        'action' => 'export_baseline',
+        'phase' => 'baseline',
+        'phase_index' => 5,
+        'phase_total' => 6,
+        'handler_type' => (string) $handler->getType(),
+        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
+        'message' => 'Recording the published YAML state for future three-way synchronization checks.',
+        'retry_safe' => TRUE,
+      ];
+    }
+    $tasks[] = [
+      'key' => 'export:complete',
+      'action' => 'export_complete',
+      'phase' => 'complete',
+      'phase_index' => 6,
+      'phase_total' => 6,
+      'label' => 'Completing export',
+      'message' => 'Finalizing the durable export result and cleaning the temporary workspace.',
+      'retry_safe' => TRUE,
+    ];
+    return $tasks;
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportPrepare(int $jobId, string $syncRootHash, array $typeFilter = []): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $workspaceState = new OperationWorkspace($jobId, $syncRootHash);
+    // Prepare is retry-safe and is always first; reset any incomplete staging
+    // left by an interrupted prepare attempt.
+    $workspaceState->cleanup();
+    $workspaceState = new OperationWorkspace($jobId, $syncRootHash);
+    $exportWorkspace = new StagedExportWorkspace($storage, $workspaceState->getExportRoot(), FALSE);
+
+    $requestedTypes = $this->normaliseTypeFilter($typeFilter);
+    $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
+    $dependencyTypes = $requestedTypes ? array_values(array_diff($effectiveTypes, $requestedTypes)) : [];
+    $scopeManifestUpdates = [];
+    foreach ($this->getScopeTypeOptions() as $scopeType) {
+      $type = (string) ($scopeType['type'] ?? '');
+      if ($type === '') {
+        continue;
+      }
+      $policy = $this->scope->getPolicy($type);
+      if (in_array((string) ($policy['mode'] ?? ''), [ConfigScope::MODE_ALL, ConfigScope::MODE_WATCH, ConfigScope::MODE_IGNORE], TRUE)) {
+        $scopeManifestUpdates[$type] = $this->scope->manifestEntry($type, ['policy' => $policy]);
+      }
+    }
+
+    $state = [
+      'operation' => 'export',
+      'requested_types' => $requestedTypes,
+      'effective_types' => $effectiveTypes,
+      'dependency_types' => $dependencyTypes,
+      'scope_manifest_updates' => $scopeManifestUpdates,
+      'resolved_partitions' => [],
+      'stage_unit_results' => [],
+      'processed_items' => 0,
+      'monitor_only' => 0,
+      'warnings' => [],
+      'skipped_stage' => [],
+      'published' => FALSE,
+      'published_result' => [],
+      'baseline_warnings' => [],
+    ];
+    $workspaceState->saveState($state);
+    $exportWorkspace->persistIndex();
+    return ['ok' => TRUE, 'processed_items' => 0, 'monitor_only' => 0];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportStage(int $jobId, string $syncRootHash, string $handlerType, string $unitKey, ?callable $progress = NULL): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    if (($state['operation'] ?? '') !== 'export') {
+      throw new \RuntimeException('Queued export workspace is missing or belongs to another operation.');
+    }
+    $handler = $this->handlerByType($handlerType);
+    if ($handler === NULL) {
+      throw new \RuntimeException('Queued export handler is no longer registered: ' . $handlerType);
+    }
+    $requestedTypes = array_values(array_map('strval', (array) ($state['requested_types'] ?? [])));
+    $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
+    $policy = $this->scope->getPolicy($handlerType);
+    $workspace = new StagedExportWorkspace($storage, $stateStore->getExportRoot(), FALSE);
+    // Safe staging retries remove only files produced by this exact unit.
+    $workspace->removeUnit($handlerType, $unitKey);
+
+    $local = ['available' => [], 'skipped' => [], 'warnings' => [], 'errors' => [], 'monitor_only' => 0];
+    $processed = 0;
+    $partition = NULL;
+    if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL
+      && $handler instanceof ChunkedStreamingHandlerInterface
+      && $unitKey !== '__handler__') {
+      $rows = $handler->iterateExportUnit($unitKey, function(array $event) use ($progress, $state): void {
+        if ($progress === NULL) { return; }
+        $progress([
+          'processed_items' => (int) ($state['processed_items'] ?? 0) + (int) ($event['processed'] ?? 0),
+          'item_completed' => (int) ($event['processed'] ?? 0),
+          'item_total' => 0,
+          'progress_known' => FALSE,
+          'message' => (string) ($event['message'] ?? 'Scanning active configuration.'),
+        ]);
+      });
+      foreach ($rows as $file) {
+        $this->stageExportFile($workspace, $handler, (array) $file, $local, $unitKey);
+        $processed++;
+        if (($processed % 50) === 0 && $progress !== NULL) {
+          $progress([
+            'processed_items' => (int) ($state['processed_items'] ?? 0) + $processed,
+            'item_completed' => $processed,
+            'item_total' => 0,
+            'progress_known' => FALSE,
+            'message' => 'Temporary YAML is being built from active ' . $handler->getLabel() . ' configuration. ' . $processed . ' record(s) processed in this work unit; live YAML is unchanged.',
+          ]);
+        }
+      }
+      $errors = [];
+      if ($this->consumeHandlerExportErrors($handler, $errors) > 0) {
+        throw new \RuntimeException((string) (($errors[0]['message'] ?? '') ?: 'Provider scan was incomplete.'));
+      }
+    }
+    elseif (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL
+      && $handler instanceof StreamingHandlerInterface) {
+      foreach ($handler->iterateExport() as $file) {
+        $this->stageExportFile($workspace, $handler, (array) $file, $local, $unitKey);
+        $processed++;
+      }
+      $errors = [];
+      if ($this->consumeHandlerExportErrors($handler, $errors) > 0) {
+        throw new \RuntimeException((string) (($errors[0]['message'] ?? '') ?: 'Provider scan was incomplete.'));
+      }
+    }
+    else {
+      $exported = $handler->export();
+      $errors = [];
+      if ($this->consumeHandlerExportErrors($handler, $errors) > 0) {
+        throw new \RuntimeException((string) (($errors[0]['message'] ?? '') ?: 'Provider scan was incomplete.'));
+      }
+      $partition = $this->scopePartition($handler, $exported, $storage, TRUE);
+      foreach ((array) ($partition['managed'] ?? []) as $file) {
+        $this->stageExportFile($workspace, $handler, (array) $file, $local, $unitKey);
+        $processed++;
+      }
+      unset($exported);
+      $state['scope_manifest_updates'][$handlerType] = $this->scope->manifestEntry($handlerType, $partition);
+      $state['resolved_partitions'][$handlerType] = [
+        'policy' => (array) ($partition['policy'] ?? $policy),
+        'matched_selectors' => (array) ($partition['matched_selectors'] ?? []),
+        'selector_config_keys' => (array) ($partition['selector_config_keys'] ?? []),
+        'managed_config_keys' => array_values(array_map('strval', (array) ($partition['managed_config_keys'] ?? []))),
+      ];
+      foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
+        $local['warnings'][] = ['type' => $handlerType, 'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.'];
+      }
+      foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
+        $local['warnings'][] = ['type' => $handlerType, 'message' => 'Configured managed object is currently missing from CiviCRM: ' . (string) $selector . '. Existing YAML backup is preserved for review or restore.'];
+      }
+    }
+
+    $workspace->persistIndex();
+
+    // Work-unit accounting is keyed, not increment-only. If PHP completed the
+    // unit and saved workspace state but died before CiviCRM Queue recorded the
+    // item as complete, a safe retry replaces this unit's counters instead of
+    // double-counting processed/monitor-only records or warnings.
+    $stageResultKey = $handlerType . '|' . $unitKey;
+    $state['stage_unit_results'][$stageResultKey] = [
+      'processed' => $processed,
+      'monitor_only' => (int) ($local['monitor_only'] ?? 0),
+      'warnings' => array_values((array) ($local['warnings'] ?? [])),
+      'skipped' => array_values((array) ($local['skipped'] ?? [])),
+    ];
+    $state['processed_items'] = 0;
+    $state['monitor_only'] = 0;
+    $state['warnings'] = [];
+    $state['skipped_stage'] = [];
+    foreach ((array) ($state['stage_unit_results'] ?? []) as $unitResult) {
+      $unitResult = (array) $unitResult;
+      $state['processed_items'] += (int) ($unitResult['processed'] ?? 0);
+      $state['monitor_only'] += (int) ($unitResult['monitor_only'] ?? 0);
+      $state['warnings'] = array_merge($state['warnings'], (array) ($unitResult['warnings'] ?? []));
+      $state['skipped_stage'] = array_merge($state['skipped_stage'], (array) ($unitResult['skipped'] ?? []));
+    }
+    $stateStore->saveState($state);
+    return [
+      'ok' => TRUE,
+      'processed_items' => (int) $state['processed_items'],
+      'unit_processed' => $processed,
+      'monitor_only' => (int) $state['monitor_only'],
+    ];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportFinalizeMetadata(int $jobId, string $syncRootHash): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $workspace = new StagedExportWorkspace($storage, $stateStore->getExportRoot(), FALSE);
+
+    $this->pruneExtensionIndexesInStagedExport($workspace);
+    $this->addReverseDependencyMetadataToStagedExport($workspace);
+
+    // Retry-safe metadata task replaces its own manifest document.
+    $workspace->removeUnit('__manifest__', 'metadata');
+    $existingManifest = $this->readManifest($storage);
+    $existingScope = (array) ($existingManifest['managed_scope'] ?? []);
+    foreach ((array) ($state['scope_manifest_updates'] ?? []) as $type => $scopeEntry) {
+      $existingScope[(string) $type] = (array) $scopeEntry;
+    }
+    ksort($existingScope, SORT_NATURAL | SORT_FLAG_CASE);
+    $workspace->stage('__manifest__', '', 'manifest.yml', $this->getManifestData($existingScope), [
+      'unit_key' => 'metadata',
+      'document_type' => 'manifest',
+      'names' => [],
+      'dependencies' => [],
+    ]);
+
+    $handlers = $this->handlersForTypes((array) ($state['effective_types'] ?? []), (array) ($state['requested_types'] ?? []));
+    $stalePaths = $this->findStaleYamlPathsForStagedExport($storage, $workspace, $handlers, array_values(array_map('strval', (array) ($state['requested_types'] ?? []))));
+    $preview = $workspace->preview($stalePaths);
+    $expected = [];
+    foreach ($handlers as $handler) {
+      $policy = $this->scope->getPolicy((string) $handler->getType());
+      if (($policy['mode'] ?? ConfigScope::MODE_ALL) !== ConfigScope::MODE_ALL) {
+        continue;
+      }
+      $expected[(string) $handler->getType()] = $this->compactSnapshotFromWorkspace($handler, $workspace);
+    }
+    $state['stale_paths'] = $stalePaths;
+    $state['preview'] = $preview;
+    $state['expected_fingerprints'] = $expected;
+    $workspace->persistIndex();
+    $stateStore->saveState($state);
+    return [
+      'ok' => TRUE,
+      'processed_items' => (int) ($state['processed_items'] ?? 0),
+      'write_count' => count((array) ($preview['write'] ?? [])),
+      'delete_count' => count((array) ($preview['delete'] ?? [])),
+      'skip_count' => count((array) ($preview['skip'] ?? [])),
+      'monitor_only' => (int) ($state['monitor_only'] ?? 0),
+    ];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportVerifyAndPublish(int $jobId, string $syncRootHash, ?callable $progress = NULL): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $workspace = new StagedExportWorkspace($storage, $stateStore->getExportRoot(), FALSE);
+    $handlers = $this->handlersForTypes((array) ($state['effective_types'] ?? []), (array) ($state['requested_types'] ?? []));
+    $expected = (array) ($state['expected_fingerprints'] ?? []);
+
+    $verified = 0;
+    $verifyTotal = max(1, count($expected));
+    foreach ($handlers as $handler) {
+      $type = (string) $handler->getType();
+      if (!array_key_exists($type, $expected)) {
+        continue;
+      }
+      if ($progress !== NULL) {
+        $progress([
+          'progress_known' => FALSE,
+          'item_completed' => $verified,
+          'item_total' => $verifyTotal,
+          'message' => 'Safety verification — ' . $handler->getLabel() . '. Re-reading active CiviCRM immediately before publication; live YAML is still unchanged.',
+        ]);
+      }
+      $this->assertActiveSnapshotMatches($handler, (array) $expected[$type]);
+      $verified++;
+    }
+
+    if ($progress !== NULL) {
+      $progress([
+        'progress_known' => FALSE,
+        'item_completed' => $verified,
+        'item_total' => $verifyTotal,
+        'message' => 'Safety verification passed. Publishing the verified staged YAML snapshot now; manifest.yml is written last.',
+      ]);
+    }
+    $published = $workspace->publish(array_values(array_map('strval', (array) ($state['stale_paths'] ?? []))));
+    foreach ((array) ($state['resolved_partitions'] ?? []) as $type => $partition) {
+      $this->scope->persistResolvedMatches((string) $type, (array) $partition);
+    }
+    $state['published'] = TRUE;
+    $state['published_result'] = $published;
+    $stateStore->saveState($state);
+    return [
+      'ok' => TRUE,
+      'processed_items' => (int) ($state['processed_items'] ?? 0),
+      'written' => count((array) ($published['written'] ?? [])),
+      'deleted' => count((array) ($published['deleted'] ?? [])),
+      'skipped' => count((array) ($published['skipped'] ?? [])),
+      'monitor_only' => (int) ($state['monitor_only'] ?? 0),
+    ];
+  }
+
+  /**
+   * Recover a hard-interrupted alpha63 YAML publication before the job is
+   * blocked for operator review. This never resumes the export automatically.
+   *
+   * @return array{ok:bool,recovered:bool,errors:string[]}
+   */
+  public function recoverQueuedExportPublish(int $jobId, string $syncRootHash): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $workspace = new StagedExportWorkspace($storage, $stateStore->getExportRoot(), FALSE);
+    $recovery = $workspace->recoverIncompletePublish();
+    return [
+      'ok' => empty($recovery['errors']),
+      'recovered' => !empty($recovery['recovered']),
+      'errors' => array_values(array_map('strval', (array) ($recovery['errors'] ?? []))),
+    ];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportBaseline(int $jobId, string $syncRootHash, string $handlerType): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    if (empty($state['published'])) {
+      throw new \RuntimeException('Cannot record export baseline before the YAML snapshot is published.');
+    }
+    $handler = $this->handlerByType($handlerType);
+    if ($handler === NULL) {
+      throw new \RuntimeException('Baseline handler is no longer registered: ' . $handlerType);
+    }
+    $workspace = new StagedExportWorkspace($storage, $stateStore->getExportRoot(), FALSE);
+    $directory = trim((string) $handler->getDirectory(), '/');
+    $count = 0;
+    try {
+      $stateManager = new ConfigStateManager();
+      foreach ($workspace->getStageStorage()->iterateDirectory($directory) as $filename => $data) {
+        $stateManager->acceptYamlBaselineItem($handler, (string) $filename, (array) $data, 'export');
+        $count++;
+      }
+    }
+    catch (\Throwable $e) {
+      // Live YAML is already safely published. Baseline failure is non-fatal and
+      // remains a warning, matching the synchronous export contract.
+      $state['baseline_warnings'][] = ['type' => $handlerType, 'message' => 'YAML export succeeded, but local baseline state could not be updated: ' . $e->getMessage()];
+    }
+    $stateStore->saveState($state);
+    return ['ok' => TRUE, 'processed_items' => (int) ($state['processed_items'] ?? 0), 'baseline_items' => $count];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedExportComplete(int $jobId, string $syncRootHash): array {
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    if (empty($state['published'])) {
+      throw new \RuntimeException('Queued export cannot complete because no verified YAML snapshot was published.');
+    }
+    $published = (array) ($state['published_result'] ?? []);
+    $result = [
+      'ok' => TRUE,
+      'dry_run' => FALSE,
+      'sync_dir' => $this->getSyncDir(),
+      'requested_types' => array_values(array_map('strval', (array) ($state['requested_types'] ?? []))),
+      'effective_types' => array_values(array_map('strval', (array) ($state['effective_types'] ?? []))),
+      'dependency_types' => array_values(array_map('strval', (array) ($state['dependency_types'] ?? []))),
+      'written' => (array) ($published['written'] ?? []),
+      'deleted' => (array) ($published['deleted'] ?? []),
+      'skipped' => array_values(array_unique(array_merge((array) ($published['skipped'] ?? []), (array) ($state['skipped_stage'] ?? [])))),
+      'warnings' => array_merge((array) ($state['warnings'] ?? []), (array) ($state['baseline_warnings'] ?? [])),
+      'errors' => [],
+      'monitor_only' => (int) ($state['monitor_only'] ?? 0),
+      'processed_items' => (int) ($state['processed_items'] ?? 0),
+    ];
+    if (!$result['written'] && !$result['deleted']) {
+      $result['message'] = 'No files written. YAML files already match active CiviCRM configuration.';
+    }
+    else {
+      $result['message'] = 'Export complete. The verified YAML snapshot was published successfully.';
+    }
+    return $result;
+  }
+
+  /** @return object|null */
+  private function handlerByType(string $type) {
+    foreach ($this->getHandlers() as $handler) {
+      if ((string) $handler->getType() === $type) {
+        return $handler;
+      }
+    }
+    return NULL;
+  }
+
+  /** @return object[] */
+  private function handlersForTypes(array $effectiveTypes, array $requestedTypes): array {
+    $effectiveTypes = array_values(array_map('strval', $effectiveTypes));
+    $requestedTypes = array_values(array_map('strval', $requestedTypes));
+    $handlers = [];
+    foreach ($this->getHandlers() as $handler) {
+      if ($effectiveTypes && !in_array((string) $handler->getType(), $effectiveTypes, TRUE)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
+      $handlers[] = $handler;
+    }
+    return $handlers;
+  }
+
+  /**
+   * Build the pre-enrichment active fingerprint from compact staging metadata.
+   */
+  private function compactSnapshotFromWorkspace($handler, StagedExportWorkspace $workspace): array {
+    $groups = [];
+    $type = (string) $handler->getType();
+    foreach ($workspace->files() as $relative => $metadata) {
+      $metadata = (array) $metadata;
+      if ((string) ($metadata['type'] ?? '') !== $type || empty($metadata['config_key'])) {
+        continue;
+      }
+      $row = [
+        'filename' => (string) ($metadata['filename'] ?? basename((string) $relative)),
+        'path' => (string) $relative,
+        'identity' => (array) ($metadata['identity'] ?? []),
+        'hash' => (string) ($metadata['hash'] ?? ''),
+        'rename_signature' => '',
+      ];
+      $groups[(string) $metadata['config_key']][] = $row;
+    }
+    $indexed = $this->indexCompactDiffGroups($groups);
+    $result = [];
+    foreach ($indexed as $key => $row) {
+      $result[(string) $key] = (string) ($row['hash'] ?? '');
+    }
+    ksort($result, SORT_STRING);
+    return $result;
+  }
+
   private function reportProgress(?callable $progress, int $completed, int $total, string $label, string $message, int $processedItems = 0): void {
     if ($progress === NULL) {
       return;
@@ -1856,9 +2395,10 @@ class ConfigManager {
   }
 
   /**
-   * Stage one exported document and keep only compact response metadata in PHP.
+   * Stage one exported document and retain compact metadata which later export
+   * phases can reuse without reparsing the YAML file.
    */
-  private function stageExportFile(StagedExportWorkspace $workspace, $handler, array $file, array &$summary): void {
+  public function stageExportFile(StagedExportWorkspace $workspace, $handler, array $file, array &$summary, string $unitKey = ''): void {
     $filename = ltrim((string) ($file['filename'] ?? ''), '/');
     if ($filename === '') {
       throw new \RuntimeException('Handler ' . $handler->getType() . ' returned an export row without a filename.');
@@ -1871,73 +2411,146 @@ class ConfigManager {
     }
 
     $data = $this->applyIgnoredValueRules($relative, (array) ($file['data'] ?? []));
-    $workspace->stage((string) $handler->getType(), $directory, $filename, $data);
+    $identityService = new ConfigIdentity();
+    $canonicalizer = new Canonicalizer();
+    $options = method_exists($handler, 'getCanonicalizationOptions') ? (array) $handler->getCanonicalizationOptions() : [];
+    $compact = $this->compactDiffRow((string) $handler->getType(), $filename, $relative, $data, $identityService, $canonicalizer, $options);
+    $metadata = [
+      'unit_key' => $unitKey,
+      'names' => $this->namesFromYamlFile($data),
+      'dependencies' => $this->extractDependenciesFromYamlFile($data),
+      'config_key' => (string) ($compact['identity']['config_key'] ?? ''),
+      'identity' => (array) ($compact['identity'] ?? []),
+      'hash' => (string) ($compact['hash'] ?? ''),
+      'monitor_only' => !empty($data['monitor_only']) || (($data['identity_confidence'] ?? '') === ConfigIdentity::AMBIGUOUS),
+      'document_type' => (string) ($data['type'] ?? ''),
+    ];
+    if (($data['type'] ?? '') === 'extension_config.item') {
+      $metadata['extension'] = (string) ($data['extension'] ?? '');
+      $metadata['api'] = (string) ($data['api'] ?? '');
+      $metadata['entity'] = (string) ($data['entity'] ?? '');
+      $metadata['identity_confidence'] = (string) ($data['identity_confidence'] ?? '');
+      $metadata['capabilities'] = (array) ($data['capabilities'] ?? []);
+    }
+    elseif (($data['type'] ?? '') === 'extension.item') {
+      $extensionData = (array) ($data['extension'] ?? []);
+      $metadata['extension'] = (string) ($extensionData['key'] ?? ($data['key'] ?? ''));
+    }
+
+    $workspace->stage((string) $handler->getType(), $directory, $filename, $data, $metadata);
+    if (!isset($summary['monitor_only'])) {
+      $summary['monitor_only'] = 0;
+    }
+    if (!empty($metadata['monitor_only'])) {
+      $summary['monitor_only']++;
+    }
+    // Keep response metadata compact on large exports. Existing callers only
+    // need path/type/label and do not need a duplicate YAML body in memory.
     $summary['available'][] = [
       'type' => (string) $handler->getType(),
       'label' => (string) $handler->getLabel(),
       'directory' => $directory,
       'file' => $filename,
       'path' => $relative,
+      'monitor_only' => !empty($metadata['monitor_only']),
     ];
   }
 
   /**
-   * Recalculate extension provider indexes from the documents which actually
-   * survived ignore/scope filtering in the staged snapshot.
+   * Rebuild extension provider indexes from compact staged metadata.
+   *
+   * This avoids two complete YAML parser passes. Mixed providers retain safe
+   * CRUD/delete capability for unique identities while ambiguous identities
+   * remain monitor-only and individually protected.
    */
-  private function pruneExtensionIndexesInStagedExport(StagedExportWorkspace $workspace): void {
+  public function pruneExtensionIndexesInStagedExport(StagedExportWorkspace $workspace): void {
     $stage = $workspace->getStageStorage();
-    $counts = [];
-    foreach ($stage->iterateDirectory('extensions') as $filename => $data) {
-      $data = (array) $data;
-      if (($data['type'] ?? '') !== 'extension_config.item') {
-        continue;
-      }
-      $extension = (string) ($data['extension'] ?? '');
-      $api = (string) ($data['api'] ?? '');
-      $entity = (string) ($data['entity'] ?? '');
-      if ($extension === '' || $api === '' || $entity === '') {
-        continue;
-      }
-      $key = $api . ':' . $entity;
-      $counts[$extension][$key] = ($counts[$extension][$key] ?? 0) + 1;
-    }
-
-    foreach ($stage->iterateDirectory('extensions') as $filename => $data) {
-      $data = (array) $data;
-      if (($data['type'] ?? '') !== 'extension.item' || empty($data['config_index']) || !is_array($data['config_index'])) {
-        continue;
-      }
-      $extensionData = (array) ($data['extension'] ?? []);
-      $extensionKey = (string) ($extensionData['key'] ?? ($data['key'] ?? ''));
-      $filteredIndex = [];
-      foreach ((array) $data['config_index'] as $row) {
-        $row = (array) $row;
-        $api = (string) ($row['api'] ?? '');
-        $entity = (string) ($row['entity'] ?? '');
-        $key = $api . ':' . $entity;
-        $count = (int) ($counts[$extensionKey][$key] ?? 0);
-        if ($api === '' || $entity === '' || $count <= 0) {
+    $providers = [];
+    $statusFiles = [];
+    foreach ($workspace->files() as $relative => $metadata) {
+      $metadata = (array) $metadata;
+      if (($metadata['document_type'] ?? '') === 'extension_config.item') {
+        $extension = (string) ($metadata['extension'] ?? '');
+        $api = (string) ($metadata['api'] ?? '');
+        $entity = (string) ($metadata['entity'] ?? '');
+        if ($extension === '' || $api === '' || $entity === '') {
           continue;
         }
-        $row['count'] = $count;
-        $filteredIndex[] = $row;
+        $key = $api . ':' . $entity;
+        if (!isset($providers[$extension][$key])) {
+          $providers[$extension][$key] = [
+            'api' => $api,
+            'entity' => $entity,
+            'directory' => dirname(ltrim((string) $metadata['filename'], '/')),
+            'count' => 0,
+            'portable_count' => 0,
+            'monitor_only_count' => 0,
+            'delete_capable' => FALSE,
+          ];
+        }
+        $providers[$extension][$key]['count']++;
+        if (!empty($metadata['monitor_only']) || (($metadata['identity_confidence'] ?? '') === ConfigIdentity::AMBIGUOUS)) {
+          $providers[$extension][$key]['monitor_only_count']++;
+        }
+        else {
+          $providers[$extension][$key]['portable_count']++;
+          $capabilities = (array) ($metadata['capabilities'] ?? []);
+          if (!empty($capabilities['delete'])) {
+            $providers[$extension][$key]['delete_capable'] = TRUE;
+          }
+        }
       }
-      if ($filteredIndex) {
-        $data['config_index'] = $filteredIndex;
+      elseif (($metadata['document_type'] ?? '') === 'extension.item') {
+        $extension = (string) ($metadata['extension'] ?? '');
+        if ($extension !== '') {
+          $statusFiles[$extension] = (string) $relative;
+        }
+      }
+    }
+
+    foreach ($statusFiles as $extensionKey => $relative) {
+      $data = $stage->readFile($relative);
+      $index = [];
+      foreach ((array) ($providers[$extensionKey] ?? []) as $row) {
+        $row = (array) $row;
+        $portable = (int) ($row['portable_count'] ?? 0);
+        $monitorOnly = (int) ($row['monitor_only_count'] ?? 0);
+        $index[] = [
+          'api' => (string) $row['api'],
+          'entity' => (string) $row['entity'],
+          'directory' => (string) $row['directory'],
+          'count' => (int) $row['count'],
+          'portable_count' => $portable,
+          'monitor_only_count' => $monitorOnly,
+          'identity_safety' => $monitorOnly > 0 ? ($portable > 0 ? 'MIXED' : 'UNSAFE') : ($portable > 0 ? 'SAFE' : 'UNVERIFIED'),
+          // Per-identity delete safety: a mixed provider can still authorize
+          // cleanup for unique portable identities. Monitor-only desired keys
+          // are recorded separately by ExtensionHandler import.
+          'delete_safe' => !empty($row['delete_capable']) && $portable > 0,
+        ];
+      }
+      usort($index, static function(array $a, array $b): int {
+        return strcmp((string) $a['api'] . ':' . (string) $a['entity'], (string) $b['api'] . ':' . (string) $b['entity']);
+      });
+      if ($index) {
+        $data['config_index'] = $index;
       }
       else {
         unset($data['config_index']);
       }
-      $workspace->rewrite('extensions/' . ltrim((string) $filename, '/'), $data);
+      $workspace->rewrite($relative, $data);
     }
+    $workspace->persistIndex();
   }
 
   /**
-   * Add reverse dependency metadata using three bounded passes over staged
-   * YAML. Only names, paths, and dependency edges are retained in memory.
+   * Add reverse dependency metadata from compact staging metadata.
+   *
+   * Only YAML documents which actually receive a required_by section are
+   * reparsed/re-written; names and dependency edges were captured while the
+   * document was initially staged.
    */
-  private function addReverseDependencyMetadataToStagedExport(StagedExportWorkspace $workspace): void {
+  public function addReverseDependencyMetadataToStagedExport(StagedExportWorkspace $workspace): void {
     $stage = $workspace->getStageStorage();
     $files = $workspace->files();
     $nameIndex = [];
@@ -1946,11 +2559,12 @@ class ConfigManager {
       if ($relative === 'manifest.yml') {
         continue;
       }
-      $data = $stage->readFile($relative);
-      foreach ($this->namesFromYamlFile($data) as $name) {
-        $nameIndex[(string) $metadata['type']][(string) $name][] = $relative;
+      foreach ((array) ($metadata['names'] ?? []) as $name) {
+        $name = (string) $name;
+        if ($name !== '') {
+          $nameIndex[(string) ($metadata['type'] ?? '')][$name][] = $relative;
+        }
       }
-      unset($data);
     }
 
     $requiredBy = [];
@@ -1958,10 +2572,10 @@ class ConfigManager {
       if ($relative === 'manifest.yml') {
         continue;
       }
-      $data = $stage->readFile($relative);
-      $sourceNames = $this->namesFromYamlFile($data);
+      $sourceNames = array_values(array_filter(array_map('strval', (array) ($metadata['names'] ?? []))));
       $sourceName = $sourceNames[0] ?? $relative;
-      foreach ($this->extractDependenciesFromYamlFile($data) as $dependency) {
+      foreach ((array) ($metadata['dependencies'] ?? []) as $dependency) {
+        $dependency = (array) $dependency;
         $dependencyType = (string) ($dependency['type'] ?? '');
         $dependencyName = (string) ($dependency['name'] ?? '');
         if ($dependencyType === '' || $dependencyName === '') {
@@ -1972,14 +2586,13 @@ class ConfigManager {
             continue;
           }
           $requiredBy[$targetRelative][] = [
-            'type' => (string) $metadata['type'],
+            'type' => (string) ($metadata['type'] ?? ''),
             'name' => (string) $sourceName,
             'path' => $relative,
             'reason' => (string) ($dependency['reason'] ?? 'This YAML item depends on this configuration.'),
           ];
         }
       }
-      unset($data);
     }
 
     foreach ($requiredBy as $relative => $rows) {
@@ -1987,8 +2600,8 @@ class ConfigManager {
       $existing = isset($data['required_by']) && is_array($data['required_by']) ? (array) $data['required_by'] : [];
       $data['required_by'] = $this->uniqueDependencyLikeRows(array_merge($existing, (array) $rows));
       $workspace->rewrite((string) $relative, $data);
-      unset($data);
     }
+    $workspace->persistIndex();
   }
 
   /**
@@ -3192,6 +3805,304 @@ class ConfigManager {
 
     $result['summary_message'] = $this->buildImportSummaryMessage($result);
     $this->reportProgress($progress, $totalSteps, $totalSteps, !empty($result['ok']) ? 'Import complete' : 'Import completed with errors', 'Import processing finished.', $processedItems);
+    return $result;
+  }
+
+
+  /** @return array<int,array<string,mixed>> */
+  public function buildQueuedImportPlan(array $typeFilter = []): array {
+    $requestedTypes = $this->normaliseTypeFilter($typeFilter);
+    $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
+    $applyTypes = $this->getImportApplyTypeFilter($requestedTypes, $effectiveTypes);
+    $handlers = [];
+    foreach ($this->getHandlers() as $handler) {
+      if ($applyTypes && !in_array((string) $handler->getType(), $applyTypes, TRUE)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
+      $handlers[] = $handler;
+    }
+
+    $tasks = [[
+      'key' => 'import:preflight',
+      'action' => 'import_preflight',
+      'phase' => 'preflight',
+      'phase_index' => 1,
+      'phase_total' => 5,
+      'label' => 'Import preflight — checking all managed configuration',
+      'message' => 'Validating YAML, dependencies, rename safety, provider capabilities, and active-state fingerprints. No CiviCRM writes are allowed in this phase.',
+      'retry_safe' => TRUE,
+    ]];
+    foreach ($handlers as $handler) {
+      $tasks[] = [
+        'key' => 'import:write:' . (string) $handler->getType(),
+        'action' => 'import_create_update',
+        'phase' => 'create_update',
+        'phase_index' => 2,
+        'phase_total' => 5,
+        'handler_type' => (string) $handler->getType(),
+        'label' => 'Applying YAML create/update — ' . $handler->getLabel(),
+        'message' => 'Applying only create/update operations for this configuration type. Delete-missing has not started.',
+        'retry_safe' => FALSE,
+      ];
+    }
+    foreach (array_reverse($handlers) as $handler) {
+      $tasks[] = [
+        'key' => 'import:delete:' . (string) $handler->getType(),
+        'action' => 'import_delete_missing',
+        'phase' => 'delete_missing',
+        'phase_index' => 3,
+        'phase_total' => 5,
+        'handler_type' => (string) $handler->getType(),
+        'label' => 'Applying safe delete-missing — ' . $handler->getLabel(),
+        'message' => 'All create/update work units succeeded. Removing only identities whose full managed scope and delete safety are proven.',
+        'retry_safe' => FALSE,
+      ];
+    }
+    foreach ($handlers as $handler) {
+      $tasks[] = [
+        'key' => 'import:baseline:' . (string) $handler->getType(),
+        'action' => 'import_baseline',
+        'phase' => 'baseline',
+        'phase_index' => 4,
+        'phase_total' => 5,
+        'handler_type' => (string) $handler->getType(),
+        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
+        'message' => 'Recording the applied YAML state for future synchronization checks.',
+        'retry_safe' => TRUE,
+      ];
+    }
+    $tasks[] = [
+      'key' => 'import:complete',
+      'action' => 'import_complete',
+      'phase' => 'complete',
+      'phase_index' => 5,
+      'phase_total' => 5,
+      'label' => 'Completing import',
+      'message' => 'Finalizing the durable import result and cleaning temporary job state.',
+      'retry_safe' => TRUE,
+    ];
+    return $tasks;
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedImportPreflight(int $jobId, string $syncRootHash, array $typeFilter = [], ?callable $progress = NULL): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $stateStore->cleanup();
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+
+    $requestedTypes = $this->normaliseTypeFilter($typeFilter);
+    $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
+    $validationTypes = $this->getImportValidationTypeFilter($requestedTypes, $effectiveTypes);
+    $applyTypes = $this->getImportApplyTypeFilter($requestedTypes, $effectiveTypes);
+    $handlers = [];
+    foreach ($this->getHandlers() as $handler) {
+      if ($applyTypes && !in_array((string) $handler->getType(), $applyTypes, TRUE)) {
+        continue;
+      }
+      $this->prepareHandlerForTypeFilter($handler, $requestedTypes);
+      $handlers[] = $handler;
+    }
+
+    $plannedDependencyNames = $this->collectImportPlannedDependencyNames($handlers, $storage);
+    foreach ($handlers as $handler) {
+      $this->setHandlerPlannedDependencyNames($handler, $plannedDependencyNames);
+    }
+    if ($progress !== NULL) {
+      $progress([
+        'progress_known' => FALSE,
+        'message' => 'Dependency context is ready. Validating every managed YAML document before any active CiviCRM write.',
+      ]);
+    }
+    $validation = $this->validate($validationTypes);
+    $processed = 0;
+    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function(array $event) use (&$processed, $progress) {
+      $processed += (int) ($event['processed_items'] ?? 0);
+      if ($progress !== NULL) {
+        $progress([
+          'progress_known' => FALSE,
+          'processed_items' => $processed,
+          'message' => (string) ($event['label'] ?? 'Import preflight') . '. ' . (string) ($event['message'] ?? 'No writes performed.'),
+        ]);
+      }
+    }, TRUE);
+
+    $state = [
+      'operation' => 'import',
+      'requested_types' => $requestedTypes,
+      'effective_types' => $effectiveTypes,
+      'apply_types' => array_values(array_map(static function($handler): string { return (string) $handler->getType(); }, $handlers)),
+      'planned_dependency_names' => $plannedDependencyNames,
+      'preflight_fingerprints' => (array) ($preflight['_active_fingerprints'] ?? []),
+      'post_write_fingerprints' => [],
+      'preflight_summary' => (string) ($preflight['summary_message'] ?? ''),
+      'items' => [],
+      'processed_items' => $processed,
+      'state_warning' => '',
+    ];
+    $stateStore->saveState($state);
+
+    if (empty($preflight['ok'])) {
+      unset($preflight['_active_fingerprints']);
+      $preflight['dry_run'] = FALSE;
+      $preflight['applied'] = FALSE;
+      $preflight['message'] = 'Import stopped before writes because the complete preflight found blocking errors. Zero writes were performed.';
+      return $preflight;
+    }
+    return [
+      'ok' => TRUE,
+      'dry_run' => TRUE,
+      'applied' => FALSE,
+      'summary_message' => (string) ($preflight['summary_message'] ?? ''),
+      'processed_items' => $processed,
+    ];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedImportCreateUpdate(int $jobId, string $syncRootHash, string $handlerType): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $handler = $this->handlerByType($handlerType);
+    if ($handler === NULL) {
+      throw new \RuntimeException('Queued import handler is no longer registered: ' . $handlerType);
+    }
+    $this->prepareHandlerForTypeFilter($handler, array_values(array_map('strval', (array) ($state['requested_types'] ?? []))));
+    $this->setHandlerPlannedDependencyNames($handler, (array) ($state['planned_dependency_names'] ?? []));
+    $this->setHandlerImportPhase($handler, TRUE, FALSE);
+    try {
+      if (isset($state['preflight_fingerprints'][$handlerType])) {
+        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['preflight_fingerprints'][$handlerType], 'Import conflict: active CiviCRM changed after preflight. No write was performed for this handler.');
+      }
+      $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
+      if (empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']))) {
+        $state['post_write_fingerprints'][$handlerType] = $this->compactManagedActiveSnapshot($handler, $storage);
+      }
+    }
+    catch (\Throwable $e) {
+      $item = [
+        'type' => $handlerType,
+        'status' => 'applied',
+        'dry_run' => FALSE,
+        'errors' => [['message' => $e->getMessage()]],
+        'warnings' => [],
+      ];
+    }
+    $item['phase'] = 'create_update';
+    $state['items'][] = $item;
+    $state['processed_items'] = (int) ($state['processed_items'] ?? 0) + $this->countImportItemActivity($item);
+    $stateStore->saveState($state);
+    $ok = empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']));
+    $result = ['ok' => $ok, 'item' => $item, 'processed_items' => (int) $state['processed_items']];
+    if (!$ok) {
+      $result['partial_apply'] = TRUE;
+      $result['delete_phase_skipped'] = TRUE;
+      $result['message'] = 'Import stopped after a create/update work-unit failure. No delete-missing work unit will run. Review the applied handlers and restore/retry from the pre-import database backup if needed.';
+    }
+    return $result;
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedImportDeleteMissing(int $jobId, string $syncRootHash, string $handlerType): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $handler = $this->handlerByType($handlerType);
+    if ($handler === NULL) {
+      throw new \RuntimeException('Queued import handler is no longer registered: ' . $handlerType);
+    }
+    $this->prepareHandlerForTypeFilter($handler, array_values(array_map('strval', (array) ($state['requested_types'] ?? []))));
+    $this->setHandlerPlannedDependencyNames($handler, (array) ($state['planned_dependency_names'] ?? []));
+    $this->setHandlerImportPhase($handler, FALSE, TRUE);
+    try {
+      if (isset($state['post_write_fingerprints'][$handlerType])) {
+        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['post_write_fingerprints'][$handlerType], 'Import conflict: active CiviCRM changed after create/update. Delete-missing was not started for this handler.');
+      }
+      $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
+    }
+    catch (\Throwable $e) {
+      $item = [
+        'type' => $handlerType,
+        'status' => 'applied',
+        'dry_run' => FALSE,
+        'errors' => [['message' => $e->getMessage()]],
+        'warnings' => [],
+      ];
+    }
+    finally {
+      $this->setHandlerImportPhase($handler, TRUE, TRUE);
+    }
+    $item['phase'] = 'delete_missing';
+    $state['items'][] = $item;
+    $state['processed_items'] = (int) ($state['processed_items'] ?? 0) + $this->countImportItemActivity($item);
+    $stateStore->saveState($state);
+    $ok = empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']));
+    $result = ['ok' => $ok, 'item' => $item, 'processed_items' => (int) $state['processed_items']];
+    if (!$ok) {
+      $result['partial_apply'] = TRUE;
+      $result['message'] = 'Import delete-missing stopped with an error after earlier create/update work units had succeeded. Remaining queue work was not continued.';
+    }
+    return $result;
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedImportBaseline(int $jobId, string $syncRootHash, string $handlerType): array {
+    $storage = new YamlFileStorage($this->getSyncDir());
+    $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $handler = $this->handlerByType($handlerType);
+    if ($handler === NULL) {
+      throw new \RuntimeException('Queued import baseline handler is no longer registered: ' . $handlerType);
+    }
+    $count = 0;
+    try {
+      $stateManager = new ConfigStateManager();
+      $directory = trim((string) $handler->getDirectory(), '/');
+      foreach ($storage->iterateDirectory($directory) as $filename => $data) {
+        if ($this->isIgnoredPath(($directory === '' ? '' : $directory . '/') . (string) $filename)) {
+          continue;
+        }
+        $stateManager->acceptYamlBaselineItem($handler, (string) $filename, (array) $data, 'import');
+        $count++;
+      }
+    }
+    catch (\Throwable $e) {
+      $state['state_warning'] = 'Import was applied successfully, but local baseline state could not be fully updated: ' . $e->getMessage();
+    }
+    $stateStore->saveState($state);
+    return ['ok' => TRUE, 'baseline_items' => $count, 'processed_items' => (int) ($state['processed_items'] ?? 0)];
+  }
+
+  /** @return array<string,mixed> */
+  public function queuedImportComplete(int $jobId, string $syncRootHash): array {
+    $stateStore = new OperationWorkspace($jobId, $syncRootHash);
+    $state = $stateStore->loadState();
+    $result = [
+      'ok' => TRUE,
+      'dry_run' => FALSE,
+      'applied' => TRUE,
+      'items' => (array) ($state['items'] ?? []),
+      'preflight' => [
+        'ok' => TRUE,
+        'summary_message' => (string) ($state['preflight_summary'] ?? ''),
+      ],
+    ];
+    if (!empty($state['state_warning'])) {
+      $result['state_warning'] = (string) $state['state_warning'];
+    }
+    foreach ($result['items'] as $item) {
+      if (!empty($item['errors']) || (array_key_exists('ok', $item) && empty($item['ok']))) {
+        $result['ok'] = FALSE;
+        $result['partial_apply'] = TRUE;
+      }
+    }
+    $result['summary_message'] = $this->buildImportSummaryMessage($result);
+    $result['processed_items'] = (int) ($state['processed_items'] ?? 0);
     return $result;
   }
 

@@ -239,15 +239,18 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 - An unavailable provider with a previously managed/selected/watch policy must preserve that saved policy when unrelated settings are saved, while the UI permits only an explicit switch to Ignore and disables bulk/picker/watch/advanced-selection controls.
 - Synchronize must show one compact error summary plus one detailed Synchronization Errors panel, not duplicate the same provider message twice.
 
-## Alpha62 bounded-memory and operation-safety gate
+## Alpha63 large-site, ambiguity, and operation-safety gate
 
 Run the release-specific architecture and low-memory contracts before the heavier integration suites:
 
 ```bash
 composer test:alpha62-contract
+composer test:alpha63-contract
 composer qa:stress
 ```
 
-`qa:stress` fixes PHP `memory_limit` at 256 MB and verifies 5,000 API4 records and 5,000 YAML files can be traversed without whole-collection materialization. It also forces a duplicate staged path and a mid-publish storage failure to prove export publication blocks/rolls back coherently. The alpha62 scenario contract covers compact lazy diff, CiviRules ambiguity/provider ownership, optimistic concurrency checks, create/update-before-delete safety, CSRF, operation/queue locking, persistent progress reconnect, completed-item idempotency, and fail-closed indeterminate retries.
+The alpha62 gate continues proving 5,000 API4 + 5,000 YAML bounded traversal and ordinary staged rollback. Alpha63 adds 10,000-row provider disk spooling, persistent 5,000-document staged metadata, durable hard-interruption publication recovery, deterministic monitor-only ambiguity, honest progress/session-unlock contracts, and multi-work-unit Export/Import queue structure.
 
-These gates do not replace the PHP 7.4 compatibility matrix or full CMS/CiviCRM lifecycle tests.
+The real-site alpha63 scenario must additionally prove: identical duplicate CiviRules rows export without path collision; monitor-only rows do not gain CRUD authority; portable YAML ambiguous on target blocks with zero writes; one ambiguous identity does not disable unrelated delete safety; WordPress 2,000+ YAML progress remains responsive and semantically labelled; refresh reconnects; create/update failure starts no delete work; interrupted live mutation blocks; interrupted publication restores the previous YAML snapshot; Export -> Synchronize is zero diff; and a repeat Export produces no unnecessary rewrite.
+
+These gates do not replace the PHP 7.4 compatibility matrix or full Drupal 7/WordPress/Standalone CiviCRM lifecycle tests.

@@ -2,8 +2,9 @@
 namespace Civi\ConfigManager\Handler;
 
 use Civi\ConfigManager\Version;
+use Civi\ConfigManager\Service\DiskRowSpool;
 
-class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
+class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface, ChunkedStreamingHandlerInterface {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
   private ?array $discoveredEntityDefinitions = NULL;
@@ -67,148 +68,223 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     return $filtered;
   }
 
+  /** @return array<int,array{key:string,label:string,path_prefix?:string}> */
+  public function getExportUnits(): array {
+    $units = [[
+      'key' => '__statuses__',
+      'label' => 'Extension status and settings',
+    ]];
+    foreach ($this->discoverEntityDefinitions() as $definition) {
+      $extensionKey = (string) ($definition['extension'] ?? '');
+      if ($this->isGenericConfigSkippedExtension($extensionKey)
+        || $this->isNonImportableDefinition($definition)
+        || !$this->definitionMatchesRuntimeFilter($definition)) {
+        continue;
+      }
+      $units[] = [
+        'key' => $this->exportUnitKey($definition),
+        'label' => 'Extension provider: ' . $this->labelForDefinition($definition),
+        'path_prefix' => $this->safeName($extensionKey) . '/' . $this->safeName((string) ($definition['api'] ?? '')) . '/' . $this->safeName((string) ($definition['entity'] ?? '')),
+      ];
+    }
+    return $units;
+  }
+
   public function export(): array {
     $files = iterator_to_array($this->iterateExport(), FALSE);
-    usort($files, fn($a, $b) => strcmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? '')));
+    usort($files, static function(array $a, array $b): int {
+      return strcmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? ''));
+    });
     return $files;
   }
 
   public function iterateExport(): iterable {
     $this->exportErrors = [];
-    $manager = \CRM_Extension_System::singleton()->getManager();
-
-    $settingsByExtension = [];
-    try {
-      $settingsByExtension = $this->discoverSettingsByExtension();
+    foreach ($this->getExportUnits() as $unit) {
+      foreach ($this->iterateExportUnitInternal((string) $unit['key']) as $file) {
+        yield $file;
+      }
     }
-    catch (\Throwable $e) {
-      $this->addExportError('Extension settings could not be discovered: ' . $e->getMessage());
-    }
+  }
 
-    // Provider documents are emitted immediately. Only compact identity counts
-    // and provider index rows remain in memory until extension status YAML is
-    // emitted. This is the high-volume path on large WordPress installations.
-    $index = [];
-    try {
-      foreach ($this->discoverEntityDefinitions() as $definition) {
-        $extensionKey = (string) ($definition['extension'] ?? '');
-        $api = (string) ($definition['api'] ?? '');
-        $entity = (string) ($definition['entity'] ?? '');
-        if ($this->isGenericConfigSkippedExtension($extensionKey) || $this->isNonImportableDefinition($definition) || !$this->definitionMatchesRuntimeFilter($definition)) {
+  public function iterateExportUnit(string $unitKey, ?callable $progress = NULL): iterable {
+    $this->exportErrors = [];
+    foreach ($this->iterateExportUnitInternal($unitKey, $progress) as $file) {
+      yield $file;
+    }
+  }
+
+  /**
+   * @return \Generator<int,array<string,mixed>>
+   */
+  private function iterateExportUnitInternal(string $unitKey, ?callable $progress = NULL): \Generator {
+    if ($unitKey === '__statuses__') {
+      $manager = \CRM_Extension_System::singleton()->getManager();
+      $settingsByExtension = [];
+      try {
+        $settingsByExtension = $this->discoverSettingsByExtension();
+      }
+      catch (\Throwable $e) {
+        $this->addExportError('Extension settings could not be discovered: ' . $e->getMessage());
+      }
+
+      foreach ($manager->getStatuses() as $key => $status) {
+        $key = (string) $key;
+        if (!$this->extensionMatchesRuntimeFilter($key)) {
           continue;
         }
+        $data = [
+          'schema_version' => 1,
+          'type' => 'extension.item',
+          'key' => $key,
+          'dependencies' => $this->dependenciesForExtension($key),
+          'extension' => ['key' => $key, 'status' => (string) $status],
+        ];
+        if (!empty($settingsByExtension[$key])) {
+          $data['settings'] = $settingsByExtension[$key];
+        }
+        // config_index is rebuilt from the provider documents which actually
+        // survive scope/ignore filtering in the staged workspace. This avoids
+        // coupling status emission to provider order and enables durable units.
+        yield ['filename' => $this->safeName($key) . '.yml', 'data' => $data];
+      }
+      return;
+    }
 
-        try {
-          $counts = [];
-          $rowCount = 0;
-          $providerUnsafe = FALSE;
-          foreach ($this->iterateCleanProviderRows($definition) as $row) {
-            $identityField = $this->identityField($row, $definition);
-            if ($identityField === NULL) {
-              $providerUnsafe = TRUE;
-              continue;
-            }
-            $identity = (string) $row[$identityField];
-            $confidence = $this->identityConfidence($identityField, $definition);
-            if ($confidence === 'AMBIGUOUS') {
-              $providerUnsafe = TRUE;
-            }
-            $counts[$identityField][$identity] = ($counts[$identityField][$identity] ?? 0) + 1;
-            $rowCount++;
-          }
-          foreach ($counts as $fieldCounts) {
-            foreach ($fieldCounts as $count) {
-              if ($count !== 1) {
-                $providerUnsafe = TRUE;
-                break 2;
-              }
-            }
-          }
+    $definition = $this->definitionForExportUnit($unitKey);
+    if ($definition === NULL) {
+      throw new \RuntimeException('Unknown extension-provider export unit. The provider list changed after the job was planned. Start a fresh export.');
+    }
 
-          $usedNames = [];
-          $emitted = 0;
-          foreach ($this->iterateCleanProviderRows($definition) as $row) {
-            $identityField = $this->identityField($row, $definition);
-            if ($identityField === NULL) {
-              continue;
-            }
-            $identity = (string) $row[$identityField];
-            $identityConfidence = $this->identityConfidence($identityField, $definition);
-            if ($identityConfidence !== 'AMBIGUOUS' && (($counts[$identityField][$identity] ?? 0) !== 1)) {
-              $identityConfidence = 'AMBIGUOUS';
-            }
-            $filename = $this->safeName($extensionKey) . '/' . $this->safeName($api) . '/' . $this->safeName($entity) . '/' . $this->uniqueConfigFileName($identity, $usedNames) . '.yml';
-            $emitted++;
-            yield [
-              'filename' => $filename,
-              'data' => [
-                'schema_version' => 1,
-                'type' => 'extension_config.item',
-                'extension' => $extensionKey,
-                'api' => $api,
-                'entity' => $entity,
-                'name' => $identity,
-                'identity_field' => $identityField,
-                'identity_confidence' => $identityConfidence,
-                'capabilities' => [
-                  'create' => !empty($definition['can_create']) && $identityConfidence !== 'AMBIGUOUS',
-                  'update' => !empty($definition['can_update']) && $identityConfidence !== 'AMBIGUOUS',
-                  'delete' => !empty($definition['can_delete']) && $identityConfidence !== 'AMBIGUOUS',
-                ],
-                'dependencies' => $this->dependenciesForEntityRow($row, $definition),
-                'item' => $row,
-              ],
-            ];
-          }
+    $extensionKey = (string) ($definition['extension'] ?? '');
+    $api = (string) ($definition['api'] ?? '');
+    $entity = (string) ($definition['entity'] ?? '');
+    $spool = new DiskRowSpool();
+    try {
+      $counts = [];
+      $fingerprintCounts = [];
+      $rowCount = 0;
+      foreach ($this->iterateCleanProviderRows($definition) as $row) {
+        $row = (array) $row;
+        $identityField = $this->identityField($row, $definition);
+        if ($identityField === NULL) {
+          // Rows without a usable semantic field cannot be addressed safely.
+          // Keep provider export fail-closed rather than silently omitting them.
+          throw new \RuntimeException($api . ' ' . $entity . ' returned a configuration row without a usable semantic identity field.');
+        }
+        $identity = (string) $row[$identityField];
+        $fingerprint = $this->providerMonitorFingerprint($row);
+        $counts[$identityField][$identity] = ($counts[$identityField][$identity] ?? 0) + 1;
+        $fingerprintKey = $identityField . "\0" . $identity . "\0" . $fingerprint;
+        $fingerprintCounts[$fingerprintKey] = ($fingerprintCounts[$fingerprintKey] ?? 0) + 1;
+        $spool->append([
+          'identity_field' => $identityField,
+          'identity' => $identity,
+          'fingerprint' => $fingerprint,
+          'row' => $row,
+        ]);
+        $rowCount++;
+        if ($progress !== NULL && ($rowCount % 100) === 0) {
+          $progress(['processed' => $rowCount, 'stage' => 'scan', 'message' => 'Scanning extension provider ' . $this->labelForDefinition($definition) . ': ' . $rowCount . ' record(s) checked for portable/ambiguous identity.']);
+        }
+      }
+      if ($progress !== NULL) {
+        $progress(['processed' => $rowCount, 'stage' => 'spool_complete', 'message' => 'Provider identity scan complete for ' . $this->labelForDefinition($definition) . '. Building deterministic temporary YAML from the disk spool.']);
+      }
 
-          $identitySafety = ($rowCount > 0 && !$providerUnsafe) ? 'SAFE' : ($rowCount === 0 ? 'UNVERIFIED' : 'UNSAFE');
-          $index[$extensionKey][] = [
-            'api' => $api,
-            'entity' => $entity,
-            'directory' => $this->safeName($extensionKey) . '/' . $this->safeName($api) . '/' . $this->safeName($entity),
-            'count' => $emitted,
-            'identity_safety' => $identitySafety,
-            'delete_safe' => $identitySafety === 'SAFE' && !empty($definition['can_delete']),
+      $occurrences = [];
+      foreach ($spool->iterate() as $entry) {
+        $row = (array) ($entry['row'] ?? []);
+        $identityField = (string) ($entry['identity_field'] ?? '');
+        $identity = (string) ($entry['identity'] ?? '');
+        $fingerprint = (string) ($entry['fingerprint'] ?? '');
+        $identityConfidence = $this->identityConfidence($identityField, $definition);
+        $groupCount = (int) ($counts[$identityField][$identity] ?? 0);
+        if ($identityConfidence !== 'AMBIGUOUS' && $groupCount !== 1) {
+          $identityConfidence = 'AMBIGUOUS';
+        }
+        $monitorOnly = $identityConfidence === 'AMBIGUOUS';
+        $fingerprintKey = $identityField . "\0" . $identity . "\0" . $fingerprint;
+        $occurrence = ($occurrences[$fingerprintKey] ?? 0) + 1;
+        $occurrences[$fingerprintKey] = $occurrence;
+
+        $directory = $this->safeName($extensionKey) . '/' . $this->safeName($api) . '/' . $this->safeName($entity);
+        if ($monitorOnly) {
+          $filename = $directory . '/' . $this->safeName($identity)
+            . '--ambiguous-' . substr($fingerprint, 0, 12)
+            . '-' . str_pad((string) $occurrence, 2, '0', STR_PAD_LEFT) . '.yml';
+        }
+        else {
+          $filename = $directory . '/' . $this->safeName($identity) . '.yml';
+        }
+
+        $data = [
+          'schema_version' => 1,
+          'type' => 'extension_config.item',
+          'extension' => $extensionKey,
+          'api' => $api,
+          'entity' => $entity,
+          'name' => $identity,
+          'identity_field' => $identityField,
+          'identity_portable' => !$monitorOnly,
+          'identity_confidence' => $identityConfidence,
+          'monitor_only' => $monitorOnly,
+          'capabilities' => [
+            'create' => !empty($definition['can_create']) && !$monitorOnly,
+            'update' => !empty($definition['can_update']) && !$monitorOnly,
+            'delete' => !empty($definition['can_delete']) && !$monitorOnly,
+          ],
+          'dependencies' => $this->dependenciesForEntityRow($row, $definition),
+          'item' => $row,
+        ];
+        if ($monitorOnly) {
+          $data['ambiguity'] = [
+            'reason' => 'duplicate_or_unproven_portable_identity',
+            'group_count' => $groupCount,
+            'content_count' => (int) ($fingerprintCounts[$fingerprintKey] ?? 0),
+            'content_fingerprint' => $fingerprint,
+            'occurrence' => $occurrence,
           ];
         }
-        catch (\Throwable $e) {
-          $provider = trim($extensionKey . ' ' . $api . ' ' . $entity);
-          $this->addExportError('Extension configuration provider ' . ($provider !== '' ? $provider : '(unknown)') . ' could not be exported: ' . $e->getMessage());
-        }
-        finally {
-          $this->invalidateIdentityRowsForDefinition($definition);
-        }
+        yield ['filename' => $filename, 'data' => $data];
       }
     }
     catch (\Throwable $e) {
-      $this->addExportError('Extension provider configuration could not be discovered: ' . $e->getMessage());
+      $provider = trim($extensionKey . ' ' . $api . ' ' . $entity);
+      $this->addExportError('Extension configuration provider ' . ($provider !== '' ? $provider : '(unknown)') . ' could not be exported: ' . $e->getMessage());
     }
-
-    foreach ($index as &$rows) {
-      usort($rows, fn($a, $b) => strcmp($a['api'] . ':' . $a['entity'], $b['api'] . ':' . $b['entity']));
+    finally {
+      $spool->close();
+      $this->invalidateIdentityRowsForDefinition($definition);
     }
-    unset($rows);
+  }
 
-    foreach ($manager->getStatuses() as $key => $status) {
-      $key = (string) $key;
-      if (!$this->extensionMatchesRuntimeFilter($key)) {
+  private function exportUnitKey(array $definition): string {
+    return 'provider:' . substr(hash('sha256', $this->definitionKey(
+      (string) ($definition['extension'] ?? ''),
+      (string) ($definition['api'] ?? ''),
+      (string) ($definition['entity'] ?? '')
+    )), 0, 24);
+  }
+
+  private function definitionForExportUnit(string $unitKey): ?array {
+    foreach ($this->discoverEntityDefinitions() as $definition) {
+      $extensionKey = (string) ($definition['extension'] ?? '');
+      if ($this->isGenericConfigSkippedExtension($extensionKey)
+        || $this->isNonImportableDefinition($definition)
+        || !$this->definitionMatchesRuntimeFilter($definition)) {
         continue;
       }
-      $data = [
-        'schema_version' => 1,
-        'type' => 'extension.item',
-        'key' => $key,
-        'dependencies' => $this->dependenciesForExtension($key),
-        'extension' => ['key' => $key, 'status' => (string) $status],
-      ];
-      if (!empty($settingsByExtension[$key])) {
-        $data['settings'] = $settingsByExtension[$key];
+      if ($this->exportUnitKey($definition) === $unitKey) {
+        return $definition;
       }
-      if (!empty($index[$key])) {
-        $data['config_index'] = $index[$key];
-      }
-      yield ['filename' => $this->safeName($key) . '.yml', 'data' => $data];
     }
+    return NULL;
+  }
+
+  private function providerMonitorFingerprint(array $row): string {
+    $normalized = $this->normaliseDataForDiff($row);
+    return $this->fingerprint($normalized);
   }
 
   /**
@@ -465,7 +541,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
           $errors[] = ['file' => $filename, 'message' => sprintf('Bundled extension config for %s %s is missing a stable identity field.', $entry['api'], $entry['entity'])];
         }
         elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
-          $compatibility[] = ['file' => $filename, 'message' => sprintf('%s %s is backup/monitor-only because the provider does not expose a unique portable identity. Automatic create/update/delete stays blocked.', $entry['api'], $entry['entity'])];
+          $compatibility[] = ['file' => $filename, 'message' => sprintf('%s %s is monitor-only snapshot because the provider does not expose a unique portable identity. Automatic create/update/delete stays blocked.', $entry['api'], $entry['entity'])];
         }
       }
     }
@@ -581,11 +657,15 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
           'entity' => (string) ($item['entity'] ?? ''),
           'identity_field' => $item['identity_field'] ?? NULL,
           'identity_confidence' => $item['identity_confidence'] ?? NULL,
+          'monitor_only' => !empty($item['monitor_only']),
+          'ambiguity' => (array) ($item['ambiguity'] ?? []),
           'capabilities' => (array) ($item['capabilities'] ?? []),
           'item' => [
             'name' => $item['name'] ?? NULL,
             'identity_field' => $item['identity_field'] ?? NULL,
             'identity_confidence' => $item['identity_confidence'] ?? NULL,
+            'monitor_only' => !empty($item['monitor_only']),
+            'ambiguity' => (array) ($item['ambiguity'] ?? []),
             'capabilities' => (array) ($item['capabilities'] ?? []),
             'dependencies' => $item['dependencies'] ?? [],
             'item' => (array) ($item['item'] ?? []),
@@ -774,80 +854,71 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   private function deleteMissingBundledConfig(array $definition, array $desiredKeys, bool $sourceDeleteSafe, bool $dryRun, array &$summary): void {
     if (!$sourceDeleteSafe) {
       $summary['compatibility'][] = [
-        'message' => sprintf('%s %s delete-missing is disabled because the source YAML does not prove a write-safe portable identity for this provider.', $definition['api'], $definition['entity']),
+        'message' => sprintf('%s %s delete-missing is disabled because the source YAML does not prove delete capability for any portable identity in this provider.', $definition['api'], $definition['entity']),
       ];
       return;
     }
 
+    $spool = new DiskRowSpool();
     $identityCounts = [];
-    $providerUnsafe = FALSE;
-    foreach ($this->iterateCleanProviderRows($definition) as $row) {
-      $row = (array) $row;
-      $identityField = $this->identityField($row, $definition);
-      if ($identityField === NULL || $this->identityConfidence($identityField, $definition) === 'AMBIGUOUS') {
-        $providerUnsafe = TRUE;
-        continue;
-      }
-      $identity = (string) $row[$identityField];
-      $identityCounts[$identityField][$identity] = ($identityCounts[$identityField][$identity] ?? 0) + 1;
-    }
-    foreach ($identityCounts as $counts) {
-      foreach ($counts as $count) {
-        if ($count !== 1) {
-          $providerUnsafe = TRUE;
-          break 2;
+    try {
+      foreach ($this->iterateCleanProviderRows($definition) as $row) {
+        $row = (array) $row;
+        $identityField = $this->identityField($row, $definition);
+        if ($identityField === NULL) {
+          continue;
         }
+        $identity = (string) $row[$identityField];
+        $identityCounts[$identityField][$identity] = ($identityCounts[$identityField][$identity] ?? 0) + 1;
+        $spool->append(['identity_field' => $identityField, 'identity' => $identity, 'row' => $row]);
       }
-    }
-    if ($providerUnsafe) {
-      $summary['compatibility'][] = [
-        'message' => sprintf('%s %s delete-missing is disabled because the target provider rows do not expose a unique portable identity.', $definition['api'], $definition['entity']),
-      ];
-      return;
-    }
-    foreach ($this->iterateCleanProviderRows($definition) as $existing) {
-      $existing = (array) $existing;
-      $identityField = $this->identityField($existing, $definition);
-      if ($identityField === NULL) {
-        continue;
-      }
-      $identity = (string) $existing[$identityField];
-      $confidence = $this->identityConfidence($identityField, $definition);
-      if ($confidence === 'AMBIGUOUS' || (($identityCounts[$identityField][$identity] ?? 0) !== 1)) {
-        $summary['config']['skip']++;
-        $summary['compatibility'][] = [
+
+      foreach ($spool->iterate() as $entry) {
+        $identityField = (string) ($entry['identity_field'] ?? '');
+        $identity = (string) ($entry['identity'] ?? '');
+        if ($identityField === '' || $identity === '') {
+          continue;
+        }
+        $confidence = $this->identityConfidence($identityField, $definition);
+        if ($confidence === 'AMBIGUOUS' || (($identityCounts[$identityField][$identity] ?? 0) !== 1)) {
+          $summary['config']['skip']++;
+          $summary['compatibility'][] = [
+            'name' => $identity,
+            'message' => sprintf('%s %s delete-missing skipped ambiguous identity %s=%s; unrelated unique identities remain eligible for safe cleanup.', $definition['api'], $definition['entity'], $identityField, $identity),
+          ];
+          continue;
+        }
+        if (isset($desiredKeys[$this->identityKey($identityField, $identity)])) {
+          continue;
+        }
+        if (empty($definition['can_delete']) && array_key_exists('can_delete', $definition)) {
+          $summary['config']['skip']++;
+          $summary['compatibility'][] = [
+            'name' => $identity,
+            'message' => sprintf('%s %s does not expose a delete action, so Configuration Manager leaves the active record in place.', $definition['api'], $definition['entity']),
+          ];
+          continue;
+        }
+        $summary['config']['delete']++;
+        $summary['warnings'][] = [
           'name' => $identity,
-          'message' => sprintf('%s %s cannot be deleted automatically because %s=%s is not a unique portable identity.', $definition['api'], $definition['entity'], $identityField, $identity),
+          'message' => sprintf('Bundled extension config %s %s exists in CiviCRM but not YAML and will be deleted when import is applied: %s', $definition['api'], $definition['entity'], $identity),
         ];
-        continue;
-      }
-      if (isset($desiredKeys[$this->identityKey($identityField, $identity)])) {
-        continue;
-      }
-      if (empty($definition['can_delete']) && array_key_exists('can_delete', $definition)) {
-        $summary['config']['skip']++;
-        $summary['compatibility'][] = [
-          'name' => $identity,
-          'message' => sprintf('%s %s does not expose a delete action, so Configuration Manager leaves the active record in place.', $definition['api'], $definition['entity']),
-        ];
-        continue;
-      }
-      $summary['config']['delete']++;
-      $summary['warnings'][] = [
-        'name' => $identity,
-        'message' => sprintf('Bundled extension config %s %s exists in CiviCRM but not YAML and will be deleted when import is applied: %s', $definition['api'], $definition['entity'], $identity),
-      ];
-      if (!$dryRun) {
-        try {
-          $live = $this->findExistingEntityRow($definition, $identityField, $identity);
-          if ($live && !empty($live['id'])) {
-            $this->deleteEntityRow($definition, (int) $live['id']);
+        if (!$dryRun) {
+          try {
+            $live = $this->findExistingEntityRow($definition, $identityField, $identity);
+            if ($live && !empty($live['id'])) {
+              $this->deleteEntityRow($definition, (int) $live['id']);
+            }
+          }
+          catch (\Throwable $e) {
+            $summary['errors'][] = ['name' => $identity, 'message' => 'Delete failed: ' . $e->getMessage()];
           }
         }
-        catch (\Throwable $e) {
-          $summary['errors'][] = ['name' => $identity, 'message' => 'Delete failed: ' . $e->getMessage()];
-        }
       }
+    }
+    finally {
+      $spool->close();
     }
   }
 
@@ -909,7 +980,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     elseif ($this->runtimeIdentityConfidence($definition, $identityField, (string) $row[$identityField]) === 'AMBIGUOUS') {
       $compatibility[] = [
         'file' => $filename,
-        'message' => sprintf('%s %s is backup/monitor-only because %s is not a unique portable identity. Export/diff remain available; automatic create/update/delete stays blocked.', $api, $entity, $identityField),
+        'message' => sprintf('%s %s is monitor-only snapshot because %s is not a unique portable identity. Export/diff remain available; automatic create/update/delete stays blocked.', $api, $entity, $identityField),
       ];
     }
   }
@@ -951,24 +1022,8 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     $row = (array) ($configItem['item'] ?? $configItem);
     $sourceIdentityConfidence = strtoupper(trim((string) ($configItem['identity_confidence'] ?? ($configEntry['identity_confidence'] ?? ''))));
     $sourceCapabilities = (array) ($configItem['capabilities'] ?? ($configEntry['capabilities'] ?? []));
-    if ($sourceIdentityConfidence === 'AMBIGUOUS') {
-      $summary['config']['skip']++;
-      $summary['compatibility'][] = [
-        'file' => $filename,
-        'message' => sprintf('%s %s remains backup/monitor-only because the source export marked its identity ambiguous. Automatic create/update/delete was not attempted.', $api, $entity),
-      ];
-      return;
-    }
-    if ($sourceCapabilities && (empty($sourceCapabilities['create']) || empty($sourceCapabilities['update']))) {
-      $summary['config']['skip']++;
-      $summary['compatibility'][] = [
-        'file' => $filename,
-        'message' => sprintf('%s %s remains backup/monitor-only because the source export did not authorize safe create/update capability.', $api, $entity),
-      ];
-      return;
-    }
     $identityField = (string) ($configItem['identity_field'] ?? ($configEntry['identity_field'] ?? ''));
-    if ($identityField === '' || empty($row[$identityField])) {
+    if ($identityField === '' || !array_key_exists($identityField, $row) || !is_scalar($row[$identityField]) || trim((string) $row[$identityField]) === '') {
       $identityField = (string) ($this->identityField($row, $definition) ?? '');
     }
     if ($identityField === '') {
@@ -976,15 +1031,41 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       return;
     }
     $identity = (string) $row[$identityField];
+    $identityKey = $this->identityKey($identityField, $identity);
+
+    // Monitor-only source rows still protect their semantic key from
+    // delete-missing. They cannot authorize writes, but they must never be
+    // mistaken for objects which are absent from the source snapshot.
+    $desiredConfigKeys[$definitionKey][$identityKey] = TRUE;
+
+    if ($sourceIdentityConfidence === 'AMBIGUOUS' || !empty($configItem['monitor_only']) || !empty($configEntry['monitor_only'])) {
+      $summary['config']['skip']++;
+      $summary['compatibility'][] = [
+        'file' => $filename,
+        'message' => sprintf('%s %s is an intentional monitor-only snapshot because the source identity is ambiguous. Automatic create/update/delete was not attempted; unrelated safe identities may continue.', $api, $entity),
+      ];
+      return;
+    }
+    if ($sourceCapabilities && (empty($sourceCapabilities['create']) || empty($sourceCapabilities['update']))) {
+      $summary['config']['skip']++;
+      $summary['compatibility'][] = [
+        'file' => $filename,
+        'message' => sprintf('%s %s is a monitor-only snapshot because the source export did not authorize safe create/update capability.', $api, $entity),
+      ];
+      return;
+    }
     if ($this->runtimeIdentityConfidence($definition, $identityField, $identity) === 'AMBIGUOUS') {
       $summary['config']['skip']++;
       $summary['compatibility'][] = [
         'file' => $filename,
-        'message' => sprintf('%s %s remains backup/monitor-only because %s=%s cannot be matched safely on this site. Automatic create/update/delete was not attempted.', $api, $entity, $identityField, $identity),
+        'message' => sprintf('%s %s target conflict: portable source identity %s=%s matches ambiguously on this site.', $api, $entity, $identityField, $identity),
+      ];
+      $summary['errors'][] = [
+        'file' => $filename,
+        'message' => sprintf('%s %s portable source identity %s=%s is ambiguous on the target. Resolve duplicate target records before import.', $api, $entity, $identityField, $identity),
       ];
       return;
     }
-    $desiredConfigKeys[$definitionKey][$this->identityKey($identityField, $identity)] = TRUE;
 
     if ($this->importWritesEnabled) {
       $this->applyBundledConfigItem($filename, $definition, $row, $identityField, $identity, $dryRun, $summary);
@@ -1022,9 +1103,10 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       $providerDeleteSafe[$definitionKey] = $safe;
       return;
     }
-    // One ambiguous/read-only source record makes the provider incomplete for
-    // destructive source-of-truth cleanup. Unsafe always wins.
-    $providerDeleteSafe[$definitionKey] = !empty($providerDeleteSafe[$definitionKey]) && $safe;
+    // Alpha63 applies delete safety per identity. One monitor-only source row no
+    // longer disables safe cleanup for every other unique row in the provider.
+    // Monitor-only desired identities are retained in desiredConfigKeys above.
+    $providerDeleteSafe[$definitionKey] = !empty($providerDeleteSafe[$definitionKey]) || $safe;
   }
 
   private function providerIdentitySafetyForDelete(array $rows, array $definition): string {

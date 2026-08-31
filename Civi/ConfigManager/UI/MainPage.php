@@ -64,7 +64,7 @@ class MainPage {
         $this->jsonOperationStatus();
       }
       elseif ($op === 'operation-stream') {
-        // Compatibility endpoint for older cached JavaScript. New alpha62 UI
+        // Compatibility endpoint for older cached JavaScript. New alpha63 UI
         // uses the persistent Queue start/step/status endpoints below.
         $this->streamOperation($postAction, $types);
       }
@@ -458,12 +458,14 @@ class MainPage {
       $written = count((array) ($result['written'] ?? []));
       $deleted = count((array) ($result['deleted'] ?? []));
       $skipped = count((array) ($result['skipped'] ?? []));
-      return [
-        ($written || $deleted)
-          ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-          : ts('Export complete. YAML files already match active CiviCRM configuration.'),
-        'success',
-      ];
+      $monitorOnly = (int) ($result['monitor_only'] ?? 0);
+      $message = ($written || $deleted)
+        ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
+        : ts('Export complete. YAML files already match active CiviCRM configuration.');
+      if ($monitorOnly > 0) {
+        $message .= ' ' . ts('%1 monitor-only ambiguous configuration object(s) were preserved for synchronization review; automatic create/update/delete remains disabled for those identities.', [1 => $monitorOnly]);
+      }
+      return [$message, 'success'];
     }
     $summary = trim((string) ($result['summary_message'] ?? ''));
     return [trim(ts('Import complete. Synchronize will verify the resulting configuration state.') . ' ' . $summary), 'success'];

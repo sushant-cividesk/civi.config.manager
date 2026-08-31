@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__, 2);
+$failures = [];
+$checks = 0;
+
+$assert = static function(bool $condition, string $message) use (&$failures, &$checks): void {
+  $checks++;
+  if (!$condition) {
+    $failures[] = $message;
+  }
+};
+$read = static function(string $relative) use ($root): string {
+  $contents = @file_get_contents($root . '/' . $relative);
+  if ($contents === FALSE) {
+    throw new RuntimeException('Could not read ' . $relative);
+  }
+  return $contents;
+};
+
+$civirules = $read('Civi/ConfigManager/Handler/CiviRulesHandler.php');
+$extensions = $read('Civi/ConfigManager/Handler/ExtensionHandler.php');
+$chunked = $read('Civi/ConfigManager/Handler/ChunkedStreamingHandlerInterface.php');
+$spool = $read('Civi/ConfigManager/Service/DiskRowSpool.php');
+$manager = $read('Civi/ConfigManager/Service/ConfigManager.php');
+$workspace = $read('Civi/ConfigManager/Service/StagedExportWorkspace.php');
+$operationWorkspace = $read('Civi/ConfigManager/Service/OperationWorkspace.php');
+$operationStore = $read('Civi/ConfigManager/Service/OperationStore.php');
+$queue = $read('Civi/ConfigManager/Service/QueuedOperationService.php');
+$js = $read('js/configmanager.js');
+$css = $read('css/configmanager.css');
+$info = $read('info.xml');
+
+$assert(strpos($info, '<version>0.1.0-alpha63-core</version>') !== FALSE, 'info.xml must identify alpha63-core.');
+$assert(strpos($chunked, 'interface ChunkedStreamingHandlerInterface extends StreamingHandlerInterface') !== FALSE, 'Alpha63 must expose the durable chunked export contract.');
+$assert(strpos($civirules, 'ChunkedStreamingHandlerInterface') !== FALSE && strpos($extensions, 'ChunkedStreamingHandlerInterface') !== FALSE, 'CiviRules and extension providers must support durable export units.');
+$assert(strpos($civirules, 'new DiskRowSpool()') !== FALSE && strpos($extensions, 'new DiskRowSpool()') !== FALSE, 'High-volume CiviRules/extension providers must spool one provider scan to disk.');
+$assert(strpos($spool, 'JSON_UNESCAPED_SLASHES') !== FALSE && strpos($spool, 'yield $decoded') !== FALSE, 'Provider spool must be disk-backed and replay rows iteratively.');
+$assert(strpos($civirules, "str_pad((string) \$occurrence, 2, '0', STR_PAD_LEFT)") !== FALSE, 'Ambiguous CiviRules snapshots must get deterministic occurrence filenames.');
+$assert(strpos($civirules, "'monitor_only' => !\$portable") !== FALSE, 'Ambiguous CiviRules source rows must be marked monitor-only.');
+$assert(strpos($civirules, "'content_fingerprint' => \$fingerprint") !== FALSE && strpos($civirules, "'group_count' => \$groupCount") !== FALSE, 'Ambiguous CiviRules metadata must preserve multiset group/fingerprint information.');
+$assert(strpos($civirules, 'target conflict: portable identity') !== FALSE, 'Portable CiviRules YAML which is ambiguous on target must be a blocking conflict.');
+$assert(strpos($civirules, 'other proven-safe configuration may continue importing') !== FALSE, 'Intentional monitor-only CiviRules rows must not block unrelated safe imports.');
+$assert(strpos($civirules, 'delete-missing skipped duplicate identity') !== FALSE, 'CiviRules delete safety must be per identity.');
+$assert(strpos($extensions, "'monitor_only' => \$monitorOnly") !== FALSE, 'Generic contributed-provider ambiguous rows must be monitor-only snapshots.');
+$assert(strpos($extensions, 'unrelated safe identities may continue') !== FALSE, 'Monitor-only extension provider rows must not block unrelated safe import.');
+$assert(strpos($extensions, 'target conflict: portable source identity') !== FALSE, 'Portable contributed-provider source identity must block on target ambiguity.');
+$assert(strpos($extensions, '$providerDeleteSafe[$definitionKey] = !empty($providerDeleteSafe[$definitionKey]) || $safe;') !== FALSE, 'Delete-missing capability must not be disabled provider-wide by one monitor-only identity.');
+$assert(strpos($manager, 'public function buildQueuedExportPlan') !== FALSE && strpos($manager, 'public function buildQueuedImportPlan') !== FALSE, 'Export and import must use explicit durable work-unit plans.');
+$assert(substr_count($manager, "'action' => 'export_stage'") >= 1 && strpos($manager, "'action' => 'export_verify_publish'") !== FALSE, 'Export queue plan must separate staging from final safety verification/publication.');
+$assert(strpos($manager, "'action' => 'import_preflight'") !== FALSE && strpos($manager, "'action' => 'import_create_update'") !== FALSE && strpos($manager, "'action' => 'import_delete_missing'") !== FALSE, 'Import queue plan must preserve preflight/create-update/delete phases.');
+$assert(strpos($manager, '$result[\'delete_phase_skipped\'] = TRUE;') !== FALSE, 'Queued create/update failure must explicitly mark delete-missing as skipped.');
+$assert(strpos($queue, 'if (!$ok)') !== FALSE && strpos($queue, '$store->failJob($jobId, $message, $result);') !== FALSE, 'A failed queued work unit must terminate the durable job before later delete-missing work can run.');
+$assert(strpos($operationWorkspace, "'civicfg-alpha63'") !== FALSE && strpos($operationWorkspace, "'state.json'") !== FALSE, 'Durable job workspace must live outside managed YAML and persist state.');
+$assert(strpos($workspace, "'publish-state.json'") !== FALSE && strpos($workspace, 'recoverIncompletePublish') !== FALSE, 'YAML publication rollback state must survive a killed worker.');
+$assert(strpos($workspace, 'persistPublishState($journal, $newPaths)') !== FALSE, 'Rollback intent must be persisted before live YAML mutation.');
+$assert(strpos($manager, 'recoverQueuedExportPublish') !== FALSE && strpos($queue, 'recoverQueuedExportPublish') !== FALSE, 'Indeterminate publish work must attempt durable rollback before blocking.');
+$assert(strpos($queue, '@session_write_close()') !== FALSE, 'Long queue advancement must release the PHP session so WordPress status polling remains responsive.');
+$assert(strpos($queue, 'runNext(FALSE)') !== FALSE, 'Browser advancement must consume at most one persistent queue item per request.');
+$assert(strpos($queue, "!empty(\$item['retry_safe'])") !== FALSE, 'Only explicitly retry-safe work units may be replayed after an interrupted worker.');
+$assert(strpos($operationStore, 'payload_json MEDIUMTEXT') !== FALSE && strpos($operationStore, 'retry_safe TINYINT') !== FALSE && strpos($operationStore, 'sequence_no INT') !== FALSE, 'Job items must persist durable payload/retry/ordering metadata.');
+$assert(strpos($operationStore, 'information_schema.COLUMNS') !== FALSE, 'Alpha63 operation schema upgrade must be idempotent for existing alpha62 tables.');
+$assert(strpos($operationStore, 'progress_known') !== FALSE && strpos($operationStore, 'phase_index') !== FALSE && strpos($operationStore, 'item_total') !== FALSE, 'Progress persistence must distinguish known totals, phases, and work-unit totals.');
+$assert(strpos($js, 'progress_known') !== FALSE && strpos($js, 'Phase ') !== FALSE, 'UI must render honest known/unknown progress with named phases.');
+$assert(strpos($js, "'Step ' + completed + ' of '") === FALSE, 'UI must not present heterogeneous queue work as misleading Step X of Y progress.');
+$assert(strpos($js, 'heartbeatAgeText') !== FALSE && strpos($js, 'refreshing this page will reconnect') !== FALSE, 'UI must show heartbeat/reconnect guidance.');
+$assert(strpos($js, 'Live YAML will not change until safety verification succeeds') !== FALSE, 'Export startup UX must state the real staging safety boundary.');
+$assert(strpos($css, '@keyframes civicfg-progress') === FALSE, 'Unknown progress must not use fake bouncing animation.');
+$assert(strpos($css, '.civicfg-progress-unknown') !== FALSE, 'Unknown-total progress must have explicit non-fake styling.');
+$assert(strpos($manager, "'monitor_only' => (int) (\$state['monitor_only'] ?? 0)") !== FALSE, 'Export result must report preserved monitor-only objects.');
+
+if ($failures) {
+  fwrite(STDERR, 'alpha63 contract FAILED (' . count($failures) . '/' . $checks . ")\n");
+  foreach ($failures as $failure) {
+    fwrite(STDERR, ' - ' . $failure . "\n");
+  }
+  exit(1);
+}
+
+echo 'alpha63 contract OK (' . $checks . " checks)\n";

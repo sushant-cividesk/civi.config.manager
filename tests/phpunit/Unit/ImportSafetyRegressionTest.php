@@ -140,7 +140,8 @@ final class ImportSafetyRegressionTest extends TestCase {
     $messages = implode("\n", array_map(static function(array $row): string {
       return (string) ($row['message'] ?? '');
     }, $result['compatibility']));
-    self::assertStringContainsString('database-local numeric ID', $messages);
+    self::assertStringContainsString('intentional monitor-only snapshot', $messages);
+    self::assertStringContainsString('does not expose a portable identity', $messages);
     self::assertStringContainsString('delete-missing is disabled', $messages);
   }
 }

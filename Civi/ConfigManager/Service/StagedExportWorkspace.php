@@ -6,26 +6,40 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
 /**
  * Disk-backed export snapshot with journaled publish/rollback.
  *
- * Full YAML documents live on disk in the staging area. PHP retains only path
- * strings and small metadata, which keeps peak memory independent of the total
- * size of the managed configuration set.
+ * Alpha63 can keep this workspace across several queue requests. Full YAML
+ * documents stay on disk and only compact path/identity/dependency metadata is
+ * retained in PHP. The persistent index is outside the managed YAML tree.
  */
 class StagedExportWorkspace {
   private YamlFileStorage $live;
   private YamlFileStorage $stage;
   private YamlFileStorage $rollback;
   private string $root;
-  /** @var array<string,array{type:string,directory:string,filename:string}> */
+  private string $indexPath;
+  private string $publishStatePath;
+  private bool $cleanupOnDestruct;
+  /** @var array<string,array<string,mixed>> */
   private array $files = [];
 
-  public function __construct(YamlFileStorage $live) {
+  public function __construct(YamlFileStorage $live, ?string $root = NULL, bool $cleanupOnDestruct = TRUE) {
     $this->live = $live;
-    $suffix = $this->randomSuffix();
-    $this->root = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg-export-' . $suffix;
+    $this->cleanupOnDestruct = $cleanupOnDestruct;
+    if ($root === NULL || trim($root) === '') {
+      $suffix = $this->randomSuffix();
+      $root = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg-export-' . $suffix;
+    }
+    $this->root = rtrim($root, DIRECTORY_SEPARATOR);
+    $this->indexPath = $this->root . DIRECTORY_SEPARATOR . 'workspace-index.json';
+    $this->publishStatePath = $this->root . DIRECTORY_SEPARATOR . 'publish-state.json';
     $this->stage = new YamlFileStorage($this->root . DIRECTORY_SEPARATOR . 'stage');
     $this->rollback = new YamlFileStorage($this->root . DIRECTORY_SEPARATOR . 'rollback');
     $this->stage->ensureRoot();
     $this->rollback->ensureRoot();
+    $this->loadIndex();
+  }
+
+  public function getRoot(): string {
+    return $this->root;
   }
 
   public function getStageStorage(): YamlFileStorage {
@@ -34,35 +48,96 @@ class StagedExportWorkspace {
 
   /**
    * @param array<string,mixed> $data
+   * @param array<string,mixed> $metadata
    */
-  public function stage(string $type, string $directory, string $filename, array $data): string {
+  public function stage(string $type, string $directory, string $filename, array $data, array $metadata = []): string {
     $relative = $this->relative($directory, $filename);
     if (isset($this->files[$relative])) {
       throw new \RuntimeException('Duplicate export path detected: ' . $relative . '. Two active configuration objects cannot share one YAML path. No live YAML was changed.');
     }
     $this->stage->write($directory, $filename, $data);
-    $this->files[$relative] = [
+    $this->files[$relative] = array_merge([
       'type' => $type,
       'directory' => trim($directory, '/'),
       'filename' => ltrim($filename, '/'),
-    ];
+    ], $metadata);
     return $relative;
+  }
+
+  /** Persist compact workspace metadata after a queue work unit completes. */
+  public function persistIndex(): void {
+    $dir = dirname($this->indexPath);
+    if (!is_dir($dir) && !mkdir($dir, 0700, TRUE) && !is_dir($dir)) {
+      throw new \RuntimeException('Could not create Configuration Manager export workspace directory.');
+    }
+    $json = json_encode($this->files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+    if ($json === FALSE) {
+      throw new \RuntimeException('Could not encode Configuration Manager export workspace index.');
+    }
+    $tmp = $this->indexPath . '.tmp';
+    if (file_put_contents($tmp, $json, LOCK_EX) === FALSE || !rename($tmp, $this->indexPath)) {
+      @unlink($tmp);
+      throw new \RuntimeException('Could not persist Configuration Manager export workspace index.');
+    }
+    @chmod($this->indexPath, 0600);
+  }
+
+  /** Remove every staged document recorded for one durable queue unit. */
+  public function removeUnit(string $type, string $unitKey): void {
+    foreach (array_keys($this->files) as $relative) {
+      $file = (array) $this->files[$relative];
+      if ((string) ($file['type'] ?? '') !== $type || (string) ($file['unit_key'] ?? '') !== $unitKey) {
+        continue;
+      }
+      [$directory, $filename] = $this->splitRelative($relative);
+      $this->stage->delete($directory, $filename);
+      unset($this->files[$relative]);
+    }
+    $this->persistIndex();
+  }
+
+  /**
+   * Remove staged paths belonging to one queue unit before a safe retry.
+   *
+   * A prefix is relative to the handler directory. It may point to a directory
+   * (provider/bucket unit) or an exact filename.
+   */
+  public function removeTypePrefix(string $type, string $prefix = ''): void {
+    $prefix = trim(str_replace('\\', '/', $prefix), '/');
+    foreach (array_keys($this->files) as $relative) {
+      $file = (array) $this->files[$relative];
+      if ((string) ($file['type'] ?? '') !== $type) {
+        continue;
+      }
+      $candidate = ltrim((string) ($file['filename'] ?? ''), '/');
+      if ($prefix !== '' && $candidate !== $prefix && strpos($candidate, $prefix . '/') !== 0) {
+        continue;
+      }
+      [$directory, $filename] = $this->splitRelative($relative);
+      $this->stage->delete($directory, $filename);
+      unset($this->files[$relative]);
+    }
+    $this->persistIndex();
   }
 
   /**
    * Rewrite a staged document after dependency/index enrichment.
    *
    * @param array<string,mixed> $data
+   * @param array<string,mixed>|null $metadata
    */
-  public function rewrite(string $relative, array $data): void {
+  public function rewrite(string $relative, array $data, ?array $metadata = NULL): void {
     if (!isset($this->files[$relative])) {
       throw new \RuntimeException('Cannot rewrite unstaged export path: ' . $relative);
     }
     $file = $this->files[$relative];
-    $this->stage->write($file['directory'], $file['filename'], $data);
+    $this->stage->write((string) $file['directory'], (string) $file['filename'], $data);
+    if ($metadata !== NULL) {
+      $this->files[$relative] = array_merge($file, $metadata);
+    }
   }
 
-  /** @return array<string,array{type:string,directory:string,filename:string}> */
+  /** @return array<string,array<string,mixed>> */
   public function files(): array {
     return $this->files;
   }
@@ -71,7 +146,7 @@ class StagedExportWorkspace {
   public function pathSetForType(string $type): array {
     $paths = [];
     foreach ($this->files as $relative => $file) {
-      if ($file['type'] === $type) {
+      if (($file['type'] ?? '') === $type) {
         $paths[$relative] = TRUE;
       }
     }
@@ -118,9 +193,14 @@ class StagedExportWorkspace {
    * @return array{written:string[],deleted:string[],skipped:string[]}
    */
   public function publish(array $stalePaths): array {
+    if (is_file($this->publishStatePath)) {
+      throw new \RuntimeException('An incomplete YAML publication journal already exists. Recover that publication before attempting another publish.');
+    }
+
     $result = ['written' => [], 'deleted' => [], 'skipped' => []];
     $journal = [];
     $newPaths = [];
+    $this->persistPublishState($journal, $newPaths);
 
     try {
       $paths = array_keys($this->files);
@@ -145,6 +225,7 @@ class StagedExportWorkspace {
           continue;
         }
         $this->backup($relative, $current, $journal);
+        $this->persistPublishState($journal, $newPaths);
         [$directory, $filename] = $this->splitRelative($relative);
         $this->live->delete($directory, $filename);
         $result['deleted'][] = $this->live->getPath($directory, $filename);
@@ -153,12 +234,16 @@ class StagedExportWorkspace {
       if (isset($this->files['manifest.yml'])) {
         $this->publishOne('manifest.yml', $journal, $newPaths, $result);
       }
+      $this->clearPublishState();
     }
     catch (\Throwable $e) {
       $rollbackErrors = $this->restoreJournal($journal, $newPaths);
+      if (!$rollbackErrors) {
+        $this->clearPublishState();
+      }
       $message = 'Staged export publish failed and live YAML was rolled back: ' . $e->getMessage();
       if ($rollbackErrors) {
-        $message .= ' Rollback also reported: ' . implode('; ', $rollbackErrors);
+        $message .= ' Rollback also reported: ' . implode('; ', $rollbackErrors) . '. The durable publication journal was kept for recovery.';
       }
       throw new \RuntimeException($message, 0, $e);
     }
@@ -166,12 +251,51 @@ class StagedExportWorkspace {
     return $result;
   }
 
+  /**
+   * Recover a publication whose PHP worker stopped after live YAML mutation
+   * began but before a terminal result could be recorded.
+   *
+   * @return array{recovered:bool,errors:string[]}
+   */
+  public function recoverIncompletePublish(): array {
+    if (!is_file($this->publishStatePath)) {
+      return ['recovered' => FALSE, 'errors' => []];
+    }
+    $raw = file_get_contents($this->publishStatePath);
+    $state = $raw !== FALSE ? json_decode($raw, TRUE) : NULL;
+    if (!is_array($state)) {
+      return ['recovered' => FALSE, 'errors' => ['The durable publication journal is unreadable. Manual review is required before another export.']];
+    }
+    $journal = [];
+    foreach ((array) ($state['journal'] ?? []) as $relative) {
+      $relative = trim((string) $relative);
+      if ($relative !== '') {
+        $journal[$relative] = TRUE;
+      }
+    }
+    $newPaths = [];
+    foreach ((array) ($state['new_paths'] ?? []) as $relative) {
+      $relative = trim((string) $relative);
+      if ($relative !== '') {
+        $newPaths[$relative] = TRUE;
+      }
+    }
+    $errors = $this->restoreJournal($journal, $newPaths);
+    if (!$errors) {
+      $this->clearPublishState();
+    }
+    return ['recovered' => !$errors, 'errors' => $errors];
+  }
+
   public function cleanup(): void {
     $this->removeTree($this->root);
+    $this->files = [];
   }
 
   public function __destruct() {
-    $this->cleanup();
+    if ($this->cleanupOnDestruct) {
+      $this->cleanup();
+    }
   }
 
   /**
@@ -196,6 +320,9 @@ class StagedExportWorkspace {
     else {
       $this->backup($relative, $current, $journal);
     }
+    // Persist rollback intent before the live write so a hard-killed worker can
+    // restore the previous coherent snapshot on the next reviewed operation.
+    $this->persistPublishState($journal, $newPaths);
     [$directory, $filename] = $this->splitRelative($relative);
     $result['written'][] = $this->live->writeRaw($directory, $filename, $desired);
   }
@@ -240,6 +367,46 @@ class StagedExportWorkspace {
       }
     }
     return $errors;
+  }
+
+  /** @param array<string,bool> $journal @param array<string,bool> $newPaths */
+  private function persistPublishState(array $journal, array $newPaths): void {
+    $state = [
+      'status' => 'publishing',
+      'journal' => array_values(array_keys($journal)),
+      'new_paths' => array_values(array_keys($newPaths)),
+      'updated_at' => gmdate('c'),
+    ];
+    $json = json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($json === FALSE) {
+      throw new \RuntimeException('Could not encode durable YAML publication journal.');
+    }
+    $tmp = $this->publishStatePath . '.tmp';
+    if (file_put_contents($tmp, $json, LOCK_EX) === FALSE || !rename($tmp, $this->publishStatePath)) {
+      @unlink($tmp);
+      throw new \RuntimeException('Could not persist durable YAML publication journal.');
+    }
+    @chmod($this->publishStatePath, 0600);
+  }
+
+  private function clearPublishState(): void {
+    @unlink($this->publishStatePath);
+    @unlink($this->publishStatePath . '.tmp');
+  }
+
+  private function loadIndex(): void {
+    if (!is_file($this->indexPath)) {
+      return;
+    }
+    $raw = file_get_contents($this->indexPath);
+    if ($raw === FALSE || trim($raw) === '') {
+      return;
+    }
+    $decoded = json_decode($raw, TRUE);
+    if (!is_array($decoded)) {
+      throw new \RuntimeException('Configuration Manager export workspace index is invalid.');
+    }
+    $this->files = $decoded;
   }
 
   private function relative(string $directory, string $filename): string {

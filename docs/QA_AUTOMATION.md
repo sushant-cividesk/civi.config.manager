@@ -79,16 +79,17 @@ Development scenarios must not depend on existing client records, production ide
 
 ## Alpha62 large-site architecture coverage
 
-Alpha62 adds a dependency-free architecture contract (`tests/ci/alpha62-contract.php`) plus a bounded-memory stress gate:
+Alpha63 keeps the alpha62 dependency-free streaming gate and adds release-specific ambiguity/queue/recovery contracts:
 
 ```bash
 composer test:alpha62-contract
+composer test:alpha63-contract
 composer qa:stress
 ```
 
-The stress gate runs with `memory_limit=256M` and exercises 5,000 API4 rows, 5,000 YAML files, duplicate staged-path rejection, and rollback after a forced mid-publish failure. The alpha62 developer scenario additionally captures compact/lazy Synchronize, CiviRules duplicate identity safety, optimistic export/import conflicts, global create/update-before-delete safety, CSRF, persistent progress reconnect, queue locking, completed-task idempotency, and fail-closed indeterminate retry behavior.
+`qa:stress` runs both low-memory programs at `memory_limit=256M`: alpha62 traverses 5,000 API4 rows + 5,000 real YAML files and proves duplicate-path/exception rollback safety; alpha63 adds 10,000 disk-spooled provider rows, a persistent 5,000-document staging index, and durable recovery of a simulated hard-interrupted publication. The alpha63 scenario additionally covers deterministic monitor-only duplicate snapshots, target-ambiguity preflight blocking, per-identity delete safety, multi-unit Queue reconnect/retry rules, WordPress progress responsiveness, and repeated Export/Synchronize zero-diff behavior.
 
-This dependency-free gate supplements rather than replaces PHPUnit, PHPStan, PHPCompatibility, the isolated Standalone lifecycle, Drupal 7/CiviCRM 5.76 testing, WordPress testing, or real contributed-provider fixtures.
+These source/stress gates complement rather than replace PHPUnit, PHPStan, PHPCompatibility, Drupal 7, WordPress, Standalone, and real contributed-extension lifecycle QA.
 
 ## Alpha59 scope UI coverage
 

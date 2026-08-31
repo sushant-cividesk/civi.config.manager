@@ -619,7 +619,22 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       ],
     ]]);
     self::assertArrayHasKey($definitionKey, $safe);
-    self::assertFalse($safe[$definitionKey]);
+    self::assertTrue($safe[$definitionKey], 'One monitor-only identity must not revoke delete capability already proven for unrelated portable identities in the same provider.');
+
+    // A provider which contains only monitor-only/ambiguous source metadata
+    // still fails closed and cannot authorize delete-missing by itself.
+    /** @var array<string, bool> $ambiguousOnly */
+    $ambiguousOnly = [];
+    $method->invokeArgs($handler, [&$ambiguousOnly, $definitions, 'demo', [
+      'api' => 'api4',
+      'entity' => 'DemoEntity',
+      'item' => [
+        'identity_confidence' => 'AMBIGUOUS',
+        'capabilities' => ['create' => FALSE, 'update' => FALSE, 'delete' => FALSE],
+      ],
+    ]]);
+    self::assertArrayHasKey($definitionKey, $ambiguousOnly);
+    self::assertFalse((bool) ($ambiguousOnly[$definitionKey] ?? TRUE));
   }
 
   public function testProviderDeleteSafetyFailsClosedWithoutPortableMatchMetadata(): void {

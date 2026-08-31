@@ -47,6 +47,7 @@
     "qa:fast": [
       "@lint:php",
       "@test:alpha62-contract",
+      "@test:alpha63-contract",
       "@test:scenarios",
       "@test:unit",
       "@analyse",
@@ -54,6 +55,10 @@
     ],
     "qa:full": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
     "qa:full-ui": "bash tests/ci/run-local-ui.sh",
-    "qa:stress": "php -d memory_limit=256M tests/ci/alpha62-stress.php"
+    "qa:stress": [
+      "php -d memory_limit=256M tests/ci/alpha62-stress.php",
+      "php -d memory_limit=256M tests/ci/alpha63-stress.php"
+    ],
+    "test:alpha63-contract": "php tests/ci/alpha63-contract.php"
   }
 }
