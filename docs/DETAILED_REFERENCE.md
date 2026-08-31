@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha64-core`
+- Current build: read from `info.xml`; this source is `1.0.0-beta1`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -22,7 +22,7 @@ Runtime YAML parsing/dumping uses the extension's bundled Symfony YAML dependenc
 
 ## Development and beta policy
 
-`0.1.0-alpha64-core` is the real-world hardening alpha built on the durable alpha63 execution model. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. It keeps alpha63 queue/ambiguity safety while hardening provider admission, CMS-root consistency, YAML runtime completeness, JSON protocol boundaries, and production release packaging.
+`1.0.0-beta1` is the first clean beta of the real-world hardening line built on the durable alpha63/alpha64 execution model. It keeps the queue/ambiguity safety, provider-admission hardening, CMS-root consistency, YAML runtime completeness, JSON protocol boundaries, and production release packaging proven during alpha64 QA while moving the version metadata to the controlled beta channel.
 
 Alpha63 specifically adds deterministic monitor-only snapshots for duplicate/unproven identities, per-identity delete safety, disk-spooled one-pass provider reads, durable multi-item Queue plans, persistent staging metadata, hard-interruption YAML publish recovery, WordPress session-lock release, and semantic phase/heartbeat progress. The safety distinction is deliberate: intentional source monitor-only rows are skipped without blocking unrelated safe items, while a source identity which was proven portable but becomes ambiguous on the target is a blocking preflight conflict.
 

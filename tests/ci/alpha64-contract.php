@@ -33,8 +33,8 @@ $gitignore = $read('.gitignore');
 $releaseBuilder = $read('scripts/build-release.sh');
 $releaseWorkflow = $read('.github/workflows/release.yml');
 
-$assert(strpos($info, '<version>0.1.0-alpha64-core</version>') !== FALSE, 'info.xml must identify alpha64-core.');
-$assert(strpos($info, '<releaseDate>2026-08-31</releaseDate>') !== FALSE, 'alpha64 release date must be 2026-08-31.');
+$assert((bool) preg_match('/<version>[^<]+<\/version>/', $info), 'info.xml must declare a non-empty release version.');
+$assert((bool) preg_match('/<releaseDate>\d{4}-\d{2}-\d{2}<\/releaseDate>/', $info), 'info.xml must declare an ISO release date.');
 $assert(strpos($manager, 'CRM_Utils_System::cmsRootPath()') !== FALSE, 'Relative sync paths must prefer the active CiviCRM CMS root.');
 $assert(strpos($simpleYaml, "function_exists('yaml_parse_file')") !== FALSE && strpos($simpleYaml, "function_exists('yaml_emit')") !== FALSE, 'Source runtime fallback requires complete ext-yaml read/write support.');
 $assert(strpos($simpleYaml, 'private static function dumpValue') === FALSE && strpos($simpleYaml, 'private static function dumpArray') === FALSE, 'Production must not contain the old hand-written YAML serializer.');
@@ -49,7 +49,7 @@ $assert(strpos($releaseBuilder, 'FORBIDDEN_TOP_LEVEL=(') !== FALSE && strpos($re
 $assert(strpos($gitignore, "vendor/\n") !== FALSE && strpos($gitignore, "dist/\n") !== FALSE, 'Local vendor and generated dist artifacts must remain untracked.');
 $assert(strpos($releaseWorkflow, "tags:\n      - 'v*'") !== FALSE && strpos($releaseWorkflow, 'Verify tag matches info.xml version') !== FALSE, 'Tagged releases must verify tag/info.xml version identity.');
 $assert(strpos($releaseWorkflow, 'composer qa:fast') !== FALSE && strpos($releaseWorkflow, 'composer qa:stress') !== FALSE && strpos($releaseWorkflow, 'composer audit') !== FALSE, 'Tagged releases must gate fast QA, stress, and dependency audit.');
-$assert(strpos($releaseWorkflow, 'gh release create') !== FALSE && strpos($releaseWorkflow, '--prerelease') !== FALSE, 'Tagged alpha releases must publish the runtime artifact as a GitHub pre-release.');
+$assert(strpos($releaseWorkflow, 'gh release create') !== FALSE && strpos($releaseWorkflow, '--prerelease') !== FALSE, 'Tagged alpha/beta/RC releases must publish the runtime artifact as a GitHub pre-release.');
 
 if ($failures) {
   fwrite(STDERR, 'alpha64 contract FAILED (' . count($failures) . '/' . $checks . ")\n");

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta1
+
+- First clean beta release of the alpha64 real-world hardening line. The runtime behavior is intentionally unchanged from the alpha64 code that passed the supported-PHP QA matrix, stress gates, hook/CLI coverage, dependency audit, and production-package checks.
+- Promotes the release metadata to `1.0.0-beta1` / `beta` and keeps the tag-to-`info.xml` identity gate so `v1.0.0-beta1` can only publish this exact version.
+- Official installation remains the attached runtime-complete `civi.config.manager-1.0.0-beta1.zip`, which contains extension runtime code/assets plus locked production `vendor/` dependencies only. Repository tests, docs, scripts, Composer metadata, logs, and CI files are not included in that installable artifact.
+- The Git repository/tag remains the auditable source tree used to run release QA. Downstream deployment/package manifests that require a production-clean payload should consume the GitHub release ZIP rather than GitHub's automatic source archive.
+
+> **Beta1 validation boundary:** this is the first clean beta intended for controlled real-project deployment. Continue validating WordPress and Drupal Export -> immediate Synchronize -> repeat Export, the BMT CiviRules ambiguity case, and DEV-only Import before broader production promotion.
+
 ## 0.1.0-alpha64-core
 
 - Hardened contributed-provider discovery for real projects: generic API4 CRUD entities are admitted only when portable configuration identity can be proven, generic API3 candidates remain diagnostic-only unless explicitly reviewed, and discovery no longer executes arbitrary business-data collection actions. This excludes transactional entities such as Civigrant `Grant` and CiviMobile `CiviMobileParticipant` instead of exporting them or aborting unrelated configuration Export.

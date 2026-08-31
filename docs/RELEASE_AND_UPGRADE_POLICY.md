@@ -29,6 +29,6 @@ The Git repository is the development/source tree. It intentionally contains tes
 
 A tagged release is built with `composer package:release`. The resulting `dist/civi.config.manager-<version>.zip` is an explicit runtime allowlist containing only the extension runtime directories/files plus locked `--no-dev` Composer dependencies under `vendor/`. Tests, CI workflows, documentation, release scripts, development Composer metadata, Node files, analysis configuration, caches, logs, and other build material are rejected by the packager if they leak into the archive.
 
-Release tags must be `v<info.xml version>` (for example `v0.1.0-alpha64-core`). The tag release workflow re-runs the supported PHP fast-QA matrix, security audit, stress gate, verifies the tag/version match, builds the production runtime ZIP, validates its contents, and attaches only the runtime ZIP and SHA-256 file to the GitHub Release.
+Release tags must be `v<info.xml version>` (for example `v1.0.0-beta1`). The tag release workflow re-runs the supported PHP fast-QA matrix, security audit, stress gate, verifies the tag/version match, builds the production runtime ZIP, validates its contents, and attaches only the runtime ZIP and SHA-256 file to the GitHub Release.
 
 Development and CI checkouts still require `composer install` before Composer QA commands. That requirement is deliberately separate from the installable release ZIP, which bundles its production runtime dependencies and must not require Composer on the target CiviCRM site.
