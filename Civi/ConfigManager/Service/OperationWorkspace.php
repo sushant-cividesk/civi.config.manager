@@ -20,10 +20,42 @@ class OperationWorkspace {
     }
     $this->jobId = $jobId;
     $this->syncRootHash = $syncRootHash;
-    $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg-alpha63';
+    $base = $this->resolveBaseDirectory();
     $this->root = $base . DIRECTORY_SEPARATOR . substr($syncRootHash, 0, 20) . DIRECTORY_SEPARATOR . 'job-' . $jobId;
     $this->statePath = $this->root . DIRECTORY_SEPARATOR . 'state.json';
     $this->ensureRoot();
+  }
+
+  /**
+   * Prefer CiviCRM's persistent non-public ConfigAndLog directory for durable
+   * queue state. Container /tmp is intentionally only a fallback: queued jobs
+   * survive in SQL, so their staged workspace must normally survive an Apache/
+   * PHP/container restart as well.
+   */
+  private function resolveBaseDirectory(): string {
+    try {
+      if (class_exists('CRM_Core_Config')) {
+        $config = \CRM_Core_Config::singleton();
+        $configAndLogDir = trim((string) ($config->configAndLogDir ?? ''));
+        if ($configAndLogDir !== '') {
+          $base = rtrim($configAndLogDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg-alpha63';
+          if ((is_dir($base) || @mkdir($base, 0700, TRUE)) && is_writable($base)) {
+            @chmod($base, 0700);
+            return $base;
+          }
+        }
+      }
+    }
+    catch (\Throwable $e) {
+      // Early bootstrap/unit-test runtimes may not have a usable CiviCRM path.
+    }
+
+    $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'civicfg-alpha63';
+    if (!is_dir($base) && !@mkdir($base, 0700, TRUE) && !is_dir($base)) {
+      throw new \RuntimeException('Could not create Configuration Manager operation workspace base directory.');
+    }
+    @chmod($base, 0700);
+    return $base;
   }
 
   public function getRoot(): string {

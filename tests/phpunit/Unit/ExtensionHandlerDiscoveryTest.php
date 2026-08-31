@@ -674,6 +674,137 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertStringContainsString("'offset' => \$offset", $source);
   }
 
+  public function testGenericApi4AdmissionRejectsCrudBusinessEntityWithoutPortableMetadata(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method->setAccessible(TRUE);
+
+    $fields = [
+      'id' => ['name' => 'id', 'data_type' => 'Integer'],
+      'contact_id' => ['name' => 'contact_id', 'data_type' => 'Integer'],
+      'grant_type_id' => ['name' => 'grant_type_id', 'data_type' => 'Integer'],
+      'amount_total' => ['name' => 'amount_total', 'data_type' => 'Money'],
+      'currency' => ['name' => 'currency', 'data_type' => 'String'],
+    ];
+
+    $result = (array) $method->invoke($handler, [], $fields, FALSE);
+    self::assertFalse($result['admitted']);
+    self::assertStringContainsString('does not declare a non-ID match_fields identity', (string) $result['reason']);
+  }
+
+  public function testGenericApi4AdmissionRejectsBusinessEntityEvenWithNaturalMatchKey(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method->setAccessible(TRUE);
+
+    $fields = [
+      'reference' => ['name' => 'reference', 'data_type' => 'String'],
+      'contact_id' => ['name' => 'contact_id', 'data_type' => 'Integer'],
+      'amount' => ['name' => 'amount', 'data_type' => 'Money'],
+    ];
+
+    $result = (array) $method->invoke($handler, ['reference'], $fields, FALSE);
+    self::assertFalse($result['admitted']);
+    self::assertStringContainsString('business/transaction field', (string) $result['reason']);
+  }
+
+  public function testGenericApi4AdmissionRequiresExplicitReviewForSensitiveWritableFields(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method->setAccessible(TRUE);
+
+    $fields = [
+      'name' => ['name' => 'name', 'data_type' => 'String'],
+      'api_token' => ['name' => 'api_token', 'data_type' => 'String'],
+    ];
+
+    $result = (array) $method->invoke($handler, ['name'], $fields, FALSE);
+    self::assertFalse($result['admitted']);
+    self::assertStringContainsString('sensitive-looking writable field', (string) $result['reason']);
+
+    $reviewed = (array) $method->invoke($handler, [], $fields, TRUE);
+    self::assertTrue($reviewed['admitted']);
+  }
+
+  public function testGenericApi4AdmissionAcceptsPortableConfigMetadata(): void {
+    $handler = new ExtensionHandler();
+    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method->setAccessible(TRUE);
+
+    $fields = [
+      'name' => ['name' => 'name', 'data_type' => 'String'],
+      'label' => ['name' => 'label', 'data_type' => 'String'],
+      'is_active' => ['name' => 'is_active', 'data_type' => 'Boolean'],
+    ];
+
+    $result = (array) $method->invoke($handler, ['name'], $fields, FALSE);
+    self::assertTrue($result['admitted']);
+  }
+
+  public function testNonAdmittedBusinessProvidersNeverBecomeExportUnits(): void {
+    $handler = new ExtensionHandler();
+    $property = new ReflectionProperty($handler, 'discoveredEntityDefinitions');
+    $property->setAccessible(TRUE);
+    $property->setValue($handler, [
+      [
+        'extension' => 'civigrant',
+        'api' => 'api4',
+        'entity' => 'Grant',
+        'generic_config_admitted' => FALSE,
+        'admission_reason' => 'business data',
+        'can_create' => TRUE,
+        'can_update' => TRUE,
+        'can_delete' => TRUE,
+      ],
+      [
+        'extension' => 'com.agiliway.civimobileapi',
+        'api' => 'api3',
+        'entity' => 'CiviMobileParticipant',
+        'generic_config_admitted' => FALSE,
+        'admission_reason' => 'generic API3 is not configuration evidence',
+        'can_create' => FALSE,
+        'can_update' => FALSE,
+        'can_delete' => FALSE,
+      ],
+      [
+        'extension' => 'example.config',
+        'api' => 'api4',
+        'entity' => 'PortableConfig',
+        'generic_config_admitted' => TRUE,
+        'can_create' => TRUE,
+        'can_update' => TRUE,
+        'can_delete' => FALSE,
+      ],
+    ]);
+
+    $units = $handler->getExportUnits();
+    $encoded = json_encode($units);
+    self::assertIsString($encoded);
+    self::assertStringNotContainsString('Grant', $encoded);
+    self::assertStringNotContainsString('CiviMobileParticipant', $encoded);
+    self::assertStringContainsString('PortableConfig', $encoded);
+  }
+
+  public function testProviderDiscoveryDoesNotExecuteGenericCollectionActions(): void {
+    $source = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+
+    $api4Start = strpos($source, 'private function api4EntityDeclarativelyReadable');
+    $api4End = strpos($source, 'private function api3EntityUsable', $api4Start === FALSE ? 0 : $api4Start);
+    self::assertNotFalse($api4Start);
+    self::assertNotFalse($api4End);
+    $api4Block = substr($source, (int) $api4Start, (int) $api4End - (int) $api4Start);
+    self::assertStringNotContainsString('->execute()', $api4Block);
+
+    $api3Start = strpos($source, 'private function discoverApi3Entities');
+    $api3End = strpos($source, 'private function reviewedApi3ProviderDefinitions', $api3Start === FALSE ? 0 : $api3Start);
+    self::assertNotFalse($api3Start);
+    self::assertNotFalse($api3End);
+    $api3Block = substr($source, (int) $api3Start, (int) $api3End - (int) $api3Start);
+    self::assertStringNotContainsString('civicrm_api3(', $api3Block);
+    self::assertStringNotContainsString('api3ListAction(', $api3Block);
+    self::assertStringNotContainsString('api3EntityHasAction(', $api3Block);
+  }
+
   private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {
     $property = new ReflectionProperty($handler, 'identityRowsByDefinition');
     $property->setAccessible(TRUE);

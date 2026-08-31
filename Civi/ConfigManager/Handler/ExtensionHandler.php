@@ -402,16 +402,18 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         $definition = (array) $definition;
         $importable = !$this->isNonImportableDefinition($definition);
         $identityRows = [];
-        $identitySafety = 'UNVERIFIED';
+        $identitySafety = $importable ? 'UNVERIFIED' : 'EXCLUDED';
         $discoveryError = '';
-        try {
-          $identityRows = $this->identityRowsForDefinition($definition);
-          $identitySafety = $this->identitySafetyForRows($identityRows, $definition);
-        }
-        catch (\Throwable $e) {
-          $identitySafety = 'ERROR';
-          $discoveryError = $e->getMessage();
-          $errorProviders++;
+        if ($importable) {
+          try {
+            $identityRows = $this->identityRowsForDefinition($definition);
+            $identitySafety = $this->identitySafetyForRows($identityRows, $definition);
+          }
+          catch (\Throwable $e) {
+            $identitySafety = 'ERROR';
+            $discoveryError = $e->getMessage();
+            $errorProviders++;
+          }
         }
         $provider = [
           'api' => (string) ($definition['api'] ?? ''),
@@ -419,6 +421,8 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
           'list_action' => (string) ($definition['list_action'] ?? 'get'),
           'read_adapter' => (string) ($definition['read_adapter'] ?? ''),
           'match_fields' => array_values((array) ($definition['match_fields'] ?? [])),
+          'generic_config_admitted' => !array_key_exists('generic_config_admitted', $definition) || !empty($definition['generic_config_admitted']),
+          'admission_reason' => (string) ($definition['admission_reason'] ?? ''),
           'can_create' => !empty($definition['can_create']),
           'can_update' => !empty($definition['can_update']),
           'can_delete' => !empty($definition['can_delete']),
@@ -532,6 +536,13 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
           continue;
         }
         $definition = $resolved['definition'];
+        if ($this->isNonImportableDefinition($definition)) {
+          $compatibility[] = [
+            'file' => $filename,
+            'message' => sprintf('Skipped non-admitted extension provider %s %s during validation. Re-export removes obsolete generic-provider YAML; active CiviCRM business/config data is untouched.', $entry['api'], $entry['entity']),
+          ];
+          continue;
+        }
         $row = (array) ($entry['item']['item'] ?? []);
         $identityField = (string) ($entry['item']['identity_field'] ?? '');
         if ($identityField === '' || empty($row[$identityField])) {
@@ -971,6 +982,13 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     $row = (array) ($item['item'] ?? []);
     $identityField = (string) ($item['identity_field'] ?? '');
     $definition = $resolved['definition'];
+    if ($this->isNonImportableDefinition($definition)) {
+      $compatibility[] = [
+        'file' => $filename,
+        'message' => sprintf('Extension provider %s %s is no longer admitted by generic configuration discovery. Import will skip this YAML; re-export removes it safely.', $api, $entity),
+      ];
+      return;
+    }
     if ($identityField === '' || empty($row[$identityField])) {
       $identityField = (string) ($this->identityField($row, $definition) ?? '');
     }
@@ -1525,27 +1543,34 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         continue;
       }
 
-      // SQLTasks ships a native API4 SqlTask provider and a legacy API3
-      // surface for compatibility. Do not downgrade to API3 just because a
-      // discovery-time probe cannot execute in an isolated/early bootstrap
-      // request. The real export read below remains authoritative and will
-      // report a provider error if API4 is genuinely unusable.
+      // Generic discovery must never execute provider collection actions.
+      // A get() probe can read business data, emit warnings/deprecations, depend
+      // on user-specific context, or have extension-specific side effects. Use
+      // class/metadata capability only here; the actual export read is allowed
+      // only after the provider has passed the configuration-admission gate.
       $isSqltasksSqlTask = strtolower($extensionKey) === 'de.systopia.sqltasks'
         && strtolower($entity) === 'sqltask';
-      if (!$isSqltasksSqlTask && !$this->api4EntityUsable($entity)) {
-        continue;
-      }
-      if (!method_exists($class, 'get')) {
+      if (!$this->api4EntityDeclarativelyReadable($entity)) {
         continue;
       }
       $info = $this->api4Info($entity);
+      $fields = $this->api4Fields($entity);
+      $matchFields = array_values(array_filter((array) ($info['match_fields'] ?? []), static function($field) {
+        $field = trim((string) $field);
+        return $field !== '' && strtolower($field) !== 'id';
+      }));
+      $reviewedProvider = $isSqltasksSqlTask;
+      $admission = $this->genericApi4ConfigAdmission($matchFields, $fields, $reviewedProvider);
       $definitions[] = [
         'extension' => $extensionKey,
         'api' => 'api4',
         'entity' => $entity,
         'class' => $class,
-        'fields' => $this->api4Fields($entity),
-        'match_fields' => array_values(array_filter((array) ($info['match_fields'] ?? []), fn($field) => (string) $field !== 'id')),
+        'fields' => $fields,
+        'match_fields' => $matchFields,
+        'reviewed_provider' => $reviewedProvider,
+        'generic_config_admitted' => !empty($admission['admitted']),
+        'admission_reason' => (string) ($admission['reason'] ?? ''),
         'can_create' => is_callable([$class, 'create']),
         'can_update' => is_callable([$class, 'update']),
         'can_delete' => is_callable([$class, 'delete']),
@@ -1571,10 +1596,11 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       return FALSE;
     }
 
-    try {
+    $probe = $this->quietDiscoveryProbe(static function() use ($file) {
       require_once $file;
-    }
-    catch (\Throwable $e) {
+      return TRUE;
+    });
+    if (empty($probe['ok'])) {
       return FALSE;
     }
     return class_exists($class, FALSE) || class_exists($class);
@@ -1582,20 +1608,23 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
 
   private function discoverApi3Entities(string $extensionKey, string $basePath): array {
     $dir = $basePath . '/api/v3';
-    if (!is_dir($dir) || !function_exists('civicrm_api3')) {
+    if (!is_dir($dir)) {
       return [];
     }
 
-    // A small number of reviewed contributed providers have API3 layouts that
-    // cannot be discovered safely through runtime metadata. Resolve those
-    // providers declaratively from their installed action files and defer BAO
-    // class loading until rows are actually read.
+    // Generic API3 introspection is intentionally file-only. Calling get,
+    // getactions, getfields, or custom get-all actions while merely discovering
+    // candidates executes arbitrary contributed-extension code. Real projects
+    // have shown that this can emit warnings/deprecations and can expose
+    // participant/payment/business APIs which are not deployable configuration.
+    // Reviewed adapters are resolved first; all other API3 entities remain
+    // diagnostic-only candidates until an extension opts in through an explicit
+    // handler/adapter contract.
     $reviewed = $this->reviewedApi3ProviderDefinitions($extensionKey, $basePath);
     if ($reviewed !== NULL) {
       return $reviewed;
     }
 
-    $definitions = [];
     $files = glob($dir . '/*.php') ?: [];
     try {
       $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
@@ -1607,8 +1636,9 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       $files = array_values(array_unique($files));
     }
     catch (\Throwable $e) {
-      // Keep top-level API3 files only.
+      // Keep top-level API3 files only. Discovery itself stays read-only.
     }
+
     $entities = [];
     $fileActions = [];
     foreach ($files as $file) {
@@ -1623,34 +1653,30 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       }
     }
 
+    $definitions = [];
     foreach (array_keys($entities) as $entity) {
       if ($this->isNonImportableLegacyExtensionConfig($extensionKey, 'api3', $entity)) {
         continue;
       }
-      // Prefer a reviewed provider adapter before probing generic API3 read
-      // actions. SQLTasks Sqltask.get requires an ID, so probing it as a
-      // collection action can itself emit warnings in full QA.
-      $knownActions = array_keys($fileActions[$entity] ?? []);
-      $readAdapter = $this->api3ReadAdapter($entity, $basePath);
-      $readAdapterDefinition = $readAdapter === NULL ? NULL : $this->api3ReadAdapterDefinition($entity);
-      $listAction = $readAdapter === NULL ? $this->api3ListAction($entity) : NULL;
-      if (($listAction === NULL && $readAdapter === NULL) || !$this->api3EntityHasAction($entity, 'create', $knownActions)) {
-        continue;
-      }
-      $deleteAction = $this->api3DeleteAction($entity, $knownActions);
+      $knownActions = array_values(array_keys($fileActions[$entity] ?? []));
+      sort($knownActions, SORT_NATURAL | SORT_FLAG_CASE);
       $definitions[] = [
         'extension' => $extensionKey,
         'api' => 'api3',
         'entity' => $entity,
         'fields' => [],
-        'list_action' => $listAction ?? '',
-        'read_adapter' => $readAdapter ?? '',
-        'write_fields' => array_values((array) ($readAdapterDefinition['write_fields'] ?? [])),
+        'list_action' => '',
+        'read_adapter' => '',
+        'write_fields' => [],
         'base_path' => $basePath,
-        'can_create' => TRUE,
-        'can_update' => TRUE,
-        'delete_action' => $deleteAction,
-        'can_delete' => $deleteAction !== NULL,
+        'discovered_actions' => $knownActions,
+        'reviewed_provider' => FALSE,
+        'generic_config_admitted' => FALSE,
+        'admission_reason' => 'Generic API3 entity discovered from provider files only. API3 CRUD/read capability is not proof of deployable configuration, so Configuration Manager will not execute or manage it without a reviewed adapter or explicit custom handler.',
+        'can_create' => FALSE,
+        'can_update' => FALSE,
+        'delete_action' => NULL,
+        'can_delete' => FALSE,
       ];
     }
     return $definitions;
@@ -1703,6 +1729,9 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       'read_adapter' => $readAdapter,
       'write_fields' => array_values((array) ($adapter['write_fields'] ?? [])),
       'base_path' => $basePath,
+      'reviewed_provider' => TRUE,
+      'generic_config_admitted' => TRUE,
+      'admission_reason' => 'Reviewed provider adapter supplies a bounded collection read and explicit writable configuration fields.',
       'can_create' => TRUE,
       'can_update' => TRUE,
       'delete_action' => $deleteAction,
@@ -1750,22 +1779,18 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     return basename((string) end($parts), '.php');
   }
 
-  private function api4EntityUsable(string $entity): bool {
+  private function api4EntityDeclarativelyReadable(string $entity): bool {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class) || !method_exists($class, 'get')) {
       return FALSE;
     }
 
     try {
-      // Generic discovery can only probe API4 entities whose get() action does
-      // not require provider-specific context, such as CiviImport's userJobID.
+      // Do not execute get(). Reflection is enough to reject provider actions
+      // which require extra context that ConfigManager's generic reader cannot
+      // supply. Normal API4 get($checkPermissions = TRUE) has no required args.
       $method = new \ReflectionMethod($class, 'get');
-      if ($method->getNumberOfRequiredParameters() > 0) {
-        return FALSE;
-      }
-
-      $class::get(FALSE)->setLimit(1)->execute();
-      return TRUE;
+      return $method->getNumberOfRequiredParameters() === 0;
     }
     catch (\Throwable $e) {
       return FALSE;
@@ -2010,13 +2035,14 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     if (!class_exists($class) || !method_exists($class, 'getInfo')) {
       return [];
     }
-    try {
-      $info = $class::getInfo();
-      return is_array($info) ? $info : [];
-    }
-    catch (\Throwable $e) {
+    $probe = $this->quietDiscoveryProbe(static function() use ($class) {
+      return $class::getInfo();
+    });
+    if (empty($probe['ok']) || !empty($probe['warnings']) || trim((string) ($probe['output'] ?? '')) !== '') {
       return [];
     }
+    $info = $probe['value'] ?? NULL;
+    return is_array($info) ? $info : [];
   }
 
   private function api4Fields(string $entity): array {
@@ -2024,19 +2050,72 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     if (!class_exists($class) || !method_exists($class, 'getFields')) {
       return [];
     }
+    $probe = $this->quietDiscoveryProbe(static function() use ($class) {
+      return (array) $class::getFields(FALSE)->execute();
+    });
+    if (empty($probe['ok']) || !empty($probe['warnings']) || trim((string) ($probe['output'] ?? '')) !== '') {
+      return [];
+    }
+    $fields = [];
+    foreach ((array) ($probe['value'] ?? []) as $row) {
+      $row = (array) $row;
+      if (!empty($row['name'])) {
+        $fields[(string) $row['name']] = $row;
+      }
+    }
+    return $fields;
+  }
+
+  /**
+   * Run discovery metadata without leaking provider warnings/output into CLI,
+   * JSON, AJAX, or queue responses. This helper is discovery-only; actual
+   * export/import reads are never muted and still fail atomically on errors.
+   *
+   * @return array{ok:bool,value:mixed,warnings:string[],output:string,error:string}
+   */
+  private function quietDiscoveryProbe(callable $probe): array {
+    $warnings = [];
+    $startLevel = ob_get_level();
+    ob_start();
+    set_error_handler(static function($severity, $message, $file = '', $line = 0) use (&$warnings): bool {
+      $warnings[] = trim((string) $message) . ($file !== '' ? ' at ' . (string) $file . ':' . (int) $line : '');
+      return TRUE;
+    });
+
     try {
-      $rows = (array) $class::getFields(FALSE)->execute();
-      $fields = [];
-      foreach ($rows as $row) {
-        $row = (array) $row;
-        if (!empty($row['name'])) {
-          $fields[(string) $row['name']] = $row;
+      $value = $probe();
+      $output = '';
+      while (ob_get_level() > $startLevel) {
+        $chunk = ob_get_clean();
+        if ($chunk !== FALSE) {
+          $output = (string) $chunk . $output;
         }
       }
-      return $fields;
+      restore_error_handler();
+      return [
+        'ok' => TRUE,
+        'value' => $value,
+        'warnings' => array_values(array_unique($warnings)),
+        'output' => trim($output),
+        'error' => '',
+      ];
     }
     catch (\Throwable $e) {
-      return [];
+      $output = '';
+      while (ob_get_level() > $startLevel) {
+        $chunk = ob_get_clean();
+        if ($chunk !== FALSE) {
+          $output = (string) $chunk . $output;
+        }
+      }
+      restore_error_handler();
+      return [
+        'ok' => FALSE,
+        'value' => NULL,
+        'warnings' => array_values(array_unique($warnings)),
+        'output' => trim($output),
+        'error' => $e->getMessage(),
+      ];
     }
   }
 
@@ -2804,7 +2883,87 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     return $keys;
   }
 
+  /**
+   * Decide whether an automatically discovered API4 entity is safe to treat as
+   * deployable configuration. CRUD capability alone is not evidence: many
+   * contributed extensions expose contacts, grants, payments, activities, or
+   * other business records through API4. Accidentally exporting those records
+   * would be both a configuration-integrity and data-exposure bug.
+   *
+   * Explicit civicfg_entityDefinitions() handlers are outside this generic
+   * discovery path. Reviewed adapters may opt in here after fixture review.
+   *
+   * @param string[] $matchFields
+   * @param array<string,array<string,mixed>> $fields
+   * @return array{admitted:bool,reason:string}
+   */
+  private function genericApi4ConfigAdmission(array $matchFields, array $fields, bool $reviewedProvider = FALSE): array {
+    if ($reviewedProvider) {
+      return ['admitted' => TRUE, 'reason' => 'Reviewed provider adapter.'];
+    }
+
+    if (!$matchFields) {
+      return [
+        'admitted' => FALSE,
+        'reason' => 'API4 provider does not declare a non-ID match_fields identity. CRUD capability alone does not prove deployable configuration.',
+      ];
+    }
+
+    foreach ($matchFields as $field) {
+      $field = trim((string) $field);
+      if ($field === '' || !isset($fields[$field])) {
+        return [
+          'admitted' => FALSE,
+          'reason' => 'API4 provider match_fields metadata is incomplete for field ' . ($field !== '' ? $field : '[empty]') . '.',
+        ];
+      }
+      if ($this->isSensitiveSettingName($field)) {
+        return [
+          'admitted' => FALSE,
+          'reason' => 'API4 provider uses a sensitive-looking field as portable identity. Declare the provider explicitly so sensitive-field handling can be reviewed.',
+        ];
+      }
+    }
+
+    $businessMarkers = [
+      'contact_id', 'activity_id', 'case_id', 'contribution_id', 'participant_id',
+      'membership_id', 'membership_type_id', 'event_id', 'grant_type_id',
+      'financial_type_id', 'payment_processor_id', 'recurring_contribution_id',
+      'amount', 'amount_total', 'amount_requested', 'amount_granted', 'currency',
+    ];
+    foreach ($businessMarkers as $field) {
+      if (isset($fields[$field])) {
+        return [
+          'admitted' => FALSE,
+          'reason' => 'API4 provider exposes business/transaction field ' . $field . '. Generic discovery will not treat it as deployable configuration; use an explicit provider definition if this is intentionally configuration.',
+        ];
+      }
+    }
+
+    foreach ($fields as $name => $metadata) {
+      $name = (string) $name;
+      $metadata = (array) $metadata;
+      if (!empty($metadata['readonly']) || !empty($metadata['read_only']) || (($metadata['type'] ?? '') === 'Extra')) {
+        continue;
+      }
+      if ($name !== '' && $this->isSensitiveSettingName($name)) {
+        return [
+          'admitted' => FALSE,
+          'reason' => 'API4 provider exposes sensitive-looking writable field ' . $name . '. Generic discovery cannot safely decide how to redact/restore it; declare the provider explicitly.',
+        ];
+      }
+    }
+
+    return [
+      'admitted' => TRUE,
+      'reason' => 'API4 provider declares a non-ID portable match_fields identity and no generic business/sensitive-data safety marker was detected.',
+    ];
+  }
+
   private function isNonImportableDefinition(array $definition): bool {
+    if (array_key_exists('generic_config_admitted', $definition) && empty($definition['generic_config_admitted'])) {
+      return TRUE;
+    }
     if ($this->isNonImportableLegacyExtensionConfig(
       (string) ($definition['extension'] ?? ''),
       (string) ($definition['api'] ?? ''),

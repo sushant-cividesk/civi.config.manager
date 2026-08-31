@@ -434,6 +434,7 @@ The safest target workflow is one site codebase moving configuration between its
 
 - Added generic contributed/custom extension support instead of hard-coded handlers for individual extensions.
 - Generic Extension Entity Config discovers installed extension API4/APIv3 entities and exports records with stable identities under `extension-config/<extension>/<api>/<entity>/<item>.yml`.
+- Generic provider admission is intentionally conservative: CRUD capability is not enough. API4 auto-discovery requires non-ID `match_fields` metadata and rejects obvious business/transaction or sensitive writable fields; generic API3 providers require a reviewed adapter. Providers that are real configuration but cannot prove this generically should declare `hook_civicfg_entityDefinitions()` metadata instead.
 - Generic Extension-specific Settings discovers non-secret settings from Setting metadata and installed-extension namespaces; password/secret/token/API-key style names are blocked.
 - Dependency validation now gives clearer messages when required YAML is missing or when old YAML still contains local numeric IDs.
 - If a provider extension/API entity is unavailable on the target site, validation/import reports the missing provider instead of fataling.

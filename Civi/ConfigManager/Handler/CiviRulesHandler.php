@@ -402,7 +402,9 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
 
   private function isMonitorOnlyDocument(array $file): bool {
     return !empty($file['monitor_only'])
-      || empty($file['identity_portable'])
+      // Alpha61/62 portable YAML did not always carry identity_portable.
+      // Absence is legacy metadata, not evidence that the identity is unsafe.
+      || (array_key_exists('identity_portable', $file) && empty($file['identity_portable']))
       || (($file['identity_confidence'] ?? '') === 'AMBIGUOUS');
   }
 

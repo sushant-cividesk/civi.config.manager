@@ -188,6 +188,8 @@ Discovery and write safety are separate decisions. A provider may be readable an
 
 Generic discovery must not guess provider-specific API context or portable identity. Providers with incomplete capability or ambiguous identity fail closed for automatic CRUD.
 
+Generic discovery also treats **provider admission** as separate from identity safety. API CRUD methods prove only that records can be manipulated; they do not prove that the records are deployable configuration. Automatically discovered API4 providers therefore require non-ID `match_fields` metadata and must not expose generic business/transaction or sensitive writable fields. Generic API3 providers are not auto-admitted without a reviewed adapter. Extensions whose real configuration cannot satisfy these conservative checks should use `hook_civicfg_entityDefinitions()` or `hook_civicfg_configTypes()` so ownership, keys, references, sensitive fields, and delete semantics are explicit.
+
 See [`EXTENSION_HOOKS.md`](EXTENSION_HOOKS.md) for supported integration points.
 
 ## Dependencies and semantic references

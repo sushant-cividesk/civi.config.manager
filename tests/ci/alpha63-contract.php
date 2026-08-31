@@ -47,6 +47,12 @@ $assert(strpos($civirules, 'delete-missing skipped duplicate identity') !== FALS
 $assert(strpos($extensions, "'monitor_only' => \$monitorOnly") !== FALSE, 'Generic contributed-provider ambiguous rows must be monitor-only snapshots.');
 $assert(strpos($extensions, 'unrelated safe identities may continue') !== FALSE, 'Monitor-only extension provider rows must not block unrelated safe import.');
 $assert(strpos($extensions, 'target conflict: portable source identity') !== FALSE, 'Portable contributed-provider source identity must block on target ambiguity.');
+$assert(strpos($extensions, 'genericApi4ConfigAdmission') !== FALSE && strpos($extensions, "'generic_config_admitted'") !== FALSE, 'Generic extension CRUD entities must pass an explicit configuration-admission gate before export/import.');
+$assert(strpos($extensions, 'Generic API3 entity discovered from provider files only') !== FALSE, 'Generic API3 providers must not be auto-managed without a reviewed/explicit provider contract.');
+$assert(strpos($extensions, 'api4EntityDeclarativelyReadable') !== FALSE && strpos($extensions, 'Generic discovery must never execute provider collection actions') !== FALSE, 'Generic API4 provider admission must be metadata-only and must not execute get() during discovery.');
+$assert(strpos($extensions, 'Generic API3 introspection is intentionally file-only') !== FALSE, 'Generic API3 discovery must be file-only so contributed actions are not executed during provider discovery.');
+$assert(strpos($extensions, '$identitySafety = $importable ? \'UNVERIFIED\' : \'EXCLUDED\';') !== FALSE, 'Compatibility diagnostics must not read providers which were excluded by the admission firewall.');
+$assert(strpos($civirules, "array_key_exists('identity_portable', \$file)") !== FALSE, 'Legacy CiviRules YAML without alpha63 identity_portable metadata must not be silently downgraded to monitor-only.');
 $assert(strpos($extensions, '$providerDeleteSafe[$definitionKey] = !empty($providerDeleteSafe[$definitionKey]) || $safe;') !== FALSE, 'Delete-missing capability must not be disabled provider-wide by one monitor-only identity.');
 $assert(strpos($manager, 'public function buildQueuedExportPlan') !== FALSE && strpos($manager, 'public function buildQueuedImportPlan') !== FALSE, 'Export and import must use explicit durable work-unit plans.');
 $assert(substr_count($manager, "'action' => 'export_stage'") >= 1 && strpos($manager, "'action' => 'export_verify_publish'") !== FALSE, 'Export queue plan must separate staging from final safety verification/publication.');
@@ -54,6 +60,7 @@ $assert(strpos($manager, "'action' => 'import_preflight'") !== FALSE && strpos($
 $assert(strpos($manager, '$result[\'delete_phase_skipped\'] = TRUE;') !== FALSE, 'Queued create/update failure must explicitly mark delete-missing as skipped.');
 $assert(strpos($queue, 'if (!$ok)') !== FALSE && strpos($queue, '$store->failJob($jobId, $message, $result);') !== FALSE, 'A failed queued work unit must terminate the durable job before later delete-missing work can run.');
 $assert(strpos($operationWorkspace, "'civicfg-alpha63'") !== FALSE && strpos($operationWorkspace, "'state.json'") !== FALSE, 'Durable job workspace must live outside managed YAML and persist state.');
+$assert(strpos($operationWorkspace, 'configAndLogDir') !== FALSE, 'Durable queued-operation workspace should prefer persistent CiviCRM ConfigAndLog storage instead of container /tmp.');
 $assert(strpos($workspace, "'publish-state.json'") !== FALSE && strpos($workspace, 'recoverIncompletePublish') !== FALSE, 'YAML publication rollback state must survive a killed worker.');
 $assert(strpos($workspace, 'persistPublishState($journal, $newPaths)') !== FALSE, 'Rollback intent must be persisted before live YAML mutation.');
 $assert(strpos($manager, 'recoverQueuedExportPublish') !== FALSE && strpos($queue, 'recoverQueuedExportPublish') !== FALSE, 'Indeterminate publish work must attempt durable rollback before blocking.');

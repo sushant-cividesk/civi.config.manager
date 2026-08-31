@@ -88,6 +88,29 @@ final class Alpha63AmbiguityTest extends TestCase {
     self::assertStringContainsString('target conflict', (string) $result['errors'][0]['message']);
   }
 
+  public function testLegacyPortableYamlWithoutIdentityPortableMetadataRemainsImportable(): void {
+    $handler = (new Alpha63CiviRulesFixtureHandler([
+      'CiviRulesAction' => [],
+    ]))->setDeleteMissingEnabled(FALSE);
+
+    $result = $handler->import([
+      'actions/legacy_action.yml' => [
+        'schema_version' => 1,
+        'type' => 'civirules.item',
+        'entity' => 'CiviRulesAction',
+        'bucket' => 'actions',
+        'name' => 'legacy_action',
+        'identity_field' => 'name',
+        // alpha61/62 files may not contain identity_portable/monitor_only.
+        'item' => ['name' => 'legacy_action', 'label' => 'Legacy portable action'],
+      ],
+    ], TRUE);
+
+    self::assertTrue($result['ok']);
+    self::assertSame(1, $result['create']);
+    self::assertSame(0, $result['monitor_only']);
+  }
+
   public function testIntentionalMonitorOnlySourceDoesNotBlockUnrelatedPortablePreview(): void {
     $handler = (new Alpha63CiviRulesFixtureHandler([
       'CiviRulesAction' => [],
