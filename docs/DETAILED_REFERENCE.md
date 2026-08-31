@@ -13,16 +13,16 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha63-core`
+- Current build: read from `info.xml`; this ZIP is `0.1.0-alpha64-core`
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
 
-Runtime YAML parsing uses the extension's bundled Symfony YAML dependency when the host CMS/CiviCRM stack does not already provide it. ZIP builds must therefore include production Composer dependencies.
+Runtime YAML parsing/dumping uses the extension's bundled Symfony YAML dependency when the host CMS/CiviCRM stack does not already provide it. Official ZIP builds include production Composer dependencies. A source checkout may use ext-yaml only when both `yaml_parse_file()` and `yaml_emit()` are available; there is no production hand-written YAML serializer.
 
 ## Development and beta policy
 
-`0.1.0-alpha63-core` is the durable large-site execution and ambiguity-safety alpha built on the complete alpha62 codebase. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. Existing beta/alpha functionality and release history remain intact; no new beta, tag, or release is implied by this development build.
+`0.1.0-alpha64-core` is the real-world hardening alpha built on the durable alpha63 execution model. The extension is still pre-publication, so internal architecture can still be corrected before wider publication. It keeps alpha63 queue/ambiguity safety while hardening provider admission, CMS-root consistency, YAML runtime completeness, JSON protocol boundaries, and production release packaging.
 
 Alpha63 specifically adds deterministic monitor-only snapshots for duplicate/unproven identities, per-identity delete safety, disk-spooled one-pass provider reads, durable multi-item Queue plans, persistent staging metadata, hard-interruption YAML publish recovery, WordPress session-lock release, and semantic phase/heartbeat progress. The safety distinction is deliberate: intentional source monitor-only rows are skipped without blocking unrelated safe items, while a source identity which was proven portable but becomes ambiguous on the target is a blocking preflight conflict.
 
@@ -51,7 +51,7 @@ composer install --no-dev --prefer-dist --optimize-autoloader
 
 `vendor/` is intentionally not committed. Release/installable packages should bundle the resulting production `vendor/` directory, or the target host must provide the PHP yaml extension.
 
-After installation, `civicfg status` reports the active PHP/CiviCRM versions, YAML parser, and any optional configuration provider that is unavailable on the current site. It also reports whether Symfony YAML is available, whether the extension-local `vendor/autoload.php` is present, and whether PHP `ext-yaml` is enabled. The CiviCRM System Status check is an error only when neither Symfony YAML nor ext-yaml is available. This makes older Drupal 7/CiviCRM environments fail visibly and safely instead of silently treating a missing provider as empty configuration.
+After installation, `civicfg status` reports the active PHP/CiviCRM versions, YAML parser, and any optional configuration provider that is unavailable on the current site. It also reports whether Symfony YAML is available, whether the extension-local `vendor/autoload.php` is present, and whether PHP ext-yaml provides parser/emitter functions. The CiviCRM System Status check is an error when neither Symfony YAML nor a complete ext-yaml read/write runtime is available. This makes older Drupal 7/CiviCRM environments fail visibly and safely instead of silently writing YAML with an incomplete fallback.
 
 ## Runtime CRUD and provider safeguards
 

@@ -1,0 +1,126 @@
+name: Release - Production Runtime ZIP
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Release QA - PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.3']
+
+    env:
+      COMPOSER_PROCESS_TIMEOUT: 0
+      COMPOSER_NO_INTERACTION: 1
+      COMPOSER_NO_AUDIT: 1
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, xml, zip, intl, json
+          tools: composer
+          coverage: none
+
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Install development QA dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Fast QA gate
+        run: composer qa:fast
+
+      - name: Metadata hook coverage
+        run: composer test:hook
+
+      - name: CLI wrapper coverage
+        run: composer test:cli
+
+      - name: Dependency security audit
+        run: composer audit
+
+  package:
+    name: Build immutable runtime release
+    needs: verify
+    runs-on: ubuntu-latest
+
+    env:
+      COMPOSER_PROCESS_TIMEOUT: 0
+      COMPOSER_NO_INTERACTION: 1
+      COMPOSER_NO_AUDIT: 1
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, zip, intl, json
+          tools: composer
+          coverage: none
+
+      - name: Verify tag matches info.xml version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' info.xml | head -n 1)"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [[ -z "$VERSION" || "$TAG_VERSION" != "$VERSION" ]]; then
+            echo "Tag/version mismatch: tag=$GITHUB_REF_NAME info.xml=$VERSION" >&2
+            exit 1
+          fi
+
+      - name: Install QA dependencies for release stress gate
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Stress gate
+        run: composer qa:stress
+
+      - name: Build production-only ZIP
+        run: composer package:release
+
+      - name: Inspect runtime archive policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="dist/civi.config.manager-${GITHUB_REF_NAME#v}.zip"
+          unzip -tqq "$ZIP"
+          echo "Runtime archive contents:"
+          unzip -Z1 "$ZIP"
+
+      - name: Create GitHub release and attach runtime ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP="dist/civi.config.manager-$VERSION.zip"
+          SHA="$ZIP.sha256"
+          EXTRA=()
+          case "$VERSION" in
+            *alpha*|*beta*|*rc*) EXTRA+=(--prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" \
+            "$ZIP" \
+            "$SHA" \
+            --verify-tag \
+            --title "Configuration Manager $VERSION" \
+            --generate-notes \
+            "${EXTRA[@]}"

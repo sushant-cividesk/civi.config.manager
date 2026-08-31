@@ -21,6 +21,24 @@
       catch (e) { return String(value); }
     }
 
+    function civicfgParseJsonResponse(response) {
+      return response.text().then(function(text) {
+        if (!response.ok) {
+          throw new Error('Server returned HTTP ' + response.status + '.');
+        }
+        try {
+          return JSON.parse(text);
+        }
+        catch (e) {
+          var trimmed = (text || '').replace(/^\s+/, '');
+          if (trimmed.charAt(0) === '<') {
+            throw new Error('Configuration Manager expected JSON but the server returned HTML. Check the PHP/CiviCRM log and the YAML runtime status; no import action was performed.');
+          }
+          throw new Error('Configuration Manager received an invalid JSON response from the server. Check the PHP/CiviCRM log; no import action was performed.');
+        }
+      });
+    }
+
     function populateLazyIgnoreFields(detailModal, changes) {
       if (!detailModal || !detailModal.id) { return; }
       var ignoreModal = document.getElementById(detailModal.id + '-ignore');
@@ -63,10 +81,7 @@
       var url = new URL(endpoint, window.location.href);
       url.searchParams.set('path', path);
       fetch(url.toString(), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
-        .then(function(response) {
-          if (!response.ok) { throw new Error('Server returned HTTP ' + response.status + '.'); }
-          return response.json();
-        })
+        .then(civicfgParseJsonResponse)
         .then(function(payload) {
           if (!payload || payload.ok !== true) {
             throw new Error(payload && payload.error ? payload.error : 'Could not load diff details.');
@@ -642,7 +657,7 @@
       modal.classList.add('is-open');
 
       fetch(endpoint + '&scope_type=' + encodeURIComponent(type), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
-        .then(function(response) { return response.json(); })
+        .then(civicfgParseJsonResponse)
         .then(function(data) {
           if (!data || !data.ok) { throw new Error((data && data.error) ? data.error : 'Could not load configuration items.'); }
           if (data.available === false) {
@@ -880,12 +895,7 @@
       var links = null;
 
       function fetchJson(url, options) {
-        return fetch(url, options || {credentials: 'same-origin'}).then(function(response) {
-          if (!response.ok) {
-            throw new Error('Server returned HTTP ' + response.status + '.');
-          }
-          return response.json();
-        }).then(function(payload) {
+        return fetch(url, options || {credentials: 'same-origin'}).then(civicfgParseJsonResponse).then(function(payload) {
           if (!payload || payload.ok === false) {
             throw new Error(payload && payload.error ? payload.error : 'Configuration operation request failed.');
           }
@@ -1199,7 +1209,7 @@
         if (download) { download.removeAttribute('href'); download.setAttribute('aria-disabled', 'true'); }
 
         fetch(endpoint + '&export_item=' + encodeURIComponent(key), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
-          .then(function(response) { return response.json(); })
+          .then(civicfgParseJsonResponse)
           .then(function(data) {
             if (!data || !data.ok) { throw new Error((data && data.error) ? data.error : 'Could not load YAML preview.'); }
             setText(path, data.path || '');

@@ -130,25 +130,57 @@ class ConfigManager {
   }
 
   public function getProjectRoot(): string {
+    // Ask the active CiviCRM UF implementation first. This is the only source
+    // here which understands the actual CMS root across Drupal, WordPress, and
+    // Standalone in both HTTP and CLI contexts. In particular, WordPress CLI
+    // does not reliably populate DOCUMENT_ROOT and civicrm.settings.php often
+    // lives under wp-content/uploads/civicrm, which is not the project root.
+    try {
+      if (class_exists('CRM_Utils_System')) {
+        // CRM_Utils_System proxies CMS-specific methods to the active UF
+        // implementation. WordPress/Drupal each implement cmsRootPath().
+        $cmsRoot = \CRM_Utils_System::cmsRootPath();
+        if (is_string($cmsRoot) && trim($cmsRoot) !== '' && is_dir($cmsRoot)) {
+          return $this->normalizePath($cmsRoot);
+        }
+      }
+    }
+    catch (\Throwable $e) {
+      // Keep deterministic fallbacks for early bootstrap/test environments.
+    }
+
     foreach ($this->getProjectRootCandidates() as $candidate) {
       if ($candidate !== '' && is_dir($candidate)) {
-        return $candidate;
+        return $this->normalizePath($candidate);
       }
     }
 
-    $config = \CRM_Core_Config::singleton();
-    if (!empty($config->configAndLogDir)) {
-      return dirname((string) $config->configAndLogDir);
+    try {
+      $config = \CRM_Core_Config::singleton();
+      if (!empty($config->configAndLogDir)) {
+        return $this->normalizePath(dirname((string) $config->configAndLogDir));
+      }
+    }
+    catch (\Throwable $e) {
+      // Fall through to the process working directory.
     }
 
-    return (string) getcwd();
+    return $this->normalizePath((string) getcwd());
   }
 
   private function getProjectRootCandidates(): array {
     $candidates = [];
 
+    // These constants are CMS-aware and remain useful when ConfigManager is
+    // instantiated in a partial/test bootstrap without a complete userSystem.
+    if (defined('CIVICRM_CMSDIR')) {
+      $candidates[] = (string) CIVICRM_CMSDIR;
+    }
+    if (defined('ABSPATH')) {
+      $candidates[] = rtrim((string) ABSPATH, '/\\');
+    }
     if (defined('DRUPAL_ROOT')) {
-      $candidates[] = DRUPAL_ROOT;
+      $candidates[] = (string) DRUPAL_ROOT;
     }
 
     if (!empty($_SERVER['DOCUMENT_ROOT'])) {
@@ -1692,7 +1724,7 @@ class ConfigManager {
             'phase_total' => 6,
             'handler_type' => $type,
             'unit_key' => $unitKey,
-            'label' => 'Scanning active CiviCRM - ' . (string) ($unit['label'] ?? $handler->getLabel()),
+            'label' => 'Scanning active CiviCRM — ' . (string) ($unit['label'] ?? $handler->getLabel()),
             'message' => 'Reading this configuration group once and building its temporary YAML snapshot. Live YAML is unchanged.',
             'retry_safe' => TRUE,
           ];
@@ -1707,7 +1739,7 @@ class ConfigManager {
           'phase_total' => 6,
           'handler_type' => $type,
           'unit_key' => '__handler__',
-          'label' => 'Scanning active CiviCRM - ' . $handler->getLabel(),
+          'label' => 'Scanning active CiviCRM — ' . $handler->getLabel(),
           'message' => (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_SELECTED)
             ? 'Resolving the selected configuration scope and building temporary YAML. Live YAML is unchanged.'
             : 'Reading active configuration and building temporary YAML. Live YAML is unchanged.',
@@ -1744,7 +1776,7 @@ class ConfigManager {
         'phase_index' => 5,
         'phase_total' => 6,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Recording synchronization baseline - ' . $handler->getLabel(),
+        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
         'message' => 'Recording the published YAML state for future three-way synchronization checks.',
         'retry_safe' => TRUE,
       ];
@@ -2008,7 +2040,7 @@ class ConfigManager {
           'progress_known' => FALSE,
           'item_completed' => $verified,
           'item_total' => $verifyTotal,
-          'message' => 'Safety verification - ' . $handler->getLabel() . '. Re-reading active CiviCRM immediately before publication; live YAML is still unchanged.',
+          'message' => 'Safety verification — ' . $handler->getLabel() . '. Re-reading active CiviCRM immediately before publication; live YAML is still unchanged.',
         ]);
       }
       $this->assertActiveSnapshotMatches($handler, (array) $expected[$type]);
@@ -3829,7 +3861,7 @@ class ConfigManager {
       'phase' => 'preflight',
       'phase_index' => 1,
       'phase_total' => 5,
-      'label' => 'Import preflight - checking all managed configuration',
+      'label' => 'Import preflight — checking all managed configuration',
       'message' => 'Validating YAML, dependencies, rename safety, provider capabilities, and active-state fingerprints. No CiviCRM writes are allowed in this phase.',
       'retry_safe' => TRUE,
     ]];
@@ -3841,7 +3873,7 @@ class ConfigManager {
         'phase_index' => 2,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Applying YAML create/update - ' . $handler->getLabel(),
+        'label' => 'Applying YAML create/update — ' . $handler->getLabel(),
         'message' => 'Applying only create/update operations for this configuration type. Delete-missing has not started.',
         'retry_safe' => FALSE,
       ];
@@ -3854,7 +3886,7 @@ class ConfigManager {
         'phase_index' => 3,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Applying safe delete-missing - ' . $handler->getLabel(),
+        'label' => 'Applying safe delete-missing — ' . $handler->getLabel(),
         'message' => 'All create/update work units succeeded. Removing only identities whose full managed scope and delete safety are proven.',
         'retry_safe' => FALSE,
       ];
@@ -3867,7 +3899,7 @@ class ConfigManager {
         'phase_index' => 4,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Recording synchronization baseline - ' . $handler->getLabel(),
+        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
         'message' => 'Recording the applied YAML state for future synchronization checks.',
         'retry_safe' => TRUE,
       ];
@@ -5304,7 +5336,7 @@ class ConfigManager {
     $manifestPath = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'manifest.yml';
     if (is_file($manifestPath)) {
       try {
-        $manifest = \Civi\ConfigManager\Storage\SimpleYaml::parseFile($manifestPath);
+        $manifest = SimpleYaml::parseFile($manifestPath);
         if (($manifest['extension'] ?? '') === Version::EXTENSION_KEY && array_key_exists('managed_scope', $manifest)) {
           return TRUE;
         }

@@ -2,12 +2,13 @@
 namespace Civi\ConfigManager\Util;
 
 /**
- * Small YAML helper.
+ * YAML runtime helper.
  *
- * Symfony YAML is the preferred parser/dumper and is a runtime dependency of
- * this extension. The extension explicitly loads its own Composer autoloader
- * when CiviCRM/CMS has not already loaded Symfony YAML. ext-yaml remains a
- * supported read fallback. Reading without a real YAML parser fails closed.
+ * Official release packages bundle Symfony YAML and that is the preferred
+ * parser/dumper. Source checkouts may also use ext-yaml when both its parser
+ * and emitter are available. Configuration Manager deliberately has no
+ * hand-written production YAML serializer: an incomplete serializer can make
+ * an export look successful while writing data which cannot be parsed back.
  */
 class SimpleYaml {
   private static bool $runtimeAutoloadAttempted = FALSE;
@@ -19,7 +20,25 @@ class SimpleYaml {
     if (self::loadSymfonyYaml()) {
       return self::normaliseYamlOutput(\Symfony\Component\Yaml\Yaml::dump($data, 8, 2));
     }
-    return self::normaliseYamlOutput(self::dumpValue($data, 0) . "\n");
+
+    if (function_exists('yaml_emit')) {
+      try {
+        $yaml = self::callWithoutPhpWarning(static function() use ($data) {
+          return yaml_emit($data);
+        }, 'YAML serialization failed');
+      }
+      catch (\Throwable $e) {
+        throw new \RuntimeException('Could not serialize Configuration Manager YAML with ext-yaml: ' . $e->getMessage(), 0, $e);
+      }
+      if (!is_string($yaml) || $yaml === '') {
+        throw new \RuntimeException('Could not serialize Configuration Manager YAML with ext-yaml.');
+      }
+      return self::normaliseYamlOutput($yaml);
+    }
+
+    throw new \RuntimeException(
+      'No safe YAML dumper is available. Install the Configuration Manager release package with its bundled Symfony YAML runtime, run Composer for a source checkout, or enable the PHP yaml extension with yaml_emit().'
+    );
   }
 
   /**
@@ -31,50 +50,65 @@ class SimpleYaml {
     $yaml = preg_replace('/\R\.\.\.\s*$/', "\n", $yaml);
     $yaml = preg_replace('/(:\s*)~(\s*(?:#.*)?$)/m', '$1null$2', $yaml);
     $yaml = preg_replace('/(^\s*-\s*)~(\s*(?:#.*)?$)/m', '$1null$2', $yaml);
-    return rtrim($yaml) . "\n";
+    return rtrim((string) $yaml) . "\n";
   }
 
   /**
-   * Report the YAML parser available to web/CLI runtime.
+   * Report the complete YAML read/write runtime available to web/CLI.
    *
-   * The detailed flags make standalone-package problems visible without
-   * requiring an administrator to inspect php -m or the extension directory.
+   * `available` means Configuration Manager can both parse and emit YAML. A
+   * parser-only extension is not enough because Export must never fall back to
+   * an incomplete serializer.
    *
-   * @return array{available:bool,parser:string,reason:string,symfony_yaml_available:bool,extension_vendor_autoload:bool,php_yaml_extension:bool}
+   * @return array{available:bool,parser:string,dumper:string,reason:string,symfony_yaml_available:bool,extension_vendor_autoload:bool,php_yaml_extension:bool,php_yaml_emitter:bool}
    */
   public static function runtimeStatus(): array {
     $autoload = dirname(__DIR__, 3) . '/vendor/autoload.php';
     $extensionVendorAutoload = is_file($autoload);
     $phpYamlExtension = function_exists('yaml_parse_file');
+    $phpYamlEmitter = function_exists('yaml_emit');
     $symfonyYamlAvailable = self::loadSymfonyYaml();
 
     if ($symfonyYamlAvailable) {
       return [
         'available' => TRUE,
         'parser' => 'symfony/yaml',
+        'dumper' => 'symfony/yaml',
         'reason' => '',
         'symfony_yaml_available' => TRUE,
         'extension_vendor_autoload' => $extensionVendorAutoload,
         'php_yaml_extension' => $phpYamlExtension,
+        'php_yaml_emitter' => $phpYamlEmitter,
       ];
     }
-    if ($phpYamlExtension) {
+
+    if ($phpYamlExtension && $phpYamlEmitter) {
       return [
         'available' => TRUE,
         'parser' => 'ext-yaml',
+        'dumper' => 'ext-yaml',
         'reason' => '',
         'symfony_yaml_available' => FALSE,
         'extension_vendor_autoload' => $extensionVendorAutoload,
         'php_yaml_extension' => TRUE,
+        'php_yaml_emitter' => TRUE,
       ];
     }
+
+    $reason = 'No complete YAML runtime is available. Install the Configuration Manager release package with its bundled Symfony YAML runtime, run Composer for a source checkout, or enable the PHP yaml extension.';
+    if ($phpYamlExtension && !$phpYamlEmitter) {
+      $reason = 'The PHP yaml extension can parse YAML but yaml_emit() is unavailable, so Configuration Manager cannot safely export YAML. Install the bundled Symfony YAML runtime or enable a complete ext-yaml build.';
+    }
+
     return [
       'available' => FALSE,
-      'parser' => '',
-      'reason' => 'No YAML parser is available. Install the standalone Configuration Manager package with its bundled Symfony YAML runtime, or enable the PHP yaml extension.',
+      'parser' => $phpYamlExtension ? 'ext-yaml' : '',
+      'dumper' => '',
+      'reason' => $reason,
       'symfony_yaml_available' => FALSE,
       'extension_vendor_autoload' => $extensionVendorAutoload,
-      'php_yaml_extension' => FALSE,
+      'php_yaml_extension' => $phpYamlExtension,
+      'php_yaml_emitter' => $phpYamlEmitter,
     ];
   }
 
@@ -83,11 +117,27 @@ class SimpleYaml {
    */
   public static function parseFile(string $file): array {
     if (self::loadSymfonyYaml()) {
-      $data = \Symfony\Component\Yaml\Yaml::parseFile($file);
+      try {
+        $data = \Symfony\Component\Yaml\Yaml::parseFile($file);
+      }
+      catch (\Throwable $e) {
+        throw new \RuntimeException('Could not parse YAML file ' . $file . ': ' . $e->getMessage(), 0, $e);
+      }
       return is_array($data) ? $data : [];
     }
+
     if (function_exists('yaml_parse_file')) {
-      $data = yaml_parse_file($file);
+      try {
+        $data = self::callWithoutPhpWarning(static function() use ($file) {
+          return yaml_parse_file($file);
+        }, 'YAML parsing failed');
+      }
+      catch (\Throwable $e) {
+        throw new \RuntimeException('Could not parse YAML file ' . $file . ': ' . $e->getMessage(), 0, $e);
+      }
+      if ($data === FALSE) {
+        throw new \RuntimeException('Could not parse YAML file ' . $file . '.');
+      }
       return is_array($data) ? $data : [];
     }
 
@@ -117,76 +167,30 @@ class SimpleYaml {
   }
 
   /**
-   * @param mixed $value
+   * Convert warnings from ext-yaml into exceptions before they can leak HTML or
+   * warning text into JSON/CLI responses.
+   *
+   * @return mixed
    */
-  private static function dumpValue($value, int $indent): string {
-    if (is_array($value)) {
-      return self::dumpArray($value, $indent);
-    }
-    return self::scalar($value);
-  }
-
-  /**
-   * @param array<string|int, mixed> $array
-   */
-  private static function dumpArray(array $array, int $indent): string {
-    $lines = [];
-    $isList = array_keys($array) === range(0, count($array) - 1);
-    foreach ($array as $key => $value) {
-      $pad = str_repeat(' ', $indent);
-      if ($isList) {
-        if (is_array($value)) {
-          $lines[] = $pad . '-';
-          $lines[] = self::dumpValue($value, $indent + 2);
-        }
-        else {
-          $lines[] = $pad . '- ' . self::scalar($value);
-        }
+  private static function callWithoutPhpWarning(callable $callback, string $fallbackMessage) {
+    set_error_handler(static function(int $severity, string $message, string $file = '', int $line = 0): bool {
+      if (!(error_reporting() & $severity)) {
+        return FALSE;
       }
-      else {
-        if (is_array($value)) {
-          $lines[] = $pad . self::key($key) . ':';
-          $lines[] = self::dumpValue($value, $indent + 2);
-        }
-        else {
-          $lines[] = $pad . self::key($key) . ': ' . self::scalar($value);
-        }
+      throw new \ErrorException($message, 0, $severity, $file, $line);
+    });
+
+    try {
+      return $callback();
+    }
+    catch (\Throwable $e) {
+      if ($e instanceof \ErrorException) {
+        throw $e;
       }
+      throw new \RuntimeException($fallbackMessage . ': ' . $e->getMessage(), 0, $e);
     }
-    return implode("\n", $lines);
-  }
-
-  /**
-   * @param mixed $key
-   */
-  private static function key($key): string {
-    return preg_match('/^[A-Za-z0-9_.-]+$/', (string) $key) ? (string) $key : self::scalar((string) $key);
-  }
-
-  /**
-   * @param mixed $value
-   */
-  private static function scalar($value): string {
-    if ($value === NULL) {
-      return 'null';
+    finally {
+      restore_error_handler();
     }
-    if ($value === TRUE) {
-      return 'true';
-    }
-    if ($value === FALSE) {
-      return 'false';
-    }
-    if (is_int($value) || is_float($value)) {
-      return (string) $value;
-    }
-    $value = (string) $value;
-    if ($value === '') {
-      return "''";
-    }
-    if (strpos($value, "\n") !== FALSE) {
-      $lines = explode("\n", $value);
-      return "|\n    " . implode("\n    ", $lines);
-    }
-    return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
   }
 }

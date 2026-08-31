@@ -473,9 +473,24 @@ class MainPage {
 
   /** @param array<string,mixed> $payload */
   private function emitJsonAndExit(array $payload): void {
+    // WordPress/contributed extensions can emit notices or buffered markup
+    // during bootstrap. A JSON endpoint must never append its payload to that
+    // HTML because response.json() would then fail with "Unexpected token <".
+    // Discard only buffered output immediately before this terminal JSON
+    // response; normal HTML page rendering never enters this method.
+    while (ob_get_level() > 0) {
+      if (!@ob_end_clean()) {
+        break;
+      }
+    }
+
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/json; charset=utf-8');
     \CRM_Utils_System::setHttpHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($json === FALSE) {
+      $json = '{"ok":false,"error":"Configuration Manager could not encode the JSON response."}';
+    }
+    echo $json;
     \CRM_Utils_System::civiExit();
   }
 
@@ -640,9 +655,7 @@ class MainPage {
       $payload = ['ok' => FALSE, 'error' => $e->getMessage()];
     }
 
-    \CRM_Utils_System::setHttpHeader('Content-Type', 'application/json; charset=utf-8');
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    \CRM_Utils_System::civiExit();
+    $this->emitJsonAndExit($payload);
   }
 
   private function jsonScopeOptions(): void {
@@ -660,9 +673,7 @@ class MainPage {
       ];
     }
 
-    \CRM_Utils_System::setHttpHeader('Content-Type', 'application/json; charset=utf-8');
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    \CRM_Utils_System::civiExit();
+    $this->emitJsonAndExit($payload);
   }
 
   private function assignTemplate(string $op, array $types, array $result, $notice, $validationResult, $importResult): void {

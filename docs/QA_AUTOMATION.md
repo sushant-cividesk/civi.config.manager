@@ -84,6 +84,7 @@ Alpha63 keeps the alpha62 dependency-free streaming gate and adds release-specif
 ```bash
 composer test:alpha62-contract
 composer test:alpha63-contract
+composer test:alpha64-contract
 composer qa:stress
 ```
 

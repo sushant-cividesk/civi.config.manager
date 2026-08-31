@@ -48,6 +48,7 @@
       "@lint:php",
       "@test:alpha62-contract",
       "@test:alpha63-contract",
+      "@test:alpha64-contract",
       "@test:scenarios",
       "@test:unit",
       "@analyse",
@@ -59,6 +60,8 @@
       "php -d memory_limit=256M tests/ci/alpha62-stress.php",
       "php -d memory_limit=256M tests/ci/alpha63-stress.php"
     ],
-    "test:alpha63-contract": "php tests/ci/alpha63-contract.php"
+    "test:alpha63-contract": "php tests/ci/alpha63-contract.php",
+    "test:alpha64-contract": "php tests/ci/alpha64-contract.php",
+    "package:release": "bash scripts/build-release.sh"
   }
 }

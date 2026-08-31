@@ -38,6 +38,12 @@ final class SimpleYamlTest extends TestCase {
       'nested' => [
         'false_value' => FALSE,
         'empty_string' => '',
+        // This depth specifically guards against the old hand-written dumper,
+        // which used a fixed block-scalar indent and produced invalid YAML for
+        // multiline values nested below a second mapping level.
+        'deep' => [
+          'body' => "Nested first line\nNested second: # marker\n",
+        ],
       ],
     ];
 
@@ -51,14 +57,22 @@ final class SimpleYamlTest extends TestCase {
 
     self::assertArrayHasKey('available', $status);
     self::assertArrayHasKey('parser', $status);
+    self::assertArrayHasKey('dumper', $status);
     self::assertArrayHasKey('symfony_yaml_available', $status);
     self::assertArrayHasKey('extension_vendor_autoload', $status);
     self::assertArrayHasKey('php_yaml_extension', $status);
+    self::assertArrayHasKey('php_yaml_emitter', $status);
     if (!empty($status['symfony_yaml_available'])) {
       self::assertSame('symfony/yaml', $status['parser']);
+      self::assertSame('symfony/yaml', $status['dumper']);
     }
-    elseif (!empty($status['php_yaml_extension'])) {
+    elseif (!empty($status['php_yaml_extension']) && !empty($status['php_yaml_emitter'])) {
       self::assertSame('ext-yaml', $status['parser']);
+      self::assertSame('ext-yaml', $status['dumper']);
+      self::assertTrue($status['available']);
+    }
+    else {
+      self::assertFalse($status['available']);
     }
   }
 

@@ -1,6 +1,6 @@
-node_modules/*
-vendor/*
-composer.lock
+node_modules/
+vendor/
+dist/
 .phpstan-cache/
 .DS_Store
 tests/ci/artifacts/

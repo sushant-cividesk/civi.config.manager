@@ -65,6 +65,10 @@ Handlers must fail closed when identity, provider availability, or write capabil
 
 `YamlFileStorage` reads and writes the configured sync directory and enforces relative-path and symlink safety. Files use human-readable names, but filenames are not authoritative cross-environment identity.
 
+Relative sync paths are anchored to the active CiviCRM UF/CMS root via `cmsRootPath()` before heuristic fallbacks are considered. This is a correctness boundary: WordPress commonly stores `civicrm.settings.php` below `wp-content/uploads/civicrm`, while the deployable project root is the WordPress web root. UI and CLI therefore resolve the same relative path even when `DOCUMENT_ROOT` is absent in CLI.
+
+YAML serialization is never implemented by Configuration Manager itself. Release packages bundle Symfony YAML. A source checkout may instead use complete ext-yaml, but both `yaml_parse_file()` and `yaml_emit()` must exist. Parser-only runtimes are reported unavailable and Export fails before staging. ext-yaml parser/emitter warnings are converted to exceptions so they cannot corrupt JSON/CLI protocol output.
+
 ## Semantic identity
 
 Numeric database IDs are local implementation details and are not portable identity.

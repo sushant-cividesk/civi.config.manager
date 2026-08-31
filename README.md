@@ -52,7 +52,7 @@ A duplicate or otherwise unproven source identity is preserved as a **monitor-on
 
 ### Web progress
 
-CiviCRM SQL Queue stores one durable item per bounded work unit rather than one giant Export/Import request. The browser advances at most one queue item per request and polls persisted status. WordPress/PHP session locks are released before worker advancement so status polls remain responsive. Progress text names the actual action and configuration scope (for example, `Scanning active CiviCRM - CiviRules Actions` or `Safety verification before publishing YAML`), reports real phases/processed records/heartbeats, and does not fabricate a percentage when the total is unknown. Browser refresh reconnects to the saved job; the UI does not claim that closing the browser creates an independent background worker.
+CiviCRM SQL Queue stores one durable item per bounded work unit rather than one giant Export/Import request. The browser advances at most one queue item per request and polls persisted status. WordPress/PHP session locks are released before worker advancement so status polls remain responsive. Progress text names the actual action and configuration scope (for example, `Scanning active CiviCRM — CiviRules Actions` or `Safety verification before publishing YAML`), reports real phases/processed records/heartbeats, and does not fabricate a percentage when the total is unknown. Browser refresh reconnects to the saved job; the UI does not claim that closing the browser creates an independent background worker.
 
 Retry-safe read/stage/baseline units may be replayed after an interrupted worker. Indeterminate live-mutating units are blocked rather than blindly replayed. CLI operations continue to use the same ConfigManager safety/service layer synchronously and respect an active persistent job lock for the same sync root.
 
@@ -107,11 +107,21 @@ Do not use broad timestamp wildcards. Fields such as `created_date`, `modified_d
 
 Install the extension in a normal CiviCRM extension directory and enable it through CiviCRM.
 
-Release packages should include production Composer dependencies. For a source checkout without `vendor/`:
+**Official release ZIPs are runtime-complete.** They must contain `vendor/autoload.php` and the locked Symfony YAML runtime, so a site administrator must not need to run Composer after installing a release ZIP. Maintainers build that artifact with:
+
+```bash
+composer package:release
+```
+
+A Git/source checkout is developer source rather than the installable release artifact. For a source checkout without `vendor/`, either run:
 
 ```bash
 composer install --no-dev --prefer-dist --optimize-autoloader
 ```
+
+or use a host with a complete PHP ext-yaml runtime (`yaml_parse_file()` **and** `yaml_emit()`). Configuration Manager deliberately has no hand-written YAML serializer: if neither Symfony YAML nor complete ext-yaml is available, Export fails closed before writing YAML.
+
+Relative `civicfg_sync_dir` values are resolved from CiviCRM's active CMS root (Drupal, WordPress, or Standalone), not from the location of `civicrm.settings.php`. This keeps the UI and `civicfg` CLI on the same YAML tree.
 
 Then enable the extension and open:
 

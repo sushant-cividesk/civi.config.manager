@@ -128,8 +128,17 @@ class FileTransfer {
       ];
     }
 
+    // Keep this terminal endpoint protocol-clean even when WordPress or a
+    // contributed extension emitted a buffered notice during bootstrap.
+    while (ob_get_level() > 0) {
+      if (!@ob_end_clean()) {
+        break;
+      }
+    }
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/json; charset=utf-8');
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    \CRM_Utils_System::setHttpHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    echo $json !== FALSE ? $json : '{"ok":false,"error":"Configuration Manager could not encode the JSON response."}';
     \CRM_Utils_System::civiExit();
   }
 

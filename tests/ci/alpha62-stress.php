@@ -31,6 +31,15 @@ if (!function_exists('yaml_parse_file')) {
   }
 }
 
+// Staging exercises YAML writes without Composer. The production helper now
+// requires a real dumper, so this isolated dependency-free stress gate supplies
+// a tiny test-only ext-yaml emitter stand-in. JSON is valid YAML 1.2.
+if (!function_exists('yaml_emit')) {
+  function yaml_emit($data) {
+    return "---\n" . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n...\n";
+  }
+}
+
 use Civi\ConfigManager\Handler\AbstractHandler;
 use Civi\ConfigManager\Service\StagedExportWorkspace;
 use Civi\ConfigManager\Storage\YamlFileStorage;

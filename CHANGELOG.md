@@ -1,7 +1,27 @@
 # Changelog
 
+## 0.1.0-alpha64-core
+
+- Hardened contributed-provider discovery for real projects: generic API4 CRUD entities are admitted only when portable configuration identity can be proven, generic API3 candidates remain diagnostic-only unless explicitly reviewed, and discovery no longer executes arbitrary business-data collection actions. This excludes transactional entities such as Civigrant `Grant` and CiviMobile `CiviMobileParticipant` instead of exporting them or aborting unrelated configuration Export.
+- Fixed WordPress/CLI relative sync-root resolution by preferring CiviCRM's active UF `cmsRootPath()`. UI, `cv`, and `civicfg` now resolve the same `civicfg_sync_dir` even when `civicrm.settings.php` lives under `wp-content/uploads/civicrm`.
+- Removed the hand-written production YAML serializer. Runtime YAML now requires bundled Symfony YAML or a complete ext-yaml runtime with both `yaml_parse_file()` and `yaml_emit()`; incomplete runtimes fail closed before Export.
+- Hardened JSON/AJAX response boundaries so buffered CMS/plugin notices are discarded before terminal Configuration Manager JSON, and the browser reports controlled protocol/runtime errors instead of raw `Unexpected token '<'` failures.
+- Fixed managed-tree detection to use the actual `Civi\ConfigManager\Util\SimpleYaml` helper when reading `manifest.yml`.
+- Preserved pre-alpha63 portable CiviRules YAML semantics when `identity_portable` metadata is absent, and kept ambiguous/unproven identities monitor-only with no automatic CRUD/delete authority.
+- Kept durable queue workspaces in persistent CiviCRM `ConfigAndLog` when available so cross-request jobs normally survive PHP/container restarts.
+- Added a production release pipeline. `composer package:release` builds from an explicit runtime allowlist, installs locked `--no-dev` dependencies into the temporary package, verifies bundled Symfony YAML, strips source/QA/docs/build metadata, validates the final archive, and emits SHA-256. `dist/` and local `vendor/` remain untracked.
+- Added a tag-gated GitHub release workflow: supported PHP fast-QA matrix, hook/CLI coverage, dependency audit, stress gate, tag/version verification, production-only ZIP construction, and release attachment. Alpha tags publish as pre-releases.
+- PHP 7.4 static analysis disables PHPStan Turbo so the analyser itself does not call PHP 8-only functions before analysis starts.
+
+> **Alpha64 release boundary:** the Git/source tree is a development artifact and requires `composer install` before QA. The official installable ZIP is runtime-complete and must not require Composer on the target CiviCRM site. Production ZIPs contain extension runtime code/assets plus locked production `vendor/` dependencies only; tests, docs, scripts, logs, Composer metadata, and repository files are excluded.
+
 ## 0.1.0-alpha63-core
 
+- Fixed WordPress/CLI sync-root resolution: relative `civicfg_sync_dir` values now prefer the active CiviCRM UF `cmsRootPath()` instead of inferring the project root from `civicrm.settings.php`/`ConfigAndLog`. This prevents UI and CLI from silently managing different YAML directories when WordPress stores CiviCRM runtime files under `wp-content/uploads/civicrm`.
+- Removed the production hand-written YAML serializer. Runtime YAML is now Symfony YAML or complete ext-yaml (`yaml_parse_file` + `yaml_emit`) only; parser-only runtimes fail closed before Export. ext-yaml warnings are converted to controlled exceptions so malformed YAML cannot leak warning/HTML output into JSON endpoints.
+- Hardened JSON endpoints used by lazy Synchronize details: buffered CMS/plugin notices are discarded at the terminal JSON boundary and the browser reports a controlled runtime error when a server returns HTML instead of JSON.
+- Fixed managed-YAML detection to use the actual `Civi\ConfigManager\Util\SimpleYaml` helper when reading `manifest.yml`; the previous wrong namespace was swallowed by fallback handling and could hide manifest-aware detection.
+- Added `composer package:release` / `scripts/build-release.sh`. Official installable ZIPs are built from a clean source copy, install locked production dependencies with `--no-dev`, verify bundled Symfony YAML round-trip behavior, and emit a SHA-256 checksum. Source checkouts may still use complete ext-yaml, but release ZIPs no longer depend on an administrator running Composer after installation.
 - PHP 7.4 QA hardening: static analysis explicitly disables the optional PHPStan Turbo accelerator. PHPStan 2.2.x can otherwise enter its Turbo selector on PHP 7.4 and call PHP 8-only `str_contains()`, failing CI before analysis starts. Turbo changes performance only, not analysis results.
 - Real-world provider-discovery hardening: generic contributed API discovery is now metadata/file driven and does not execute arbitrary API4 `get()` or generic API3 actions merely to decide whether an entity is configuration. This prevents participant/payment/business APIs from emitting warnings, reading live records, or becoming export work units during discovery.
 - Generic API3 candidates are diagnostic-only unless a reviewed adapter/custom handler explicitly opts them in; compatibility diagnostics do not read excluded providers. Discovery metadata probes suppress provider warnings/output so CLI/JSON/AJAX responses remain clean, while actual admitted-provider export/import errors still fail atomically.

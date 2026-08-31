@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-28</releaseDate>
-  <version>0.1.0-alpha63-core</version>
+  <releaseDate>2026-08-31</releaseDate>
+  <version>0.1.0-alpha64-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha 63 large-site execution build with monitor-only ambiguity snapshots, deterministic duplicate occurrence paths, disk-spooled provider scans, durable multi-unit Queue execution, honest phase/heartbeat progress, persistent publish recovery, and the existing staged export/import safety barriers.</comments>
+  <comments>Alpha 64 real-world hardening build with safe contributed-provider admission, CMS-consistent sync-root resolution, runtime-complete YAML packaging, protocol-clean JSON endpoints, durable queued execution, monitor-only ambiguity snapshots, and staged export/import safety barriers.</comments>
 </extension>

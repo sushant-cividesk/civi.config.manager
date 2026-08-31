@@ -208,15 +208,17 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 
 - Fast GitHub QA must pass on PHP 7.4, 8.1, and 8.3.
 - `composer compatibility` targets PHP 7.4 so source syntax/runtime calls cannot silently require PHP 8.
-- Composer resolution uses a PHP 7.4.33 platform; an installable production package must bundle `vendor/` or the target must provide ext-yaml.
+- Composer resolution uses a PHP 7.4.33 platform; an installable production package must bundle `vendor/`. Source checkouts may use complete ext-yaml (`yaml_parse_file` + `yaml_emit`) as a runtime fallback.
 - A missing optional API4 provider must be reported as **Unavailable on this site** and a managed export/diff must fail closed; it must never be treated as an authoritative empty set that could delete stale YAML or target configuration.
 - On a CiviCRM 5.76.3/Drupal 7 smoke site, verify `civicfg status --json`, initial export, diff, validate, dry-run import, and a second idempotent diff before promotion.
 ### Standalone YAML runtime diagnostics
 
-- `civicfg status` must report `symfony_yaml_available`, `extension_vendor_autoload`, and `php_yaml_extension` separately.
-- The runtime is healthy when either Symfony YAML or PHP ext-yaml is available.
-- When neither parser is available, `hook_civicrm_check()` must report a CiviCRM System Status error without discovering configuration handlers.
-- The standalone installable ZIP must include `vendor/autoload.php` and the PHP 7.4-compatible Symfony YAML runtime so target sites do not need a post-install Composer command.
+- `civicfg status` must report `symfony_yaml_available`, `extension_vendor_autoload`, `php_yaml_extension`, `php_yaml_emitter`, parser, and dumper separately.
+- The runtime is healthy when Symfony YAML is available, or when PHP ext-yaml provides **both** `yaml_parse_file()` and `yaml_emit()`. Parser-only ext-yaml is not export-safe.
+- When no complete read/write YAML runtime is available, `hook_civicrm_check()` must report a CiviCRM System Status error without discovering configuration handlers and Export must fail before YAML staging.
+- Malformed ext-yaml input must produce a controlled Configuration Manager exception/JSON error; PHP warnings or CMS HTML must not be mixed into a JSON endpoint response.
+- `composer package:release` must create an installable ZIP containing `vendor/autoload.php` and the PHP 7.4-compatible Symfony YAML runtime so target sites do not need a post-install Composer command. Unzip the produced artifact and verify `civi.config.manager/vendor/autoload.php` exists before promotion.
+- On WordPress, set `civicfg_sync_dir` to a relative value such as `civicrm-config` and verify the UI and `civicfg status --json` resolve the same absolute path under the WordPress CMS root even though `civicrm.settings.php` is stored under `wp-content/uploads/civicrm`.
 
 ### Scope dependency guidance
 
@@ -246,6 +248,7 @@ Run the release-specific architecture and low-memory contracts before the heavie
 ```bash
 composer test:alpha62-contract
 composer test:alpha63-contract
+composer test:alpha64-contract
 composer qa:stress
 ```
 
