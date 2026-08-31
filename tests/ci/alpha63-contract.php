@@ -32,8 +32,10 @@ $queue = $read('Civi/ConfigManager/Service/QueuedOperationService.php');
 $js = $read('js/configmanager.js');
 $css = $read('css/configmanager.css');
 $info = $read('info.xml');
+$composer = $read('composer.json');
 
 $assert(strpos($info, '<version>0.1.0-alpha63-core</version>') !== FALSE, 'info.xml must identify alpha63-core.');
+$assert(strpos($composer, '"analyse": "PHPSTAN_TURBO=0 phpstan analyse') !== FALSE, 'PHP 7.4 QA must disable optional PHPStan Turbo before static analysis.');
 $assert(strpos($chunked, 'interface ChunkedStreamingHandlerInterface extends StreamingHandlerInterface') !== FALSE, 'Alpha63 must expose the durable chunked export contract.');
 $assert(strpos($civirules, 'ChunkedStreamingHandlerInterface') !== FALSE && strpos($extensions, 'ChunkedStreamingHandlerInterface') !== FALSE, 'CiviRules and extension providers must support durable export units.');
 $assert(strpos($civirules, 'new DiskRowSpool()') !== FALSE && strpos($extensions, 'new DiskRowSpool()') !== FALSE, 'High-volume CiviRules/extension providers must spool one provider scan to disk.');

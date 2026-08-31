@@ -41,7 +41,7 @@
     "test:unit": "phpunit --configuration phpunit.xml.dist",
     "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
     "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
-    "analyse": "phpstan analyse --configuration phpstan.neon.dist --no-progress",
+    "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
     "standards": "phpcs --standard=phpcs.xml.dist",
     "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
     "qa:fast": [

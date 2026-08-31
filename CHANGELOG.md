@@ -2,6 +2,7 @@
 
 ## 0.1.0-alpha63-core
 
+- PHP 7.4 QA hardening: static analysis explicitly disables the optional PHPStan Turbo accelerator. PHPStan 2.2.x can otherwise enter its Turbo selector on PHP 7.4 and call PHP 8-only `str_contains()`, failing CI before analysis starts. Turbo changes performance only, not analysis results.
 - Real-world provider-discovery hardening: generic contributed API discovery is now metadata/file driven and does not execute arbitrary API4 `get()` or generic API3 actions merely to decide whether an entity is configuration. This prevents participant/payment/business APIs from emitting warnings, reading live records, or becoming export work units during discovery.
 - Generic API3 candidates are diagnostic-only unless a reviewed adapter/custom handler explicitly opts them in; compatibility diagnostics do not read excluded providers. Discovery metadata probes suppress provider warnings/output so CLI/JSON/AJAX responses remain clean, while actual admitted-provider export/import errors still fail atomically.
 - Hardened generic contributed-provider discovery so CRUD capability alone can no longer classify an API entity as deployable configuration. Generic API4 providers now require non-ID `match_fields` metadata and pass business/sensitive-field safety checks; generic API3 providers require an explicit/reviewed adapter. Business entities such as CiviGrant `Grant` are excluded instead of aborting or leaking transactional data into YAML.
