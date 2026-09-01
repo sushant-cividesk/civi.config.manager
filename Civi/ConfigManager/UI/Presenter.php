@@ -30,7 +30,7 @@ class Presenter {
         'key' => $key,
         'label' => $label,
         'active' => $op === $key,
-        'url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=' . $key),
+        'url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=' . $key, FALSE, NULL, FALSE),
       ];
     }
     return $rows;
@@ -82,7 +82,7 @@ class Presenter {
         'newCount' => $counts['new'],
         'missingCount' => $counts['missing'],
         'valid' => $diff['valid'] ?? NULL,
-        'statusUrl' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync&type=' . rawurlencode($type)),
+        'statusUrl' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync&type=' . rawurlencode($type), FALSE, NULL, FALSE),
       ];
     }
     return $rows;

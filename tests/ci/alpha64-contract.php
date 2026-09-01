@@ -51,6 +51,15 @@ $assert(strpos($releaseWorkflow, "tags:\n      - 'v*'") !== FALSE && strpos($rel
 $assert(strpos($releaseWorkflow, 'composer qa:fast') !== FALSE && strpos($releaseWorkflow, 'composer qa:stress') !== FALSE && strpos($releaseWorkflow, 'composer audit') !== FALSE, 'Tagged releases must gate fast QA, stress, and dependency audit.');
 $assert(strpos($releaseWorkflow, 'gh release create') !== FALSE && strpos($releaseWorkflow, '--prerelease') !== FALSE, 'Tagged alpha/beta/RC releases must publish the runtime artifact as a GitHub pre-release.');
 
+
+$canonicalizer = $read('Civi/ConfigManager/Service/Canonicalizer.php');
+$presenter = $read('Civi/ConfigManager/UI/Presenter.php');
+$mainPage = $read('Civi/ConfigManager/UI/MainPage.php');
+$assert(strpos($canonicalizer, 'public const VERSION = 2;') !== FALSE, 'Canonicalization version must invalidate pre-fix baselines after operational metadata rules change.');
+$assert(strpos($canonicalizer, "'monitor_only'") !== FALSE && strpos($canonicalizer, "'identity_portable'") !== FALSE && strpos($canonicalizer, "'ambiguity'") !== FALSE, 'Operational ambiguity/safety metadata must not create false configuration drift.');
+$assert(strpos($mainPage, "'reset=1&op=diff-detail-json', FALSE, NULL, FALSE") !== FALSE, 'Lazy diff endpoint URL must be generated raw before Smarty escapes the attribute.');
+$assert(strpos($presenter, "'reset=1&op=' . $key, FALSE, NULL, FALSE") !== FALSE, 'Navigation URLs must be generated raw before Smarty escapes them.');
+
 if ($failures) {
   fwrite(STDERR, 'alpha64 contract FAILED (' . count($failures) . '/' . $checks . ")\n");
   foreach ($failures as $failure) {

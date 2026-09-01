@@ -68,6 +68,15 @@ final class CanonicalizerTest extends TestCase {
       'dependencies' => [['type' => 'extension', 'name' => 'provider']],
       'capabilities' => ['create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
       'identity_confidence' => 'EXPLICIT',
+      'identity_portable' => TRUE,
+      'monitor_only' => FALSE,
+      'ambiguity' => [
+        'reason' => 'duplicate_portable_identity',
+        'group_count' => 2,
+        'content_count' => 1,
+        'content_fingerprint' => str_repeat('a', 64),
+        'occurrence' => 1,
+      ],
       'config_index' => [['api' => 'api4', 'entity' => 'Example', 'count' => 1]],
     ];
 

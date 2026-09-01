@@ -99,7 +99,7 @@ class FileTransfer {
       'file' => $filename,
       'path' => (string) ($file['relative'] ?? ''),
       'yaml' => $yaml,
-      'download_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=download-single&export_item=' . rawurlencode($key)),
+      'download_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=download-single&export_item=' . rawurlencode($key), FALSE, NULL, FALSE),
     ];
   }
 

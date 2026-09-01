@@ -5,7 +5,7 @@ namespace Civi\ConfigManager\Service;
  * Produces deterministic, type-preserving portable configuration values.
  */
 class Canonicalizer {
-  public const VERSION = 1;
+  public const VERSION = 2;
   public const HASH_ALGORITHM = 'sha256';
 
   public function hash(array $data, array $options = []): string {
@@ -47,6 +47,9 @@ class Canonicalizer {
       'identity_field',
       'identity_key',
       'identity_confidence',
+      'identity_portable',
+      'monitor_only',
+      'ambiguity',
       'capabilities',
       'dependencies',
       'required_by',

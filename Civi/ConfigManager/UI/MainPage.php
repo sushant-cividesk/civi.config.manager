@@ -323,7 +323,7 @@ class MainPage {
           'ok' => !$errors,
           'percent' => 100,
           'message' => $message,
-          'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync'),
+          'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync', FALSE, NULL, FALSE),
         ]);
       }
       else {
@@ -345,7 +345,7 @@ class MainPage {
           'ok' => !empty($result['ok']),
           'percent' => 100,
           'message' => $message,
-          'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync'),
+          'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync', FALSE, NULL, FALSE),
         ]);
       }
     }
@@ -437,9 +437,9 @@ class MainPage {
   /** @return array{status_url:string,step_url:string,redirect_url:string} */
   private function operationLinks(int $jobId): array {
     return [
-      'status_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=operation-status-json&job_id=' . $jobId),
-      'step_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=operation-step-json&job_id=' . $jobId),
-      'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync'),
+      'status_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=operation-status-json&job_id=' . $jobId, FALSE, NULL, FALSE),
+      'step_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=operation-step-json&job_id=' . $jobId, FALSE, NULL, FALSE),
+      'redirect_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=sync', FALSE, NULL, FALSE),
     ];
   }
 
@@ -728,10 +728,10 @@ class MainPage {
       $diffPageBaseQuery .= '&type[]=' . rawurlencode((string) $selectedType);
     }
     $diffPrevUrl = $diffPage > 1
-      ? \CRM_Utils_System::url('civicrm/admin/config-manager', $diffPageBaseQuery . '&diff_page=' . ($diffPage - 1))
+      ? \CRM_Utils_System::url('civicrm/admin/config-manager', $diffPageBaseQuery . '&diff_page=' . ($diffPage - 1), FALSE, NULL, FALSE)
       : '';
     $diffNextUrl = $diffPage < $diffPageCount
-      ? \CRM_Utils_System::url('civicrm/admin/config-manager', $diffPageBaseQuery . '&diff_page=' . ($diffPage + 1))
+      ? \CRM_Utils_System::url('civicrm/admin/config-manager', $diffPageBaseQuery . '&diff_page=' . ($diffPage + 1), FALSE, NULL, FALSE)
       : '';
 
     if ($op === 'import' && $importResult === NULL && $importApplyTypes) {
@@ -909,7 +909,7 @@ class MainPage {
     $this->page->assign('scopeOverridden', $this->manager->isScopePolicyOverridden());
     $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
     $this->page->assign('scopeSettingsExample', $this->manager->getScopeSettingsExample());
-    $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json'));
+    $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json', FALSE, NULL, FALSE));
     $this->page->assign('managedScopeConfigured', $managedScopeConfigured);
     $this->page->assign('watchedScopeConfigured', $watchedScopeConfigured);
     $this->page->assign('watchOnlyScope', $watchOnlyScope);
@@ -941,7 +941,7 @@ class MainPage {
     $this->page->assign('diffPerPage', $diffPerPage);
     $this->page->assign('diffPrevUrl', $diffPrevUrl);
     $this->page->assign('diffNextUrl', $diffNextUrl);
-    $this->page->assign('diffDetailUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=diff-detail-json'));
+    $this->page->assign('diffDetailUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=diff-detail-json', FALSE, NULL, FALSE));
     $this->page->assign('importPlan', $importPlan);
     $this->page->assign('importApplyTypes', $importApplyTypes);
     $this->page->assign('importApplyTypesMap', $importApplyTypesMap);
