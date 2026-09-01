@@ -21,6 +21,18 @@
       catch (e) { return String(value); }
     }
 
+    function civicfgNormalizeUrl(value) {
+      var url = String(value || '');
+      // Some CiviCRM/CMS combinations can hand template/JSON consumers an
+      // already HTML-escaped URL even when URL generation requested raw output.
+      // Decode repeated ampersand escaping at the machine-consumption boundary
+      // so query keys never become `amp;op`, `amp;scope_type`, etc.
+      while (url.indexOf('&amp;') !== -1) {
+        url = url.replace(/&amp;/g, '&');
+      }
+      return url;
+    }
+
     function civicfgParseJsonResponse(response) {
       return response.text().then(function(text) {
         if (!response.ok) {
@@ -73,7 +85,7 @@
       if (!modal || modal.getAttribute('data-civicfg-diff-detail') !== '1') { return; }
       if (modal.getAttribute('data-civicfg-detail-loaded') === '1' || modal.getAttribute('data-civicfg-detail-loading') === '1') { return; }
       var host = modal.querySelector('[data-civicfg-lazy-detail-host]');
-      var endpoint = modal.getAttribute('data-civicfg-detail-url') || '';
+      var endpoint = civicfgNormalizeUrl(modal.getAttribute('data-civicfg-detail-url') || '');
       var path = modal.getAttribute('data-civicfg-path') || '';
       if (!host || !endpoint || !path) { return; }
       modal.setAttribute('data-civicfg-detail-loading', '1');
@@ -635,7 +647,7 @@
 
     function openScopePicker(row) {
       var form = row.closest('form');
-      var endpoint = form ? form.getAttribute('data-civicfg-scope-options-url') : '';
+      var endpoint = civicfgNormalizeUrl(form ? form.getAttribute('data-civicfg-scope-options-url') : '');
       var type = row.getAttribute('data-civicfg-scope-row') || '';
       var label = row.getAttribute('data-scope-label') || type;
       var textarea = row.querySelector('[data-civicfg-scope-selectors]');
@@ -895,7 +907,7 @@
       var links = null;
 
       function fetchJson(url, options) {
-        return fetch(url, options || {credentials: 'same-origin'}).then(civicfgParseJsonResponse).then(function(payload) {
+        return fetch(civicfgNormalizeUrl(url), options || {credentials: 'same-origin'}).then(civicfgParseJsonResponse).then(function(payload) {
           if (!payload || payload.ok === false) {
             throw new Error(payload && payload.error ? payload.error : 'Configuration operation request failed.');
           }
@@ -1179,7 +1191,7 @@
 
     var exportSelect = document.getElementById('export_item');
     if (exportSelect) {
-      var endpoint = exportSelect.getAttribute('data-civicfg-single-url');
+      var endpoint = civicfgNormalizeUrl(exportSelect.getAttribute('data-civicfg-single-url'));
       var empty = document.getElementById('civicfg-single-export-empty');
       var preview = document.getElementById('civicfg-single-export-preview');
       var error = document.getElementById('civicfg-single-export-error');
@@ -1215,7 +1227,7 @@
             setText(path, data.path || '');
             setText(label, data.label || '');
             if (yaml) { yaml.value = data.yaml || ''; }
-            if (download && data.download_url) { download.setAttribute('href', data.download_url); download.removeAttribute('aria-disabled'); }
+            if (download && data.download_url) { download.setAttribute('href', civicfgNormalizeUrl(data.download_url)); download.removeAttribute('aria-disabled'); }
           })
           .catch(function(err) {
             show(preview, false);

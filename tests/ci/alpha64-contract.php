@@ -58,7 +58,8 @@ $mainPage = $read('Civi/ConfigManager/UI/MainPage.php');
 $assert(strpos($canonicalizer, 'public const VERSION = 2;') !== FALSE, 'Canonicalization version must invalidate pre-fix baselines after operational metadata rules change.');
 $assert(strpos($canonicalizer, "'monitor_only'") !== FALSE && strpos($canonicalizer, "'identity_portable'") !== FALSE && strpos($canonicalizer, "'ambiguity'") !== FALSE, 'Operational ambiguity/safety metadata must not create false configuration drift.');
 $assert(strpos($mainPage, "'reset=1&op=diff-detail-json', FALSE, NULL, FALSE") !== FALSE, 'Lazy diff endpoint URL must be generated raw before Smarty escapes the attribute.');
-$assert(strpos($presenter, "'reset=1&op=' . $key, FALSE, NULL, FALSE") !== FALSE, 'Navigation URLs must be generated raw before Smarty escapes them.');
+$assert(strpos($presenter, "'reset=1&op=' . \$key, FALSE, NULL, FALSE") !== FALSE, 'Navigation URLs must be generated raw before Smarty escapes them.');
+$assert(strpos($js, 'function civicfgNormalizeUrl') !== FALSE && strpos($js, "url.indexOf('&amp;')") !== FALSE, 'Machine-consumed URLs must defensively normalize repeated HTML ampersand escaping before fetch/navigation use.');
 
 if ($failures) {
   fwrite(STDERR, 'alpha64 contract FAILED (' . count($failures) . '/' . $checks . ")\n");
