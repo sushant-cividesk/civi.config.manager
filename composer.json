@@ -42,6 +42,8 @@
       "php tests/ci/alpha64-contract.php"
     ],
     "lint:scenario-docs": "php tests/ci/validate-scenarios.php",
+    "test:audit-wrapper": "bash tests/ci/composer-audit-wrapper-test.sh",
+    "test:mutation-provider-inventory": "bash tests/ci/mutation-provider-inventory.sh",
     "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
     "test:scenarios": "@lint:scenario-docs",
     "test:unit": "phpunit --configuration phpunit.xml.dist",
@@ -54,7 +56,9 @@
       "@lint:php",
       "@lint:architecture-contracts",
       "@lint:scenario-docs",
+      "@test:audit-wrapper",
       "@test:unit",
+      "@test:mutation-provider-inventory",
       "@analyse",
       "@compatibility"
     ],

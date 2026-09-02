@@ -46,4 +46,4 @@ jobs:
         run: composer test:cli
 
       - name: Required security audit
-        run: composer audit
+        run: tests/ci/composer-audit.sh

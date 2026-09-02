@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha66-core
+
+- Added an admin-only `ConfigManager.providerInventory` API4 action and service boundary. It deterministically inventories registered core handlers, metadata-hook handlers, advanced custom handlers, and automatically discovered contributed/custom API4/API3 candidates.
+- Kept discovery separate from admission: automatically discovered providers report capability and denial reasons without gaining new export/import authority. Inventory includes only provider metadata and explicitly performs no provider collection or YAML reads.
+- Added declared/discovered owner, API/entity, action, field, identity, reference, sensitive/runtime-field, evidence, and metadata-completeness reporting for future Settings UI work.
+- Added requirement-first unit coverage with a collection-read trap, hook-origin checks, admin permission checks, and a disposable real-CiviCRM API4 smoke boundary. Full real-provider and deliberate-mutation evidence remain required before this work can be promoted.
+- Made Composer security-audit CI resilient to transient Packagist transport/5xx failures with a bounded retry wrapper. Genuine advisories and unknown failures still fail immediately; exhausted transient failures remain red.
+
+> **Evidence boundary:** the supplied PHP 8.1 CI log passed Composer validation/install, fast QA, 240 PHPUnit tests (1,868 assertions), PHPStan, hook tests, and CLI tests for its earlier commit; its only failure was a Packagist advisory HTTP 502. This authoring workspace has no PHP/Composer/Docker, so the new alpha66 PHP, real-runtime, browser, and mutation gates remain pending in `docs/PROJECT_STATUS.md`.
+
 ## 0.1.0-alpha65-core
 
 - Preserved the `v1.0.0-beta1` code/release baseline and reopened the development line as alpha65.

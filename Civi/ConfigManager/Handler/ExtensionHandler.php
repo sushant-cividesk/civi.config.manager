@@ -8,6 +8,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
   private ?array $discoveredEntityDefinitions = NULL;
+  private ?array $inventoryEntityDefinitions = NULL;
   private array $runtimeTypeFilters = [];
   private array $identityRowsByDefinition = [];
   private static array $api3ActionsByEntity = [];
@@ -52,6 +53,129 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       ];
     }
     return $rows;
+  }
+
+  /**
+   * Inventory automatically discovered extension providers without reading
+   * any provider collection or business record.
+   *
+   * Discovery may load the provider class and inspect API4 metadata. It must
+   * not call API4 get(), API3 collection actions, reviewed BAO generators, or
+   * this handler's export/compatibility-report paths.
+   *
+   * @return array<int,array<string,mixed>>
+   */
+  public function getDiscoveredProviderInventory(): array {
+    $rows = [];
+    foreach ($this->discoverInventoryEntityDefinitions() as $definition) {
+      $definition = (array) $definition;
+      $api = (string) ($definition['api'] ?? '');
+      $entity = (string) ($definition['entity'] ?? '');
+      $extension = (string) ($definition['extension'] ?? '');
+      $admitted = !array_key_exists('generic_config_admitted', $definition) || !empty($definition['generic_config_admitted']);
+      $canCreate = $admitted && !empty($definition['can_create']);
+      $canUpdate = $admitted && !empty($definition['can_update']);
+      $canDelete = $admitted && !empty($definition['can_delete']);
+
+      $fieldNames = [];
+      foreach ((array) ($definition['fields'] ?? []) as $key => $field) {
+        $field = (array) $field;
+        $name = is_string($key) ? $key : (string) ($field['name'] ?? '');
+        if ($name !== '') {
+          $fieldNames[] = $name;
+        }
+      }
+      foreach ((array) ($definition['write_fields'] ?? []) as $name) {
+        if (is_scalar($name) && (string) $name !== '') {
+          $fieldNames[] = (string) $name;
+        }
+      }
+
+      $sensitiveFields = [];
+      foreach ($fieldNames as $name) {
+        if ($this->isSensitiveSettingName((string) $name)) {
+          $sensitiveFields[] = (string) $name;
+        }
+      }
+      $runtimeFields = array_values(array_intersect($fieldNames, [
+        'id', 'created_date', 'modified_date', 'last_modified',
+        'created_id', 'modified_id', 'last_run', 'last_run_end',
+        'last_executed', 'last_runtime', 'next_execution',
+      ]));
+
+      $discoveredActions = array_values(array_map('strval', (array) ($definition['discovered_actions'] ?? [])));
+      if ($api === 'api4') {
+        $discoveredActions = array_values(array_filter([
+          'get',
+          !empty($definition['can_create']) ? 'create' : '',
+          !empty($definition['can_update']) ? 'update' : '',
+          !empty($definition['can_delete']) ? 'delete' : '',
+        ], 'strlen'));
+      }
+      elseif (!empty($definition['list_action'])) {
+        $discoveredActions[] = (string) $definition['list_action'];
+      }
+      if (!empty($definition['read_adapter'])) {
+        $discoveredActions[] = 'adapter:' . (string) $definition['read_adapter'];
+      }
+      $discoveredActions = array_values(array_unique($discoveredActions));
+
+      $rows[] = [
+        'provider_key' => implode(':', ['extensions', $extension, $api, $entity]),
+        'type' => $this->virtualTypeForDefinition($definition),
+        'base_type' => $this->getType(),
+        'label' => $this->labelForDefinition($definition),
+        'owner' => $extension,
+        'registration_source' => 'automatic_extension_api',
+        'api_version' => $api,
+        'entity' => $entity,
+        'actions' => [
+          'read' => $api === 'api4' || !empty($definition['list_action']) || !empty($definition['read_adapter']),
+          'create' => $canCreate,
+          'update' => $canUpdate,
+          'delete' => $canDelete,
+        ],
+        'discovered_actions' => $discoveredActions,
+        'field_names' => $this->sortedStringValues($fieldNames),
+        'identity_fields' => $this->sortedStringValues((array) ($definition['match_fields'] ?? [])),
+        'reference_fields' => [],
+        'sensitive_fields' => $this->sortedStringValues($sensitiveFields),
+        'runtime_fields' => $this->sortedStringValues($runtimeFields),
+        'admitted' => $admitted,
+        'capability' => $this->inventoryCapability($admitted, $canCreate, $canUpdate, $canDelete),
+        'capability_reason_code' => (string) ($definition['admission_reason_code'] ?? ($admitted ? 'provider_admitted' : 'provider_not_admitted')),
+        'capability_reason' => (string) ($definition['admission_reason'] ?? ''),
+        'identity_evidence' => !empty($definition['reviewed_provider'])
+          ? 'reviewed_adapter'
+          : (!empty($definition['match_fields']) ? 'provider_metadata' : 'none'),
+        'metadata_completeness' => $fieldNames ? 'discovered' : 'partial',
+        'collection_read_during_inventory' => FALSE,
+      ];
+    }
+
+    usort($rows, static function(array $a, array $b): int {
+      return strcmp((string) $a['provider_key'], (string) $b['provider_key']);
+    });
+    return $rows;
+  }
+
+  private function inventoryCapability(bool $admitted, bool $canCreate, bool $canUpdate, bool $canDelete): string {
+    if (!$admitted) {
+      return 'unsupported';
+    }
+    if ($canCreate && $canUpdate && $canDelete) {
+      return 'full';
+    }
+    if ($canCreate && $canUpdate) {
+      return 'managed_no_delete';
+    }
+    return 'export_only';
+  }
+
+  private function sortedStringValues(array $values): array {
+    $values = array_values(array_unique(array_filter(array_map('strval', $values), 'strlen')));
+    sort($values, SORT_NATURAL | SORT_FLAG_CASE);
+    return $values;
   }
 
   public function filterYamlFilesByRuntimeFilters(array $files): array {
@@ -1434,13 +1558,37 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     if ($this->discoveredEntityDefinitions !== NULL) {
       return $this->discoveredEntityDefinitions;
     }
+    $this->discoveredEntityDefinitions = $this->discoverEntityDefinitionsInternal(FALSE);
+    return $this->discoveredEntityDefinitions;
+  }
+
+  /**
+   * Broader diagnostic scan for inventory. Providers owned by a dedicated
+   * handler or excluded namespace stay visible but cannot gain management
+   * authority through this path.
+   */
+  private function discoverInventoryEntityDefinitions(): array {
+    if ($this->inventoryEntityDefinitions !== NULL) {
+      return $this->inventoryEntityDefinitions;
+    }
+    $this->inventoryEntityDefinitions = $this->discoverEntityDefinitionsInternal(TRUE);
+    return $this->inventoryEntityDefinitions;
+  }
+
+  private function discoverEntityDefinitionsInternal(bool $includeSkippedExtensions): array {
     $definitions = [];
     foreach ($this->extensionBasePaths() as $extensionKey => $basePath) {
-      if ($this->isGenericConfigSkippedExtension($extensionKey)) {
+      $skipped = $this->isGenericConfigSkippedExtension($extensionKey);
+      if ($skipped && !$includeSkippedExtensions) {
         continue;
       }
       $api4EntityNames = [];
       foreach ($this->discoverApi4Entities($extensionKey, $basePath) as $definition) {
+        if ($skipped) {
+          $definition['generic_config_admitted'] = FALSE;
+          $definition['admission_reason_code'] = 'dedicated_or_excluded_extension';
+          $definition['admission_reason'] = 'The extension is owned by a dedicated handler or excluded namespace; automatic API discovery is inventory-only for this provider.';
+        }
         $api4EntityNames[strtolower((string) $definition['entity'])] = TRUE;
         $definitions[$this->definitionKey($definition['extension'], $definition['api'], $definition['entity'])] = $definition;
       }
@@ -1448,14 +1596,18 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         if (isset($api4EntityNames[strtolower((string) $definition['entity'])])) {
           continue;
         }
+        if ($skipped) {
+          $definition['generic_config_admitted'] = FALSE;
+          $definition['admission_reason_code'] = 'dedicated_or_excluded_extension';
+          $definition['admission_reason'] = 'The extension is owned by a dedicated handler or excluded namespace; automatic API discovery is inventory-only for this provider.';
+        }
         $definitions[$this->definitionKey($definition['extension'], $definition['api'], $definition['entity'])] = $definition;
       }
     }
     uasort($definitions, function($a, $b) {
       return strcmp($a['extension'] . ':' . $a['api'] . ':' . $a['entity'], $b['extension'] . ':' . $b['api'] . ':' . $b['entity']);
     });
-    $this->discoveredEntityDefinitions = array_values($definitions);
-    return $this->discoveredEntityDefinitions;
+    return array_values($definitions);
   }
 
   private function entityDefinitionsByKey(): array {
@@ -1570,6 +1722,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         'match_fields' => $matchFields,
         'reviewed_provider' => $reviewedProvider,
         'generic_config_admitted' => !empty($admission['admitted']),
+        'admission_reason_code' => (string) ($admission['reason_code'] ?? 'provider_not_admitted'),
         'admission_reason' => (string) ($admission['reason'] ?? ''),
         'can_create' => is_callable([$class, 'create']),
         'can_update' => is_callable([$class, 'update']),
@@ -1655,9 +1808,6 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
 
     $definitions = [];
     foreach (array_keys($entities) as $entity) {
-      if ($this->isNonImportableLegacyExtensionConfig($extensionKey, 'api3', $entity)) {
-        continue;
-      }
       $knownActions = array_values(array_keys($fileActions[$entity] ?? []));
       sort($knownActions, SORT_NATURAL | SORT_FLAG_CASE);
       $definitions[] = [
@@ -1672,6 +1822,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         'discovered_actions' => $knownActions,
         'reviewed_provider' => FALSE,
         'generic_config_admitted' => FALSE,
+        'admission_reason_code' => 'api3_requires_explicit_adapter',
         'admission_reason' => 'Generic API3 entity discovered from provider files only. API3 CRUD/read capability is not proof of deployable configuration, so Configuration Manager will not execute or manage it without a reviewed adapter or explicit custom handler.',
         'can_create' => FALSE,
         'can_update' => FALSE,
@@ -1725,12 +1876,14 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       'api' => 'api3',
       'entity' => $entity,
       'fields' => [],
+      'match_fields' => ['name'],
       'list_action' => $listAction,
       'read_adapter' => $readAdapter,
       'write_fields' => array_values((array) ($adapter['write_fields'] ?? [])),
       'base_path' => $basePath,
       'reviewed_provider' => TRUE,
       'generic_config_admitted' => TRUE,
+      'admission_reason_code' => 'reviewed_adapter',
       'admission_reason' => 'Reviewed provider adapter supplies a bounded collection read and explicit writable configuration fields.',
       'can_create' => TRUE,
       'can_update' => TRUE,
@@ -2895,16 +3048,21 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
    *
    * @param string[] $matchFields
    * @param array<string,array<string,mixed>> $fields
-   * @return array{admitted:bool,reason:string}
+   * @return array{admitted:bool,reason:string,reason_code:string}
    */
   private function genericApi4ConfigAdmission(array $matchFields, array $fields, bool $reviewedProvider = FALSE): array {
     if ($reviewedProvider) {
-      return ['admitted' => TRUE, 'reason' => 'Reviewed provider adapter.'];
+      return [
+        'admitted' => TRUE,
+        'reason_code' => 'reviewed_adapter',
+        'reason' => 'Reviewed provider adapter.',
+      ];
     }
 
     if (!$matchFields) {
       return [
         'admitted' => FALSE,
+        'reason_code' => 'missing_portable_identity',
         'reason' => 'API4 provider does not declare a non-ID match_fields identity. CRUD capability alone does not prove deployable configuration.',
       ];
     }
@@ -2914,12 +3072,14 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       if ($field === '' || !isset($fields[$field])) {
         return [
           'admitted' => FALSE,
+          'reason_code' => 'incomplete_identity_metadata',
           'reason' => 'API4 provider match_fields metadata is incomplete for field ' . ($field !== '' ? $field : '[empty]') . '.',
         ];
       }
       if ($this->isSensitiveSettingName($field)) {
         return [
           'admitted' => FALSE,
+          'reason_code' => 'sensitive_identity',
           'reason' => 'API4 provider uses a sensitive-looking field as portable identity. Declare the provider explicitly so sensitive-field handling can be reviewed.',
         ];
       }
@@ -2935,6 +3095,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       if (isset($fields[$field])) {
         return [
           'admitted' => FALSE,
+          'reason_code' => 'business_data_marker',
           'reason' => 'API4 provider exposes business/transaction field ' . $field . '. Generic discovery will not treat it as deployable configuration; use an explicit provider definition if this is intentionally configuration.',
         ];
       }
@@ -2949,6 +3110,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
       if ($name !== '' && $this->isSensitiveSettingName($name)) {
         return [
           'admitted' => FALSE,
+          'reason_code' => 'sensitive_writable_field',
           'reason' => 'API4 provider exposes sensitive-looking writable field ' . $name . '. Generic discovery cannot safely decide how to redact/restore it; declare the provider explicitly.',
         ];
       }
@@ -2956,6 +3118,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
 
     return [
       'admitted' => TRUE,
+      'reason_code' => 'portable_identity_and_field_policy',
       'reason' => 'API4 provider declares a non-ID portable match_fields identity and no generic business/sensitive-data safety marker was detected.',
     ];
   }

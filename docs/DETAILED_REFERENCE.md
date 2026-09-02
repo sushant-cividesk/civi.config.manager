@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this source is `0.1.0-alpha65-core`, developed from the protected `v1.0.0-beta1` baseline
+- Current build: read from `info.xml`; this source is `0.1.0-alpha66-core`, developed from the protected `v1.0.0-beta1` baseline
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -218,6 +218,7 @@ The UI and CLI use the same API4 backend.
 ```bash
 cv api4 ConfigManager.status
 cv api4 ConfigManager.listTypes
+cv api4 ConfigManager.providerInventory
 cv api4 ConfigManager.diff
 cv api4 ConfigManager.validate
 cv api4 ConfigManager.watch

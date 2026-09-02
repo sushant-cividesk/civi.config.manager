@@ -32,6 +32,7 @@ $js = $read('js/configmanager.js');
 $gitignore = $read('.gitignore');
 $releaseBuilder = $read('scripts/build-release.sh');
 $releaseWorkflow = $read('.github/workflows/release.yml');
+$composerAudit = $read('tests/ci/composer-audit.sh');
 
 $assert((bool) preg_match('/<version>[^<]+<\/version>/', $info), 'info.xml must declare a non-empty release version.');
 $assert((bool) preg_match('/<releaseDate>\d{4}-\d{2}-\d{2}<\/releaseDate>/', $info), 'info.xml must declare an ISO release date.');
@@ -48,7 +49,8 @@ $assert(strpos($releaseBuilder, '--no-dev') !== FALSE && strpos($releaseBuilder,
 $assert(strpos($releaseBuilder, 'FORBIDDEN_TOP_LEVEL=(') !== FALSE && strpos($releaseBuilder, 'tests') !== FALSE && strpos($releaseBuilder, 'docs') !== FALSE, 'Release builder must reject development-only material.');
 $assert(strpos($gitignore, "vendor/\n") !== FALSE && strpos($gitignore, "dist/\n") !== FALSE, 'Local vendor and generated dist artifacts must remain untracked.');
 $assert(strpos($releaseWorkflow, "tags:\n      - 'v*'") !== FALSE && strpos($releaseWorkflow, 'Verify tag matches info.xml version') !== FALSE, 'Tagged releases must verify tag/info.xml version identity.');
-$assert(strpos($releaseWorkflow, 'composer qa:fast') !== FALSE && strpos($releaseWorkflow, 'composer qa:stress') !== FALSE && strpos($releaseWorkflow, 'composer audit') !== FALSE, 'Tagged releases must gate fast QA, stress, and dependency audit.');
+$assert(strpos($releaseWorkflow, 'composer qa:fast') !== FALSE && strpos($releaseWorkflow, 'composer qa:stress') !== FALSE && strpos($releaseWorkflow, 'tests/ci/composer-audit.sh') !== FALSE, 'Tagged releases must gate fast QA, stress, and dependency audit.');
+$assert(strpos($composerAudit, 'composer audit --locked --no-interaction') !== FALSE && strpos($composerAudit, 'is_transient_transport_failure') !== FALSE, 'The required Composer audit may retry transport failures but must retain the locked security-audit boundary.');
 $assert(strpos($releaseWorkflow, 'gh release create') !== FALSE && strpos($releaseWorkflow, '--prerelease') !== FALSE, 'Tagged alpha/beta/RC releases must publish the runtime artifact as a GitHub pre-release.');
 
 

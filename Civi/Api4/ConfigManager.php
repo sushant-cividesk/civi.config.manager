@@ -21,6 +21,7 @@ class ConfigManager extends AbstractEntity {
       'default' => [Permission::ACCESS],
       'status' => [Permission::ACCESS],
       'listTypes' => [Permission::ACCESS],
+      'providerInventory' => [Permission::ADMINISTER],
       'diff' => [Permission::ACCESS],
       'validate' => [Permission::ACCESS],
       'export' => [Permission::EXPORT],
@@ -55,6 +56,11 @@ class ConfigManager extends AbstractEntity {
 
   public static function listTypes($checkPermissions = TRUE) {
     return (new Action\ConfigManager\ListTypes(__CLASS__, __FUNCTION__))
+      ->setCheckPermissions($checkPermissions);
+  }
+
+  public static function providerInventory($checkPermissions = TRUE) {
+    return (new Action\ConfigManager\ProviderInventory(__CLASS__, __FUNCTION__))
       ->setCheckPermissions($checkPermissions);
   }
 

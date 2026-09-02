@@ -15,6 +15,17 @@ use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 
 class HandlerRegistry {
   public function getHandlers(): array {
+    return array_values(array_map(static function(array $registration) {
+      return $registration['handler'];
+    }, $this->getHandlerRegistrations()));
+  }
+
+  /**
+   * Return handlers together with their observable registration source.
+   *
+   * @return array<int,array{handler:object,registration_source:string}>
+   */
+  public function getHandlerRegistrations(): array {
     $handlers = [
       new ExtensionHandler(),
       new OptionGroupHandler(),
@@ -34,17 +45,37 @@ class HandlerRegistry {
       new GenericApi4CollectionHandler('formbuilder-afforms', 'FormBuilder Afforms', 'formbuilder/afforms', 'Afform', ['name', 'title', 'type', 'server_route', 'permission', 'permission_operator', 'is_public', 'is_token', 'is_dashlet', 'is_active', 'layout'], ['name' => 'ASC'], 140, 'afforms.yml', TRUE),
       new CiviRulesHandler(),
     ];
+    $sources = [];
+    foreach ($handlers as $handler) {
+      $sources[spl_object_hash($handler)] = 'core_handler';
+    }
 
     $definitions = [];
     $this->invokeEntityDefinitionHook($definitions);
     foreach ($this->buildHandlersFromDefinitions($definitions) as $handler) {
       $handlers[] = $handler;
+      $sources[spl_object_hash($handler)] = 'entity_definition_hook';
     }
 
     $this->invokeConfigTypesHook($handlers);
 
+    // Any object introduced or replaced by the advanced hook is attributed to
+    // that hook. Removed handlers simply disappear, preserving existing hook
+    // semantics without retaining stale inventory entries.
+    foreach ($handlers as $handler) {
+      $hash = spl_object_hash($handler);
+      if (!isset($sources[$hash])) {
+        $sources[$hash] = 'config_types_hook';
+      }
+    }
+
     usort($handlers, fn($a, $b) => $a->getWeight() <=> $b->getWeight());
-    return $handlers;
+    return array_values(array_map(static function($handler) use ($sources): array {
+      return [
+        'handler' => $handler,
+        'registration_source' => $sources[spl_object_hash($handler)] ?? 'unknown',
+      ];
+    }, $handlers));
   }
 
   /**

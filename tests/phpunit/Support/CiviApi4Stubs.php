@@ -68,6 +68,28 @@ namespace Civi\Api4 {
     }
   }
 
+  /**
+   * Test oracle: metadata inventory must never invoke this collection action.
+   */
+  if (!class_exists(CivicfgInventoryReadTrap::class)) {
+    class CivicfgInventoryReadTrap {
+      public static int $getCalls = 0;
+
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        self::$getCalls++;
+        return new CivicfgEmptyGetAction();
+      }
+
+      public static function create(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        return new CivicfgEmptyGetAction();
+      }
+
+      public static function update(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        return new CivicfgEmptyGetAction();
+      }
+    }
+  }
+
   if (!class_exists(CivicfgPagingGetAction::class)) {
     class CivicfgPagingGetAction {
       private int $limit = 0;

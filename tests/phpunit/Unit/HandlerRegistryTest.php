@@ -85,4 +85,31 @@ final class HandlerRegistryTest extends TestCase {
     self::assertSame('Custom Private Config', $matches[0]->getLabel());
     self::assertSame('extensions/custom-private', $matches[0]->getDirectory());
   }
+
+  public function testRegistrationSourcesIdentifyCoreAndBothPublicHooks(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
+      $definitions['custom_inventory_definition'] = [
+        'entity' => 'CivicfgInventoryDefinition',
+        'key_fields' => ['name'],
+      ];
+    });
+    \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
+      $handlers[] = new class extends AbstractHandler {
+        public function getType(): string { return 'custom_inventory_handler'; }
+        public function getLabel(): string { return 'Custom inventory handler'; }
+        public function getDirectory(): string { return 'extensions/custom-inventory'; }
+        public function getWeight(): int { return 517; }
+        public function export(): array { return []; }
+      };
+    });
+
+    $byType = [];
+    foreach ((new HandlerRegistry())->getHandlerRegistrations() as $registration) {
+      $byType[$registration['handler']->getType()] = $registration['registration_source'];
+    }
+
+    self::assertSame('core_handler', $byType['option-groups']);
+    self::assertSame('entity_definition_hook', $byType['custom_inventory_definition']);
+    self::assertSame('config_types_hook', $byType['custom_inventory_handler']);
+  }
 }

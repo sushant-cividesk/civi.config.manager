@@ -271,6 +271,109 @@ class ConfigManager {
     return $this->allHandlersCache;
   }
 
+  /**
+   * Build a deterministic, metadata-only inventory of registered providers.
+   *
+   * This boundary must not call export(), compatibility reports, provider
+   * collection actions, or inspect YAML content. It describes capability; it
+   * does not prove runtime identity uniqueness or admit a provider for writes.
+   */
+  public function getProviderInventory(): array {
+    $providers = [];
+    foreach ($this->registry->getHandlerRegistrations() as $registration) {
+      $handler = $registration['handler'];
+      $source = (string) ($registration['registration_source'] ?? 'unknown');
+      $metadata = method_exists($handler, 'getProviderMetadata')
+        ? (array) $handler->getProviderMetadata()
+        : [];
+      $capability = $this->scopeCapabilityForHandler($handler);
+      $capabilityKey = (string) $capability['key'];
+      $declaredCapability = (string) ($metadata['management_capability'] ?? '');
+      if ($capabilityKey !== 'unavailable' && in_array($declaredCapability, ['full', 'managed_no_delete', 'export_only'], TRUE)) {
+        $capabilityKey = $declaredCapability;
+      }
+      $capabilityReason = (string) $capability['help'];
+      if ($capabilityKey === 'managed_no_delete') {
+        $capabilityReason = 'The provider declares safe create/update behavior but does not authorize delete-missing.';
+      }
+      $owner = trim((string) ($metadata['owner'] ?? ''));
+      if ($owner === '' || ($source !== 'core_handler' && $owner === 'civi.config.manager')) {
+        $owner = $source === 'core_handler' ? 'civi.config.manager' : 'hook-provider';
+      }
+
+      $type = (string) $handler->getType();
+      $providers[] = [
+        'provider_key' => 'handler:' . $type,
+        'type' => $type,
+        'base_type' => $type,
+        'label' => (string) $handler->getLabel(),
+        'owner' => $owner,
+        'registration_source' => $source,
+        'api_version' => (string) ($metadata['api_version'] ?? 'handler'),
+        'entity' => (string) ($metadata['entity'] ?? ''),
+        'actions' => $this->normaliseInventoryActions((array) ($metadata['actions'] ?? [])),
+        'discovered_actions' => $this->sortedInventoryStrings((array) ($metadata['discovered_actions'] ?? [])),
+        'field_names' => $this->sortedInventoryStrings((array) ($metadata['field_names'] ?? [])),
+        'identity_fields' => $this->sortedInventoryStrings((array) ($metadata['identity_fields'] ?? [])),
+        'reference_fields' => $this->sortedInventoryStrings((array) ($metadata['reference_fields'] ?? [])),
+        'sensitive_fields' => $this->sortedInventoryStrings((array) ($metadata['sensitive_fields'] ?? [])),
+        'runtime_fields' => $this->sortedInventoryStrings((array) ($metadata['runtime_fields'] ?? [])),
+        'admitted' => $capabilityKey !== 'unavailable',
+        'capability' => $capabilityKey,
+        'capability_reason_code' => 'handler_' . $capabilityKey,
+        'capability_reason' => $capabilityReason,
+        'identity_evidence' => (string) ($metadata['identity_evidence'] ?? 'none'),
+        'metadata_completeness' => (string) ($metadata['metadata_completeness'] ?? 'basic'),
+        'collection_read_during_inventory' => FALSE,
+      ];
+
+      if ($handler instanceof \Civi\ConfigManager\Handler\ExtensionHandler) {
+        foreach ($handler->getDiscoveredProviderInventory() as $provider) {
+          $providers[] = $provider;
+        }
+      }
+    }
+
+    usort($providers, static function(array $a, array $b): int {
+      return strcmp((string) $a['provider_key'], (string) $b['provider_key']);
+    });
+
+    $capabilities = [];
+    foreach ($providers as $provider) {
+      $key = (string) ($provider['capability'] ?? 'unknown');
+      $capabilities[$key] = ($capabilities[$key] ?? 0) + 1;
+    }
+    ksort($capabilities, SORT_STRING);
+
+    return [
+      'ok' => TRUE,
+      'schema_version' => 1,
+      'providers' => $providers,
+      'summary' => [
+        'provider_count' => count($providers),
+        'admitted_count' => count(array_filter($providers, static function(array $provider): bool {
+          return !empty($provider['admitted']);
+        })),
+        'capabilities' => $capabilities,
+      ],
+    ];
+  }
+
+  private function normaliseInventoryActions(array $actions): array {
+    return [
+      'read' => array_key_exists('read', $actions) ? (bool) $actions['read'] : NULL,
+      'create' => array_key_exists('create', $actions) && $actions['create'] !== NULL ? (bool) $actions['create'] : NULL,
+      'update' => array_key_exists('update', $actions) && $actions['update'] !== NULL ? (bool) $actions['update'] : NULL,
+      'delete' => array_key_exists('delete', $actions) && $actions['delete'] !== NULL ? (bool) $actions['delete'] : NULL,
+    ];
+  }
+
+  private function sortedInventoryStrings(array $values): array {
+    $values = array_values(array_unique(array_filter(array_map('strval', $values), 'strlen')));
+    sort($values, SORT_NATURAL | SORT_FLAG_CASE);
+    return $values;
+  }
+
   public function getManagedTypeOptions(): array {
     if ($this->managedTypeOptionsCache !== NULL) {
       return $this->managedTypeOptionsCache;

@@ -31,6 +31,29 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
   public function getDirectory(): string { return $this->directory; }
   public function getWeight(): int { return $this->weight; }
 
+  public function getProviderMetadata(): array {
+    $identityFields = array_values(array_intersect(['name', 'name_a_b', 'title'], $this->select));
+    return [
+      'owner' => 'civi.config.manager',
+      'api_version' => 'api4',
+      'entity' => $this->entity,
+      'actions' => [
+        'read' => TRUE,
+        'create' => TRUE,
+        'update' => TRUE,
+        'delete' => TRUE,
+      ],
+      'field_names' => $this->select,
+      'identity_fields' => $identityFields,
+      'reference_fields' => [],
+      'sensitive_fields' => [],
+      'runtime_fields' => $this->entity === 'Job' ? ['scheduled_run_date'] : [],
+      'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared',
+    ];
+  }
+
   /**
    * {@inheritdoc}
    *

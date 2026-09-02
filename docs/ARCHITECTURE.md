@@ -206,6 +206,8 @@ Generic discovery must not guess provider-specific API context or portable ident
 
 Generic discovery also treats **provider admission** as separate from identity safety. API CRUD methods prove only that records can be manipulated; they do not prove that the records are deployable configuration. Automatically discovered API4 providers therefore require non-ID `match_fields` metadata and must not expose generic business/transaction or sensitive writable fields. Generic API3 providers are not auto-admitted without a reviewed adapter. Extensions whose real configuration cannot satisfy these conservative checks should use `hook_civicfg_entityDefinitions()` or `hook_civicfg_configTypes()` so ownership, keys, references, sensitive fields, and delete semantics are explicit.
 
+Alpha66 exposes this discovery state through the admin-only `ConfigManager.providerInventory` API4 action. Inventory is a metadata boundary, not a data scan: it does not call provider collection actions, inspect managed YAML, or grant new export/import authority. Empty fields mean unknown/not declared, and `metadata_completeness` makes that limitation explicit. The future Settings inventory uses this boundary instead of triggering export or compatibility-report reads merely to render configuration cards.
+
 See [`EXTENSION_HOOKS.md`](EXTENSION_HOOKS.md) for supported integration points.
 
 ## Dependencies and semantic references

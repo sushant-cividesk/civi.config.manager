@@ -17,6 +17,10 @@ composer qa:real-runtime-ui
 
 The evidence file is `tests/ci/artifacts/import-blocker-safety.json`. Before accepting the test, create a disposable copy, disable the critical fail-closed behavior, prove this test fails, restore the behavior, and prove it passes. Record both run identifiers in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Never mutate a client or shared checkout.
 
+## Alpha66 provider-inventory requirement
+
+Opening provider inventory through the service/API4 boundary must not execute provider collection reads or inspect managed YAML. The unit test uses an independent API4 read trap. `tests/ci/mutation-provider-inventory.sh` deliberately inserts the forbidden read, requires the test to fail with that exact oracle, restores the source, and requires green. The disposable CiviCRM suite also invokes `cv api4 ConfigManager.providerInventory`; provider-specific real-runtime evidence is still required before new provider capabilities are advertised.
+
 ## Standard Round-Trip Test
 
 Use this flow for every handler that supports import:

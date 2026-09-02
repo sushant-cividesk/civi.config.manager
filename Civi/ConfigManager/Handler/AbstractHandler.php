@@ -28,6 +28,34 @@ abstract class AbstractHandler implements HandlerInterface {
     return ['available' => TRUE, 'reason' => ''];
   }
 
+  /**
+   * Return read-only metadata for provider inventory.
+   *
+   * The default deliberately reports only what every handler contract exposes.
+   * It must never call export(), import(), or any provider collection action.
+   * Handlers with declarative field/identity metadata may override this method.
+   */
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager',
+      'api_version' => 'handler',
+      'entity' => '',
+      'actions' => [
+        'read' => TRUE,
+        'create' => NULL,
+        'update' => NULL,
+        'delete' => NULL,
+      ],
+      'field_names' => [],
+      'identity_fields' => [],
+      'reference_fields' => [],
+      'sensitive_fields' => [],
+      'runtime_fields' => [],
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'basic',
+    ];
+  }
+
   public function import(array $items, bool $dryRun = TRUE): array {
     return [
       'type' => $this->getType(),

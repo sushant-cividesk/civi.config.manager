@@ -135,7 +135,53 @@ final class CivicfgStandaloneRoundTrip {
 
     $permissions = \Civi\Api4\ConfigManager::permissions();
     $this->assertTrue(($permissions['export'] ?? []) !== ($permissions['import'] ?? []), 'Export and import must use separate permissions.');
-    $this->record('api4_facade', ['status' => 'passed']);
+    $this->assertSame($permissions['watch'], $permissions['providerInventory'], 'Provider inventory must require the administrator permission.');
+
+    // Requirement: the real API4 inventory boundary is metadata-only. Failure
+    // mode: opening Settings reads/mutates business records or managed YAML.
+    // The final-state oracle is direct SQL plus a raw filesystem listing; it
+    // does not trust the inventory action's returned ok value.
+    $before = [
+      'contact_count' => (int) \CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM civicrm_contact'),
+      'option_group_count' => (int) \CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM civicrm_option_group'),
+      'sync_files' => $this->rawRelativeFiles($this->syncDir),
+    ];
+    $inventory = (array) \Civi\Api4\ConfigManager::providerInventory(FALSE)->execute()->first();
+    $encoded = json_encode($inventory, JSON_UNESCAPED_SLASHES);
+
+    $this->assertTrue(!empty($inventory['ok']), 'Provider inventory API4 action failed.');
+    $this->assertTrue(!empty($inventory['providers']), 'Provider inventory returned no registered handlers.');
+    $this->assertSame(count((array) $inventory['providers']), (int) ($inventory['summary']['provider_count'] ?? -1), 'Provider inventory summary count is inconsistent.');
+    $this->assertTrue(is_string($encoded) && strpos($encoded, '"records":') === FALSE, 'Provider inventory exposed provider record counts.');
+    $this->assertTrue(is_string($encoded) && strpos($encoded, '"values":') === FALSE, 'Provider inventory exposed provider values.');
+
+    $after = [
+      'contact_count' => (int) \CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM civicrm_contact'),
+      'option_group_count' => (int) \CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM civicrm_option_group'),
+      'sync_files' => $this->rawRelativeFiles($this->syncDir),
+    ];
+    $this->assertSame($before, $after, 'Provider inventory changed independently queried business/configuration state or YAML.');
+    $this->record('api4_facade', [
+      'status' => 'passed',
+      'provider_count' => count((array) $inventory['providers']),
+      'oracle' => 'direct SQL counts and raw sync-directory listing',
+      'adversarial_review' => 'This proves the API4 boundary preserves sampled state; provider-specific metadata methods could still read data without changing these counts, so the collection-read mutation/unit trap and provider fixtures remain required.',
+    ]);
+  }
+
+  private function rawRelativeFiles(string $root): array {
+    if (!is_dir($root)) {
+      return [];
+    }
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($iterator as $file) {
+      if ($file instanceof SplFileInfo && $file->isFile()) {
+        $files[] = str_replace('\\', '/', substr($file->getPathname(), strlen(rtrim($root, '/\\')) + 1));
+      }
+    }
+    sort($files, SORT_STRING);
+    return $files;
   }
 
   private function testSiteIdentityAndManifest(): void {

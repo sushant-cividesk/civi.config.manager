@@ -34,6 +34,7 @@ final class Api4FacadeTest extends TestCase {
     self::assertSame($permissions['watch'], $permissions['scopeSet']);
     self::assertSame($permissions['watch'], $permissions['crossSiteStatus']);
     self::assertSame($permissions['watch'], $permissions['crossSiteSet']);
+    self::assertSame($permissions['watch'], $permissions['providerInventory']);
     self::assertSame($permissions['default'], $permissions['getFields']);
   }
 }

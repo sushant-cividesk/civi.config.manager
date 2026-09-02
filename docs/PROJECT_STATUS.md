@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha65-core` |
+| Active development line | `0.1.0-alpha66-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -62,8 +62,11 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 
 ### Alpha66 — generic provider discovery inventory
 
-- [ ] A66-01 Inventory every registered core, contributed, and custom API4/API3/config-hook provider without reading business collections during discovery.
-- [ ] A66-02 Record provider owner, API version, actions, fields, declared/derived identity, references, sensitive/runtime fields, and capability reason codes.
+- [x] A66-01 Implement deterministic inventory for every registered core/config-hook handler plus installed contributed/custom API4/API3 candidates, without provider collection or YAML reads. **Real-runtime evidence pending.**
+- [x] A66-02 Add the provider schema for owner, registration source, API/entity, actions, fields, identity, references, sensitive/runtime fields, admission/capability reasons, and evidence completeness. Unknown metadata remains explicitly empty/partial rather than inferred.
+- [x] A66-02a Expose the inventory through admin-only `ConfigManager.providerInventory`; add service/unit contracts and the real-runtime CLI smoke call.
+- [x] A66-02b Add an automated red/green mutation harness for the forbidden collection-read path. **Execution pending because PHP is unavailable here.**
+- [ ] A66-02c Replace `basic`/`partial` inventory metadata with explicit field/reference/action declarations for each fixed core handler, then verify those declarations against supported real runtimes.
 - [ ] A66-03 Add a deny-by-default admission pipeline: discover → classify → prove portable identity → prove writable projection → prove reference mapping → assign capability.
 - [ ] A66-04 Support contrib/custom extensions generically through metadata and hooks; keep extension-name branches out of the core engine unless a reviewed semantic adapter is unavoidable.
 - [ ] A66-05 Cache discovery by extension/core version and invalidate it safely after extension or schema changes.
@@ -118,15 +121,19 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 | BLK-001 | OptionValue stable value `3` appears with a changed email-like machine name | Full preflight blocks rename and delete-missing | Real-runtime zero-write proof; later component-aware explanation/exclusion only if safe | Test added; runtime evidence pending |
 | UX-001 | Extension warning says it is not automatically uninstalled while preview card says “Remove from CiviCRM” with zero fields | Confusing but safety text is present | One consistent non-actionable/monitor-only label and reason | Planned A68-08 |
 | QA-001 | Source-string contracts can stay green while runtime behavior is broken | Kept as architecture lint | Independent behavioral, real-runtime, mutation, and browser gates | In progress |
+| CI-001 | Supplied PHP 8.1 workflow failed only because Packagist advisory download returned HTTP 502 | Direct `composer audit` failed on transient service outage | Retry only transport/408/425/429/5xx errors; advisories/unknown errors fail closed | Wrapper implemented and shell-tested |
 
 ## Evidence ledger
 
 | Evidence | Required command/boundary | Current state |
 |---|---|---|
-| Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Not run for alpha65 |
+| Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Not run for current alpha66 source |
 | Real import blocker | `composer qa:real-runtime` → `tests/ci/artifacts/import-blocker-safety.json` | Implemented; not run |
 | Browser UX | `composer qa:real-runtime-ui` | Required on PR/release; not run |
 | Mutation proof | Disposable source mutation + real blocker test red, restore + green | Not run |
 | Cross-environment | Identical DEV YAML imported/re-exported on STAGE with different IDs | Not run |
+| Alpha66 provider inventory | Unit collection-read trap + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Unit/runtime not run in authoring workspace |
+| Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed locally: transient recovery, advisory fail-closed, exhausted failure |
+| Authoring checks | JSON parse, Bash syntax, `git diff --check` | Passed for alpha66 working source; PHP syntax/runtime unavailable |
 
-The next implementation action after alpha65 evidence is A66-01: build a read-only provider inventory and classification report before granting any new provider management capability.
+The next implementation action is A66-03: build the deny-by-default admission stages and reason codes on top of this metadata inventory, while retaining alpha65/alpha66 runtime and mutation evidence as mandatory gates.

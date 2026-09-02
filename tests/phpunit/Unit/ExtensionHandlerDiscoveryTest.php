@@ -5,11 +5,78 @@ declare(strict_types=1);
 namespace Civi\ConfigManager\Tests\Unit;
 
 use Civi\ConfigManager\Handler\ExtensionHandler;
+use Civi\ConfigManager\Service\ConfigManager;
+use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use ReflectionProperty;
 
 final class ExtensionHandlerDiscoveryTest extends TestCase {
+  /**
+   * Requirement: provider inventory may inspect metadata but must never read a
+   * provider collection. Failure mode: opening Settings leaks/executes business
+   * APIs before the administrator has admitted a provider.
+   */
+  public function testProviderInventoryDoesNotExecuteDiscoveredCollection(): void {
+    \Civi\Api4\CivicfgInventoryReadTrap::$getCalls = 0;
+    $handler = new ExtensionHandler();
+    $definitions = new ReflectionProperty($handler, 'inventoryEntityDefinitions');
+    $definitions->setAccessible(TRUE);
+    $definitions->setValue($handler, [[
+      'extension' => 'example.inventory',
+      'api' => 'api4',
+      'entity' => 'CivicfgInventoryReadTrap',
+      'class' => \Civi\Api4\CivicfgInventoryReadTrap::class,
+      'fields' => [
+        'name' => ['name' => 'name'],
+        'secret_key' => ['name' => 'secret_key'],
+        'modified_date' => ['name' => 'modified_date', 'readonly' => TRUE],
+      ],
+      'match_fields' => ['name'],
+      'reviewed_provider' => FALSE,
+      'generic_config_admitted' => FALSE,
+      'admission_reason_code' => 'sensitive_writable_field',
+      'admission_reason' => 'Test provider remains denied.',
+      'can_create' => TRUE,
+      'can_update' => TRUE,
+      'can_delete' => TRUE,
+    ]]);
+
+    $registry = new class($handler) extends HandlerRegistry {
+      private ExtensionHandler $extensionHandler;
+
+      public function __construct(ExtensionHandler $extensionHandler) {
+        $this->extensionHandler = $extensionHandler;
+      }
+
+      public function getHandlerRegistrations(): array {
+        return [[
+          'handler' => $this->extensionHandler,
+          'registration_source' => 'core_handler',
+        ]];
+      }
+
+      public function getHandlers(): array {
+        return [$this->extensionHandler];
+      }
+    };
+    $inventory = (new ConfigManager($registry))->getProviderInventory();
+    $rows = array_values(array_filter($inventory['providers'], static function(array $provider): bool {
+      return $provider['registration_source'] === 'automatic_extension_api';
+    }));
+
+    self::assertSame(0, \Civi\Api4\CivicfgInventoryReadTrap::$getCalls, 'Inventory executed the provider collection action.');
+    self::assertCount(1, $rows);
+    self::assertFalse($rows[0]['admitted']);
+    self::assertSame('unsupported', $rows[0]['capability']);
+    self::assertSame('sensitive_writable_field', $rows[0]['capability_reason_code']);
+    self::assertSame(['name'], $rows[0]['identity_fields']);
+    self::assertSame(['secret_key'], $rows[0]['sensitive_fields']);
+    self::assertSame(['modified_date'], $rows[0]['runtime_fields']);
+    self::assertFalse($rows[0]['collection_read_during_inventory']);
+    self::assertArrayNotHasKey('records', $rows[0]);
+  }
+
   public function testAfsearchReferencesAreAfformDependencies(): void {
     $handler = new ExtensionHandler();
     $method = new ReflectionMethod($handler, 'dependenciesForEntityRow');
@@ -689,6 +756,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     $result = (array) $method->invoke($handler, [], $fields, FALSE);
     self::assertFalse($result['admitted']);
+    self::assertSame('missing_portable_identity', $result['reason_code']);
     self::assertStringContainsString('does not declare a non-ID match_fields identity', (string) $result['reason']);
   }
 
@@ -705,6 +773,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     $result = (array) $method->invoke($handler, ['reference'], $fields, FALSE);
     self::assertFalse($result['admitted']);
+    self::assertSame('business_data_marker', $result['reason_code']);
     self::assertStringContainsString('business/transaction field', (string) $result['reason']);
   }
 
@@ -720,6 +789,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     $result = (array) $method->invoke($handler, ['name'], $fields, FALSE);
     self::assertFalse($result['admitted']);
+    self::assertSame('sensitive_writable_field', $result['reason_code']);
     self::assertStringContainsString('sensitive-looking writable field', (string) $result['reason']);
 
     $reviewed = (array) $method->invoke($handler, [], $fields, TRUE);
@@ -739,6 +809,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     $result = (array) $method->invoke($handler, ['name'], $fields, FALSE);
     self::assertTrue($result['admitted']);
+    self::assertSame('portable_identity_and_field_policy', $result['reason_code']);
   }
 
   public function testNonAdmittedBusinessProvidersNeverBecomeExportUnits(): void {

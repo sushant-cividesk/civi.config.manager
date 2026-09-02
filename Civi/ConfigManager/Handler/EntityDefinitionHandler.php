@@ -75,6 +75,68 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
     return $this->weight;
   }
 
+  public function getRuntimeAvailability(): array {
+    try {
+      $this->assertUsableDefinition();
+    }
+    catch (\Throwable $e) {
+      return [
+        'available' => FALSE,
+        'reason' => $e->getMessage(),
+      ];
+    }
+    $requiredActions = ['get'];
+    if ($this->importable && $this->canCreate) {
+      $requiredActions[] = 'create';
+    }
+    if ($this->importable && $this->canUpdate) {
+      $requiredActions[] = 'update';
+    }
+    if ($this->importable && $this->canDelete) {
+      $requiredActions[] = 'delete';
+    }
+    $availability = $this->api4ManagementAvailability($this->entity, $requiredActions);
+    if (empty($availability['available']) || ($availability['management_capability'] ?? '') === 'export_only') {
+      return $availability;
+    }
+    if (!$this->importable || !$this->canCreate || !$this->canUpdate) {
+      return [
+        'available' => TRUE,
+        'management_capability' => 'export_only',
+        'reason' => 'The declared provider does not enable both safe create and update actions.',
+      ];
+    }
+    return ['available' => TRUE, 'reason' => ''];
+  }
+
+  public function getProviderMetadata(): array {
+    $fieldNames = $this->exportFields;
+    if ($fieldNames === ['*']) {
+      $fieldNames = [];
+    }
+    return [
+      'owner' => (string) ($this->definition['provider'] ?? $this->definition['extension'] ?? 'hook-provider'),
+      'api_version' => 'api' . (string) ($this->definition['api_version'] ?? 4),
+      'entity' => $this->entity,
+      'actions' => [
+        'read' => TRUE,
+        'create' => $this->importable && $this->canCreate,
+        'update' => $this->importable && $this->canUpdate,
+        'delete' => $this->importable && $this->canDelete,
+      ],
+      'field_names' => $fieldNames,
+      'identity_fields' => $this->keyFields,
+      'reference_fields' => array_keys($this->referenceFields),
+      'sensitive_fields' => $this->sensitiveFields,
+      'runtime_fields' => $this->runtimeFields,
+      'management_capability' => (!$this->importable || !$this->canCreate || !$this->canUpdate)
+        ? 'export_only'
+        : ($this->canDelete ? 'full' : 'managed_no_delete'),
+      'identity_evidence' => 'declared',
+      'metadata_completeness' => $fieldNames ? 'declared' : 'partial',
+    ];
+  }
+
   public function export(): array {
     $files = iterator_to_array($this->iterateExport(), FALSE);
     usort($files, static function(array $a, array $b): int {

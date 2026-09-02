@@ -14,6 +14,7 @@ For a traditional CiviCRM extension hook, place the function in the extension's 
  */
 function myext_civicfg_entityDefinitions(array &$definitions): void {
   $definitions['myext_report_templates'] = [
+    'provider' => 'myext',
     'label' => 'My Extension Report Templates',
     'description' => 'Report templates managed by My Extension.',
     'api_version' => 4,
@@ -127,6 +128,7 @@ The `capabilities` block is operational metadata and does not affect the portabl
 
 | Key | Required | Purpose |
 | --- | --- | --- |
+| `provider` | No | Owning extension key shown in the admin-only provider inventory. Defaults to an explicit unknown hook-provider label when omitted. |
 | `label` | Yes | Human label shown in UI/CLI. |
 | `description` | No | Human description for docs/UI. |
 | `api_version` | Yes | Currently must be `4`. |
