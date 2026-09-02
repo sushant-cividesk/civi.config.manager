@@ -2,6 +2,8 @@
 
 This document records current implementation decisions and remaining work. Version history is maintained in `../CHANGELOG.md`.
 
+The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
+
 ## Locked decisions
 
 - Extension key: `civi.config.manager`
@@ -14,6 +16,19 @@ This document records current implementation decisions and remaining work. Versi
 - Current import delete behavior: supported handlers can delete CiviCRM records that are absent from YAML, after preview and explicit confirmation
 - Payment processors: export sanitized data only; never export secrets
 - `org.civicoop.configitems`: reference only; not a dependency
+- Release policy: preserve `v1.0.0-beta1`, develop through numbered alphas, and promote to `1.0.0-beta2` only after all recorded gates and explicit approval
+- Blocker policy: full import remains strict; a future safe reduced plan may exclude only a complete proven-safe dependency component and must rebuild/re-preflight from scratch
+- Generic provider policy: runtime discovery and metadata/hooks are preferred; CRUD availability or an extension-specific heuristic cannot by itself grant write/delete authority
+- Test policy: every important test follows the eight-rule contract in `PROJECT_STATUS.md`
+
+## Approved implementation sequence
+
+1. Alpha65: durable tracking, honest QA classification, real blocker regression, and mandatory real-runtime release gates.
+2. Alpha66: read-only generic provider inventory and safe admission pipeline.
+3. Alpha67: Settings/inventory counts, grouping, lazy loading, accessibility, and provider explanations.
+4. Alpha68: immutable plans, dependency components, safe reduced-plan workflow, and blocker UI/API4/CLI consistency.
+5. Alpha69: Tags, Profiles, Contact Layouts, and traditional Reports with independent real-runtime evidence.
+6. Beta2: compatibility, upgrade, cross-environment, browser, mutation, packaging, and explicit release approval gates.
 
 ## Current command strategy
 

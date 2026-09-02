@@ -52,9 +52,58 @@ jobs:
       - name: Dependency security audit
         run: composer audit
 
+  real-runtime:
+    name: Release QA - real CiviCRM and browser
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    env:
+      COMPOSER_PROCESS_TIMEOUT: 0
+      COMPOSER_NO_INTERACTION: 1
+      COMPOSER_NO_AUDIT: 1
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, zip, intl, json
+          tools: composer
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install QA dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run real CiviCRM import/export and browser gate
+        env:
+          CIVICRM_IMAGE: civicrm/civicrm:6.16-php8.3
+          RUN_UI_TESTS: 'true'
+        run: tests/ci/run-standalone.sh
+
+      - name: Upload real-runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civicfg-release-real-runtime
+          path: tests/ci/artifacts
+
   package:
     name: Build immutable runtime release
-    needs: verify
+    needs:
+      - verify
+      - real-runtime
     runs-on: ubuntu-latest
 
     env:

@@ -1,6 +1,9 @@
 name: QA - Full CiviCRM Extension
 
 on:
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       civicrm_image:
@@ -12,9 +15,9 @@ on:
         required: true
         type: choice
         options:
-          - 'false'
           - 'true'
-        default: 'false'
+          - 'false'
+        default: 'true'
 
 jobs:
   full:
@@ -60,15 +63,15 @@ jobs:
         run: composer test:cli
 
       - name: Install browser dependencies
-        if: ${{ github.event.inputs.run_ui_tests == 'true' }}
+        if: ${{ github.event_name == 'pull_request' || inputs.run_ui_tests == 'true' }}
         run: |
           npm install
           npx playwright install --with-deps chromium
 
       - name: Run full isolated CiviCRM QA
         env:
-          CIVICRM_IMAGE: ${{ github.event.inputs.civicrm_image }}
-          RUN_UI_TESTS: ${{ github.event.inputs.run_ui_tests }}
+          CIVICRM_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.civicrm_image || 'civicrm/civicrm:6.16-php8.3' }}
+          RUN_UI_TESTS: ${{ github.event_name == 'pull_request' || inputs.run_ui_tests == 'true' }}
         run: tests/ci/run-standalone.sh
 
       - name: Upload QA artifacts

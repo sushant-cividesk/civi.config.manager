@@ -36,7 +36,7 @@ The extension is intentionally conservative.
 - Cross-site import is disabled by default and should be enabled only for a reviewed migration.
 - Missing or unreadable providers fail closed; they are never treated as an authoritative empty configuration set.
 
-See [Architecture](docs/ARCHITECTURE.md) for the design and [Testing](docs/TESTING.md) for release gates.
+The protected release is `v1.0.0-beta1`; current work continues on numbered development alphas until Beta2 gates pass. See the [project status and master checklist](docs/PROJECT_STATUS.md), [Architecture](docs/ARCHITECTURE.md), and [Testing](docs/TESTING.md).
 
 ## Large-site execution
 

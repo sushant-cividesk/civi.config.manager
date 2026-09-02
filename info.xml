@@ -8,9 +8,9 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-08-31</releaseDate>
-  <version>1.0.0-beta1</version>
-  <develStage>beta</develStage>
+  <releaseDate>2026-09-02</releaseDate>
+  <version>0.1.0-alpha65-core</version>
+  <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
     <ver>6.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Beta 1 real-world validation build with safe contributed-provider admission, CMS-consistent sync-root resolution, runtime-complete YAML packaging, protocol-clean JSON endpoints, durable queued execution, monitor-only ambiguity snapshots, and staged export/import safety barriers.</comments>
+  <comments>Alpha 65 development build preserving the Beta 1 runtime while adding a durable project checklist, requirement-first QA policy, a real-CiviCRM import-blocker regression, and mandatory real-runtime release gates.</comments>
 </extension>

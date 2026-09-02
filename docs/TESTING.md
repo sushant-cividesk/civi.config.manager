@@ -2,6 +2,21 @@
 
 This document records the current test expectations for Configuration Manager. Release history is maintained in `../CHANGELOG.md`.
 
+The frozen eight-rule test contract, milestone checklist, and evidence state live in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). No important test is complete merely because the extension returned `ok`, a stub passed, a source string existed, or scenario YAML was structurally valid.
+
+## Alpha65 real import-blocker requirement
+
+`tests/integration/ImportBlockerSafety.php` reproduces an OptionValue whose YAML machine name changes while its stable value remains the same. It runs through `ConfigManager::import()` against disposable CiviCRM and requires both preview and confirmed apply to block with zero writes. Its independent oracle directly queries OptionGroup/OptionValue, counts contacts and message templates, fingerprints a secret sentinel, and hashes unrelated YAML before/after.
+
+Run it as part of:
+
+```bash
+composer qa:real-runtime
+composer qa:real-runtime-ui
+```
+
+The evidence file is `tests/ci/artifacts/import-blocker-safety.json`. Before accepting the test, create a disposable copy, disable the critical fail-closed behavior, prove this test fails, restore the behavior, and prove it passes. Record both run identifiers in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Never mutate a client or shared checkout.
+
 ## Standard Round-Trip Test
 
 Use this flow for every handler that supports import:

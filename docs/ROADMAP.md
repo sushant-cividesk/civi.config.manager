@@ -2,6 +2,8 @@
 
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
+The actionable item IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). The near-term sequence is alpha65 evidence foundation, alpha66 generic discovery inventory, alpha67 Settings/inventory UX, alpha68 safe reduced import plans, alpha69 missing configuration types, then the gated Beta2 candidate.
+
 ## Current alpha scope
 
 The current alpha focuses on a safe, reviewable configuration workflow:

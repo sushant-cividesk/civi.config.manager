@@ -1,6 +1,6 @@
 # Release and upgrade policy
 
-This project is now entering internal beta testing with `0.1.0-beta1`. The beta is intended for Cividesk/internal development-project sites so real project feedback can guide the next improvements.
+The protected release baseline is `v1.0.0-beta1`. Development continues on numbered alpha builds; `1.0.0-beta2` requires the full checklist in [`PROJECT_STATUS.md`](PROJECT_STATUS.md) plus explicit approval to tag/publish.
 
 ## Compatibility rules after beta
 
@@ -18,7 +18,7 @@ Before tagging a beta/release candidate:
 
 1. Update `info.xml`, `README.md`, and `CHANGELOG.md`.
 2. Run fast QA: `composer validate --strict`, `composer install`, `composer qa:fast`, `composer test:hook`, and `composer audit`.
-3. Run full QA where possible: GitHub Actions `QA - Full CiviCRM Extension`.
+3. Run required full QA: GitHub Actions `QA - Full CiviCRM Extension`, including real CiviCRM, contributed fixtures, the import-blocker preservation test, and Playwright.
 4. Test at least one DDEV development-to-stage round trip before broader production use.
 5. Run `composer package:release`. The release builder creates a clean package, installs locked production dependencies with `--no-dev`, verifies bundled Symfony YAML, and emits a SHA-256 checksum.
 6. Inspect the produced ZIP and confirm `civi.config.manager/vendor/autoload.php` exists. Never publish a source-only ZIP as the installable release artifact; target administrators must not need a post-install Composer command.

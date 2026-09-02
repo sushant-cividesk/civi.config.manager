@@ -36,8 +36,14 @@
   },
   "scripts": {
     "lint:php": "bash tests/ci/php-lint.sh",
+    "lint:architecture-contracts": [
+      "php tests/ci/alpha62-contract.php",
+      "php tests/ci/alpha63-contract.php",
+      "php tests/ci/alpha64-contract.php"
+    ],
+    "lint:scenario-docs": "php tests/ci/validate-scenarios.php",
     "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
-    "test:scenarios": "php tests/ci/validate-scenarios.php",
+    "test:scenarios": "@lint:scenario-docs",
     "test:unit": "phpunit --configuration phpunit.xml.dist",
     "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
     "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
@@ -46,16 +52,16 @@
     "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
     "qa:fast": [
       "@lint:php",
-      "@test:alpha62-contract",
-      "@test:alpha63-contract",
-      "@test:alpha64-contract",
-      "@test:scenarios",
+      "@lint:architecture-contracts",
+      "@lint:scenario-docs",
       "@test:unit",
       "@analyse",
       "@compatibility"
     ],
-    "qa:full": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
-    "qa:full-ui": "bash tests/ci/run-local-ui.sh",
+    "qa:real-runtime": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
+    "qa:real-runtime-ui": "bash tests/ci/run-local-ui.sh",
+    "qa:full": "@qa:real-runtime",
+    "qa:full-ui": "@qa:real-runtime-ui",
     "qa:stress": [
       "php -d memory_limit=256M tests/ci/alpha62-stress.php",
       "php -d memory_limit=256M tests/ci/alpha63-stress.php"

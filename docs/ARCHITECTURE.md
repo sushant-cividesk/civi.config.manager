@@ -4,6 +4,18 @@ Configuration Manager is a conservative configuration-management layer for CiviC
 
 This document describes current architecture only. Release history belongs in [`../CHANGELOG.md`](../CHANGELOG.md).
 
+Approved future architecture and its implementation/evidence status are tracked separately in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Planned behavior is not current capability.
+
+## Import blocker policy
+
+Current behavior is strict: any unresolved preflight blocker stops the complete import before writes. There is no “continue anyway” path.
+
+The approved future reduced-plan model will preserve that rule. An administrator may exclude a complete blocked dependency component only when graph analysis proves the remainder is closed and safe. Exclusion discards the original immutable plan, creates a new explicitly scoped plan from current YAML/database state, and reruns complete validation/preflight. Apply is bound to that new plan's scope/content/active-state fingerprints. Excluded differences remain visible and the site cannot be labelled In Sync.
+
+## Generic provider admission policy
+
+Generic support for core, contributed, and custom extensions is metadata/capability driven, not extension-name driven. Discovery may inventory providers without reading business collections. Admission to management requires proven portable identity, a safe writable field projection, resolvable portable references, sensitive/runtime exclusions, complete required API actions, and real-runtime round-trip evidence. CRUD alone is insufficient. Providers that fail any proof remain explicitly export/compare, backup/monitor-only, unsupported, or error; absence/unreadability is never treated as an authoritative empty set.
+
 ## System overview
 
 ```text

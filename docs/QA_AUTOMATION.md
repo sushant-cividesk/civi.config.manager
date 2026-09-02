@@ -1,6 +1,14 @@
 # Automated QA
 
-Configuration Manager uses a fast GitHub Actions workflow plus a manually triggered full isolated CiviCRM workflow. The scripts are kept portable so the same checks can be called from another CI runner.
+Configuration Manager uses a fast GitHub Actions workflow plus a required isolated CiviCRM/browser workflow. The full workflow runs for pull requests and can also be started manually. Tagged packaging cannot start until both fast-matrix and real-runtime jobs pass.
+
+The frozen requirement and evidence checklist is maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+
+## Evidence rules for important tests
+
+Before implementation, record the observable obligation and failure mode. Expected results must use an oracle independent of the production canonicalizer/resolver/classifier/provider under test. Prove red/green against the known defect or with a deliberate disposable mutation. Execute through the relevant public boundary and independently inspect final CiviCRM/filesystem state. Assert preservation of business records, secrets, unrelated YAML, ignored types, and unselected configuration. Stubs are supporting evidence only; every advertised provider capability needs disposable real-CiviCRM proof. Finish with the adversarial question: “How could this implementation still be broken while these tests remain green?”
+
+Source-string contract scripts are named `lint:architecture-contracts`, and scenario-file structure validation is `lint:scenario-docs`. They do not count as behavioral or real-runtime proof.
 
 ## Fast workflow
 
@@ -21,7 +29,7 @@ CiviCRM coding standards remain available as a manual/advisory check while the e
 
 ## Full workflow
 
-`.github/workflows/qa-full.yml` is manually triggered against a selected branch or commit and a pinned CiviCRM Standalone image.
+`.github/workflows/qa-full.yml` runs automatically for pull requests to `main` with browser tests enabled. A maintainer can also trigger it manually against a selected branch/commit and pinned CiviCRM Standalone image.
 
 The workflow:
 
@@ -29,7 +37,7 @@ The workflow:
 2. Starts disposable CiviCRM/MariaDB services.
 3. Installs, disables, and re-enables Configuration Manager.
 4. Creates fixture data through supported APIs.
-5. Runs API4, CLI, YAML, round-trip, dry-run, idempotency, Config Ignore, site-identifier, secret-redaction, and Message Template checks.
+5. Runs API4, CLI, YAML, round-trip, dry-run, idempotency, Config Ignore, site-identifier, secret-redaction, Message Template, and real import-blocker preservation checks.
 6. Runs the real-extension fixture suite when enabled.
 7. Optionally runs Playwright UI/UX/accessibility checks.
 8. Blocks outbound application networking and real email delivery during application tests.

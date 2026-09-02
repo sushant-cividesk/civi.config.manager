@@ -1,5 +1,10 @@
 id: CM-IMPORT-PREFLIGHT-SAFETY
 feature: Import reports the complete safety picture before writes and fail-closes destructive operations without portable identities
+requirement: Preview and confirmed import must perform zero writes when an OptionValue keeps its stable value but changes machine name.
+failure_mode: The importer reports a blocker but still renames, deletes, or changes related/unrelated state.
+oracle: Direct API4 rows, direct SQL business/config counts, sensitive-setting fingerprints, and raw filesystem hashes independent of handler results.
+mutation_proof: Disable the OptionValue fail-closed branch only in a disposable copy, require this scenario to fail, restore it, and require green before acceptance.
+adversarial_review: The service test can remain green if API4, CLI, queue, or browser paths bypass the service, so those boundaries need their own gates.
 level:
   - unit
   - integration
@@ -23,6 +28,8 @@ steps:
   - Preview a foreign-site manifest together with another handler-level blocker and verify both are reported in the same preflight while no writes occur.
   - Preview a new Option Group and a Custom Field which depends on that group in the same YAML bundle and verify the dependency is accepted as planned earlier in the import.
   - Preview an OptionValue with the same stable value but a different machine name and verify the pair is blocked from automatic rename and delete-missing.
+  - Attempt confirmed import and independently query the database and filesystem instead of trusting the returned ok/applied flags.
+  - Verify contacts, ignored Message Templates, unselected Scheduled Jobs, the SMTP-password fingerprint, scope/ignore settings, an unrelated Option Group/Value, and ignored unrelated YAML remain unchanged.
   - Preview extension-provider YAML marked ambiguous or without safe delete capability and verify delete-missing is not planned for that provider.
   - Preview CiviRules rule-condition and rule-action junction rows whose only provider identity is a numeric database ID and verify automatic cross-site create/update/delete remains disabled.
   - Force a create/update runtime failure after a clean preflight and verify the global delete-missing phase never starts.
@@ -31,6 +38,11 @@ expected:
   all_preflight_blockers_reported_together: true
   planned_dependencies_satisfy_dry_run: true
   rename_collision_blocks_old_identity_delete: true
+  confirmed_blocked_import_changes_database: false
+  business_records_preserved: true
+  secret_fingerprint_preserved: true
+  ignored_and_unselected_config_preserved: true
+  unrelated_yaml_preserved: true
   monitor_only_provider_delete_count: 0
   local_numeric_civirules_delete_count: 0
   delete_phase_skipped_after_write_failure: true

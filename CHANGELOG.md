@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha65-core
+
+- Preserved the `v1.0.0-beta1` code/release baseline and reopened the development line as alpha65.
+- Added `docs/PROJECT_STATUS.md` as the durable decision, milestone, blocker, and evidence ledger for generic provider discovery, Settings/inventory UX, safe reduced import plans, missing configuration types, and the Beta2 gate.
+- Reclassified source-string architecture contracts and scenario-schema validation honestly as lint/document checks in Composer while retaining their compatibility aliases.
+- Added a disposable real-CiviCRM regression for the observed OptionValue stable-value/machine-name conflict. It exercises preview and confirmed import through the service, then independently verifies database rows, business-record counts, a secret fingerprint, and unrelated YAML remain unchanged.
+- Made the full real-CiviCRM and browser workflow automatic on pull requests and a mandatory dependency of tagged release packaging.
+
+> **Evidence boundary:** PHP and Docker are unavailable in the authoring workspace. Alpha65 runtime, supported-PHP, browser, and red/mutation results remain explicitly pending in `docs/PROJECT_STATUS.md`; this source must not be promoted on documentation or source inspection alone.
+
 ## 1.0.0-beta1
 
 - First clean beta release of the alpha64 real-world hardening line. The runtime behavior is intentionally unchanged from the alpha64 code that passed the supported-PHP QA matrix, stress gates, hook/CLI coverage, dependency audit, and production-package checks.

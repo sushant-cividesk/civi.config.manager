@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this source is `1.0.0-beta1`
+- Current build: read from `info.xml`; this source is `0.1.0-alpha65-core`, developed from the protected `v1.0.0-beta1` baseline
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -22,7 +22,7 @@ Runtime YAML parsing/dumping uses the extension's bundled Symfony YAML dependenc
 
 ## Development and beta policy
 
-`1.0.0-beta1` is the first clean beta of the real-world hardening line built on the durable alpha63/alpha64 execution model. It keeps the queue/ambiguity safety, provider-admission hardening, CMS-root consistency, YAML runtime completeness, JSON protocol boundaries, and production release packaging proven during alpha64 QA while moving the version metadata to the controlled beta channel.
+`v1.0.0-beta1` remains the protected first clean beta of the real-world hardening line. Current work continues on numbered development alphas; `1.0.0-beta2` is not released until the checklist and evidence gates in [`PROJECT_STATUS.md`](PROJECT_STATUS.md) pass and publication is explicitly approved.
 
 Alpha63 specifically adds deterministic monitor-only snapshots for duplicate/unproven identities, per-identity delete safety, disk-spooled one-pass provider reads, durable multi-item Queue plans, persistent staging metadata, hard-interruption YAML publish recovery, WordPress session-lock release, and semantic phase/heartbeat progress. The safety distinction is deliberate: intentional source monitor-only rows are skipped without blocking unrelated safe items, while a source identity which was proven portable but becomes ambiguous on the target is a blocking preflight conflict.
 
@@ -507,7 +507,7 @@ See `docs/CLI.md` for Composer/non-Composer behavior, ownership, registry, and u
 
 ## Automated QA
 
-This repository includes a fast GitHub Actions workflow for every push/pull request and a manually triggered full CiviCRM Standalone workflow. The full workflow creates an isolated database and YAML directory, blocks outbound application networking and email delivery, generates disposable API4 fixtures, tests CLI/API/service round trips, and can run Playwright UI/UX and accessibility checks.
+This repository includes a fast GitHub Actions workflow for every push/pull request and a full CiviCRM Standalone workflow that runs automatically on pull requests or manually on demand. The full workflow creates an isolated database and YAML directory, blocks outbound application networking and email delivery, generates disposable API4 fixtures, tests CLI/API/service round trips and preservation boundaries, and runs Playwright on pull requests. Tagged packaging also requires the real-CiviCRM/browser job to pass.
 
 See `docs/QA_AUTOMATION.md` and `tests/scenarios/README.md`.
 

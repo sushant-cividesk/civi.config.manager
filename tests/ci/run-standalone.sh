@@ -199,6 +199,14 @@ if [[ "${RUN_REAL_EXTENSION_FIXTURES:-true}" == "true" ]]; then
     | tee "${QA_ARTIFACT_DIR}/fixture-extension-install.log"
 fi
 
+qa_stage "Prove import blockers prevent real CiviCRM writes"
+compose exec -T -u www-data \
+  -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
+  -e CIVICFG_QA_ROOT=/tmp/civicfg-qa \
+  -e CIVICFG_QA_ARTIFACTS=/qa-artifacts \
+  app cv scr /var/www/html/ext/civi.config.manager/tests/integration/ImportBlockerSafety.php \
+  | tee "${QA_ARTIFACT_DIR}/import-blocker-safety.log"
+
 qa_stage "Run standalone round-trip integration"
 compose exec -T -u www-data \
   -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
