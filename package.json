@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "description": "Browser QA for the CiviCRM Configuration Manager extension.",
   "scripts": {
-    "test:ui": "playwright test",
-    "test:ui:headed": "playwright test --headed"
+    "test:ui": "node tests/ci/run-ui-tests.js",
+    "test:ui:headed": "playwright test --headed",
+    "test:ui:target": "playwright test tests/playwright/targeted-smoke.spec.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

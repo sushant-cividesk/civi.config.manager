@@ -122,52 +122,6 @@ final class CliCommandTest extends TestCase {
     self::assertStringContainsString('either --allow or --deny', implode("\n", $lines));
   }
 
-
-  private function createCliFixtureRoot(): string {
-    $root = $this->sandbox . '/extension-' . bin2hex(random_bytes(3));
-    mkdir($root . '/bin', 0775, TRUE);
-    mkdir($root . '/tests/ci', 0775, TRUE);
-    copy($this->cli, $root . '/bin/civicfg');
-    chmod($root . '/bin/civicfg', 0755);
-    return $root;
-  }
-
-  /** @return array{0:int,1:array<int,string>} */
-  private function runCliPath(string $cli, array $args, array $env = []): array {
-    $parts = [];
-    foreach ($env as $name => $value) {
-      $parts[] = $name . '=' . escapeshellarg((string) $value);
-    }
-    $parts[] = 'bash';
-    $parts[] = escapeshellarg($cli);
-    foreach ($args as $arg) {
-      $parts[] = escapeshellarg((string) $arg);
-    }
-    $output = [];
-    $exit = 0;
-    exec(implode(' ', $parts) . ' 2>&1', $output, $exit);
-    return [$exit, array_values(array_map('strval', $output))];
-  }
-
-  private function removeTree(string $path): void {
-    if (!is_dir($path)) {
-      return;
-    }
-    $iterator = new \RecursiveIteratorIterator(
-      new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-      \RecursiveIteratorIterator::CHILD_FIRST
-    );
-    foreach ($iterator as $item) {
-      if ($item->isDir() && !$item->isLink()) {
-        @rmdir($item->getPathname());
-      }
-      else {
-        @unlink($item->getPathname());
-      }
-    }
-    @rmdir($path);
-  }
-
   /**
    * @return array{0:int,1:array<int,string>}
    */

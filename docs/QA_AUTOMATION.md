@@ -240,3 +240,8 @@ Run these commands from the host repository checkout where Docker Compose is ava
 Standalone QA no longer runs Mailpit. The application network is internal-only, direct public TCP egress is verified as blocked, and PHP mail attempts are intercepted by the local sendmail blocker. A separate DDEV/Mailpit service on `127.0.0.1:8025` therefore cannot affect the suite. When `composer qa:full-ui` is run on a host without Node/npm, the UI stage uses the pinned `mcr.microsoft.com/playwright:v1.61.1-noble` image instead; GitHub Actions continues to use the workflow's Node/Playwright installation.
 
 The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable. SQLTasks now has a reviewed declarative provider definition that does not load the BAO during discovery; the BAO adapter is loaded from the provider base path only when rows are read.
+
+
+### Alpha67.4.2 targeted DEV mode
+
+`npm run test:ui` now detects its context. With the disposable QA fixture state present it runs the full seeded browser suite. Without that fixture, an explicit `CIVICFG_BASE_URL` runs a read-only targeted smoke instead. Targeted mode does not execute fixture-dependent import/watch/cross-site mutations.

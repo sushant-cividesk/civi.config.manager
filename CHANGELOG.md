@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha67.4.2-core
+
+- Fixed Alpha67.4.1 PHPStan failures by removing obsolete CLI-test helper methods left after browser CLI removal.
+- Made `npm run test:ui` context-aware: disposable QA keeps the full fixture suite, while an explicit `CIVICFG_BASE_URL` without fixture state runs a read-only targeted DEV smoke.
+- Added targeted DEV checks for core navigation, provider-safety wording, accessibility, browser errors, and blocked external requests without mutating configuration.
+
 ## 0.1.0-alpha67.4.1-core
 
 - Fixed Alpha67.4 registry unit tests to assert the diagnostics list contract correctly instead of comparing one diagnostic object with the whole list.

@@ -302,3 +302,8 @@ The alpha62 gate continues proving 5,000 API4 + 5,000 YAML bounded traversal and
 The real-site alpha63 scenario must additionally prove: generic contributed provider discovery must not execute business APIs merely to inspect them (for example Civigrant `Grant` or CiviMobile `CiviMobileParticipant` must not become export units and discovery must not emit their provider warnings); generic provider discovery excludes business/transaction API entities such as Grant without aborting unrelated Export; legacy alpha61/62 portable CiviRules YAML remains importable; queued workspaces survive a normal PHP/container restart when CiviCRM ConfigAndLog is persistent; identical duplicate CiviRules rows export without path collision; monitor-only rows do not gain CRUD authority; portable YAML ambiguous on target blocks with zero writes; one ambiguous identity does not disable unrelated delete safety; WordPress 2,000+ YAML progress remains responsive and semantically labelled; refresh reconnects; create/update failure starts no delete work; interrupted live mutation blocks; interrupted publication restores the previous YAML snapshot; Export -> Synchronize is zero diff; and a repeat Export produces no unnecessary rewrite.
 
 These gates do not replace the PHP 7.4 compatibility matrix or full Drupal 7/WordPress/Standalone CiviCRM lifecycle tests.
+
+
+### Alpha67.4.2 targeted DEV mode
+
+`npm run test:ui` now detects its context. With the disposable QA fixture state present it runs the full seeded browser suite. Without that fixture, an explicit `CIVICFG_BASE_URL` runs a read-only targeted smoke instead. Targeted mode does not execute fixture-dependent import/watch/cross-site mutations.

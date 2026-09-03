@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.4.1-core` |
+| Active development line | `0.1.0-alpha67.4.2-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -182,3 +182,10 @@ A66-04 is complete in Alpha67.4. The next implementation action is A66-05 discov
 - The browser workflow contract now fails if removed `qa-browser*` production CLI commands or `testQaBrowser*` unit tests reappear.
 - Targeted DEV JavaScript browser QA remains deliberately simple: run `npm install` once in the checkout, then `npm run test:ui` with the target URL/admin environment.
 
+
+### Alpha67.4.2 QA hotfix — 2026-09-03
+
+- Maintainer DDEV evidence confirmed the Alpha67.4.1 functional/unit layer green at 255 tests / 1,993 assertions with both provider mutation proofs, browser workflow contract, and source hygiene passing; `qa:fast` then failed only because three obsolete private CLI-test helpers were left unused after browser CLI removal.
+- Removed those dead helpers rather than suppressing PHPStan.
+- Direct targeted `npm run test:ui` previously failed before test discovery because the full disposable suite unconditionally loaded `ui-fixture-state.json`. The npm entry point now dispatches to a read-only targeted DEV smoke when `CIVICFG_BASE_URL` is explicit and fixture state is absent, while fixture-present disposable QA continues to run the full seeded suite.
+- The targeted smoke does not execute fixture-dependent import/watch/cross-site mutation scenarios.

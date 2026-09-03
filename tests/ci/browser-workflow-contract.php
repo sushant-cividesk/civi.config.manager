@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
 $composer = json_decode((string) file_get_contents($root . '/composer.json'), TRUE);
+$package = json_decode((string) file_get_contents($root . '/package.json'), TRUE);
+$targeted = (string) file_get_contents($root . '/tests/playwright/targeted-smoke.spec.js');
 $standalone = (string) file_get_contents($root . '/tests/ci/run-standalone.sh');
 $qaFull = (string) file_get_contents($root . '/.github/workflows/qa-full.yml');
 $release = (string) file_get_contents($root . '/.github/workflows/release.yml');
@@ -13,6 +15,8 @@ $cliTests = (string) file_get_contents($root . '/tests/phpunit/Unit/CliCommandTe
 $checks = [
   'single browser stack directory' => !is_dir($root . '/tests/browser-php'),
   'browser command uses disposable runtime' => ($composer['scripts']['qa:browser'] ?? '') === 'RUN_UI_TESTS=true bash tests/ci/run-standalone.sh',
+  'npm UI command dispatches by fixture context' => ($package['scripts']['test:ui'] ?? '') === 'node tests/ci/run-ui-tests.js',
+  'targeted smoke does not require disposable fixture state' => strpos($targeted, 'ui-fixture-state.json') === FALSE,
   'no PHP browser composer command' => !isset($composer['scripts']['qa:browser-php']),
   'standalone owns JS browser flag' => strpos($standalone, 'RUN_UI_TESTS') !== FALSE,
   'standalone has no PHP browser flag' => strpos($standalone, 'RUN_PHP_UI_TESTS') === FALSE,

@@ -239,3 +239,8 @@ Do not publish a release solely because unit tests pass. The full isolated integ
 ## License
 
 AGPL-3.0-or-later. See `info.xml` for package metadata.
+
+
+### Alpha67.4.2 targeted DEV mode
+
+`npm run test:ui` now detects its context. With the disposable QA fixture state present it runs the full seeded browser suite. Without that fixture, an explicit `CIVICFG_BASE_URL` runs a read-only targeted smoke instead. Targeted mode does not execute fixture-dependent import/watch/cross-site mutations.
