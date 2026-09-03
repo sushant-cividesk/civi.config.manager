@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__, 2);
+$composer = json_decode((string) file_get_contents($root . '/composer.json'), TRUE);
+$standalone = (string) file_get_contents($root . '/tests/ci/run-standalone.sh');
+$qaFull = (string) file_get_contents($root . '/.github/workflows/qa-full.yml');
+$release = (string) file_get_contents($root . '/.github/workflows/release.yml');
+
+$checks = [
+  'single browser stack directory' => !is_dir($root . '/tests/browser-php'),
+  'browser command uses disposable runtime' => ($composer['scripts']['qa:browser'] ?? '') === 'RUN_UI_TESTS=true bash tests/ci/run-standalone.sh',
+  'no PHP browser composer command' => !isset($composer['scripts']['qa:browser-php']),
+  'standalone owns JS browser flag' => strpos($standalone, 'RUN_UI_TESTS') !== FALSE,
+  'standalone has no PHP browser flag' => strpos($standalone, 'RUN_PHP_UI_TESTS') === FALSE,
+  'standalone runs JS Playwright' => strpos($standalone, 'npm run test:ui') !== FALSE,
+  'standalone keeps Docker browser fallback' => strpos($standalone, 'run-playwright-docker.sh') !== FALSE,
+  'full GitHub QA uses canonical browser command' => strpos($qaFull, 'run: composer qa:browser') !== FALSE,
+  'release GitHub QA uses canonical browser command' => strpos($release, 'run: composer qa:browser') !== FALSE,
+  'no Playwright-PHP workflow wording' => strpos($qaFull . $release, 'Playwright-PHP') === FALSE,
+];
+
+foreach ($checks as $label => $passed) {
+  if (!$passed) {
+    fwrite(STDERR, 'browser workflow contract failed: ' . $label . PHP_EOL);
+    exit(1);
+  }
+}
+
+echo 'browser workflow contract OK (' . count($checks) . ' checks)' . PHP_EOL;

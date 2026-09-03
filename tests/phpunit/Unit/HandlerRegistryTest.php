@@ -112,4 +112,70 @@ final class HandlerRegistryTest extends TestCase {
     self::assertSame('entity_definition_hook', $byType['custom_inventory_definition']);
     self::assertSame('config_types_hook', $byType['custom_inventory_handler']);
   }
+
+  /**
+   * Requirement: a contributed/custom hook must not shadow an already
+   * registered configuration type. The original provider remains active and
+   * the collision is reported as unavailable metadata instead of creating an
+   * ambiguous handler order.
+   */
+  public function testDuplicateHookTypeIsRejectedWithoutReplacingCoreHandler(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
+      $definitions['option-groups'] = [
+        'provider' => 'example.collision',
+        'entity' => 'OptionGroup',
+        'key_fields' => ['name'],
+        'export_fields' => ['name', 'title'],
+      ];
+    });
+
+    $registry = new HandlerRegistry();
+    $registrations = $registry->getHandlerRegistrations();
+    $matches = array_values(array_filter($registrations, static function(array $registration): bool {
+      return $registration['handler']->getType() === 'option-groups';
+    }));
+
+    self::assertCount(1, $matches);
+    self::assertSame('core_handler', $matches[0]['registration_source']);
+    self::assertSame([
+      'type' => 'option-groups',
+      'registration_source' => 'entity_definition_hook',
+      'reason_code' => 'duplicate_handler_type',
+      'reason' => 'Configuration type "option-groups" is already registered by core_handler; the later entity_definition_hook registration was rejected.',
+    ], $registry->getRegistrationDiagnostics());
+  }
+
+  /** Requirement: malformed advanced-hook values cannot break unrelated providers. */
+  public function testInvalidAdvancedHookRegistrationIsRejectedWithoutBreakingRegistry(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
+      $handlers[] = 'not-a-handler';
+    });
+
+    $registry = new HandlerRegistry();
+    $registrations = $registry->getHandlerRegistrations();
+    $types = array_map(static fn(array $registration): string => $registration['handler']->getType(), $registrations);
+
+    self::assertContains('option-groups', $types);
+    self::assertSame('invalid_handler_registration', $registry->getRegistrationDiagnostics()[0]['reason_code']);
+  }
+
+  /** Requirement: malformed metadata-hook definitions are visible and do not break core providers. */
+  public function testMalformedEntityDefinitionIsRejectedWithDiagnostic(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
+      $definitions['broken_definition'] = 'not-an-array';
+    });
+
+    $registry = new HandlerRegistry();
+    $registrations = $registry->getHandlerRegistrations();
+    $types = array_map(static fn(array $registration): string => $registration['handler']->getType(), $registrations);
+
+    self::assertContains('option-groups', $types);
+    self::assertNotContains('broken_definition', $types);
+    self::assertSame([
+      'type' => 'broken_definition',
+      'registration_source' => 'entity_definition_hook',
+      'reason_code' => 'invalid_entity_definition',
+      'reason' => 'A civicfg_entityDefinitions hook must register a non-empty string type with an array definition.',
+    ], $registry->getRegistrationDiagnostics());
+  }
 }

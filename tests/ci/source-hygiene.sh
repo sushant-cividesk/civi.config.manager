@@ -11,7 +11,7 @@ done < <(find . \
   -path './.git' -prune -o \
   -path './vendor' -prune -o \
   -path './node_modules' -prune -o \
-  \( -name '.DS_Store' -o -name '__MACOSX' -o -path './tests/browser-php/vendor' -o -name '.phpunit.result.cache' -o -name '.phpunit.cache' \) \
+  \( -name '.DS_Store' -o -name '__MACOSX' -o -path './tests/browser-php' -o -name '.phpunit.result.cache' -o -name '.phpunit.cache' \) \
   -print)
 
 if [[ ${#bad[@]} -gt 0 ]]; then

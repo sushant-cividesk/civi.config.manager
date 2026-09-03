@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<phpunit colors="true" failOnWarning="true" failOnRisky="true" failOnSkipped="true" beStrictAboutTestsThatDoNotTestAnything="true" cacheResult="false">
-  <testsuites>
-    <testsuite name="Configuration Manager PHP browser QA">
-      <directory>tests</directory>
-    </testsuite>
-  </testsuites>
-</phpunit>

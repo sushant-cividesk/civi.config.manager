@@ -173,6 +173,12 @@ Changing a machine identity can look like one object removed and another object 
 
 After reviewing an intentional rename, an operator can confirm the identity relationship through `ConfigManager.confirmIdentityAlias`; then align/re-export YAML under the accepted identity. The local alias preserves baseline continuity without making an unsafe guess about how the provider itself performs a rename.
 
+## Registration safety
+
+Configuration type names are global within Configuration Manager. Core handlers are registered first, followed by metadata-hook providers and then advanced-hook changes. A later hook registration may not silently shadow an already registered type: the earlier provider remains active and the collision is exposed in provider inventory as an unavailable rejected registration.
+
+An advanced `civicfg_configTypes()` hook that intentionally replaces an existing provider must explicitly remove the original handler before adding its replacement. Malformed metadata definitions or non-handler values are rejected without disabling unrelated providers.
+
 ## Advanced hook: `hook_civicfg_configTypes()`
 
 Use `civicfg_configTypes()` when metadata is not enough, for example private database tables, non-API4 configuration, complex multi-entity transforms, generated assets, or provider-specific workflows that cannot be represented safely by the metadata contract.

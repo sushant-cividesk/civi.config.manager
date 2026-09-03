@@ -16,10 +16,6 @@ Usage:
   civicfg scope-items --type TYPE [--json]
   civicfg scope-set --type TYPE --mode MODE [scope options]
   civicfg cross-site-import [--allow|--deny] [--json]
-  civicfg qa-browser [--base-url URL] [qa options]
-  civicfg cli-install [--json]
-  civicfg cli-doctor [--json]
-  civicfg qa-browser-clean [--yes]
 
 Common options:
   --type TYPE       Limit to a config type. Repeat for export/import/diff/validate/watch.
@@ -38,17 +34,6 @@ Cross-site options:
   --allow           Enable reviewed cross-site import.
   --deny            Disable cross-site import.
 
-Browser QA options:
-  --base-url URL    Optional authorized target site. Without it, QA creates its own disposable CiviCRM.
-  --admin-user USER Browser login user (default: CIVICRM_ADMIN_USER or admin).
-  --tool-dir DIR    External Playwright-PHP tool cache/workspace.
-  --artifact-dir DIR Directory for browser QA artifacts.
-  --clean-legacy    Remove the old generated tests/browser-php/vendor first.
-
-Browser QA password:
-  Set CIVICRM_ADMIN_PASS in the environment. Passwords are intentionally not
-  accepted as command-line arguments so they do not leak through process lists.
-
 Examples:
   civicfg export --write
   civicfg import --dry-run
@@ -60,12 +45,6 @@ Examples:
   civicfg scope-set --type message-templates --mode selected --selector 'key:message-templates|workflow_name=contribution_online_receipt|is_default=0' --watch-unmanaged
   civicfg cross-site-import
   civicfg cross-site-import --allow
-  civicfg qa-browser
-  civicfg qa-browser --base-url https://dev.example.test
-  ./bin/civicfg cli-install
-  ./bin/civicfg cli-doctor
-  civicfg qa-browser --base-url https://dev.example.test --clean-legacy
-  civicfg qa-browser-clean --yes
 HELP
 }
 
@@ -92,119 +71,6 @@ command="$1"
 shift || true
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-legacy_browser_vendor="${repo_root}/tests/browser-php/vendor"
-browser_runner="${repo_root}/tests/ci/run-browser-php.sh"
-
-if [[ "$command" == "qa-browser-clean" ]]; then
-  confirm="0"
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --yes|-y) confirm="1" ;;
-      -h|--help)
-        cat <<'HELP'
-Usage: civicfg qa-browser-clean [--yes]
-
-Removes only generated legacy Playwright-PHP artifacts created under
-tests/browser-php by the pre-Alpha67.1 workflow. Without --yes this is a
-read-only preview.
-HELP
-        exit 0
-        ;;
-      *) fail "Unknown qa-browser-clean option: $1" ;;
-    esac
-    shift || true
-  done
-
-  targets=()
-  [[ -d "$legacy_browser_vendor" ]] && targets+=("$legacy_browser_vendor")
-  [[ -f "${repo_root}/tests/browser-php/.phpunit.result.cache" ]] && targets+=("${repo_root}/tests/browser-php/.phpunit.result.cache")
-  [[ -d "${repo_root}/tests/browser-php/.phpunit.cache" ]] && targets+=("${repo_root}/tests/browser-php/.phpunit.cache")
-
-  if [[ ${#targets[@]} -eq 0 ]]; then
-    echo "No legacy browser-QA artifacts found."
-    exit 0
-  fi
-  printf 'Legacy browser-QA artifact(s):\n'
-  printf '  %s\n' "${targets[@]}"
-  if [[ "$confirm" != "1" ]]; then
-    echo "Preview only. Re-run with --yes to remove these generated artifacts."
-    exit 0
-  fi
-  rm -rf -- "${targets[@]}"
-  echo "Legacy browser-QA artifacts removed."
-  exit 0
-fi
-
-if [[ "$command" == "qa-browser" ]]; then
-  base_url="${CIVICFG_BASE_URL:-}"
-  admin_user="${CIVICRM_ADMIN_USER:-admin}"
-  tool_dir="${CIVICFG_BROWSER_PHP_TOOL_DIR:-}"
-  artifact_dir="${QA_ARTIFACT_DIR:-}"
-  clean_legacy="0"
-
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --base-url) shift; [[ $# -gt 0 ]] || fail "Missing value for --base-url"; base_url="$1" ;;
-      --base-url=*) base_url="${1#--base-url=}" ;;
-      --admin-user) shift; [[ $# -gt 0 ]] || fail "Missing value for --admin-user"; admin_user="$1" ;;
-      --admin-user=*) admin_user="${1#--admin-user=}" ;;
-      --tool-dir) shift; [[ $# -gt 0 ]] || fail "Missing value for --tool-dir"; tool_dir="$1" ;;
-      --tool-dir=*) tool_dir="${1#--tool-dir=}" ;;
-      --artifact-dir) shift; [[ $# -gt 0 ]] || fail "Missing value for --artifact-dir"; artifact_dir="$1" ;;
-      --artifact-dir=*) artifact_dir="${1#--artifact-dir=}" ;;
-      --clean-legacy) clean_legacy="1" ;;
-      -h|--help)
-        cat <<'HELP'
-Usage: civicfg qa-browser [--base-url URL] [options]
-
-Without --base-url, creates a disposable CiviCRM stack and runs the PHP browser
-suite end-to-end. This is the default local/CI path and requires Docker on the
-host.
-
-With --base-url, targets an explicitly authorized DEV/disposable CiviCRM site.
-
-Options:
-  --base-url URL       Optional authorized target site.
-  --admin-user USER    Target-site login user. Password comes from CIVICRM_ADMIN_PASS.
-  --tool-dir DIR       External Playwright-PHP tooling directory.
-  --artifact-dir DIR   Browser QA artifact directory.
-  --clean-legacy       Remove old generated tests/browser-php/vendor first.
-
-This command does not require cv for self-contained or targeted browser QA.
-HELP
-        exit 0
-        ;;
-      --admin-pass|--admin-pass=*) fail "Do not pass passwords on the command line; set CIVICRM_ADMIN_PASS in the environment." ;;
-      *) fail "Unknown qa-browser option: $1" ;;
-    esac
-    shift || true
-  done
-
-  if [[ -d "$legacy_browser_vendor" ]]; then
-    if [[ "$clean_legacy" == "1" ]]; then
-      rm -rf -- "$legacy_browser_vendor"
-      rm -f -- "${repo_root}/tests/browser-php/.phpunit.result.cache"
-      rm -rf -- "${repo_root}/tests/browser-php/.phpunit.cache"
-      echo "Removed legacy tests/browser-php/vendor before browser QA."
-    else
-      fail "Legacy tests/browser-php/vendor exists. Run './bin/civicfg qa-browser-clean --yes' or add --clean-legacy."
-    fi
-  fi
-
-  if [[ -z "$base_url" ]]; then
-    self_contained_runner="${repo_root}/tests/ci/run-browser-php-self-contained.sh"
-    [[ -x "$self_contained_runner" ]] || fail "Self-contained browser QA runner is missing or not executable: $self_contained_runner"
-    exec bash "$self_contained_runner"
-  fi
-
-  [[ -n "${CIVICRM_ADMIN_PASS:-}" ]] || fail "Targeted browser QA requires CIVICRM_ADMIN_PASS in the environment."
-  [[ -x "$browser_runner" ]] || fail "Targeted browser QA runner is missing or not executable: $browser_runner"
-  export CIVICFG_BASE_URL="$base_url"
-  export CIVICRM_ADMIN_USER="$admin_user"
-  [[ -z "$tool_dir" ]] || export CIVICFG_BROWSER_PHP_TOOL_DIR="$tool_dir"
-  [[ -z "$artifact_dir" ]] || export QA_ARTIFACT_DIR="$artifact_dir"
-  exec bash "$browser_runner"
-fi
 
 cv_cmd="${CIVICFG_CV:-}"
 if [[ -z "${cv_cmd}" ]]; then
@@ -214,33 +80,6 @@ if [[ -z "${cv_cmd}" ]]; then
   fail "Configuration Manager CLI requires the CiviCRM cv command."
 fi
 
-
-if [[ "$command" == "cli-install" || "$command" == "cli-doctor" ]]; then
-  json="0"
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --json) json="1" ;;
-      -h|--help)
-        echo "Usage: civicfg ${command} [--json]"
-        exit 0
-        ;;
-      *) fail "Unknown ${command} option: $1" ;;
-    esac
-    shift || true
-  done
-  if [[ "$command" == "cli-install" ]]; then
-    php_code='$r=(new \Civi\ConfigManager\Service\CliInstaller())->install(); echo json_encode($r, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);'
-  else
-    php_code='$r=(new \Civi\ConfigManager\Service\CliInstaller())->status(); echo json_encode($r, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);'
-  fi
-  result="$(${cv_cmd} ev "$php_code")"
-  if [[ "$json" == "1" ]]; then
-    printf '%s\n' "$result"
-  else
-    php -r '$r=json_decode($argv[1],true); if(!is_array($r)){fwrite(STDERR,"Invalid CLI installer response\n"); exit(2);} foreach($r as $k=>$v){ if(is_bool($v)) $v=$v?"yes":"no"; elseif(is_array($v)) $v=json_encode($v, JSON_UNESCAPED_SLASHES); elseif($v===null) $v="-"; echo $k,": ",$v,PHP_EOL; }' "$result"
-  fi
-  exit 0
-fi
 
 types=()
 selectors=()

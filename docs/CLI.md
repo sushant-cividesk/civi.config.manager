@@ -26,49 +26,17 @@ civicfg import --yes
 
 Use `civicfg --help` for the complete option list.
 
-## Browser QA commands
+## Browser QA
 
-Alpha67.3 makes the default browser QA path self-contained. From the extension root on a Docker-capable host:
+Browser QA is deliberately kept out of the production `civicfg` command surface. Use the repository QA commands instead:
 
 ```bash
-composer qa:browser-php
+composer qa:fast
+composer qa:real-runtime
 composer qa:browser
 ```
 
-The first command creates a disposable CiviCRM stack and runs Playwright-PHP. The second creates the same disposable runtime and runs both JavaScript Playwright/axe and Playwright-PHP. GitHub Actions uses the same `composer qa:browser` orchestration.
-
-To intentionally target an existing authorized DEV site:
-
-```bash
-CIVICRM_ADMIN_PASS='...' ./bin/civicfg qa-browser \
-  --base-url https://dev.example.test \
-  --admin-user admin
-```
-
-The password intentionally has no `--admin-pass` option; command-line passwords can be exposed through shell history and process listings.
-
-If an earlier Alpha67 browser experiment created `tests/browser-php/vendor`, inspect before deleting:
-
-```bash
-civicfg qa-browser-clean
-```
-
-Then explicitly remove only those generated legacy browser-QA artifacts:
-
-```bash
-civicfg qa-browser-clean --yes
-```
-
-Or explicitly clean and immediately run the browser QA:
-
-```bash
-CIVICRM_ADMIN_PASS='...' civicfg qa-browser \
-  --base-url https://dev.example.test \
-  --admin-user admin \
-  --clean-legacy
-```
-
-`qa-browser` without `--base-url` delegates to the self-contained disposable-runtime runner. With `--base-url`, it delegates to `tests/ci/run-browser-php.sh`. Both paths provision Playwright-PHP outside the extension tree and never create a second project `vendor/`.
+`composer qa:browser` creates a disposable CiviCRM runtime and runs the JavaScript Playwright + axe suite. It must be run from a Docker-capable host checkout. The production CLI remains focused on configuration operations rather than test-tool orchestration.
 
 ## Launcher architecture
 
@@ -201,32 +169,3 @@ civicfg import --yes
 ```
 
 The equivalent API4 actions remain available through `cv api4 ConfigManager.*`.
-
-
-## Alpha67.3 browser QA and launcher repair
-
-The default browser QA path is self-contained and uses the same disposable CiviCRM orchestration locally and in GitHub Actions:
-
-```bash
-composer qa:browser-php   # PHP Playwright only
-composer qa:browser       # JavaScript Playwright + PHP Playwright
-```
-
-These commands must be run from the host checkout because they create their own Docker CiviCRM stack. Do not run `composer install` inside `tests/browser-php`. Playwright-PHP dependencies are provisioned outside the extension tree from the pinned browser manifest/lock.
-
-To target an existing authorized DEV site instead:
-
-```bash
-CIVICRM_ADMIN_PASS='...' ./bin/civicfg qa-browser \
-  --base-url https://dev.example.test \
-  --admin-user admin
-```
-
-If the global launcher is not yet available, repair/inspect it from the extension root:
-
-```bash
-./bin/civicfg cli-install
-./bin/civicfg cli-doctor
-```
-
-The installer prefers a writable directory already containing `cv`, then other safe writable PATH directories. Passwords are never accepted as command-line arguments.

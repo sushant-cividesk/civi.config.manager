@@ -54,4 +54,28 @@ final class ProviderInventoryTest extends TestCase {
     self::assertArrayNotHasKey('values', $matches[0]);
     self::assertSame(count($inventory['providers']), $inventory['summary']['provider_count']);
   }
+
+  /**
+   * Requirement: rejected provider collisions remain visible to operators as
+   * unavailable metadata and never gain management authority.
+   */
+  public function testProviderInventorySurfacesRejectedDuplicateRegistration(): void {
+    \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
+      $definitions['option-groups'] = [
+        'provider' => 'example.collision',
+        'entity' => 'OptionGroup',
+        'key_fields' => ['name'],
+      ];
+    });
+
+    $inventory = (new \Civi\ConfigManager\Service\ConfigManager())->getProviderInventory();
+    $matches = array_values(array_filter($inventory['providers'], static function(array $provider): bool {
+      return ($provider['capability_reason_code'] ?? '') === 'registry_duplicate_handler_type';
+    }));
+
+    self::assertCount(1, $matches);
+    self::assertFalse($matches[0]['admitted']);
+    self::assertSame('unavailable', $matches[0]['capability']);
+    self::assertSame(1, $inventory['summary']['rejected_registration_count']);
+  }
 }

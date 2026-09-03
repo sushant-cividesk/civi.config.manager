@@ -280,7 +280,8 @@ class ConfigManager {
    */
   public function getProviderInventory(): array {
     $providers = [];
-    foreach ($this->registry->getHandlerRegistrations() as $registration) {
+    $registrations = $this->registry->getHandlerRegistrations();
+    foreach ($registrations as $registration) {
       $handler = $registration['handler'];
       $source = (string) ($registration['registration_source'] ?? 'unknown');
       $metadata = method_exists($handler, 'getProviderMetadata')
@@ -334,6 +335,35 @@ class ConfigManager {
       }
     }
 
+    foreach ($this->registry->getRegistrationDiagnostics() as $index => $diagnostic) {
+      $type = (string) ($diagnostic['type'] ?? '');
+      $source = (string) ($diagnostic['registration_source'] ?? 'unknown');
+      $providers[] = [
+        'provider_key' => 'rejected:' . $source . ':' . ($type !== '' ? $type : 'unknown') . ':' . $index,
+        'type' => $type,
+        'base_type' => $type,
+        'label' => $type !== '' ? $type : 'Rejected provider registration',
+        'owner' => $source === 'core_handler' ? 'civi.config.manager' : 'hook-provider',
+        'registration_source' => $source,
+        'api_version' => 'handler',
+        'entity' => '',
+        'actions' => $this->normaliseInventoryActions([]),
+        'discovered_actions' => [],
+        'field_names' => [],
+        'identity_fields' => [],
+        'reference_fields' => [],
+        'sensitive_fields' => [],
+        'runtime_fields' => [],
+        'admitted' => FALSE,
+        'capability' => 'unavailable',
+        'capability_reason_code' => 'registry_' . (string) ($diagnostic['reason_code'] ?? 'registration_rejected'),
+        'capability_reason' => (string) ($diagnostic['reason'] ?? 'Provider registration was rejected.'),
+        'identity_evidence' => 'none',
+        'metadata_completeness' => 'rejected',
+        'collection_read_during_inventory' => FALSE,
+      ];
+    }
+
     usort($providers, static function(array $a, array $b): int {
       return strcmp((string) $a['provider_key'], (string) $b['provider_key']);
     });
@@ -354,6 +384,7 @@ class ConfigManager {
         'admitted_count' => count(array_filter($providers, static function(array $provider): bool {
           return !empty($provider['admitted']);
         })),
+        'rejected_registration_count' => count($this->registry->getRegistrationDiagnostics()),
         'capabilities' => $capabilities,
       ],
     ];

@@ -40,7 +40,6 @@ The workflow:
 5. Runs API4, CLI, YAML, round-trip, dry-run, idempotency, Config Ignore, site-identifier, secret-redaction, Message Template, and real import-blocker preservation checks.
 6. Runs the real-extension fixture suite when enabled.
 7. Optionally runs JavaScript Playwright UI/UX/accessibility checks.
-8. When enabled, runs the isolated PHP 8.2+ Playwright-PHP black-box client against the same disposable HTTP site.
 9. Blocks outbound application networking and real email delivery during application tests.
 10. Verifies tracked extension source files did not change.
 11. Uploads sanitized evidence and removes containers/volumes/fixtures after the run.
@@ -73,22 +72,13 @@ Full isolated run without browser tests:
 RUN_UI_TESTS=false tests/ci/run-standalone.sh
 ```
 
-Full isolated run with both browser stacks:
+Full isolated run with browser tests:
 
 ```bash
 composer qa:browser
 ```
 
-PHP-browser-only disposable runtime:
-
-```bash
-composer qa:browser-php
-```
-
-For an intentional existing DEV target, use `CIVICRM_ADMIN_PASS=... ./bin/civicfg qa-browser --base-url URL`. Use `./bin/civicfg qa-browser-clean` to preview/remove legacy Alpha67 nested browser artifacts.
-
-The PHP browser harness is deliberately isolated from the extension's root Composer graph. Its pinned manifest/lock remain under `tests/browser-php`, but `tests/ci/run-browser-php.sh` installs the PHP 8.2+ toolchain into an external QA workspace so the extension tree keeps one project `vendor/`.
-
+The browser gate uses JavaScript Playwright + axe only. It runs against the same disposable CiviCRM runtime as the integration suite and has a pinned Docker-browser fallback when Node/npm is unavailable on the host.
 ## Developer-owned scenarios
 
 Every functional change should add or update a file in `tests/scenarios`. `composer test:scenarios` requires disposable fixtures, concrete expected results, negative cases, cleanup, and explicit blocked outbound network/email boundaries.
@@ -250,12 +240,3 @@ Run these commands from the host repository checkout where Docker Compose is ava
 Standalone QA no longer runs Mailpit. The application network is internal-only, direct public TCP egress is verified as blocked, and PHP mail attempts are intercepted by the local sendmail blocker. A separate DDEV/Mailpit service on `127.0.0.1:8025` therefore cannot affect the suite. When `composer qa:full-ui` is run on a host without Node/npm, the UI stage uses the pinned `mcr.microsoft.com/playwright:v1.61.1-noble` image instead; GitHub Actions continues to use the workflow's Node/Playwright installation.
 
 The alpha61 SQLTasks follow-up regression also verifies that directory-style API3 action files (`Entity/Create.php`, provider delete aliases such as `Entity/Deletetask.php`) are sufficient for capability discovery when runtime `getactions` introspection is unreliable. SQLTasks now has a reviewed declarative provider definition that does not load the BAO during discovery; the BAO adapter is loaded from the provider base path only when rows are read.
-
-
-## Alpha67.3 unified local/CI browser entry points
-
-- `composer qa:browser-php` — self-contained disposable CiviCRM + Playwright-PHP.
-- `composer qa:browser` — self-contained disposable CiviCRM + JavaScript Playwright/axe + Playwright-PHP.
-- `composer qa:browser-php:target` — leaf runner for an explicitly supplied `CIVICFG_BASE_URL`; normally use `./bin/civicfg qa-browser --base-url URL` instead.
-
-The GitHub full/release browser jobs invoke `composer qa:browser`, so local and CI browser validation share the same environment-creation and test orchestration path.

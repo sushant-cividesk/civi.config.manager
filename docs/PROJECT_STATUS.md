@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.3-core` |
+| Active development line | `0.1.0-alpha67.4-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -68,13 +68,13 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] A66-02b Add an automated red/green mutation harness for the forbidden collection-read path. On 2026-09-03 the harness quoting defect that produced invalid injected PHP was fixed; the exact mutation now applies once and passes PHP syntax. **Behavioral red/green execution remains pending because PHPUnit/vendor dependencies are unavailable in the current container.**
 - [x] A66-02c Fixed/core handlers now declare explicit action, identity, reference, sensitive/runtime, and management-capability metadata instead of inheriting `basic`; contributed dynamic-provider metadata remains explicit about its limits. **Supported real-runtime verification remains pending.**
 - [x] A66-03 Implemented a deny-by-default metadata admission pipeline: discover → classify → prove portable identity → prove writable projection → prove reference mapping → assign capability. Writable reference fields without explicit semantic mapping fail closed; reviewed adapters remain explicit reviewed integration points. **PHPUnit mutation and disposable real-runtime proof remain pending.**
-- [ ] A66-04 Support contrib/custom extensions generically through metadata and hooks; keep extension-name branches out of the core engine unless a reviewed semantic adapter is unavoidable.
+- [x] A66-04 Support contrib/custom extensions generically through metadata and hooks; duplicate/invalid hook registrations now fail closed without shadowing unrelated/core providers, and rejected registrations remain visible as unavailable provider inventory.
 - [ ] A66-05 Cache discovery by extension/core version and invalidate it safely after extension or schema changes.
 - [ ] A66-06 Add compatibility fixtures for supported CiviCRM 5.x/6.x targets and representative contrib/custom providers.
 
 ### Alpha67 — Settings and inventory UX
 
-- [x] A67-00 Add an isolated PHP 8.2+ Playwright black-box QA client alongside existing JavaScript Playwright + axe coverage. Keep it out of the PHP 7.4 runtime dependency graph and run it only against disposable/authorized HTTP environments. **Runtime execution remains pending.** The harness pins Playwright-PHP `1.4.0`; generate and review its nested `composer.lock` in a Composer-enabled environment before treating dependency resolution as release-reproducible.
+- [x] A67-00 Keep one trustworthy browser stack: JavaScript Playwright + axe against the disposable real-CiviCRM runtime. The experimental Playwright-PHP duplicate stack was removed in Alpha67.4 after proving to add host/dependency complexity without independent product evidence.
 - [ ] A67-01 Replace the long undifferentiated list with searchable groups: Core, Contributed, Custom, Unavailable, and Backup/Monitor-only.
 - [x] A67-02 Keep the heading **What should Configuration Manager manage?** and expose provider-safety evidence/reasons so write capability is not presented as implicit. Broader grouping/search UX remains in A67-01/A67-04-A67-06.
 - [ ] A67-03 Show per-type mode cards only for valid choices: Manage all, Manage selected, Monitor only, Ignore.
@@ -131,16 +131,16 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 |---|---|---|
 | Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Still pending. 2026-09-03 container has PHP 8.4 only, no Composer/vendor dependencies, no Docker/Podman, and outbound DNS is disabled. PHP 8.4 syntax passed for all 108 project PHP files; Alpha62/63/64 architecture contracts passed (31/53/23 checks). |
 | Real import blocker | `composer qa:real-runtime` → `tests/ci/artifacts/import-blocker-safety.json` | Implemented; not run |
-| Browser UX | `composer qa:real-runtime-ui` | JS Playwright + axe remains required; alpha67 also wires isolated Playwright-PHP black-box QA. Both runtime executions remain pending in this authoring container. |
+| Browser UX | `composer qa:browser` | JS Playwright + axe is the single browser layer and runs against the disposable CiviCRM runtime. |
 | Mutation proof | Disposable source mutation + real blocker test red, restore + green | 2026-09-03 harness parse defect fixed. Independent injection check proved the forbidden-read mutation applies exactly once and the mutated PHP lints; restored source also lints. PHPUnit red/green proof remains pending because `vendor/bin/phpunit` is unavailable. |
 | Cross-environment | Identical DEV YAML imported/re-exported on STAGE with different IDs | Not run |
 | Alpha66/67 provider inventory + admission | Unit collection-read trap + admission policy/mutation + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Metadata-only admission smoke passes locally. PHPUnit/mutation behavioral proof and real-runtime inventory/admission remain pending because this container has no Composer/vendor or Docker. |
 | Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed again 2026-09-03: transient recovery, advisory fail-closed, exhausted failure |
 | Authoring checks | JSON parse, Bash syntax, `git diff --check` | 2026-09-03: archive SHA-256/integrity matched handoff; `info.xml` is `0.1.0-alpha66-core`; composer/package JSON parsed; all 10 test Bash scripts passed `bash -n`; all 108 project PHP files passed syntax under PHP 8.4. `validate-scenarios.php` could not start because `vendor/autoload.php` is absent. |
 
-Current alpha67 implementation checkpoint: A66-02c and A66-03 are implemented in source; Settings exposes provider-safety metadata; an isolated Playwright-PHP harness and CI/disposable-runtime wiring are present. Local checks observed: all 112 project PHP files lint under PHP 8.4, Alpha62/63/64 architecture contracts pass (31/53/23), Composer audit-wrapper behavior passes, workflow YAML/Composer JSON parse, and direct admission-policy smoke proves unmapped references deny while a reference-free portable provider can admit. Full PHPUnit/mutation red-green, PHP 7.4/8.1/8.3, Docker/CiviCRM, JS Playwright, and Playwright-PHP execution remain runtime gates.
+Current Alpha67.4 checkpoint: A66-02c, A66-03, and A66-04 are implemented in source; Settings exposes provider-safety metadata; browser QA is intentionally one JavaScript Playwright + axe stack against disposable CiviCRM. Maintainer evidence immediately before this change observed 255 PHPUnit tests / 1,993 assertions green, both provider mutation proofs green, Alpha62/63/64 and scenario contracts green, source hygiene green, and PHPStan with no errors. Alpha67.4 adds provider-registration collision tests; the normal PHPUnit/real-runtime/browser gates must rerun before release promotion.
 
-The next implementation action after these gates is A66-04 generic contrib/custom support completion, then A66-05 caching and A66-06 supported-version fixtures before the remaining Alpha67 inventory grouping/count/search/accessibility work.
+A66-04 is complete in Alpha67.4. The next implementation action is A66-05 discovery caching, then A66-06 supported-version/provider fixtures before the remaining Alpha67 inventory grouping/count/search/accessibility work.
 
 ### Alpha67.1 QA maintenance evidence — 2026-09-03
 
@@ -165,3 +165,12 @@ The next implementation action after these gates is A66-04 generic contrib/custo
 - Browser PHPUnit is fail-closed for skipped/risky/zero-assertion tests.
 - CLI installation now prefers a writable directory containing `cv`; `./bin/civicfg cli-install` and `./bin/civicfg cli-doctor` provide deterministic repair/diagnostics when a global launcher is not present.
 - Source packaging must exclude `.git`, `__MACOSX`, all vendor/node_modules trees, PHPUnit caches, and generated QA artifacts.
+
+
+### Alpha67.4 workflow simplification and A66-04 completion — 2026-09-03
+
+- Removed the experimental Playwright-PHP harness, nested QA Composer manifest/lock, browser-PHP runners, and browser-specific production CLI commands.
+- `composer qa:browser` is now the single browser entry point: disposable real CiviCRM + JavaScript Playwright/axe. `composer qa:fast` and `composer qa:real-runtime` remain the non-browser gates.
+- Maintainer evidence carried forward before this change: 255 PHPUnit tests / 1,993 assertions, both provider mutation proofs, architecture/scenario contracts, source hygiene, and PHPStan all passed; Playwright-PHP failed at browser launch because the DDEV container lacked host browser libraries.
+- Completed A66-04 registration safety: core/earlier provider types cannot be shadowed accidentally by later hook registrations; malformed advanced-hook values are rejected without breaking unrelated providers; rejected registrations are surfaced as unavailable provider inventory metadata.
+- Next: A66-05 discovery caching, then A66-06 supported CiviCRM/provider fixtures, then the remaining Alpha67 Settings UX before Beta2 gates.

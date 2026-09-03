@@ -209,9 +209,18 @@ Browser/UI QA:
 composer qa:full-ui
 ```
 
-The full UI gate now runs two independent browser clients against the same disposable CiviCRM site: the existing JavaScript Playwright + axe suite and an isolated PHP 8.2+ Playwright-PHP black-box harness under `tests/browser-php`. The PHP harness is intentionally outside the extension runtime Composer graph so PHP 7.4 compatibility is unchanged.
+The browser gate uses one browser stack: JavaScript Playwright + axe against the same disposable CiviCRM runtime used by the real integration suite. This keeps local and GitHub browser evidence aligned without a second Composer project or browser dependency graph.
 
-For browser QA, run `composer qa:browser-php` (PHP browser stack only) or `composer qa:browser` (both JavaScript and PHP browser stacks). Both commands create their own disposable CiviCRM environment with Docker, so no existing CiviCRM site or credentials are required. To intentionally test an existing DEV site, use `CIVICRM_ADMIN_PASS=... ./bin/civicfg qa-browser --base-url https://dev.example.test --admin-user admin`. If an older experiment left `tests/browser-php/vendor`, preview it with `./bin/civicfg qa-browser-clean` and remove it only with `./bin/civicfg qa-browser-clean --yes`.
+Run `composer qa:browser` from a Docker-capable host checkout. For a targeted existing DEV site, use the existing JavaScript browser suite directly:
+
+```bash
+CIVICFG_BASE_URL=https://dev.example.test \
+CIVICRM_ADMIN_USER=admin \
+CIVICRM_ADMIN_PASS=... \
+npm run test:ui
+```
+
+No browser-specific commands are part of the production `civicfg` CLI.
 
 Do not publish a release solely because unit tests pass. The full isolated integration suite and a reviewed real migration dry-run are release gates for destructive import behavior.
 

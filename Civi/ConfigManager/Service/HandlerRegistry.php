@@ -14,6 +14,8 @@ use Civi\ConfigManager\Handler\GenericApi4CollectionHandler;
 use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 
 class HandlerRegistry {
+  private array $registrationDiagnostics = [];
+
   public function getHandlers(): array {
     return array_values(array_map(static function(array $registration) {
       return $registration['handler'];
@@ -26,6 +28,7 @@ class HandlerRegistry {
    * @return array<int,array{handler:object,registration_source:string}>
    */
   public function getHandlerRegistrations(): array {
+    $this->registrationDiagnostics = [];
     $handlers = [
       new ExtensionHandler(),
       new OptionGroupHandler(),
@@ -63,19 +66,76 @@ class HandlerRegistry {
     // that hook. Removed handlers simply disappear, preserving existing hook
     // semantics without retaining stale inventory entries.
     foreach ($handlers as $handler) {
+      if (!is_object($handler)) {
+        continue;
+      }
       $hash = spl_object_hash($handler);
       if (!isset($sources[$hash])) {
         $sources[$hash] = 'config_types_hook';
       }
     }
 
-    usort($handlers, fn($a, $b) => $a->getWeight() <=> $b->getWeight());
-    return array_values(array_map(static function($handler) use ($sources): array {
-      return [
+    $registrations = [];
+    $seenTypes = [];
+    foreach ($handlers as $handler) {
+      if (!is_object($handler) || !method_exists($handler, 'getType') || !method_exists($handler, 'getWeight')) {
+        $this->registrationDiagnostics[] = [
+          'type' => '',
+          'registration_source' => 'config_types_hook',
+          'reason_code' => 'invalid_handler_registration',
+          'reason' => 'A civicfg_configTypes hook registered a value that is not a Configuration Manager handler.',
+        ];
+        continue;
+      }
+
+      $type = trim((string) $handler->getType());
+      $source = $sources[spl_object_hash($handler)] ?? 'unknown';
+      if ($type === '') {
+        $this->registrationDiagnostics[] = [
+          'type' => '',
+          'registration_source' => $source,
+          'reason_code' => 'empty_handler_type',
+          'reason' => 'A Configuration Manager handler registered an empty configuration type.',
+        ];
+        continue;
+      }
+      if (isset($seenTypes[$type])) {
+        $this->registrationDiagnostics[] = [
+          'type' => $type,
+          'registration_source' => $source,
+          'reason_code' => 'duplicate_handler_type',
+          'reason' => sprintf(
+            'Configuration type "%s" is already registered by %s; the later %s registration was rejected.',
+            $type,
+            $seenTypes[$type],
+            $source
+          ),
+        ];
+        continue;
+      }
+
+      $seenTypes[$type] = $source;
+      $registrations[] = [
         'handler' => $handler,
-        'registration_source' => $sources[spl_object_hash($handler)] ?? 'unknown',
+        'registration_source' => $source,
       ];
-    }, $handlers));
+    }
+
+    usort($registrations, static function(array $a, array $b): int {
+      return $a['handler']->getWeight() <=> $b['handler']->getWeight();
+    });
+    return array_values($registrations);
+  }
+
+  /**
+   * Return rejected provider registrations from the most recent registry build.
+   *
+   * Diagnostics are metadata only. They let the UI/API explain why an unsafe
+   * contributed/custom registration was ignored without breaking unrelated
+   * configuration providers.
+   */
+  public function getRegistrationDiagnostics(): array {
+    return $this->registrationDiagnostics;
   }
 
   /**
@@ -110,7 +170,13 @@ class HandlerRegistry {
   private function buildHandlersFromDefinitions(array $definitions): array {
     $handlers = [];
     foreach ($definitions as $type => $definition) {
-      if (!is_string($type) || !is_array($definition)) {
+      if (!is_string($type) || trim($type) === '' || !is_array($definition)) {
+        $this->registrationDiagnostics[] = [
+          'type' => is_string($type) ? trim($type) : '',
+          'registration_source' => 'entity_definition_hook',
+          'reason_code' => 'invalid_entity_definition',
+          'reason' => 'A civicfg_entityDefinitions hook must register a non-empty string type with an array definition.',
+        ];
         continue;
       }
       $handlers[] = new EntityDefinitionHandler($type, $definition);

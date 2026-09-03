@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha67.4-core
+
+- Simplified browser QA to one trustworthy stack: JavaScript Playwright + axe against the disposable real-CiviCRM runtime. Removed the experimental Playwright-PHP harness and its separate Composer/tooling path.
+- Removed browser-test orchestration from the production `civicfg` CLI; QA now stays in repository Composer/npm scripts.
+- Completed A66-04 generic contributed/custom registration safety: duplicate configuration types cannot shadow earlier/core handlers, malformed advanced-hook registrations fail closed, and rejected registrations appear as unavailable provider inventory.
+- Kept `composer qa:fast`, `composer qa:real-runtime`, and `composer qa:browser` as the stable developer/CI workflow.
+
 ## 0.1.0-alpha67.3-core
 
 - Made `composer qa:browser-php` self-contained: it creates its own disposable CiviCRM stack and runs Playwright-PHP without requiring an existing site URL or credentials.
