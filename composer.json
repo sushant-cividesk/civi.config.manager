@@ -61,6 +61,7 @@
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
             "@test:browser-workflow-contract",
+            "@test:provider-browser",
             "@test:source-hygiene",
             "@analyse",
             "@compatibility"
@@ -79,6 +80,7 @@
         "qa:browser": "RUN_UI_TESTS=true bash tests/ci/run-standalone.sh",
         "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh",
         "test:source-hygiene": "bash tests/ci/source-hygiene.sh",
-        "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php"
+        "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php",
+        "test:provider-browser": "node tests/ci/provider-browser-test.js"
     }
 }

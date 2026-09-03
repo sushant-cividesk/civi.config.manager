@@ -478,3 +478,20 @@
 @media (max-width: 640px) {
   .crm-configmanager-block .civicfg-provider-safety-meta {grid-template-columns: 1fr;}
 }
+
+/* Alpha67.5 provider browser: keep Settings interactive while metadata loads. */
+.crm-configmanager-block .civicfg-provider-browser-toolbar {display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin:12px 0;}
+.crm-configmanager-block .civicfg-provider-browser-toolbar input[type="search"] {min-width:min(340px, 100%);}
+.crm-configmanager-block .civicfg-provider-filter-label {margin-left:auto;}
+.crm-configmanager-block .civicfg-provider-inventory-state {margin:4px 0 12px;}
+.crm-configmanager-block .civicfg-provider-group {margin:18px 0;}
+.crm-configmanager-block .civicfg-provider-group > h5 {display:flex; align-items:center; gap:8px; margin-bottom:2px;}
+.crm-configmanager-block .civicfg-provider-group-count {font-weight:normal; font-size:.9em;}
+.crm-configmanager-block .civicfg-provider-group-loading > h5 {opacity:.72;}
+.crm-configmanager-block .civicfg-provider-empty {margin-top:12px;}
+.crm-configmanager-block .civicfg-scope-card[hidden] {display:none !important;}
+@media (max-width: 700px) {
+  .crm-configmanager-block .civicfg-provider-browser-toolbar {align-items:stretch;}
+  .crm-configmanager-block .civicfg-provider-browser-toolbar > * {max-width:100%;}
+  .crm-configmanager-block .civicfg-provider-filter-label {margin-left:0;}
+}

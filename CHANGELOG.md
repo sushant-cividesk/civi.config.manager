@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha67.5-core
+
+- Reworked Settings provider selection into a searchable grouped browser: Core, Contributed, Custom, Backup / monitor-only, and Unavailable.
+- Removed synchronous provider-inventory enrichment from the initial Settings render; provider safety/ownership metadata now loads through an admin-only read-only JSON endpoint after the page becomes interactive.
+- Kept existing scope modes, dependency warnings, lazy item-picker behavior, and fail-closed capability rules unchanged while moving the new browser logic into its own JavaScript module.
+- Added focused provider-browser behavior checks and targeted DEV certificate tolerance for local DDEV/Buildkit developer CAs without weakening disposable CI browser verification.
+
 ## 0.1.0-alpha67.4.2-core
 
 - Fixed Alpha67.4.1 PHPStan failures by removing obsolete CLI-test helper methods left after browser CLI removal.

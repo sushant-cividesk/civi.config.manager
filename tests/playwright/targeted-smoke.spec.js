@@ -66,6 +66,18 @@ test.describe('Configuration Manager targeted DEV smoke', () => {
     await expect(block.getByRole('link', { name: 'Export', exact: true })).toBeVisible();
     await expect(block.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
 
+    const providerSearch = page.locator('[data-civicfg-provider-search]');
+    const providerFilter = page.locator('[data-civicfg-provider-group-filter]');
+    const providerState = page.locator('[data-civicfg-provider-inventory-state]');
+    await expect(providerSearch).toBeVisible();
+    await expect(providerFilter).toBeVisible();
+    await expect(providerState).toContainText(/Provider safety details loaded for/i);
+    await expect(page.locator('[data-civicfg-provider-group]:not([hidden])').first()).toBeVisible();
+
+    await providerSearch.fill('configuration-type-that-does-not-exist');
+    await expect(page.locator('[data-civicfg-provider-empty]')).toBeVisible();
+    await providerSearch.fill('');
+
     const firstSafety = page.locator('details.civicfg-provider-safety').first();
     await expect(firstSafety).toBeVisible();
     await expect(page.getByText(/Continue anyway/i)).toHaveCount(0);

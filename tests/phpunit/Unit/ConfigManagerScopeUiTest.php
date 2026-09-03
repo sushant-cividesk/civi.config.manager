@@ -41,6 +41,25 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
+
+  /**
+   * Requirement: one Settings request must not repeat runtime capability
+   * discovery simply because status and scope presentation both need it.
+   * Failure mode: optional provider metadata is probed repeatedly during the
+   * same request, multiplying Settings latency as providers grow.
+   */
+  public function testScopeTypeOptionsAreRequestCachedWithoutExporting(): void {
+    $handler = new ScopeUiUnavailableFixtureHandler('optional-type', 'Optional Type');
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $first = $manager->getScopeTypeOptions();
+    $second = $manager->getScopeTypeOptions();
+
+    self::assertSame($first, $second);
+    self::assertSame(1, $handler->availabilityCalls);
+    self::assertSame(0, $handler->exportCalls);
+  }
+
   public function testScopeTypeOptionsExposeDeploymentDependenciesAndDependents(): void {
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([
       new ScopeUiFixtureHandler('option-groups', 'Option Groups and Values', TRUE),
@@ -794,6 +813,7 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
   private string $type;
   private string $label;
   public int $exportCalls = 0;
+  public int $availabilityCalls = 0;
 
   public function __construct(string $type, string $label) {
     $this->type = $type;
@@ -805,6 +825,7 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
   public function getDirectory(): string { return $this->type; }
   public function getWeight(): int { return 20; }
   public function getRuntimeAvailability(): array {
+    $this->availabilityCalls++;
     return ['available' => FALSE, 'reason' => 'Optional API4 provider is not available.'];
   }
   public function export(): array { $this->exportCalls++; return []; }

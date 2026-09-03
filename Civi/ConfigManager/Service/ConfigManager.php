@@ -39,6 +39,7 @@ class ConfigManager {
   private ConfigScope $scope;
   private ?array $allHandlersCache = NULL;
   private ?array $managedTypeOptionsCache = NULL;
+  private ?array $scopeTypeOptionsCache = NULL;
   private array $activeDependencyNamesCache = [];
 
   public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL) {
@@ -661,6 +662,10 @@ class ConfigManager {
   }
 
   public function getScopeTypeOptions(): array {
+    if ($this->scopeTypeOptionsCache !== NULL) {
+      return $this->scopeTypeOptionsCache;
+    }
+
     $rows = [];
     foreach ($this->getAllHandlers() as $handler) {
       $capability = $this->scopeCapabilityForHandler($handler);
@@ -725,7 +730,8 @@ class ConfigManager {
     }
     unset($row);
 
-    return $rows;
+    $this->scopeTypeOptionsCache = $rows;
+    return $this->scopeTypeOptionsCache;
   }
 
   /**

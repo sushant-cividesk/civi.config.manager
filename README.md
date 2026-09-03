@@ -133,6 +133,8 @@ The extension supports PHP 7.4+ and is intended for CiviCRM 5.x and 6.x. Optiona
 
 ## Quick start
 
+The Settings scope browser is designed to stay responsive as provider support grows. It renders the saved scope and runtime capability first, then loads metadata-only provider ownership/safety details asynchronously. Use the search box or group filter to focus on Core, Contributed, Custom, Backup / monitor-only, or Unavailable providers. Item inventories remain lazy and are fetched only when **Choose items** is opened.
+
 1. Open **Configuration Manager -> Settings**.
 2. Choose the configuration types to manage or monitor.
 3. Run **Export** to create the initial YAML baseline.

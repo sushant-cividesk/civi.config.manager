@@ -18,7 +18,7 @@ module.exports = defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    ignoreHTTPSErrors: false,
+    ignoreHTTPSErrors: process.env.CIVICFG_IGNORE_HTTPS_ERRORS === '1',
   },
   projects: [
     {

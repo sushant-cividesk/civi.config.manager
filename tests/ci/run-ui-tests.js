@@ -23,9 +23,17 @@ else {
 }
 
 const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const childEnv = { ...process.env };
+if (!hasFixture && hasTarget && !Object.prototype.hasOwnProperty.call(childEnv, 'CIVICFG_IGNORE_HTTPS_ERRORS')) {
+  // Local DDEV/Buildkit sites commonly use a developer CA that Chromium does
+  // not trust inside the web container. Targeted smoke is read-only and may
+  // opt into certificate tolerance without weakening disposable CI.
+  childEnv.CIVICFG_IGNORE_HTTPS_ERRORS = '1';
+}
+
 const result = spawnSync(executable, ['playwright', 'test', spec], {
   cwd: root,
-  env: process.env,
+  env: childEnv,
   stdio: 'inherit',
 });
 

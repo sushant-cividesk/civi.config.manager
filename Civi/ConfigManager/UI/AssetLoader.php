@@ -14,6 +14,7 @@ class AssetLoader {
     $resources = \CRM_Core_Resources::singleton();
     $this->addStyleFileEarly($resources, 'css/configmanager.css');
     $resources->addScriptFile(Version::EXTENSION_KEY, 'js/configmanager.js');
+    $resources->addScriptFile(Version::EXTENSION_KEY, 'js/settings-provider-browser.js');
   }
 
   public function getCriticalCss(): string {

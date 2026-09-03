@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.4.2-core` |
+| Active development line | `0.1.0-alpha67.5-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -75,12 +75,12 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 ### Alpha67 — Settings and inventory UX
 
 - [x] A67-00 Keep one trustworthy browser stack: JavaScript Playwright + axe against the disposable real-CiviCRM runtime. The experimental Playwright-PHP duplicate stack was removed in Alpha67.4 after proving to add host/dependency complexity without independent product evidence.
-- [ ] A67-01 Replace the long undifferentiated list with searchable groups: Core, Contributed, Custom, Unavailable, and Backup/Monitor-only.
+- [x] A67-01 Replace the long undifferentiated list with searchable groups: Core, Contributed, Custom, Unavailable, and Backup/Monitor-only. Alpha67.5 loads provider metadata asynchronously so the initial Settings render does not wait for full provider inventory.
 - [x] A67-02 Keep the heading **What should Configuration Manager manage?** and expose provider-safety evidence/reasons so write capability is not presented as implicit. Broader grouping/search UX remains in A67-01/A67-04-A67-06.
 - [ ] A67-03 Show per-type mode cards only for valid choices: Manage all, Manage selected, Monitor only, Ignore.
-- [ ] A67-04 Show item counts, managed YAML file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable.
-- [ ] A67-05 Load expensive item inventories only when a card/picker is opened; cache and paginate large providers.
-- [ ] A67-06 Add bulk actions, unsaved-change protection, accessible keyboard/focus behavior, concise help, and responsive layouts.
+- [ ] A67-04 Show item counts, managed YAML file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable. **Alpha67.5 delivers grouped provider/capability status, selected counts, dependency summaries, and lazy safety reasons; item/YAML counts remain.**
+- [ ] A67-05 Load expensive item inventories only when a card/picker is opened; cache and paginate large providers. **Item pickers were already lazy; Alpha67.5 also moves metadata-rich provider inventory off the initial Settings request. Persistent caching remains deferred until measurement justifies it.**
+- [ ] A67-06 Add bulk actions, unsaved-change protection, accessible keyboard/focus behavior, concise help, and responsive layouts. **Bulk actions/unsaved protection already exist; Alpha67.5 adds responsive search/filter controls and live result counts. Remaining accessibility/focus polish is pending.**
 - [ ] A67-07 Never label a monitor-only/all-ignore/no-baseline state as In Sync.
 
 ### Alpha68 — safe reduced import plans and blocker UX
@@ -138,9 +138,9 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 | Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed again 2026-09-03: transient recovery, advisory fail-closed, exhausted failure |
 | Authoring checks | JSON parse, Bash syntax, `git diff --check` | 2026-09-03: archive SHA-256/integrity matched handoff; `info.xml` is `0.1.0-alpha66-core`; composer/package JSON parsed; all 10 test Bash scripts passed `bash -n`; all 108 project PHP files passed syntax under PHP 8.4. `validate-scenarios.php` could not start because `vendor/autoload.php` is absent. |
 
-Current Alpha67.4 checkpoint: A66-02c, A66-03, and A66-04 are implemented in source; Settings exposes provider-safety metadata; browser QA is intentionally one JavaScript Playwright + axe stack against disposable CiviCRM. Maintainer evidence immediately before this change observed 255 PHPUnit tests / 1,993 assertions green, both provider mutation proofs green, Alpha62/63/64 and scenario contracts green, source hygiene green, and PHPStan with no errors. Alpha67.4 adds provider-registration collision tests; the normal PHPUnit/real-runtime/browser gates must rerun before release promotion.
+Current Alpha67.5 checkpoint: A66-02c, A66-03, and A66-04 are implemented; Settings now renders scope/capability controls first and loads metadata-rich provider inventory asynchronously into searchable groups. Maintainer evidence from Alpha67.4.2 observed 255 PHPUnit tests / 1,993 assertions green before the final PHPStan hotfix; Alpha67.5 adds request-local scope-option reuse plus provider-browser tests. Full PHPUnit/static-analysis/real-runtime/browser gates must rerun before release promotion.
 
-A66-04 is complete in Alpha67.4. The next implementation action is A66-05 discovery caching, then A66-06 supported-version/provider fixtures before the remaining Alpha67 inventory grouping/count/search/accessibility work.
+A66-04 is complete. Alpha67.5 intentionally prioritizes lazy/searchable Settings UX over persistent discovery caching: full provider inventory is no longer required for initial Settings render. Next: finish A67 counts/accessibility/mode-choice polish, add A66-06 supported-version/provider fixtures, then measure discovery cost before deciding whether persistent caching is justified.
 
 ### Alpha67.1 QA maintenance evidence — 2026-09-03
 
@@ -189,3 +189,10 @@ A66-04 is complete in Alpha67.4. The next implementation action is A66-05 discov
 - Removed those dead helpers rather than suppressing PHPStan.
 - Direct targeted `npm run test:ui` previously failed before test discovery because the full disposable suite unconditionally loaded `ui-fixture-state.json`. The npm entry point now dispatches to a read-only targeted DEV smoke when `CIVICFG_BASE_URL` is explicit and fixture state is absent, while fixture-present disposable QA continues to run the full seeded suite.
 - The targeted smoke does not execute fixture-dependent import/watch/cross-site mutation scenarios.
+
+### Alpha67.5 Settings provider browser — 2026-09-03
+
+- Initial Settings rendering no longer calls the metadata-rich `getProviderInventory()` path. Scope cards render from the existing cheap scope/capability path, then provider ownership/safety evidence loads asynchronously through an admin-only JSON endpoint.
+- Configuration types are grouped into Core, Contributed, Custom, Backup / monitor-only, and Unavailable, with search and group filtering. Rejected registrations remain visible under Unavailable.
+- Existing saved scope modes, dependency warnings, selector/item picker semantics, and write-safety admission remain unchanged. AJAX metadata failure does not broaden capability or silently alter saved scope.
+- Persistent discovery caching is deferred until profiling shows it is needed; this avoids making correctness depend on cache invalidation before there is measured value.

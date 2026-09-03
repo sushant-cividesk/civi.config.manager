@@ -1,6 +1,6 @@
   {if $op eq 'settings'}
     <h3>{ts}Settings{/ts}</h3>
-    <form class="civicfg-settings-form" data-civicfg-settings-form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}" data-civicfg-scope-options-url="{$scopeOptionsUrl|escape}">
+    <form class="civicfg-settings-form" data-civicfg-settings-form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}" data-civicfg-scope-options-url="{$scopeOptionsUrl|escape}" data-civicfg-provider-inventory-url="{$providerInventoryUrl|escape}">
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
       <input type="hidden" name="_action" value="save_settings" />
 
@@ -37,6 +37,21 @@
           </div>
         {/if}
         <p class="description">{ts}Every registered configuration type is listed below. Third-party providers that do not expose a safe portable identity remain backup/monitor-only instead of being written automatically.{/ts}</p>
+        <div class="civicfg-provider-browser-toolbar" data-civicfg-provider-browser-toolbar>
+          <label for="civicfg-provider-search"><strong>{ts}Find a configuration type{/ts}</strong></label>
+          <input type="search" id="civicfg-provider-search" class="crm-form-text" data-civicfg-provider-search placeholder="{ts}Search by name, type, or provider...{/ts}" autocomplete="off" />
+          <label for="civicfg-provider-group-filter" class="civicfg-provider-filter-label"><strong>{ts}Show{/ts}</strong></label>
+          <select id="civicfg-provider-group-filter" class="crm-form-select" data-civicfg-provider-group-filter>
+            <option value="all">{ts}All configuration types{/ts}</option>
+            <option value="core">{ts}Core{/ts}</option>
+            <option value="contributed">{ts}Contributed{/ts}</option>
+            <option value="custom">{ts}Custom{/ts}</option>
+            <option value="limited">{ts}Backup / monitor-only{/ts}</option>
+            <option value="unavailable">{ts}Unavailable{/ts}</option>
+          </select>
+          <span class="civicfg-muted" data-civicfg-provider-visible-count aria-live="polite"></span>
+        </div>
+        <div class="civicfg-provider-inventory-state civicfg-muted" data-civicfg-provider-inventory-state aria-live="polite">{ts}Provider safety details load after the page becomes interactive.{/ts}</div>
         <p class="civicfg-scope-question"><strong>{ts}How should each configuration type be handled?{/ts}</strong> {ts}Choose one mode on each card. Additional controls appear only when they are needed.{/ts}</p>
         <div class="civicfg-mode-help civicfg-mode-help-all" data-civicfg-mode-help="all">
           {ts}All supported items are part of managed YAML and the normal export, diff, validation, and safe restore/import workflow.{/ts}
@@ -80,7 +95,13 @@
           </div>
         {/if}
 
-        <div class="civicfg-scope-grid">
+        <div class="civicfg-provider-groups" data-civicfg-provider-groups>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="core" hidden="hidden"><h5>{ts}Core{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Configuration providers shipped with Configuration Manager and CiviCRM core support.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="contributed" hidden="hidden"><h5>{ts}Contributed{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Configuration providers registered by installed extensions with explicit ownership metadata.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="custom" hidden="hidden"><h5>{ts}Custom{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Site/custom hook providers whose ownership is not an installed contributed extension.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="limited" hidden="hidden"><h5>{ts}Backup / monitor-only{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Readable configuration whose automatic restore/import capability is limited. Review the capability before managing YAML.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="unavailable" hidden="hidden"><h5>{ts}Unavailable{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Providers that cannot currently be used safely on this site.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div><div data-civicfg-provider-rejections></div></section>
+          <section class="civicfg-provider-group civicfg-provider-group-loading" data-civicfg-provider-group="loading"><h5>{ts}Loading provider details...{/ts}</h5><div class="civicfg-scope-grid" data-civicfg-provider-group-grid>
           {foreach from=$scopeRows item=row}
             <section class="civicfg-scope-card" data-civicfg-scope-row="{$row.type|escape}" data-scope-label="{$row.label|escape}" data-scope-capability="{$row.capability|escape}" data-civicfg-scope-dependencies="{$row.scope_dependency_types|escape}">
               <label class="civicfg-scope-card-select"><input type="checkbox" data-civicfg-scope-select aria-label="{ts 1=$row.label}Select %1 for bulk action{/ts}" {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if} /></label>
@@ -99,16 +120,11 @@
                 <option value="ignore" {if $row.mode_ignore}selected="selected"{/if}>{ts}Ignore{/ts}</option>
               </select>
 
-              <details class="civicfg-provider-safety">
-                <summary><strong>{ts}Provider safety{/ts}</strong>{if $row.provider_owner} <span class="civicfg-muted">{$row.provider_owner|escape}</span>{/if}</summary>
+              <details class="civicfg-provider-safety" data-civicfg-provider-safety>
+                <summary><strong>{ts}Provider safety{/ts}</strong> <span class="civicfg-muted" data-civicfg-provider-owner>{ts}Loading...{/ts}</span></summary>
                 <div class="civicfg-provider-safety-body">
-                  {if $row.provider_reason}<div>{$row.provider_reason|escape}</div>{/if}
-                  <dl class="civicfg-provider-safety-meta">
-                    {if $row.provider_registration_source}<dt>{ts}Registration{/ts}</dt><dd><code>{$row.provider_registration_source|escape}</code></dd>{/if}
-                    {if $row.provider_reason_code}<dt>{ts}Reason code{/ts}</dt><dd><code>{$row.provider_reason_code|escape}</code></dd>{/if}
-                    {if $row.provider_identity_evidence}<dt>{ts}Identity evidence{/ts}</dt><dd><code>{$row.provider_identity_evidence|escape}</code></dd>{/if}
-                    {if $row.provider_metadata_completeness}<dt>{ts}Metadata{/ts}</dt><dd><code>{$row.provider_metadata_completeness|escape}</code></dd>{/if}
-                  </dl>
+                  <div data-civicfg-provider-reason>{ts}Provider metadata is loading in the background.{/ts}</div>
+                  <dl class="civicfg-provider-safety-meta" data-civicfg-provider-safety-meta></dl>
                 </div>
               </details>
 
@@ -171,6 +187,8 @@
               </div>
             </section>
           {/foreach}
+          </div></section>
+          <div class="messages status no-popup civicfg-provider-empty" data-civicfg-provider-empty hidden="hidden">{ts}No configuration types match the current search and filter.{/ts}</div>
         </div>
 
         <details class="civicfg-settings-example" open="open">

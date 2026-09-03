@@ -77,6 +77,9 @@ class MainPage {
       elseif ($op === 'scope-options-json') {
         $this->jsonScopeOptions();
       }
+      elseif ($op === 'provider-inventory-json') {
+        $this->jsonProviderInventory();
+      }
       elseif ($op === 'download-archive') {
         $this->files->downloadArchive($this->manager);
       }
@@ -658,6 +661,27 @@ class MainPage {
     $this->emitJsonAndExit($payload);
   }
 
+  /**
+   * Lazily expose metadata-only provider inventory for the Settings browser.
+   *
+   * This endpoint deliberately runs only after the page is interactive. The
+   * underlying inventory contract forbids provider collection reads, YAML
+   * inspection, and configuration writes.
+   */
+  private function jsonProviderInventory(): void {
+    try {
+      $payload = $this->manager->getProviderInventory();
+    }
+    catch (\Throwable $e) {
+      $payload = [
+        'ok' => FALSE,
+        'error' => $e->getMessage(),
+      ];
+    }
+
+    $this->emitJsonAndExit($payload);
+  }
+
   private function jsonScopeOptions(): void {
     try {
       $type = isset($_REQUEST['scope_type']) ? trim((string) $_REQUEST['scope_type']) : '';
@@ -792,15 +816,6 @@ class MainPage {
     foreach ($importApplyTypes as $type) {
       $importApplyTypesMap[(string) $type] = TRUE;
     }
-    $providerInventoryByType = [];
-    foreach ((array) (($this->manager->getProviderInventory()['providers'] ?? [])) as $provider) {
-      $provider = (array) $provider;
-      $providerType = (string) ($provider['type'] ?? '');
-      if ($providerType !== '' && !isset($providerInventoryByType[$providerType])) {
-        $providerInventoryByType[$providerType] = $provider;
-      }
-    }
-
     $scopeRows = [];
     $scopeConfiguredCount = 0;
     foreach ($this->manager->getScopeTypeOptions() as $row) {
@@ -810,14 +825,7 @@ class MainPage {
       if ($mode !== 'ignore') {
         $scopeConfiguredCount++;
       }
-      $providerInventory = (array) ($providerInventoryByType[$type] ?? []);
       $scopeRows[] = $row + [
-        'provider_owner' => (string) ($providerInventory['owner'] ?? ''),
-        'provider_registration_source' => (string) ($providerInventory['registration_source'] ?? ''),
-        'provider_reason_code' => (string) ($providerInventory['capability_reason_code'] ?? ''),
-        'provider_reason' => (string) ($providerInventory['capability_reason'] ?? ''),
-        'provider_identity_evidence' => (string) ($providerInventory['identity_evidence'] ?? ''),
-        'provider_metadata_completeness' => (string) ($providerInventory['metadata_completeness'] ?? ''),
         'mode' => $mode,
         'mode_all' => $mode === 'all',
         'mode_selected' => $mode === 'selected',
@@ -926,6 +934,7 @@ class MainPage {
     $this->page->assign('scopeSelectorHelp', $this->manager->getScopeSelectorHelp());
     $this->page->assign('scopeSettingsExample', $this->manager->getScopeSettingsExample());
     $this->page->assign('scopeOptionsUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=scope-options-json', FALSE, NULL, FALSE));
+    $this->page->assign('providerInventoryUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=provider-inventory-json', FALSE, NULL, FALSE));
     $this->page->assign('managedScopeConfigured', $managedScopeConfigured);
     $this->page->assign('watchedScopeConfigured', $watchedScopeConfigured);
     $this->page->assign('watchOnlyScope', $watchOnlyScope);
