@@ -1,80 +1,82 @@
 {
-  "$schema": "https://getcomposer.org/schema.json",
-  "name": "sushant-cividesk/civi-config-manager",
-  "description": "CiviCRM Configuration Manager extension development and QA tooling.",
-  "type": "civicrm-ext",
-  "license": "AGPL-3.0-or-later",
-  "require": {
-    "php": ">=7.4",
-    "symfony/yaml": "^5.4 || ^6.4 || ^7.0"
-  },
-  "require-dev": {
-    "michaelmcandrew/civicrm-coding-standards": "^1.1.1",
-    "phpcompatibility/php-compatibility": "^9.3.5",
-    "phpstan/phpstan": "^1.12 || ^2.0",
-    "phpunit/phpunit": "^9.6"
-  },
-  "autoload": {
-    "psr-4": {
-      "Civi\\Api4\\": "Civi/Api4/",
-      "Civi\\ConfigManager\\": "Civi/ConfigManager/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Civi\\ConfigManager\\Tests\\": "tests/phpunit/"
-    }
-  },
-  "config": {
-    "allow-plugins": {
-      "dealerdirect/phpcodesniffer-composer-installer": true
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "sushant-cividesk/civi-config-manager",
+    "description": "CiviCRM Configuration Manager extension development and QA tooling.",
+    "type": "civicrm-ext",
+    "license": "AGPL-3.0-or-later",
+    "require": {
+        "php": ">=7.4",
+        "symfony/yaml": "^5.4 || ^6.4 || ^7.0"
     },
-    "sort-packages": true,
-    "platform": {
-      "php": "7.4.33"
+    "require-dev": {
+        "michaelmcandrew/civicrm-coding-standards": "^1.1.1",
+        "phpcompatibility/php-compatibility": "^9.3.5",
+        "phpstan/phpstan": "^1.12 || ^2.0",
+        "phpunit/phpunit": "^9.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Civi\\Api4\\": "Civi/Api4/",
+            "Civi\\ConfigManager\\": "Civi/ConfigManager/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Civi\\ConfigManager\\Tests\\": "tests/phpunit/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "sort-packages": true,
+        "platform": {
+            "php": "7.4.33"
+        }
+    },
+    "scripts": {
+        "lint:php": "bash tests/ci/php-lint.sh",
+        "lint:architecture-contracts": [
+            "php tests/ci/alpha62-contract.php",
+            "php tests/ci/alpha63-contract.php",
+            "php tests/ci/alpha64-contract.php"
+        ],
+        "lint:scenario-docs": "php tests/ci/validate-scenarios.php",
+        "test:audit-wrapper": "bash tests/ci/composer-audit-wrapper-test.sh",
+        "test:mutation-provider-inventory": "bash tests/ci/mutation-provider-inventory.sh",
+        "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
+        "test:scenarios": "@lint:scenario-docs",
+        "test:unit": "phpunit --configuration phpunit.xml.dist",
+        "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
+        "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
+        "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
+        "standards": "phpcs --standard=phpcs.xml.dist",
+        "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
+        "qa:fast": [
+            "@lint:php",
+            "@lint:architecture-contracts",
+            "@lint:scenario-docs",
+            "@test:audit-wrapper",
+            "@test:unit",
+            "@test:mutation-provider-inventory",
+            "@test:mutation-provider-admission",
+            "@test:alpha67-browser-tooling-contract",
+            "@analyse",
+            "@compatibility"
+        ],
+        "qa:real-runtime": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
+        "qa:real-runtime-ui": "bash tests/ci/run-local-ui.sh",
+        "qa:full": "@qa:real-runtime",
+        "qa:full-ui": "@qa:real-runtime-ui",
+        "qa:stress": [
+            "php -d memory_limit=256M tests/ci/alpha62-stress.php",
+            "php -d memory_limit=256M tests/ci/alpha63-stress.php"
+        ],
+        "test:alpha63-contract": "php tests/ci/alpha63-contract.php",
+        "test:alpha64-contract": "php tests/ci/alpha64-contract.php",
+        "package:release": "bash scripts/build-release.sh",
+        "qa:browser-php": "bash tests/ci/run-browser-php.sh",
+        "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh",
+        "test:alpha67-browser-tooling-contract": "php tests/ci/alpha67-browser-tooling-contract.php"
     }
-  },
-  "scripts": {
-    "lint:php": "bash tests/ci/php-lint.sh",
-    "lint:architecture-contracts": [
-      "php tests/ci/alpha62-contract.php",
-      "php tests/ci/alpha63-contract.php",
-      "php tests/ci/alpha64-contract.php"
-    ],
-    "lint:scenario-docs": "php tests/ci/validate-scenarios.php",
-    "test:audit-wrapper": "bash tests/ci/composer-audit-wrapper-test.sh",
-    "test:mutation-provider-inventory": "bash tests/ci/mutation-provider-inventory.sh",
-    "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
-    "test:scenarios": "@lint:scenario-docs",
-    "test:unit": "phpunit --configuration phpunit.xml.dist",
-    "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
-    "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
-    "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
-    "standards": "phpcs --standard=phpcs.xml.dist",
-    "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
-    "qa:fast": [
-      "@lint:php",
-      "@lint:architecture-contracts",
-      "@lint:scenario-docs",
-      "@test:audit-wrapper",
-      "@test:unit",
-      "@test:mutation-provider-inventory",
-      "@test:mutation-provider-admission",
-      "@analyse",
-      "@compatibility"
-    ],
-    "qa:real-runtime": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
-    "qa:real-runtime-ui": "bash tests/ci/run-local-ui.sh",
-    "qa:full": "@qa:real-runtime",
-    "qa:full-ui": "@qa:real-runtime-ui",
-    "qa:stress": [
-      "php -d memory_limit=256M tests/ci/alpha62-stress.php",
-      "php -d memory_limit=256M tests/ci/alpha63-stress.php"
-    ],
-    "test:alpha63-contract": "php tests/ci/alpha63-contract.php",
-    "test:alpha64-contract": "php tests/ci/alpha64-contract.php",
-    "package:release": "bash scripts/build-release.sh",
-    "qa:browser-php": "cd tests/browser-php && vendor/bin/phpunit -c phpunit.xml.dist",
-    "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh"
-  }
 }

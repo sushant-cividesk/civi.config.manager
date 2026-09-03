@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha66-core` |
+| Active development line | `0.1.0-alpha67.1-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -141,3 +141,9 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 Current alpha67 implementation checkpoint: A66-02c and A66-03 are implemented in source; Settings exposes provider-safety metadata; an isolated Playwright-PHP harness and CI/disposable-runtime wiring are present. Local checks observed: all 112 project PHP files lint under PHP 8.4, Alpha62/63/64 architecture contracts pass (31/53/23), Composer audit-wrapper behavior passes, workflow YAML/Composer JSON parse, and direct admission-policy smoke proves unmapped references deny while a reference-free portable provider can admit. Full PHPUnit/mutation red-green, PHP 7.4/8.1/8.3, Docker/CiviCRM, JS Playwright, and Playwright-PHP execution remain runtime gates.
 
 The next implementation action after these gates is A66-04 generic contrib/custom support completion, then A66-05 caching and A66-06 supported-version fixtures before the remaining Alpha67 inventory grouping/count/search/accessibility work.
+
+### Alpha67.1 QA maintenance evidence — 2026-09-03
+
+- Maintainer-run `composer qa:fast` on buildkit/PHP 8.3.31 passed: 250 PHPUnit tests, 1,976 assertions, provider-inventory mutation proof red/restored-green, provider-admission mutation proof red/restored-green, and static analysis reported no errors.
+- Playwright-PHP 1.4.0 + PHPUnit 11.5.56 and browser binaries installed successfully in the original nested harness experiment, but the test was skipped because `CIVICFG_BASE_URL` was missing. This is dependency-install evidence only, not browser validation.
+- Alpha67.1 removes the nested-vendor architecture and makes a missing real-site URL a hard failure whenever PHP browser QA is requested.

@@ -4,5 +4,5 @@ dist/
 .phpstan-cache/
 .DS_Store
 tests/ci/artifacts/
-tests/browser-php/vendor/
 tests/browser-php/.phpunit.cache/
+tests/browser-php/.phpunit.result.cache

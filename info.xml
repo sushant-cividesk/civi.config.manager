@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-09-02</releaseDate>
-  <version>0.1.0-alpha67-core</version>
+  <releaseDate>2026-09-03</releaseDate>
+  <version>0.1.0-alpha67.1-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>

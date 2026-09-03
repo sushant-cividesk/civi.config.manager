@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha67.1-core
+
+- Hardened Playwright-PHP QA so requested real-browser runs fail when `CIVICFG_BASE_URL` is missing instead of reporting a skipped green test.
+- Enforced the one-project-`vendor/` repository rule: the PHP 8.2+ Playwright toolchain is provisioned from its pinned manifest/lock into an external QA workspace and never into `tests/browser-php/vendor/`.
+- Unified local/disposable-runtime browser execution through `tests/ci/run-browser-php.sh` and removed CI assumptions about a preinstalled nested vendor tree.
+- Recorded the observed Alpha67 fast-QA evidence: 250 tests / 1,976 assertions plus both provider mutation proofs passed; the manually invoked browser test installed successfully but skipped because no real base URL was supplied.
+
 ## 0.1.0-alpha67-core
 
 - Added the staged deny-by-default provider admission policy. Automatically discovered API4 providers must pass classification, portable-identity, writable-projection, and portable-reference proofs before capability assignment; writable unresolved local references now fail closed.

@@ -79,7 +79,7 @@ Full isolated run with browser tests (after installing both root JS dependencies
 RUN_UI_TESTS=true RUN_PHP_UI_TESTS=true tests/ci/run-standalone.sh
 ```
 
-The PHP browser harness is deliberately isolated from the extension's root Composer graph. CI installs it from `tests/browser-php/composer.json`; local runs should do the same before setting `RUN_PHP_UI_TESTS=true`.
+The PHP browser harness is deliberately isolated from the extension's root Composer graph. Its pinned manifest/lock remain under `tests/browser-php`, but `tests/ci/run-browser-php.sh` installs the PHP 8.2+ toolchain into an external QA workspace so the extension tree keeps one project `vendor/`.
 
 ## Developer-owned scenarios
 

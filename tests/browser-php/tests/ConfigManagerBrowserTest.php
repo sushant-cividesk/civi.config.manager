@@ -10,9 +10,7 @@ use Playwright\Playwright;
 final class ConfigManagerBrowserTest extends TestCase {
   public function testSettingsExposeProviderSafetyWithoutUnsafeBypass(): void {
     $baseUrl = rtrim((string) getenv('CIVICFG_BASE_URL'), '/');
-    if ($baseUrl === '') {
-      self::markTestSkipped('CIVICFG_BASE_URL is required for black-box browser QA.');
-    }
+    self::assertNotSame('', $baseUrl, 'CIVICFG_BASE_URL is required; requested browser QA must never pass by skipping the real HTTP boundary.');
 
     $context = Playwright::chromium(['headless' => true]);
     try {
@@ -30,7 +28,6 @@ final class ConfigManagerBrowserTest extends TestCase {
       $html = $page->content();
       self::assertStringContainsString('What should Configuration Manager manage?', $html);
       self::assertStringContainsString('Provider safety', $html);
-      self::assertStringNotContainsString('Continue anyway', $html);
       self::assertStringNotContainsString('continue anyway', strtolower($html));
 
       $artifactDir = (string) (getenv('QA_ARTIFACT_DIR') ?: '');

@@ -29,7 +29,7 @@ Automatically discovered API4 providers must pass these metadata-only gates in o
 
 `ProviderAdmissionPolicyTest` supplies independent fixtures for business-data rejection, ID-only identity rejection, sensitive writable fields, unresolved references, and an explicitly mapped semantic reference. `tests/ci/mutation-provider-admission.sh` deliberately changes the reference proof to trust every reference; the unmapped-reference regression test must go red, the source is restored, and the same test must return green.
 
-Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `tests/browser-php` is a separate PHP 8.2+ Composer project using `playwright-php/playwright`; it connects to the same disposable CiviCRM HTTP site and verifies the Settings safety disclosure plus the absence of an unsafe **Continue anyway** bypass. It must never be added to the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
+Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `tests/browser-php` defines the PHP 8.2+ Playwright-PHP toolchain, while `tests/ci/run-browser-php.sh` installs it outside the extension tree and connects it to the same disposable CiviCRM HTTP site. Requested browser QA fails when `CIVICFG_BASE_URL` is missing instead of skipping green. Playwright-PHP must never be added to the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
 
 ## Standard Round-Trip Test
 

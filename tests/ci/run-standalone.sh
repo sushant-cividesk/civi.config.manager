@@ -46,7 +46,6 @@ source_state() {
     -path "${EXTENSION_ROOT}/.git" -prune -o \
     -path "${EXTENSION_ROOT}/vendor" -prune -o \
     -path "${EXTENSION_ROOT}/node_modules" -prune -o \
-    -path "${EXTENSION_ROOT}/tests/browser-php/vendor" -prune -o \
     -path "${EXTENSION_ROOT}/tests/ci/artifacts" -prune -o \
     -type f -print0 \
     | sort -z \
@@ -269,16 +268,11 @@ if [[ "${RUN_UI_TESTS:-false}" == "true" ]]; then
 
   if [[ "${RUN_PHP_UI_TESTS:-false}" == "true" ]]; then
     qa_stage "Run isolated Playwright PHP black-box UI test"
-    if [[ ! -x "${EXTENSION_ROOT}/tests/browser-php/vendor/bin/phpunit" ]]; then
-      echo "PHP Playwright QA requested but tests/browser-php dependencies are not installed." >&2
-      exit 1
-    fi
     CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
     CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
     CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
     QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR}" \
-      "${EXTENSION_ROOT}/tests/browser-php/vendor/bin/phpunit" \
-        -c "${EXTENSION_ROOT}/tests/browser-php/phpunit.xml.dist" \
+      bash "${EXTENSION_ROOT}/tests/ci/run-browser-php.sh" \
       | tee "${QA_ARTIFACT_DIR}/playwright-php.log"
   fi
 
