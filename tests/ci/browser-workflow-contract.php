@@ -19,6 +19,7 @@ $checks = [
   'browser command uses disposable runtime' => ($composer['scripts']['qa:browser'] ?? '') === 'RUN_UI_TESTS=true bash tests/ci/run-standalone.sh',
   'npm UI command dispatches by fixture context' => ($package['scripts']['test:ui'] ?? '') === 'node tests/ci/run-ui-tests.js',
   'targeted smoke does not require disposable fixture state' => strpos($targeted, 'ui-fixture-state.json') === FALSE,
+  'targeted login scopes submit to the password form' => strpos($targeted, "const loginForm = password.locator('xpath=ancestor::form[1]')") !== FALSE && strpos($targeted, "const submit = loginForm.locator") !== FALSE,
   'targeted runner tolerates local developer CA without weakening fixture suite' => strpos($uiRunner, "CIVICFG_IGNORE_HTTPS_ERRORS = '1'") !== FALSE,
   'browser runner requires repository-local Playwright binary' => strpos($uiRunner, "'node_modules', '.bin'") !== FALSE,
   'browser runner explains npm install prerequisite' => strpos($uiRunner, "Run `npm install` in the extension directory, then retry.") !== FALSE,

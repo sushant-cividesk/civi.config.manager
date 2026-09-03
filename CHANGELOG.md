@@ -1,16 +1,16 @@
 # Changelog
 
-## 0.1.0-alpha69-core
+## 0.1.0-alpha67.6-core
 
 - Added reviewed portable configuration coverage for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances.
 - Reused the metadata-driven API4 handler for Tags and Profiles; Profile Fields use the composite semantic identity `uf_group_id.name + field_name`, and joined API4 key fields are now preserved during export filtering without being written back on import.
 - Added a Contact Layout adapter which translates known nested Group, Profile, Custom Group, and Relationship Type local IDs into semantic references and fails closed on unresolved nested `*_id` values.
 - Added a conservative APIv3 ReportInstance adapter using `report_id + name` as the portable identity, preserving saved criteria and permission fields while keeping delete-missing and delivery-specific/local-ID fields out of automatic management.
-- Kept delete-missing disabled for every newly added Alpha69 family until disposable real-CiviCRM preservation evidence proves it safe.
+- Kept delete-missing disabled for every newly added coverage-expansion family until disposable real-CiviCRM preservation evidence proves it safe.
 - Hardened targeted Playwright QA so it uses the repository-local Playwright installation, explicitly diagnoses authentication/access failures, and never silently auto-installs a mismatched `playwright` package through `npx`.
-- Added requirement-first PHPUnit coverage for Alpha69 metadata, report identity/update behavior, Contact Layout reference round trips, fail-closed unknown local references, and joined semantic key preservation.
+- Added requirement-first PHPUnit coverage for the coverage-expansion metadata, report identity/update behavior, Contact Layout reference round trips, fail-closed unknown local references, and joined semantic key preservation.
 
-> **Evidence boundary:** source implementation for A69-01 through A69-04 is present, but A69-05 real-CiviCRM round-trip, preservation, different-local-ID, and mutation evidence is still required before Alpha69 coverage is called runtime-validated or Beta2-ready.
+> **Evidence boundary:** this alpha67.6 checkpoint lands source support ahead of the roadmap. Alpha68 remains the next planned milestone, and future Alpha69 still owns the real-CiviCRM round-trip, preservation, different-local-ID, compatibility, and mutation evidence before this coverage is called runtime-validated or Beta2-ready.
 
 ## 0.1.0-alpha67.5-core
 

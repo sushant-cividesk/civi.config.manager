@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha69-core` |
+| Active development line | `0.1.0-alpha67.6-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -96,6 +96,8 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording.
 
 ### Alpha69 — coverage expansion
+
+> Source support for these families landed early in `0.1.0-alpha67.6-core`. This does **not** mean Alpha68 or Alpha69 was completed out of sequence: Alpha68 remains the next roadmap milestone, and the Alpha69 items remain open until their runtime/compatibility evidence is satisfied.
 
 - [ ] A69-01 Tags: **source implementation complete; awaiting runtime evidence.** Metadata-driven API4 management uses stable `name` identity and semantic parent-tag references. Create/update is enabled; delete-missing remains disabled. A disposable DEV → target round trip plus entity-tag/business-data preservation proof is still required.
 - [ ] A69-02 Profiles/UF Groups and Profile Fields: **source implementation complete; awaiting runtime evidence.** Profiles use stable `name`; Profile Fields use `uf_group_id.name + field_name`; UF Group and Location Type references resolve semantically. Create/update is enabled and delete-missing remains disabled. Real component/version fixtures and independent final-state proof remain required.

@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this source is `0.1.0-alpha69-core`, developed from the protected `v1.0.0-beta1` baseline
+- Current build: read from `info.xml`; this source is `0.1.0-alpha67.6-core`, developed from the protected `v1.0.0-beta1` baseline
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -594,9 +594,9 @@ Other extensions can make their own APIv4-backed configuration exportable/import
 
 Alpha61 follow-up hardening also discovers API3 capabilities directly from `Entity/Action.php` provider files before falling back to runtime `getactions`. SQLTasks 3.0.0-alpha3 is handled as a narrowly reviewed declarative provider from its installed `Sqltask/Create.php`/`Deletetask.php` files, while its BAO read adapter is loaded only when rows are actually read. Extension base-path lookup is resilient per provider and can conservatively fall back to the configured extensions directory for an installed key, avoiding discovery loss from stale mapper state in isolated CLI/QA bootstrap.
 
-## Alpha69 coverage expansion
+## Early coverage expansion in alpha67.6
 
-Alpha69 adds reviewed source support for four client-required configuration families while preserving the deny-by-default provider model. Tags, Profiles/UF Groups, and Profile Fields reuse `EntityDefinitionHandler`; Contact Layouts and traditional Report Instances use focused reviewed adapters because their persistence shapes cannot be represented safely by the generic collection handler alone.
+Alpha67.6 lands the source implementation for four client-required configuration families ahead of the planned Alpha69 milestone while preserving the deny-by-default provider model. Tags, Profiles/UF Groups, and Profile Fields reuse `EntityDefinitionHandler`; Contact Layouts and traditional Report Instances use focused reviewed adapters because their persistence shapes cannot be represented safely by the generic collection handler alone.
 
 - **Tags** use `name` identity and convert `parent_id` to a semantic Tag reference. Entity-tag assignments are business data and are never exported/imported by this handler.
 - **Profiles** use UFGroup `name`; **Profile Fields** use `uf_group_id.name + field_name`. UF Group and Location Type IDs resolve only at the target API boundary. Dotted joined API4 key fields remain in YAML for identity but are stripped before writes.

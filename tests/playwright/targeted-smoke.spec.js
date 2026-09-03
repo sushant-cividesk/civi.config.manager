@@ -39,14 +39,17 @@ async function login(page) {
   let foundLogin = false;
   for (const candidate of [...new Set(loginCandidates)]) {
     if (page.url() !== candidate) await page.goto(candidate, { waitUntil: 'domcontentloaded' });
-    const password = page.locator('input[type="password"]').first();
+    const password = page.locator('input[type="password"]:visible').first();
     if (!(await password.count())) continue;
-    const username = page.locator('input[name="name"], input[name="username"], input[type="email"], #edit-name').first();
+    const loginForm = password.locator('xpath=ancestor::form[1]');
+    const username = loginForm.locator('input[name="name"], input[name="username"], input[type="email"], #edit-name').first();
+    const submit = loginForm.locator('button[type="submit"]:visible, input[type="submit"]:visible').first();
     await expect(username, `Login username field missing: ${await pageDiagnostic(page)}`).toBeVisible();
     await expect(password, `Login password field missing: ${await pageDiagnostic(page)}`).toBeVisible();
+    await expect(submit, `Login submit control missing: ${await pageDiagnostic(page)}`).toBeVisible();
     await username.fill(process.env.CIVICRM_ADMIN_USER || 'admin');
     await password.fill(process.env.CIVICRM_ADMIN_PASS || '');
-    await page.locator('button[type="submit"], input[type="submit"]').first().click();
+    await submit.click();
     await page.waitForLoadState('domcontentloaded');
     foundLogin = true;
     break;

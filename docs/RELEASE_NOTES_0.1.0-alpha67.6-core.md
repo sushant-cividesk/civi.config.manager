@@ -1,6 +1,6 @@
-# Configuration Manager 0.1.0-alpha69-core
+# Configuration Manager 0.1.0-alpha67.6-core
 
-Alpha69 is the source checkpoint for the client-required configuration coverage expansion. It adds conservative create/update support for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances without broadening generic CRUD authority.
+Alpha67.6 lands an early source checkpoint for the client-required configuration coverage expansion without skipping the roadmap: Alpha68 remains the next planned milestone, while Alpha69 remains the later runtime-evidence/coverage-completion milestone. It adds conservative create/update support for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances without broadening generic CRUD authority.
 
 ## Added coverage
 
@@ -23,4 +23,4 @@ Targeted-site smoke now requires the repository-local Playwright dependency inst
 
 ## Evidence boundary
 
-Vendor-free syntax/architecture checks can be run from the source package, but Alpha69 is not runtime-complete until A69-05 passes on disposable real CiviCRM: export/import/re-export with different local IDs, independent final-state queries, business-data preservation, and mutation/red proof for each advertised capability.
+Vendor-free syntax/architecture checks can be run from the source package, but this early coverage work is not runtime-complete until the future A69-05 gate passes on disposable real CiviCRM: export/import/re-export with different local IDs, independent final-state queries, business-data preservation, and mutation/red proof for each advertised capability.

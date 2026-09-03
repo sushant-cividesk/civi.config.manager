@@ -11,7 +11,7 @@ use Civi\ConfigManager\Service\CoreEntityDefinitions;
 use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
 
-final class Alpha69CoverageTest extends TestCase {
+final class CoverageExpansionTest extends TestCase {
 
   /**
    * Requirement: newly managed core families must use semantic identities and
@@ -40,7 +40,7 @@ final class Alpha69CoverageTest extends TestCase {
    * yet been created on an empty target.
    */
   public function testTagImportCreatesParentBeforeChildWhenYamlIsChildFirst(): void {
-    $handler = new Alpha69TagFixture();
+    $handler = new CoverageExpansionTagFixture();
     $documents = [
       'a-child.yml' => [
         'type' => 'tags.item',
@@ -74,12 +74,12 @@ final class Alpha69CoverageTest extends TestCase {
     self::assertSame(2, $applied['create']);
     self::assertSame('parent_tag', $handler->createOrder[0]);
     self::assertSame('child_tag', $handler->createOrder[1]);
-    self::assertSame($handler->rows['parent_tag']['id'], $handler->rows['child_tag']['parent_id']);
+    self::assertSame($handler->rowId('parent_tag'), $handler->rowParentId('child_tag'));
   }
 
   /** Requirement: cyclic Tag parent dependencies must fail closed with zero writes. */
   public function testTagImportBlocksParentCycle(): void {
-    $handler = new Alpha69TagFixture();
+    $handler = new CoverageExpansionTagFixture();
     $documents = [
       'a.yml' => ['type' => 'tags.item', 'entity' => 'Tag', 'item' => [
         'name' => 'a', 'label' => 'A',
@@ -97,8 +97,8 @@ final class Alpha69CoverageTest extends TestCase {
     self::assertSame([], $handler->createOrder);
   }
 
-  /** Requirement: Alpha69 families are visible as independent configuration types. */
-  public function testRegistryAdvertisesAlpha69ConfigurationFamilies(): void {
+  /** Requirement: early coverage-expansion families are visible as independent configuration types. */
+  public function testRegistryAdvertisesCoverageExpansionFamilies(): void {
     $types = array_map(static fn($handler): string => $handler->getType(), (new HandlerRegistry())->getHandlers());
 
     foreach (['tags', 'profiles', 'profile-fields', 'contact-layouts', 'report-instances'] as $type) {
@@ -111,7 +111,7 @@ final class Alpha69CoverageTest extends TestCase {
    * target site's numeric ReportInstance ID.
    */
   public function testReportInstanceUpdateUsesNameButWritesLocalIdOnlyAtApiBoundary(): void {
-    $handler = new Alpha69ReportFixture();
+    $handler = new CoverageExpansionReportFixture();
     $export = $handler->export();
 
     self::assertCount(1, $export);
@@ -135,7 +135,7 @@ final class Alpha69CoverageTest extends TestCase {
   public function testReportExportFailsClosedWithoutCompositeIdentity(): void {
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('report_id + name identity');
-    (new Alpha69UnnamedReportFixture())->export();
+    (new CoverageExpansionUnnamedReportFixture())->export();
   }
 
   /**
@@ -143,7 +143,7 @@ final class Alpha69CoverageTest extends TestCase {
    * references and resolve only at the target API boundary.
    */
   public function testContactLayoutNestedReferencesRoundTripWithoutLocalIds(): void {
-    $handler = new Alpha69ContactLayoutFixture();
+    $handler = new CoverageExpansionContactLayoutFixture();
     $export = $handler->export();
     $item = $export[0]['data']['item'];
 
@@ -170,7 +170,7 @@ final class Alpha69CoverageTest extends TestCase {
 
   /** Requirement: unknown nested local-ID shapes must block portable Contact Layout export. */
   public function testContactLayoutUnknownLocalReferenceFailsClosed(): void {
-    $handler = new Alpha69ContactLayoutFixture();
+    $handler = new CoverageExpansionContactLayoutFixture();
     $handler->includeUnknownLocalReference = TRUE;
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('unresolved local numeric/reference field');
@@ -178,7 +178,7 @@ final class Alpha69CoverageTest extends TestCase {
   }
 }
 
-final class Alpha69TagFixture extends TagHandler {
+final class CoverageExpansionTagFixture extends TagHandler {
   /** @var array<string,array<string,mixed>> */
   public array $rows = [];
   /** @var string[] */
@@ -193,6 +193,16 @@ final class Alpha69TagFixture extends TagHandler {
       if (($row[$field] ?? NULL) === $value) return $row;
     }
     return NULL;
+  }
+
+  public function rowId(string $name): ?int {
+    $row = $this->rows[$name] ?? NULL;
+    return is_array($row) && isset($row['id']) ? (int) $row['id'] : NULL;
+  }
+
+  public function rowParentId(string $name): ?int {
+    $row = $this->rows[$name] ?? NULL;
+    return is_array($row) && isset($row['parent_id']) ? (int) $row['parent_id'] : NULL;
   }
 
   protected function api4Create(string $entity, array $values): array {
@@ -214,7 +224,7 @@ final class Alpha69TagFixture extends TagHandler {
   }
 }
 
-final class Alpha69ReportFixture extends ReportInstanceHandler {
+final class CoverageExpansionReportFixture extends ReportInstanceHandler {
   public array $lastCreateParams = [];
 
   protected function api3(string $entity, string $action, array $params): array {
@@ -258,7 +268,7 @@ final class Alpha69ReportFixture extends ReportInstanceHandler {
   }
 }
 
-final class Alpha69UnnamedReportFixture extends ReportInstanceHandler {
+final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler {
   protected function api3(string $entity, string $action, array $params): array {
     if ($action === 'get') {
       return ['values' => [[
@@ -277,7 +287,7 @@ final class Alpha69UnnamedReportFixture extends ReportInstanceHandler {
   }
 }
 
-final class Alpha69ContactLayoutFixture extends ContactLayoutHandler {
+final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
   public array $lastUpdateValues = [];
   public bool $includeUnknownLocalReference = FALSE;
 
