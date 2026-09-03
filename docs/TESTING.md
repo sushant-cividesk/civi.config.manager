@@ -31,6 +31,12 @@ Automatically discovered API4 providers must pass these metadata-only gates in o
 
 Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `tests/browser-php` defines the PHP 8.2+ Playwright-PHP toolchain, while `tests/ci/run-browser-php.sh` installs it outside the extension tree and connects it to the same disposable CiviCRM HTTP site. Requested browser QA fails when `CIVICFG_BASE_URL` is missing instead of skipping green. Playwright-PHP must never be added to the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
 
+## Alpha67.2 CLI browser-QA entry point
+
+Use `civicfg qa-browser --base-url URL` as the canonical manual browser-QA command. The CLI delegates to the same external-tooling runner used by CI, rejects command-line passwords, and refuses legacy nested browser dependencies unless cleanup is explicitly requested. `civicfg qa-browser-clean` previews generated legacy artifacts and `--yes` is required before removal.
+
+The CLI regression suite verifies delegation without `cv`, preview-before-delete, explicit cleanup, and password-argument rejection. The architecture contract separately verifies that the CLI still delegates to the canonical runner and does not reintroduce nested `vendor/` assumptions.
+
 ## Standard Round-Trip Test
 
 Use this flow for every handler that supports import:

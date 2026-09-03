@@ -26,6 +26,41 @@ civicfg import --yes
 
 Use `civicfg --help` for the complete option list.
 
+## Browser QA hotfix commands
+
+Alpha67.2 makes the extension CLI the canonical developer entry point for the isolated Playwright-PHP browser check. Run it from any directory where the installed `civicfg` launcher can resolve this extension:
+
+```bash
+CIVICRM_ADMIN_PASS='...' civicfg qa-browser \
+  --base-url https://dev.example.test \
+  --admin-user admin
+```
+
+The password intentionally has no `--admin-pass` option; command-line passwords can be exposed through shell history and process listings.
+
+If an earlier Alpha67 browser experiment created `tests/browser-php/vendor`, inspect before deleting:
+
+```bash
+civicfg qa-browser-clean
+```
+
+Then explicitly remove only those generated legacy browser-QA artifacts:
+
+```bash
+civicfg qa-browser-clean --yes
+```
+
+Or explicitly clean and immediately run the browser QA:
+
+```bash
+CIVICRM_ADMIN_PASS='...' civicfg qa-browser \
+  --base-url https://dev.example.test \
+  --admin-user admin \
+  --clean-legacy
+```
+
+`qa-browser` delegates to `tests/ci/run-browser-php.sh`, which provisions the pinned PHP 8.2+ Playwright toolchain outside the extension tree. The command does not create a second project `vendor/`.
+
 ## Launcher architecture
 
 The extension does not install copies of the CLI into project `bin` directories. The extension-owned `bin/civicfg` is always authoritative.

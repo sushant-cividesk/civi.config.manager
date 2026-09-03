@@ -79,6 +79,8 @@ Full isolated run with browser tests (after installing both root JS dependencies
 RUN_UI_TESTS=true RUN_PHP_UI_TESTS=true tests/ci/run-standalone.sh
 ```
 
+For manual DEV runs, prefer `civicfg qa-browser --base-url URL`; use `civicfg qa-browser-clean` to preview/remove legacy Alpha67 nested browser artifacts.
+
 The PHP browser harness is deliberately isolated from the extension's root Composer graph. Its pinned manifest/lock remain under `tests/browser-php`, but `tests/ci/run-browser-php.sh` installs the PHP 8.2+ toolchain into an external QA workspace so the extension tree keeps one project `vendor/`.
 
 ## Developer-owned scenarios

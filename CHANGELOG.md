@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-alpha67.2-core
+
+- Added first-class `civicfg qa-browser` orchestration so real Playwright-PHP QA can be launched from the Configuration Manager CLI instead of relying on the repository-root Composer namespace.
+- Added `civicfg qa-browser-clean` with preview-by-default and explicit `--yes` removal for generated pre-Alpha67.1 nested browser-vendor/cache artifacts.
+- Added `--clean-legacy` to the browser QA command for an explicit clean-and-run workflow, while continuing to keep Playwright-PHP dependencies outside the extension tree.
+- Kept browser credentials safer by accepting the password only through `CIVICRM_ADMIN_PASS`, never a process-list-visible command-line argument.
+- Expanded CLI/browser tooling regression contracts around delegation, cleanup, and fail-closed behavior.
+
 ## 0.1.0-alpha67.1-core
 
 - Hardened Playwright-PHP QA so requested real-browser runs fail when `CIVICFG_BASE_URL` is missing instead of reporting a skipped green test.

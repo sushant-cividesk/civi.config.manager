@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.1-core` |
+| Active development line | `0.1.0-alpha67.2-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -147,3 +147,11 @@ The next implementation action after these gates is A66-04 generic contrib/custo
 - Maintainer-run `composer qa:fast` on buildkit/PHP 8.3.31 passed: 250 PHPUnit tests, 1,976 assertions, provider-inventory mutation proof red/restored-green, provider-admission mutation proof red/restored-green, and static analysis reported no errors.
 - Playwright-PHP 1.4.0 + PHPUnit 11.5.56 and browser binaries installed successfully in the original nested harness experiment, but the test was skipped because `CIVICFG_BASE_URL` was missing. This is dependency-install evidence only, not browser validation.
 - Alpha67.1 removes the nested-vendor architecture and makes a missing real-site URL a hard failure whenever PHP browser QA is requested.
+
+### Alpha67.2 CLI browser-QA hotfix — 2026-09-03
+
+- Root cause: `qa:browser-php` is a root Composer script, while the nested `tests/browser-php` Composer project has no `qa` namespace; additionally, the pre-Alpha67.1 manual install left a generated nested `vendor/` that Alpha67.1 correctly refused.
+- `civicfg qa-browser --base-url URL` now owns manual Playwright-PHP orchestration and delegates to the same external-tooling runner as CI.
+- `civicfg qa-browser-clean` is read-only by default and requires `--yes` before deleting only known generated legacy browser-QA artifacts. `qa-browser --clean-legacy` provides an explicit clean-and-run path.
+- Passwords remain environment-only through `CIVICRM_ADMIN_PASS`; the CLI rejects `--admin-pass`.
+- This is an Alpha67 maintenance hotfix. After its real DEV browser run is green, continue A66-04 generic contributed/custom provider support, then A66-05/A66-06 and the remaining Alpha67 inventory UX.

@@ -122,6 +122,106 @@ final class CliCommandTest extends TestCase {
     self::assertStringContainsString('either --allow or --deny', implode("\n", $lines));
   }
 
+
+  /**
+   * Requirement: browser QA is a first-class civicfg command that can run
+   * from the extension CLI without cv and passes the real-site boundary to
+   * the canonical browser runner.
+   */
+  public function testQaBrowserRunsCanonicalRunnerWithoutCv(): void {
+    $root = $this->createCliFixtureRoot();
+    $runner = $root . '/tests/ci/run-browser-php.sh';
+    file_put_contents($runner, "#!/bin/sh\nprintf 'url=%s\nuser=%s\npass=%s\n' \"\$CIVICFG_BASE_URL\" \"\$CIVICRM_ADMIN_USER\" \"\${CIVICRM_ADMIN_PASS:-}\"\n");
+    chmod($runner, 0755);
+
+    [$exit, $lines] = $this->runCliPath($root . '/bin/civicfg', [
+      'qa-browser', '--base-url', 'https://dev.example.test', '--admin-user', 'qa-admin',
+    ], ['CIVICRM_ADMIN_PASS' => 'secret-from-env', 'CIVICFG_CV' => '']);
+
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertContains('url=https://dev.example.test', $lines);
+    self::assertContains('user=qa-admin', $lines);
+    self::assertContains('pass=secret-from-env', $lines);
+    $this->removeTree($root);
+  }
+
+  /** Requirement: generated pre-Alpha67.1 nested vendor can be removed only by explicit CLI consent. */
+  public function testQaBrowserCleanPreviewsThenRemovesLegacyVendor(): void {
+    $root = $this->createCliFixtureRoot();
+    $legacy = $root . '/tests/browser-php/vendor';
+    mkdir($legacy, 0775, TRUE);
+    file_put_contents($legacy . '/generated.txt', 'generated');
+
+    [$previewExit, $preview] = $this->runCliPath($root . '/bin/civicfg', ['qa-browser-clean']);
+    self::assertSame(0, $previewExit, implode("\n", $preview));
+    self::assertDirectoryExists($legacy);
+    self::assertStringContainsString('Preview only', implode("\n", $preview));
+
+    [$cleanExit, $clean] = $this->runCliPath($root . '/bin/civicfg', ['qa-browser-clean', '--yes']);
+    self::assertSame(0, $cleanExit, implode("\n", $clean));
+    self::assertDirectoryDoesNotExist($legacy);
+    self::assertStringContainsString('removed', strtolower(implode("\n", $clean)));
+    $this->removeTree($root);
+  }
+
+  /** Requirement: browser passwords must not be accepted as process-list-visible CLI arguments. */
+  public function testQaBrowserRejectsPasswordArgument(): void {
+    $root = $this->createCliFixtureRoot();
+    [$exit, $lines] = $this->runCliPath($root . '/bin/civicfg', [
+      'qa-browser', '--base-url', 'https://dev.example.test', '--admin-pass', 'secret',
+    ]);
+    self::assertSame(2, $exit);
+    self::assertStringContainsString('CIVICRM_ADMIN_PASS', implode("\n", $lines));
+    $this->removeTree($root);
+  }
+
+
+  private function createCliFixtureRoot(): string {
+    $root = $this->sandbox . '/extension-' . bin2hex(random_bytes(3));
+    mkdir($root . '/bin', 0775, TRUE);
+    mkdir($root . '/tests/ci', 0775, TRUE);
+    mkdir($root . '/tests/browser-php', 0775, TRUE);
+    copy($this->cli, $root . '/bin/civicfg');
+    chmod($root . '/bin/civicfg', 0755);
+    return $root;
+  }
+
+  /** @return array{0:int,1:array<int,string>} */
+  private function runCliPath(string $cli, array $args, array $env = []): array {
+    $parts = [];
+    foreach ($env as $name => $value) {
+      $parts[] = $name . '=' . escapeshellarg((string) $value);
+    }
+    $parts[] = 'bash';
+    $parts[] = escapeshellarg($cli);
+    foreach ($args as $arg) {
+      $parts[] = escapeshellarg((string) $arg);
+    }
+    $output = [];
+    $exit = 0;
+    exec(implode(' ', $parts) . ' 2>&1', $output, $exit);
+    return [$exit, array_values(array_map('strval', $output))];
+  }
+
+  private function removeTree(string $path): void {
+    if (!is_dir($path)) {
+      return;
+    }
+    $iterator = new \RecursiveIteratorIterator(
+      new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+      \RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+      if ($item->isDir() && !$item->isLink()) {
+        @rmdir($item->getPathname());
+      }
+      else {
+        @unlink($item->getPathname());
+      }
+    }
+    @rmdir($path);
+  }
+
   /**
    * @return array{0:int,1:array<int,string>}
    */

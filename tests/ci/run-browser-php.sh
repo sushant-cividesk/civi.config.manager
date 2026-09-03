@@ -8,7 +8,7 @@ if [[ -z "${CIVICFG_BASE_URL:-}" ]]; then
   cat >&2 <<'MSG'
 CIVICFG_BASE_URL is required for Playwright-PHP black-box QA.
 Run this test against an authorized DEV/disposable CiviCRM site, for example:
-  CIVICFG_BASE_URL=http://127.0.0.1:8760 composer qa:browser-php
+  civicfg qa-browser --base-url http://127.0.0.1:8760
 MSG
   exit 2
 fi
@@ -17,7 +17,7 @@ if [[ -d "${manifest_dir}/vendor" ]]; then
   cat >&2 <<'MSG'
 Refusing to use tests/browser-php/vendor.
 Alpha67.1 keeps a single project vendor directory in the extension tree.
-Remove the legacy tests/browser-php/vendor directory; browser tooling is installed outside the repository.
+Run 'civicfg qa-browser-clean --yes' (or 'civicfg qa-browser --base-url URL --clean-legacy'); browser tooling is installed outside the repository.
 MSG
   exit 2
 fi
