@@ -68,7 +68,13 @@ function _configmanager_lifecycle(bool $installCli = TRUE, bool $removeCli = FAL
       $stateStore->ensureSchema();
       $operationStore->ensureSchema();
       if ($installCli) {
-        $installer->install();
+        $cliResult = $installer->install();
+        if (empty($cliResult['global_launcher']) && class_exists('Civi')) {
+          $details = !empty($cliResult['errors'])
+            ? implode('; ', (array) $cliResult['errors'])
+            : implode('; ', (array) $cliResult['skipped']);
+          \Civi::log()->warning('Configuration Manager global civicfg launcher was not installed. ' . $details);
+        }
       }
     }
   }

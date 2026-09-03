@@ -254,6 +254,11 @@ BASH;
       return NULL;
     }
 
+    $cvBin = $this->cvBinDirectory();
+    if ($cvBin !== NULL) {
+      return $cvBin;
+    }
+
     $home = rtrim($this->expandHome((string) getenv('HOME')), DIRECTORY_SEPARATOR);
     $preferred = [];
     if ($home !== '') {
@@ -279,6 +284,36 @@ BASH;
       }
     }
 
+    return NULL;
+  }
+
+  /**
+   * Prefer the directory containing cv when it is already on PATH and writable.
+   * This makes the installed civicfg launcher available in the same shell that
+   * already exposes the CiviCRM command, which is especially important in
+   * Buildkit/DDEV containers where HOME bin directories may not be on PATH.
+   */
+  private function cvBinDirectory(): ?string {
+    $explicit = trim((string) getenv('CIVICFG_CV'));
+    $candidates = [];
+    if ($explicit !== '' && strpos($explicit, DIRECTORY_SEPARATOR) !== FALSE) {
+      $candidates[] = dirname($this->expandHome($explicit));
+    }
+    foreach ($this->pathDirectories() as $dir) {
+      $cv = $dir . DIRECTORY_SEPARATOR . 'cv';
+      if (is_file($cv) && is_executable($cv)) {
+        $candidates[] = $dir;
+      }
+    }
+    foreach (array_values(array_unique($candidates)) as $dir) {
+      $target = $dir . DIRECTORY_SEPARATOR . 'civicfg';
+      if (is_file($target) && !$this->isManagedWrapper($target)) {
+        continue;
+      }
+      if ($this->directoryIsWritableOrCreatable($dir)) {
+        return $dir;
+      }
+    }
     return NULL;
   }
 

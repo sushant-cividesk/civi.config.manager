@@ -61,6 +61,7 @@
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
             "@test:alpha67-browser-tooling-contract",
+            "@test:source-hygiene",
             "@analyse",
             "@compatibility"
         ],
@@ -75,8 +76,11 @@
         "test:alpha63-contract": "php tests/ci/alpha63-contract.php",
         "test:alpha64-contract": "php tests/ci/alpha64-contract.php",
         "package:release": "bash scripts/build-release.sh",
-        "qa:browser-php": "bash tests/ci/run-browser-php.sh",
+        "qa:browser-php": "bash tests/ci/run-browser-php-self-contained.sh",
+        "qa:browser-php:target": "bash tests/ci/run-browser-php.sh",
+        "qa:browser": "RUN_UI_TESTS=true RUN_JS_UI_TESTS=true RUN_PHP_UI_TESTS=true bash tests/ci/run-standalone.sh",
         "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh",
-        "test:alpha67-browser-tooling-contract": "php tests/ci/alpha67-browser-tooling-contract.php"
+        "test:alpha67-browser-tooling-contract": "php tests/ci/alpha67-browser-tooling-contract.php",
+        "test:source-hygiene": "bash tests/ci/source-hygiene.sh"
     }
 }

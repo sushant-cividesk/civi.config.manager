@@ -6,3 +6,5 @@ dist/
 tests/ci/artifacts/
 tests/browser-php/.phpunit.cache/
 tests/browser-php/.phpunit.result.cache
+
+__MACOSX/

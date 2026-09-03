@@ -23,7 +23,7 @@ final class CliInstallerTest extends TestCase {
     $this->globalBin = $this->sandbox . '/global-bin';
     $this->registryDir = $this->sandbox . '/registry';
 
-    foreach (['PATH', 'HOME', 'XDG_CONFIG_HOME', 'CIVICFG_GLOBAL_BIN_DIR', 'CIVICFG_REGISTRY_DIR'] as $name) {
+    foreach (['PATH', 'HOME', 'XDG_CONFIG_HOME', 'CIVICFG_GLOBAL_BIN_DIR', 'CIVICFG_REGISTRY_DIR', 'CIVICFG_CV'] as $name) {
       $this->environment[$name] = getenv($name);
     }
 
@@ -138,6 +138,23 @@ final class CliInstallerTest extends TestCase {
     self::assertTrue($result['ok']);
     self::assertSame($siteVendor . '/bin/civicfg', $result['vendor_launcher']);
     self::assertFileExists($siteVendor . '/bin/civicfg');
+  }
+
+  public function testWritableCvDirectoryIsPreferredForGlobalLauncher(): void {
+    putenv('CIVICFG_GLOBAL_BIN_DIR');
+    $cvBin = $this->sandbox . '/cv-bin';
+    mkdir($cvBin, 0775, TRUE);
+    file_put_contents($cvBin . '/cv', "#!/bin/sh\nexit 0\n");
+    chmod($cvBin . '/cv', 0755);
+    putenv('PATH=' . $cvBin . ':/usr/bin:/bin');
+    putenv('CIVICFG_CV');
+
+    $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
+    $result = $installer->install();
+
+    self::assertTrue($result['ok']);
+    self::assertSame($cvBin . '/civicfg', $result['global_launcher']);
+    self::assertFileExists($cvBin . '/civicfg');
   }
 
   public function testGlobalPathDirectoryIsCreatedWhenPathAlreadyAdvertisesIt(): void {

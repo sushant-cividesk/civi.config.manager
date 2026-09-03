@@ -14,6 +14,6 @@ if command -v npm >/dev/null 2>&1; then
   fi
   npx playwright install chromium
 else
-  echo "npm/Node.js was not found on the host; Playwright will run in the pinned Docker browser image instead."
+  echo "npm/Node.js was not found on the host; JavaScript Playwright will run in the pinned Docker browser image instead."
 fi
-RUN_UI_TESTS=true tests/ci/run-standalone.sh
+RUN_UI_TESTS=true RUN_JS_UI_TESTS=true RUN_PHP_UI_TESTS=true tests/ci/run-standalone.sh

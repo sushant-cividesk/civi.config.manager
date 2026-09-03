@@ -245,28 +245,34 @@ if grep -E 'PHP (Fatal error|Parse error)|Uncaught (Error|Exception)|Allowed mem
   exit 1
 fi
 
-if [[ "${RUN_UI_TESTS:-false}" == "true" ]]; then
-  qa_stage "Run Playwright UI tests and screenshots"
+RUN_JS_UI_TESTS="${RUN_JS_UI_TESTS:-${RUN_UI_TESTS:-false}}"
+RUN_PHP_UI_TESTS="${RUN_PHP_UI_TESTS:-false}"
+
+if [[ "${RUN_JS_UI_TESTS}" == "true" || "${RUN_PHP_UI_TESTS}" == "true" ]]; then
+  qa_stage "Seed browser QA fixture"
   compose exec -T -u www-data \
     -e CIVICFG_QA_RUN_ID="${CIVICFG_QA_RUN_ID}" \
     -e CIVICFG_QA_ARTIFACTS=/qa-artifacts \
     app cv scr /var/www/html/ext/civi.config.manager/tests/integration/UiFixture.php seed \
     | tee "${QA_ARTIFACT_DIR}/ui-fixture-seed.log"
 
-  if command -v npm >/dev/null 2>&1; then
-    CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
-    CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
-    CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
-    QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR}" \
-    npm run test:ui
-  else
-    "${SCRIPT_DIR}/run-playwright-docker.sh" \
-      "${CIVICRM_HTTP_PORT}" \
-      "${CIVICRM_ADMIN_USER:-admin}" \
-      "${CIVICRM_ADMIN_PASS:-qa-admin-password}"
+  if [[ "${RUN_JS_UI_TESTS}" == "true" ]]; then
+    qa_stage "Run JavaScript Playwright UI tests and screenshots"
+    if command -v npm >/dev/null 2>&1; then
+      CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
+      CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \
+      CIVICRM_ADMIN_PASS="${CIVICRM_ADMIN_PASS:-qa-admin-password}" \
+      QA_ARTIFACT_DIR="${QA_ARTIFACT_DIR}" \
+      npm run test:ui
+    else
+      "${SCRIPT_DIR}/run-playwright-docker.sh" \
+        "${CIVICRM_HTTP_PORT}" \
+        "${CIVICRM_ADMIN_USER:-admin}" \
+        "${CIVICRM_ADMIN_PASS:-qa-admin-password}"
+    fi
   fi
 
-  if [[ "${RUN_PHP_UI_TESTS:-false}" == "true" ]]; then
+  if [[ "${RUN_PHP_UI_TESTS}" == "true" ]]; then
     qa_stage "Run isolated Playwright PHP black-box UI test"
     CIVICFG_BASE_URL="http://127.0.0.1:${CIVICRM_HTTP_PORT}" \
     CIVICRM_ADMIN_USER="${CIVICRM_ADMIN_USER:-admin}" \

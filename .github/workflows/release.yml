@@ -89,9 +89,7 @@ jobs:
       - name: Run real CiviCRM import/export and browser gate
         env:
           CIVICRM_IMAGE: civicrm/civicrm:6.16-php8.3
-          RUN_UI_TESTS: 'true'
-          RUN_PHP_UI_TESTS: 'true'
-        run: tests/ci/run-standalone.sh
+        run: composer qa:browser
 
       - name: Upload real-runtime evidence
         if: always()

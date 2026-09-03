@@ -4,6 +4,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 manifest_dir="${repo_root}/tests/browser-php"
 
+if [[ -z "${CIVICRM_ADMIN_PASS:-}" ]]; then
+  echo "CIVICRM_ADMIN_PASS is required for targeted Playwright-PHP QA." >&2
+  exit 2
+fi
+
 if [[ -z "${CIVICFG_BASE_URL:-}" ]]; then
   cat >&2 <<'MSG'
 CIVICFG_BASE_URL is required for Playwright-PHP black-box QA.
@@ -52,4 +57,4 @@ fi
 "${vendor_dir}/bin/playwright-install" --browsers
 
 CIVICFG_BROWSER_PHP_VENDOR_AUTOLOAD="${vendor_dir}/autoload.php" \
-  "${vendor_dir}/bin/phpunit" -c "${manifest_dir}/phpunit.xml.dist"
+  "${vendor_dir}/bin/phpunit" --fail-on-skipped --fail-on-risky -c "${manifest_dir}/phpunit.xml.dist"

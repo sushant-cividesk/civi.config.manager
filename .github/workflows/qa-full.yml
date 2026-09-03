@@ -68,12 +68,17 @@ jobs:
           npm install
           npx playwright install --with-deps chromium
 
-      - name: Run full isolated CiviCRM QA
+      - name: Run full isolated CiviCRM QA with both browser stacks
+        if: ${{ github.event_name == 'pull_request' || inputs.run_ui_tests == 'true' }}
         env:
           CIVICRM_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.civicrm_image || 'civicrm/civicrm:6.16-php8.3' }}
-          RUN_UI_TESTS: ${{ github.event_name == 'pull_request' || inputs.run_ui_tests == 'true' }}
-          RUN_PHP_UI_TESTS: ${{ github.event_name == 'pull_request' || inputs.run_ui_tests == 'true' }}
-        run: tests/ci/run-standalone.sh
+        run: composer qa:browser
+
+      - name: Run full isolated CiviCRM QA without browser tests
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_tests != 'true' }}
+        env:
+          CIVICRM_IMAGE: ${{ inputs.civicrm_image }}
+        run: composer qa:real-runtime
 
       - name: Upload QA artifacts
         if: always()

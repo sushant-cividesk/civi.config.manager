@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-alpha67.3-core
+
+- Made `composer qa:browser-php` self-contained: it creates its own disposable CiviCRM stack and runs Playwright-PHP without requiring an existing site URL or credentials.
+- Added `composer qa:browser` as the shared local/GitHub Actions gate for disposable real-CiviCRM integration plus both JavaScript Playwright/axe and Playwright-PHP.
+- Kept targeted DEV-site browser testing explicit through `qa:browser-php:target` / `./bin/civicfg qa-browser --base-url URL`.
+- Hardened Playwright-PHP evidence so skipped, risky, and zero-assertion browser tests fail the gate.
+- Improved global CLI installation by preferring a writable directory that already contains `cv`, and added `cli-install` / `cli-doctor` repair commands.
+- Tightened source-package hygiene around `.git`, `__MACOSX`, nested vendor trees, node_modules, caches, and generated QA artifacts.
+
 ## 0.1.0-alpha67.2-core
 
 - Added first-class `civicfg qa-browser` orchestration so real Playwright-PHP QA can be launched from the Configuration Manager CLI instead of relying on the repository-root Composer namespace.

@@ -29,13 +29,13 @@ Automatically discovered API4 providers must pass these metadata-only gates in o
 
 `ProviderAdmissionPolicyTest` supplies independent fixtures for business-data rejection, ID-only identity rejection, sensitive writable fields, unresolved references, and an explicitly mapped semantic reference. `tests/ci/mutation-provider-admission.sh` deliberately changes the reference proof to trust every reference; the unmapped-reference regression test must go red, the source is restored, and the same test must return green.
 
-Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `tests/browser-php` defines the PHP 8.2+ Playwright-PHP toolchain, while `tests/ci/run-browser-php.sh` installs it outside the extension tree and connects it to the same disposable CiviCRM HTTP site. Requested browser QA fails when `CIVICFG_BASE_URL` is missing instead of skipping green. Playwright-PHP must never be added to the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
+Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `composer qa:browser-php` creates a disposable CiviCRM runtime and then uses `tests/ci/run-browser-php.sh` as the targeted Playwright-PHP leaf. `composer qa:browser` runs both browser stacks against the same disposable site. Playwright-PHP remains outside the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
 
-## Alpha67.2 CLI browser-QA entry point
+## Alpha67.3 browser/CLI entry points
 
-Use `civicfg qa-browser --base-url URL` as the canonical manual browser-QA command. The CLI delegates to the same external-tooling runner used by CI, rejects command-line passwords, and refuses legacy nested browser dependencies unless cleanup is explicitly requested. `civicfg qa-browser-clean` previews generated legacy artifacts and `--yes` is required before removal.
+Use `composer qa:browser-php` for the self-contained PHP browser gate and `composer qa:browser` for both browser stacks. Existing-site testing is explicit: `CIVICRM_ADMIN_PASS=... ./bin/civicfg qa-browser --base-url URL`. The CLI rejects command-line passwords and refuses legacy nested browser dependencies unless cleanup is explicitly requested. `./bin/civicfg qa-browser-clean` previews generated legacy artifacts and `--yes` is required before removal.
 
-The CLI regression suite verifies delegation without `cv`, preview-before-delete, explicit cleanup, and password-argument rejection. The architecture contract separately verifies that the CLI still delegates to the canonical runner and does not reintroduce nested `vendor/` assumptions.
+The CLI regression suite verifies self-contained delegation without `cv`, targeted delegation, preview-before-delete, explicit cleanup, and password-argument rejection. The architecture contract separately verifies that local/GitHub browser orchestration cannot regress to nested `vendor/` assumptions or skipped-green browser evidence.
 
 ## Standard Round-Trip Test
 
@@ -292,3 +292,8 @@ The alpha62 gate continues proving 5,000 API4 + 5,000 YAML bounded traversal and
 The real-site alpha63 scenario must additionally prove: generic contributed provider discovery must not execute business APIs merely to inspect them (for example Civigrant `Grant` or CiviMobile `CiviMobileParticipant` must not become export units and discovery must not emit their provider warnings); generic provider discovery excludes business/transaction API entities such as Grant without aborting unrelated Export; legacy alpha61/62 portable CiviRules YAML remains importable; queued workspaces survive a normal PHP/container restart when CiviCRM ConfigAndLog is persistent; identical duplicate CiviRules rows export without path collision; monitor-only rows do not gain CRUD authority; portable YAML ambiguous on target blocks with zero writes; one ambiguous identity does not disable unrelated delete safety; WordPress 2,000+ YAML progress remains responsive and semantically labelled; refresh reconnects; create/update failure starts no delete work; interrupted live mutation blocks; interrupted publication restores the previous YAML snapshot; Export -> Synchronize is zero diff; and a repeat Export produces no unnecessary rewrite.
 
 These gates do not replace the PHP 7.4 compatibility matrix or full Drupal 7/WordPress/Standalone CiviCRM lifecycle tests.
+
+
+### Alpha67.3 self-contained browser gate
+
+`composer qa:browser-php` now creates a disposable CiviCRM stack before running Playwright-PHP. `composer qa:browser` runs the same real-runtime integration plus both JavaScript Playwright/axe and Playwright-PHP. GitHub Actions uses the same Composer orchestration. Targeted DEV-site testing remains available through `./bin/civicfg qa-browser --base-url URL`. The PHP browser PHPUnit configuration fails on skipped, risky, warning, and zero-assertion tests so a non-executed browser path cannot be reported as green.

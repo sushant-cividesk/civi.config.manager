@@ -145,6 +145,20 @@ final class CliCommandTest extends TestCase {
     $this->removeTree($root);
   }
 
+  /** Requirement: browser QA without a target URL must create its own disposable runtime path. */
+  public function testQaBrowserWithoutBaseUrlUsesSelfContainedRunner(): void {
+    $root = $this->createCliFixtureRoot();
+    $runner = $root . '/tests/ci/run-browser-php-self-contained.sh';
+    file_put_contents($runner, "#!/bin/sh\nprintf 'self-contained=yes\\n'\n");
+    chmod($runner, 0755);
+
+    [$exit, $lines] = $this->runCliPath($root . '/bin/civicfg', ['qa-browser'], ['CIVICFG_CV' => '']);
+
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertContains('self-contained=yes', $lines);
+    $this->removeTree($root);
+  }
+
   /** Requirement: generated pre-Alpha67.1 nested vendor can be removed only by explicit CLI consent. */
   public function testQaBrowserCleanPreviewsThenRemovesLegacyVendor(): void {
     $root = $this->createCliFixtureRoot();

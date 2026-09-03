@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.2-core` |
+| Active development line | `0.1.0-alpha67.3-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -155,3 +155,13 @@ The next implementation action after these gates is A66-04 generic contrib/custo
 - `civicfg qa-browser-clean` is read-only by default and requires `--yes` before deleting only known generated legacy browser-QA artifacts. `qa-browser --clean-legacy` provides an explicit clean-and-run path.
 - Passwords remain environment-only through `CIVICRM_ADMIN_PASS`; the CLI rejects `--admin-pass`.
 - This is an Alpha67 maintenance hotfix. After its real DEV browser run is green, continue A66-04 generic contributed/custom provider support, then A66-05/A66-06 and the remaining Alpha67 inventory UX.
+
+
+### Alpha67.3 browser/CLI hotfix — 2026-09-03
+
+- Root cause addressed: manual `tests/browser-php` Composer use created a second vendor tree, root `qa:*` commands were unavailable from that nested project, and browser QA depended on a pre-existing site URL.
+- `composer qa:browser-php` now owns its disposable CiviCRM runtime; `composer qa:browser` runs both browser stacks through the same standalone runtime used by GitHub Actions.
+- Targeted existing-site testing is explicit and requires `CIVICFG_BASE_URL` plus `CIVICRM_ADMIN_PASS`.
+- Browser PHPUnit is fail-closed for skipped/risky/zero-assertion tests.
+- CLI installation now prefers a writable directory containing `cv`; `./bin/civicfg cli-install` and `./bin/civicfg cli-doctor` provide deterministic repair/diagnostics when a global launcher is not present.
+- Source packaging must exclude `.git`, `__MACOSX`, all vendor/node_modules trees, PHPUnit caches, and generated QA artifacts.
