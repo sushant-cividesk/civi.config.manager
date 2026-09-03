@@ -39,10 +39,11 @@ The workflow:
 4. Creates fixture data through supported APIs.
 5. Runs API4, CLI, YAML, round-trip, dry-run, idempotency, Config Ignore, site-identifier, secret-redaction, Message Template, and real import-blocker preservation checks.
 6. Runs the real-extension fixture suite when enabled.
-7. Optionally runs Playwright UI/UX/accessibility checks.
-8. Blocks outbound application networking and real email delivery during application tests.
-9. Verifies tracked extension source files did not change.
-10. Uploads sanitized evidence and removes containers/volumes/fixtures after the run.
+7. Optionally runs JavaScript Playwright UI/UX/accessibility checks.
+8. When enabled, runs the isolated PHP 8.2+ Playwright-PHP black-box client against the same disposable HTTP site.
+9. Blocks outbound application networking and real email delivery during application tests.
+10. Verifies tracked extension source files did not change.
+11. Uploads sanitized evidence and removes containers/volumes/fixtures after the run.
 
 ## Isolation guarantees
 
@@ -72,11 +73,13 @@ Full isolated run without browser tests:
 RUN_UI_TESTS=false tests/ci/run-standalone.sh
 ```
 
-Full isolated run with browser tests:
+Full isolated run with browser tests (after installing both root JS dependencies and `tests/browser-php` Composer dependencies):
 
 ```bash
-RUN_UI_TESTS=true tests/ci/run-standalone.sh
+RUN_UI_TESTS=true RUN_PHP_UI_TESTS=true tests/ci/run-standalone.sh
 ```
+
+The PHP browser harness is deliberately isolated from the extension's root Composer graph. CI installs it from `tests/browser-php/composer.json`; local runs should do the same before setting `RUN_PHP_UI_TESTS=true`.
 
 ## Developer-owned scenarios
 

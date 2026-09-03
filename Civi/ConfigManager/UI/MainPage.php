@@ -792,6 +792,15 @@ class MainPage {
     foreach ($importApplyTypes as $type) {
       $importApplyTypesMap[(string) $type] = TRUE;
     }
+    $providerInventoryByType = [];
+    foreach ((array) (($this->manager->getProviderInventory()['providers'] ?? [])) as $provider) {
+      $provider = (array) $provider;
+      $providerType = (string) ($provider['type'] ?? '');
+      if ($providerType !== '' && !isset($providerInventoryByType[$providerType])) {
+        $providerInventoryByType[$providerType] = $provider;
+      }
+    }
+
     $scopeRows = [];
     $scopeConfiguredCount = 0;
     foreach ($this->manager->getScopeTypeOptions() as $row) {
@@ -801,7 +810,14 @@ class MainPage {
       if ($mode !== 'ignore') {
         $scopeConfiguredCount++;
       }
+      $providerInventory = (array) ($providerInventoryByType[$type] ?? []);
       $scopeRows[] = $row + [
+        'provider_owner' => (string) ($providerInventory['owner'] ?? ''),
+        'provider_registration_source' => (string) ($providerInventory['registration_source'] ?? ''),
+        'provider_reason_code' => (string) ($providerInventory['capability_reason_code'] ?? ''),
+        'provider_reason' => (string) ($providerInventory['capability_reason'] ?? ''),
+        'provider_identity_evidence' => (string) ($providerInventory['identity_evidence'] ?? ''),
+        'provider_metadata_completeness' => (string) ($providerInventory['metadata_completeness'] ?? ''),
         'mode' => $mode,
         'mode_all' => $mode === 'all',
         'mode_selected' => $mode === 'selected',

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha67-core
+
+- Added the staged deny-by-default provider admission policy. Automatically discovered API4 providers must pass classification, portable-identity, writable-projection, and portable-reference proofs before capability assignment; writable unresolved local references now fail closed.
+- Extracted generic admission policy from the 3k+ line extension handler into a focused metadata-only service, preserving the no-collection-read inventory boundary and avoiding further handler spaghetti.
+- Replaced inherited `basic` provider inventory metadata for fixed handlers with explicit action/identity/reference/sensitive/runtime/capability declarations.
+- Added an isolated PHP 8.2+ Playwright black-box harness alongside the existing JavaScript Playwright + axe suite, without changing the extension's PHP 7.4 production dependency graph.
+- Improved Settings UX with a compact **Provider safety** disclosure showing provider ownership, registration source, capability reason, identity evidence, and metadata completeness.
+- Added requirement-first admission tests and a deliberate unmapped-reference mutation proof harness.
+
+> **Evidence boundary:** source/static checks pass in the current container, but Composer/vendor, Docker, disposable CiviCRM, and browser runtimes are unavailable here. Supported-PHP PHPUnit/mutation, real-CiviCRM, and both browser stacks remain CI/disposable-runtime evidence gates and must be recorded in `docs/PROJECT_STATUS.md`.
+
 ## 0.1.0-alpha66-core
 
 - Added an admin-only `ConfigManager.providerInventory` API4 action and service boundary. It deterministically inventories registered core handlers, metadata-hook handlers, advanced custom handlers, and automatically discovered contributed/custom API4/API3 candidates.

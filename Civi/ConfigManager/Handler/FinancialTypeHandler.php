@@ -7,6 +7,16 @@ class FinancialTypeHandler extends AbstractHandler {
   public function getDirectory(): string { return 'financial'; }
   public function getWeight(): int { return 40; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'FinancialType',
+      'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
+      'field_names' => ['name','label','description','is_deductible','is_reserved','is_active'],
+      'identity_fields' => ['name'], 'reference_fields' => [], 'sensitive_fields' => [], 'runtime_fields' => [],
+      'management_capability' => 'managed_no_delete', 'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+    ];
+  }
+
   public function getRuntimeAvailability(): array {
     $availability = $this->api4ManagementAvailability('FinancialType', ['get', 'create', 'update']);
     if (empty($availability['available'])) {

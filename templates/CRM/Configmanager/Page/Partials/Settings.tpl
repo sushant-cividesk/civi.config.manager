@@ -99,6 +99,19 @@
                 <option value="ignore" {if $row.mode_ignore}selected="selected"{/if}>{ts}Ignore{/ts}</option>
               </select>
 
+              <details class="civicfg-provider-safety">
+                <summary><strong>{ts}Provider safety{/ts}</strong>{if $row.provider_owner} <span class="civicfg-muted">{$row.provider_owner|escape}</span>{/if}</summary>
+                <div class="civicfg-provider-safety-body">
+                  {if $row.provider_reason}<div>{$row.provider_reason|escape}</div>{/if}
+                  <dl class="civicfg-provider-safety-meta">
+                    {if $row.provider_registration_source}<dt>{ts}Registration{/ts}</dt><dd><code>{$row.provider_registration_source|escape}</code></dd>{/if}
+                    {if $row.provider_reason_code}<dt>{ts}Reason code{/ts}</dt><dd><code>{$row.provider_reason_code|escape}</code></dd>{/if}
+                    {if $row.provider_identity_evidence}<dt>{ts}Identity evidence{/ts}</dt><dd><code>{$row.provider_identity_evidence|escape}</code></dd>{/if}
+                    {if $row.provider_metadata_completeness}<dt>{ts}Metadata{/ts}</dt><dd><code>{$row.provider_metadata_completeness|escape}</code></dd>{/if}
+                  </dl>
+                </div>
+              </details>
+
               {if $row.capability eq 'unavailable'}
                 <div class="messages error no-popup civicfg-provider-unavailable">
                   <strong>{ts}Provider unavailable{/ts}</strong> - {$row.capability_help|escape}

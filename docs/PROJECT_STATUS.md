@@ -66,16 +66,17 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] A66-02 Add the provider schema for owner, registration source, API/entity, actions, fields, identity, references, sensitive/runtime fields, admission/capability reasons, and evidence completeness. Unknown metadata remains explicitly empty/partial rather than inferred.
 - [x] A66-02a Expose the inventory through admin-only `ConfigManager.providerInventory`; add service/unit contracts and the real-runtime CLI smoke call.
 - [x] A66-02b Add an automated red/green mutation harness for the forbidden collection-read path. On 2026-09-03 the harness quoting defect that produced invalid injected PHP was fixed; the exact mutation now applies once and passes PHP syntax. **Behavioral red/green execution remains pending because PHPUnit/vendor dependencies are unavailable in the current container.**
-- [ ] A66-02c Replace `basic`/`partial` inventory metadata with explicit field/reference/action declarations for each fixed core handler, then verify those declarations against supported real runtimes.
-- [ ] A66-03 Add a deny-by-default admission pipeline: discover → classify → prove portable identity → prove writable projection → prove reference mapping → assign capability.
+- [x] A66-02c Fixed/core handlers now declare explicit action, identity, reference, sensitive/runtime, and management-capability metadata instead of inheriting `basic`; contributed dynamic-provider metadata remains explicit about its limits. **Supported real-runtime verification remains pending.**
+- [x] A66-03 Implemented a deny-by-default metadata admission pipeline: discover → classify → prove portable identity → prove writable projection → prove reference mapping → assign capability. Writable reference fields without explicit semantic mapping fail closed; reviewed adapters remain explicit reviewed integration points. **PHPUnit mutation and disposable real-runtime proof remain pending.**
 - [ ] A66-04 Support contrib/custom extensions generically through metadata and hooks; keep extension-name branches out of the core engine unless a reviewed semantic adapter is unavoidable.
 - [ ] A66-05 Cache discovery by extension/core version and invalidate it safely after extension or schema changes.
 - [ ] A66-06 Add compatibility fixtures for supported CiviCRM 5.x/6.x targets and representative contrib/custom providers.
 
 ### Alpha67 — Settings and inventory UX
 
+- [x] A67-00 Add an isolated PHP 8.2+ Playwright black-box QA client alongside existing JavaScript Playwright + axe coverage. Keep it out of the PHP 7.4 runtime dependency graph and run it only against disposable/authorized HTTP environments. **Runtime execution remains pending.** The harness pins Playwright-PHP `1.4.0`; generate and review its nested `composer.lock` in a Composer-enabled environment before treating dependency resolution as release-reproducible.
 - [ ] A67-01 Replace the long undifferentiated list with searchable groups: Core, Contributed, Custom, Unavailable, and Backup/Monitor-only.
-- [ ] A67-02 Keep the heading **What should Configuration Manager manage?** and explain that only proven portable providers can write.
+- [x] A67-02 Keep the heading **What should Configuration Manager manage?** and expose provider-safety evidence/reasons so write capability is not presented as implicit. Broader grouping/search UX remains in A67-01/A67-04-A67-06.
 - [ ] A67-03 Show per-type mode cards only for valid choices: Manage all, Manage selected, Monitor only, Ignore.
 - [ ] A67-04 Show item counts, managed YAML file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable.
 - [ ] A67-05 Load expensive item inventories only when a card/picker is opened; cache and paginate large providers.
@@ -130,11 +131,13 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 |---|---|---|
 | Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Still pending. 2026-09-03 container has PHP 8.4 only, no Composer/vendor dependencies, no Docker/Podman, and outbound DNS is disabled. PHP 8.4 syntax passed for all 108 project PHP files; Alpha62/63/64 architecture contracts passed (31/53/23 checks). |
 | Real import blocker | `composer qa:real-runtime` → `tests/ci/artifacts/import-blocker-safety.json` | Implemented; not run |
-| Browser UX | `composer qa:real-runtime-ui` | Required on PR/release; not run |
+| Browser UX | `composer qa:real-runtime-ui` | JS Playwright + axe remains required; alpha67 also wires isolated Playwright-PHP black-box QA. Both runtime executions remain pending in this authoring container. |
 | Mutation proof | Disposable source mutation + real blocker test red, restore + green | 2026-09-03 harness parse defect fixed. Independent injection check proved the forbidden-read mutation applies exactly once and the mutated PHP lints; restored source also lints. PHPUnit red/green proof remains pending because `vendor/bin/phpunit` is unavailable. |
 | Cross-environment | Identical DEV YAML imported/re-exported on STAGE with different IDs | Not run |
-| Alpha66 provider inventory | Unit collection-read trap + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Unit/runtime still pending. Current container cannot install dependencies or run disposable CiviCRM; no collection/runtime evidence is being claimed from static checks. |
+| Alpha66/67 provider inventory + admission | Unit collection-read trap + admission policy/mutation + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Metadata-only admission smoke passes locally. PHPUnit/mutation behavioral proof and real-runtime inventory/admission remain pending because this container has no Composer/vendor or Docker. |
 | Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed again 2026-09-03: transient recovery, advisory fail-closed, exhausted failure |
 | Authoring checks | JSON parse, Bash syntax, `git diff --check` | 2026-09-03: archive SHA-256/integrity matched handoff; `info.xml` is `0.1.0-alpha66-core`; composer/package JSON parsed; all 10 test Bash scripts passed `bash -n`; all 108 project PHP files passed syntax under PHP 8.4. `validate-scenarios.php` could not start because `vendor/autoload.php` is absent. |
 
-The next implementation action is A66-03: build the deny-by-default admission stages and reason codes on top of this metadata inventory, while retaining alpha65/alpha66 runtime and mutation evidence as mandatory gates.
+Current alpha67 implementation checkpoint: A66-02c and A66-03 are implemented in source; Settings exposes provider-safety metadata; an isolated Playwright-PHP harness and CI/disposable-runtime wiring are present. Local checks observed: all 112 project PHP files lint under PHP 8.4, Alpha62/63/64 architecture contracts pass (31/53/23), Composer audit-wrapper behavior passes, workflow YAML/Composer JSON parse, and direct admission-policy smoke proves unmapped references deny while a reference-free portable provider can admit. Full PHPUnit/mutation red-green, PHP 7.4/8.1/8.3, Docker/CiviCRM, JS Playwright, and Playwright-PHP execution remain runtime gates.
+
+The next implementation action after these gates is A66-04 generic contrib/custom support completion, then A66-05 caching and A66-06 supported-version fixtures before the remaining Alpha67 inventory grouping/count/search/accessibility work.

@@ -7,6 +7,17 @@ class PaymentProcessorHandler extends AbstractHandler {
   public function getDirectory(): string { return 'payment-processors'; }
   public function getWeight(): int { return 50; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'PaymentProcessor',
+      'actions' => ['read' => TRUE, 'create' => FALSE, 'update' => FALSE, 'delete' => FALSE],
+      'field_names' => ['name','title','description','payment_processor_type_id','is_active','is_default','is_test','user_name','url_site','url_api','url_recur','url_button','class_name','billing_mode','financial_account_id','payment_instrument_id'],
+      'identity_fields' => ['name'], 'reference_fields' => ['payment_processor_type_id','financial_account_id','payment_instrument_id'],
+      'sensitive_fields' => ['password','signature','subject'], 'runtime_fields' => [],
+      'management_capability' => 'export_only', 'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+    ];
+  }
+
   public function getRuntimeAvailability(): array {
     if (class_exists('Civi\\Api4\\PaymentProcessor')) {
       return ['available' => TRUE, 'reason' => ''];

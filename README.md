@@ -209,6 +209,8 @@ Browser/UI QA:
 composer qa:full-ui
 ```
 
+The full UI gate now runs two independent browser clients against the same disposable CiviCRM site: the existing JavaScript Playwright + axe suite and an isolated PHP 8.2+ Playwright-PHP black-box harness under `tests/browser-php`. The PHP harness is intentionally outside the extension runtime Composer graph so PHP 7.4 compatibility is unchanged.
+
 Do not publish a release solely because unit tests pass. The full isolated integration suite and a reviewed real migration dry-run are release gates for destructive import behavior.
 
 ## Documentation

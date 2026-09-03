@@ -7,6 +7,16 @@ class SettingHandler extends AbstractHandler {
   public function getDirectory(): string { return 'settings'; }
   public function getWeight(): int { return 80; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'settings_service', 'entity' => 'Setting',
+      'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
+      'field_names' => ['name','value'], 'identity_fields' => ['name'], 'reference_fields' => [],
+      'sensitive_fields' => ['dynamic_name_policy'], 'runtime_fields' => [], 'management_capability' => 'managed_no_delete',
+      'identity_evidence' => 'explicit_allowlist', 'metadata_completeness' => 'declared_policy',
+    ];
+  }
+
   public function export(): array {
     $files = [];
     foreach ($this->configuredAllowlist() as $name) {

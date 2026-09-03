@@ -21,6 +21,16 @@ The evidence file is `tests/ci/artifacts/import-blocker-safety.json`. Before acc
 
 Opening provider inventory through the service/API4 boundary must not execute provider collection reads or inspect managed YAML. The unit test uses an independent API4 read trap. `tests/ci/mutation-provider-inventory.sh` deliberately inserts the forbidden read, requires the test to fail with that exact oracle, restores the source, and requires green. The disposable CiviCRM suite also invokes `cv api4 ConfigManager.providerInventory`; provider-specific real-runtime evidence is still required before new provider capabilities are advertised.
 
+## Alpha67 provider-admission and dual-browser requirement
+
+Automatically discovered API4 providers must pass these metadata-only gates in order before any generic management capability can be assigned:
+
+`discover -> classify -> portable identity -> writable projection -> reference mapping -> capability`
+
+`ProviderAdmissionPolicyTest` supplies independent fixtures for business-data rejection, ID-only identity rejection, sensitive writable fields, unresolved references, and an explicitly mapped semantic reference. `tests/ci/mutation-provider-admission.sh` deliberately changes the reference proof to trust every reference; the unmapped-reference regression test must go red, the source is restored, and the same test must return green.
+
+Browser validation remains layered rather than self-confirming. The JavaScript Playwright + axe suite continues to cover interaction/accessibility. `tests/browser-php` is a separate PHP 8.2+ Composer project using `playwright-php/playwright`; it connects to the same disposable CiviCRM HTTP site and verifies the Settings safety disclosure plus the absence of an unsafe **Continue anyway** bypass. It must never be added to the extension's main Composer dependency graph because the production extension continues to support PHP 7.4.
+
 ## Standard Round-Trip Test
 
 Use this flow for every handler that supports import:

@@ -10,6 +10,16 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
   public function getDirectory(): string { return 'message-templates'; }
   public function getWeight(): int { return 90; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'MessageTemplate',
+      'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
+      'field_names' => ['msg_title','msg_subject','msg_text','msg_html','workflow_name','is_default','is_reserved','is_active'],
+      'identity_fields' => ['workflow_name','msg_title'], 'reference_fields' => [], 'sensitive_fields' => [], 'runtime_fields' => [],
+      'management_capability' => 'full', 'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+    ];
+  }
+
   public function getRuntimeAvailability(): array {
     return $this->api4ManagementAvailability('MessageTemplate', ['get', 'create', 'update', 'delete']);
   }

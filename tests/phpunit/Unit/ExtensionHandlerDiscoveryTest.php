@@ -756,8 +756,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
     $result = (array) $method->invoke($handler, [], $fields, FALSE);
     self::assertFalse($result['admitted']);
-    self::assertSame('missing_portable_identity', $result['reason_code']);
-    self::assertStringContainsString('does not declare a non-ID match_fields identity', (string) $result['reason']);
+    self::assertSame('business_data_marker', $result['reason_code']);
+    self::assertStringContainsString('business/transaction field', (string) $result['reason']);
   }
 
   public function testGenericApi4AdmissionRejectsBusinessEntityEvenWithNaturalMatchKey(): void {

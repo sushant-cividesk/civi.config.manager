@@ -15,6 +15,17 @@ class SiteTokenHandler extends AbstractHandler {
   public function getDirectory(): string { return 'site-tokens'; }
   public function getWeight(): int { return 85; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'SiteToken',
+      'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
+      'field_names' => ['name','token_name','label','provider_owned_fields'],
+      'identity_fields' => ['name','token_name','label'], 'reference_fields' => ['provider_declared_only'],
+      'sensitive_fields' => ['provider_declared_only'], 'runtime_fields' => ['provider_declared_only'], 'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared_dynamic_provider',
+    ];
+  }
+
   public function getRuntimeAvailability(): array {
     return $this->api4ManagementAvailability('SiteToken', ['get', 'create', 'update', 'delete']);
   }

@@ -33,6 +33,17 @@ class CustomGroupHandler extends AbstractHandler implements StreamingHandlerInte
   public function getDirectory(): string { return 'custom-data'; }
   public function getWeight(): int { return 60; }
 
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'CustomGroup+CustomField',
+      'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
+      'field_names' => ['group.name','group.title','group.extends','group.extends_entity_column_id','group.extends_entity_column_value','group.style','group.collapse_display','group.help_pre','group.help_post','group.weight','group.is_active','group.is_multiple','group.min_multiple','group.max_multiple','group.collapse_adv_display','group.is_reserved','group.is_public','fields.name','fields.label','fields.data_type','fields.html_type','fields.default_value','fields.is_required','fields.is_searchable','fields.is_search_range','fields.weight','fields.help_pre','fields.help_post','fields.attributes','fields.is_active','fields.is_view','fields.options_per_line','fields.text_length','fields.start_date_years','fields.end_date_years','fields.date_format','fields.time_format','fields.note_columns','fields.note_rows','fields.column_name','fields.option_group_name'],
+      'identity_fields' => ['group.name','fields.name'], 'reference_fields' => ['fields.option_group_name'],
+      'sensitive_fields' => [], 'runtime_fields' => [], 'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+    ];
+  }
+
   public function getRuntimeAvailability(): array {
     $group = $this->api4ManagementAvailability('CustomGroup', ['get', 'create', 'update', 'delete']);
     $field = $this->api4ManagementAvailability('CustomField', ['get', 'create', 'update', 'delete']);

@@ -86,10 +86,17 @@ jobs:
           npm install
           npx playwright install --with-deps chromium
 
+      - name: Install isolated Playwright PHP browser QA
+        working-directory: tests/browser-php
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          vendor/bin/playwright-install --browsers
+
       - name: Run real CiviCRM import/export and browser gate
         env:
           CIVICRM_IMAGE: civicrm/civicrm:6.16-php8.3
           RUN_UI_TESTS: 'true'
+          RUN_PHP_UI_TESTS: 'true'
         run: tests/ci/run-standalone.sh
 
       - name: Upload real-runtime evidence

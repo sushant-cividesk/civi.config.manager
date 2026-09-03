@@ -3,6 +3,7 @@ namespace Civi\ConfigManager\Handler;
 
 use Civi\ConfigManager\Version;
 use Civi\ConfigManager\Service\DiskRowSpool;
+use Civi\ConfigManager\Service\ProviderAdmissionPolicy;
 
 class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface, ChunkedStreamingHandlerInterface {
   private bool $importWritesEnabled = TRUE;
@@ -21,6 +22,17 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   public function getLabel(): string { return 'Extensions'; }
   public function getDirectory(): string { return 'extensions'; }
   public function getWeight(): int { return 10; }
+
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager', 'api_version' => 'handler', 'entity' => 'ExtensionStatusAndSettings',
+      'actions' => ['read' => TRUE, 'create' => FALSE, 'update' => TRUE, 'delete' => FALSE],
+      'field_names' => ['extension', 'status', 'settings'], 'identity_fields' => ['extension'],
+      'reference_fields' => [], 'sensitive_fields' => ['settings.*secret', 'settings.*token', 'settings.*key'],
+      'runtime_fields' => [], 'management_capability' => 'mixed',
+      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+    ];
+  }
 
   public function setImportWriteEnabled(bool $enabled): self {
     $this->importWritesEnabled = $enabled;
@@ -138,7 +150,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         'discovered_actions' => $discoveredActions,
         'field_names' => $this->sortedStringValues($fieldNames),
         'identity_fields' => $this->sortedStringValues((array) ($definition['match_fields'] ?? [])),
-        'reference_fields' => [],
+        'reference_fields' => $this->sortedStringValues((array) ($definition['reference_fields'] ?? [])),
         'sensitive_fields' => $this->sortedStringValues($sensitiveFields),
         'runtime_fields' => $this->sortedStringValues($runtimeFields),
         'admitted' => $admitted,
@@ -148,6 +160,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         'identity_evidence' => !empty($definition['reviewed_provider'])
           ? 'reviewed_adapter'
           : (!empty($definition['match_fields']) ? 'provider_metadata' : 'none'),
+        'admission_stages' => (array) ($definition['admission_stages'] ?? []),
         'metadata_completeness' => $fieldNames ? 'discovered' : 'partial',
         'collection_read_during_inventory' => FALSE,
       ];
@@ -1724,6 +1737,9 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         'generic_config_admitted' => !empty($admission['admitted']),
         'admission_reason_code' => (string) ($admission['reason_code'] ?? 'provider_not_admitted'),
         'admission_reason' => (string) ($admission['reason'] ?? ''),
+        'admission_stages' => (array) ($admission['stages'] ?? []),
+        'writable_fields' => (array) ($admission['writable_fields'] ?? []),
+        'reference_fields' => (array) ($admission['reference_fields'] ?? []),
         'can_create' => is_callable([$class, 'create']),
         'can_update' => is_callable([$class, 'update']),
         'can_delete' => is_callable([$class, 'delete']),
@@ -3048,79 +3064,10 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
    *
    * @param string[] $matchFields
    * @param array<string,array<string,mixed>> $fields
-   * @return array{admitted:bool,reason:string,reason_code:string}
+   * @return array{admitted:bool,reason:string,reason_code:string,stages:array,writable_fields:array,reference_fields:array}
    */
   private function genericApi4ConfigAdmission(array $matchFields, array $fields, bool $reviewedProvider = FALSE): array {
-    if ($reviewedProvider) {
-      return [
-        'admitted' => TRUE,
-        'reason_code' => 'reviewed_adapter',
-        'reason' => 'Reviewed provider adapter.',
-      ];
-    }
-
-    if (!$matchFields) {
-      return [
-        'admitted' => FALSE,
-        'reason_code' => 'missing_portable_identity',
-        'reason' => 'API4 provider does not declare a non-ID match_fields identity. CRUD capability alone does not prove deployable configuration.',
-      ];
-    }
-
-    foreach ($matchFields as $field) {
-      $field = trim((string) $field);
-      if ($field === '' || !isset($fields[$field])) {
-        return [
-          'admitted' => FALSE,
-          'reason_code' => 'incomplete_identity_metadata',
-          'reason' => 'API4 provider match_fields metadata is incomplete for field ' . ($field !== '' ? $field : '[empty]') . '.',
-        ];
-      }
-      if ($this->isSensitiveSettingName($field)) {
-        return [
-          'admitted' => FALSE,
-          'reason_code' => 'sensitive_identity',
-          'reason' => 'API4 provider uses a sensitive-looking field as portable identity. Declare the provider explicitly so sensitive-field handling can be reviewed.',
-        ];
-      }
-    }
-
-    $businessMarkers = [
-      'contact_id', 'activity_id', 'case_id', 'contribution_id', 'participant_id',
-      'membership_id', 'membership_type_id', 'event_id', 'grant_type_id',
-      'financial_type_id', 'payment_processor_id', 'recurring_contribution_id',
-      'amount', 'amount_total', 'amount_requested', 'amount_granted', 'currency',
-    ];
-    foreach ($businessMarkers as $field) {
-      if (isset($fields[$field])) {
-        return [
-          'admitted' => FALSE,
-          'reason_code' => 'business_data_marker',
-          'reason' => 'API4 provider exposes business/transaction field ' . $field . '. Generic discovery will not treat it as deployable configuration; use an explicit provider definition if this is intentionally configuration.',
-        ];
-      }
-    }
-
-    foreach ($fields as $name => $metadata) {
-      $name = (string) $name;
-      $metadata = (array) $metadata;
-      if (!empty($metadata['readonly']) || !empty($metadata['read_only']) || (($metadata['type'] ?? '') === 'Extra')) {
-        continue;
-      }
-      if ($name !== '' && $this->isSensitiveSettingName($name)) {
-        return [
-          'admitted' => FALSE,
-          'reason_code' => 'sensitive_writable_field',
-          'reason' => 'API4 provider exposes sensitive-looking writable field ' . $name . '. Generic discovery cannot safely decide how to redact/restore it; declare the provider explicitly.',
-        ];
-      }
-    }
-
-    return [
-      'admitted' => TRUE,
-      'reason_code' => 'portable_identity_and_field_policy',
-      'reason' => 'API4 provider declares a non-ID portable match_fields identity and no generic business/sensitive-data safety marker was detected.',
-    ];
+    return (new ProviderAdmissionPolicy())->assess($matchFields, $fields, $reviewedProvider);
   }
 
   private function isNonImportableDefinition(array $definition): bool {

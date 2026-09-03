@@ -469,3 +469,12 @@
   padding: .65rem .75rem;
   border-radius: 4px;
 }
+.crm-configmanager-block .civicfg-provider-safety {margin: .65rem 0; padding: .55rem .65rem; border: 1px solid #d7dce2; border-radius: 4px; background: rgba(0,0,0,.02);}
+.crm-configmanager-block .civicfg-provider-safety summary {cursor: pointer; display: flex; gap: .45rem; flex-wrap: wrap; align-items: baseline;}
+.crm-configmanager-block .civicfg-provider-safety-body {margin-top: .5rem; line-height: 1.4;}
+.crm-configmanager-block .civicfg-provider-safety-meta {display: grid; grid-template-columns: max-content minmax(0,1fr); gap: .2rem .55rem; margin: .45rem 0 0;}
+.crm-configmanager-block .civicfg-provider-safety-meta dt {font-weight: 600;}
+.crm-configmanager-block .civicfg-provider-safety-meta dd {margin: 0; min-width: 0; overflow-wrap: anywhere;}
+@media (max-width: 640px) {
+  .crm-configmanager-block .civicfg-provider-safety-meta {grid-template-columns: 1fr;}
+}

@@ -194,6 +194,15 @@ test.describe('Configuration Manager scope settings', () => {
     await expect(selectedControls).toBeHidden();
   });
 
+  test('shows provider safety evidence without an unsafe bypass', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('[data-civicfg-scope-row]').first();
+    await expect(row.getByText('Provider safety', { exact: true })).toBeVisible();
+    await row.locator('details.civicfg-provider-safety summary').click();
+    await expect(row.locator('.civicfg-provider-safety-body')).toBeVisible();
+    await expect(page.getByText(/Continue anyway/i)).toHaveCount(0);
+  });
+
   test('supports expanded collapsible settings and Drupal-style bulk scope changes', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
     const scopeDetails = page.locator('details.civicfg-scope-settings');

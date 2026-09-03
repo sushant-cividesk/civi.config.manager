@@ -59,6 +59,7 @@
       "@test:audit-wrapper",
       "@test:unit",
       "@test:mutation-provider-inventory",
+      "@test:mutation-provider-admission",
       "@analyse",
       "@compatibility"
     ],
@@ -72,6 +73,8 @@
     ],
     "test:alpha63-contract": "php tests/ci/alpha63-contract.php",
     "test:alpha64-contract": "php tests/ci/alpha64-contract.php",
-    "package:release": "bash scripts/build-release.sh"
+    "package:release": "bash scripts/build-release.sh",
+    "qa:browser-php": "cd tests/browser-php && vendor/bin/phpunit -c phpunit.xml.dist",
+    "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh"
   }
 }
