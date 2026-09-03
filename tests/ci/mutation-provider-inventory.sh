@@ -14,8 +14,20 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-needle=$'      $definition = (array) $definition;\n      $api = (string) ($definition['"'"'api'"'"'] ?? '"'"''"'"');'
-replacement=$'      $definition = (array) $definition;\n      // MUTATION PROOF ONLY: simulate the forbidden provider collection read.\n      if (!empty($definition['"'"'class'"'"']) && is_callable([$definition['"'"'class'"'"'], '"'"'get'"'"'])) {\n        call_user_func([$definition['"'"'class'"'"'], '"'"'get'"'"'], FALSE);\n      }\n      $api = (string) ($definition['"'"'api'"'"'] ?? '"'"''"'"');'
+needle="$(cat <<'EOF'
+      $definition = (array) $definition;
+      $api = (string) ($definition['api'] ?? '');
+EOF
+)"
+replacement="$(cat <<'EOF'
+      $definition = (array) $definition;
+      // MUTATION PROOF ONLY: simulate the forbidden provider collection read.
+      if (!empty($definition['class']) && is_callable([$definition['class'], 'get'])) {
+        call_user_func([$definition['class'], 'get'], FALSE);
+      }
+      $api = (string) ($definition['api'] ?? '');
+EOF
+)"
 
 php -r '
 $path = $argv[1];

@@ -65,7 +65,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] A66-01 Implement deterministic inventory for every registered core/config-hook handler plus installed contributed/custom API4/API3 candidates, without provider collection or YAML reads. **Real-runtime evidence pending.**
 - [x] A66-02 Add the provider schema for owner, registration source, API/entity, actions, fields, identity, references, sensitive/runtime fields, admission/capability reasons, and evidence completeness. Unknown metadata remains explicitly empty/partial rather than inferred.
 - [x] A66-02a Expose the inventory through admin-only `ConfigManager.providerInventory`; add service/unit contracts and the real-runtime CLI smoke call.
-- [x] A66-02b Add an automated red/green mutation harness for the forbidden collection-read path. **Execution pending because PHP is unavailable here.**
+- [x] A66-02b Add an automated red/green mutation harness for the forbidden collection-read path. On 2026-09-03 the harness quoting defect that produced invalid injected PHP was fixed; the exact mutation now applies once and passes PHP syntax. **Behavioral red/green execution remains pending because PHPUnit/vendor dependencies are unavailable in the current container.**
 - [ ] A66-02c Replace `basic`/`partial` inventory metadata with explicit field/reference/action declarations for each fixed core handler, then verify those declarations against supported real runtimes.
 - [ ] A66-03 Add a deny-by-default admission pipeline: discover → classify → prove portable identity → prove writable projection → prove reference mapping → assign capability.
 - [ ] A66-04 Support contrib/custom extensions generically through metadata and hooks; keep extension-name branches out of the core engine unless a reviewed semantic adapter is unavoidable.
@@ -122,18 +122,19 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 | UX-001 | Extension warning says it is not automatically uninstalled while preview card says “Remove from CiviCRM” with zero fields | Confusing but safety text is present | One consistent non-actionable/monitor-only label and reason | Planned A68-08 |
 | QA-001 | Source-string contracts can stay green while runtime behavior is broken | Kept as architecture lint | Independent behavioral, real-runtime, mutation, and browser gates | In progress |
 | CI-001 | Supplied PHP 8.1 workflow failed only because Packagist advisory download returned HTTP 502 | Direct `composer audit` failed on transient service outage | Retry only transport/408/425/429/5xx errors; advisories/unknown errors fail closed | Wrapper implemented and shell-tested |
+| CI-002 | `composer qa:fast` failed in `mutation-provider-inventory.sh` with `PHP Parse error: unexpected call_user_func` | Bash ANSI-C quoting stopped interpreting later `\n` escapes after embedded single-quote fragments, so the mutation itself contained literal `\n` text | Build the needle/replacement as literal heredoc strings; require exactly one replacement; syntax-check mutated and restored source before PHPUnit | Harness fixed 2026-09-03; mutation syntax proof passed; behavioral red/green awaits PHPUnit dependencies |
 
 ## Evidence ledger
 
 | Evidence | Required command/boundary | Current state |
 |---|---|---|
-| Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Not run for current alpha66 source |
+| Fast static/unit matrix | `composer qa:fast` on PHP 7.4/8.1/8.3 | Still pending. 2026-09-03 container has PHP 8.4 only, no Composer/vendor dependencies, no Docker/Podman, and outbound DNS is disabled. PHP 8.4 syntax passed for all 108 project PHP files; Alpha62/63/64 architecture contracts passed (31/53/23 checks). |
 | Real import blocker | `composer qa:real-runtime` → `tests/ci/artifacts/import-blocker-safety.json` | Implemented; not run |
 | Browser UX | `composer qa:real-runtime-ui` | Required on PR/release; not run |
-| Mutation proof | Disposable source mutation + real blocker test red, restore + green | Not run |
+| Mutation proof | Disposable source mutation + real blocker test red, restore + green | 2026-09-03 harness parse defect fixed. Independent injection check proved the forbidden-read mutation applies exactly once and the mutated PHP lints; restored source also lints. PHPUnit red/green proof remains pending because `vendor/bin/phpunit` is unavailable. |
 | Cross-environment | Identical DEV YAML imported/re-exported on STAGE with different IDs | Not run |
-| Alpha66 provider inventory | Unit collection-read trap + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Unit/runtime not run in authoring workspace |
-| Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed locally: transient recovery, advisory fail-closed, exhausted failure |
-| Authoring checks | JSON parse, Bash syntax, `git diff --check` | Passed for alpha66 working source; PHP syntax/runtime unavailable |
+| Alpha66 provider inventory | Unit collection-read trap + `cv api4 ConfigManager.providerInventory` on disposable CiviCRM | Unit/runtime still pending. Current container cannot install dependencies or run disposable CiviCRM; no collection/runtime evidence is being claimed from static checks. |
+| Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed again 2026-09-03: transient recovery, advisory fail-closed, exhausted failure |
+| Authoring checks | JSON parse, Bash syntax, `git diff --check` | 2026-09-03: archive SHA-256/integrity matched handoff; `info.xml` is `0.1.0-alpha66-core`; composer/package JSON parsed; all 10 test Bash scripts passed `bash -n`; all 108 project PHP files passed syntax under PHP 8.4. `validate-scenarios.php` could not start because `vendor/autoload.php` is absent. |
 
 The next implementation action is A66-03: build the deny-by-default admission stages and reason codes on top of this metadata inventory, while retaining alpha65/alpha66 runtime and mutation evidence as mandatory gates.
