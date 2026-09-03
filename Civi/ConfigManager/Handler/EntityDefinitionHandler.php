@@ -386,11 +386,16 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
 
   private function prepareExportRow(array $row): array {
     if ($this->exportFields !== ['*']) {
-      $topLevel = [];
+      $allowedFields = [];
       foreach (array_merge($this->exportFields, $this->keyFields, array_keys($this->referenceFields)) as $field) {
-        $topLevel[] = explode('.', (string) $field)[0];
+        $field = (string) $field;
+        $allowedFields[] = $field;
+        $allowedFields[] = explode('.', $field)[0];
       }
-      $row = array_intersect_key($row, array_flip(array_values(array_unique($topLevel))));
+      // API4 commonly returns joined selects such as `uf_group_id.name` as
+      // flattened keys. Preserve explicitly declared joined fields as well as
+      // their top-level roots; import removes dotted fields before writing.
+      $row = array_intersect_key($row, array_flip(array_values(array_unique($allowedFields))));
     }
     $row = $this->resolveReferencesForExport($row);
     return $this->stripIgnoredFields($row);

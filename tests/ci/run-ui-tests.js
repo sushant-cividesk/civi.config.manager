@@ -22,7 +22,12 @@ else {
   process.exit(2);
 }
 
-const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const localPlaywright = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'playwright.cmd' : 'playwright');
+if (!fs.existsSync(localPlaywright)) {
+  console.error('Browser QA dependencies are not installed. Run `npm install` in the extension directory, then retry.');
+  process.exit(2);
+}
+const executable = localPlaywright;
 const childEnv = { ...process.env };
 if (!hasFixture && hasTarget && !Object.prototype.hasOwnProperty.call(childEnv, 'CIVICFG_IGNORE_HTTPS_ERRORS')) {
   // Local DDEV/Buildkit sites commonly use a developer CA that Chromium does
@@ -31,7 +36,7 @@ if (!hasFixture && hasTarget && !Object.prototype.hasOwnProperty.call(childEnv, 
   childEnv.CIVICFG_IGNORE_HTTPS_ERRORS = '1';
 }
 
-const result = spawnSync(executable, ['playwright', 'test', spec], {
+const result = spawnSync(executable, ['test', spec], {
   cwd: root,
   env: childEnv,
   stdio: 'inherit',

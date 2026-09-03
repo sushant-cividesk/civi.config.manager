@@ -753,6 +753,15 @@ class ConfigManager {
       'relationship-types' => [
         ['type' => 'contact-types', 'reason' => 'Relationship types can be limited to contact types or subtypes.'],
       ],
+      'profile-fields' => [
+        ['type' => 'profiles', 'reason' => 'Profile fields belong to Profiles/UF Groups.'],
+        ['type' => 'location-types', 'reason' => 'Profile fields can reference portable location types.'],
+      ],
+      'contact-layouts' => [
+        ['type' => 'profiles', 'reason' => 'Contact Layout blocks can reference Profiles.'],
+        ['type' => 'custom-data', 'reason' => 'Contact Layout blocks can reference custom groups.'],
+        ['type' => 'relationship-types', 'reason' => 'Related-contact blocks can reference relationship types.'],
+      ],
       'searchkit-displays' => [
         ['type' => 'searchkit-saved-searches', 'reason' => 'SearchKit displays belong to saved searches.'],
       ],

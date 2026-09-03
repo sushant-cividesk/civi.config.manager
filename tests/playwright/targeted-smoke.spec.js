@@ -25,18 +25,39 @@ async function installNetworkGuard(page) {
   });
 }
 
+async function pageDiagnostic(page) {
+  const heading = await page.locator('h1').first().textContent().catch(() => '');
+  return `url=${page.url()} title=${await page.title()} h1=${(heading || '').trim()}`;
+}
+
 async function login(page) {
-  await page.goto('/civicrm/login', { waitUntil: 'domcontentloaded' });
-  const password = page.locator('input[type="password"]').first();
-  if (await password.count()) {
+  const settingsPath = '/civicrm/admin/config-manager?reset=1&op=settings';
+  await page.goto(settingsPath, { waitUntil: 'domcontentloaded' });
+  if (await page.locator('.crm-configmanager-block').count()) return;
+
+  const loginCandidates = [page.url(), new URL('/user/login', baseUrl).href, new URL('/civicrm/login', baseUrl).href];
+  let foundLogin = false;
+  for (const candidate of [...new Set(loginCandidates)]) {
+    if (page.url() !== candidate) await page.goto(candidate, { waitUntil: 'domcontentloaded' });
+    const password = page.locator('input[type="password"]').first();
+    if (!(await password.count())) continue;
     const username = page.locator('input[name="name"], input[name="username"], input[type="email"], #edit-name').first();
-    await expect(username).toBeVisible();
-    await expect(password).toBeVisible();
+    await expect(username, `Login username field missing: ${await pageDiagnostic(page)}`).toBeVisible();
+    await expect(password, `Login password field missing: ${await pageDiagnostic(page)}`).toBeVisible();
     await username.fill(process.env.CIVICRM_ADMIN_USER || 'admin');
     await password.fill(process.env.CIVICRM_ADMIN_PASS || '');
     await page.locator('button[type="submit"], input[type="submit"]').first().click();
     await page.waitForLoadState('domcontentloaded');
+    foundLogin = true;
+    break;
   }
+
+  if (!foundLogin) {
+    throw new Error(`Unable to find an authenticated session or supported login form. ${await pageDiagnostic(page)}`);
+  }
+
+  await page.goto(settingsPath, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.crm-configmanager-block'), `Authentication/access did not reach Configuration Manager Settings. ${await pageDiagnostic(page)}`).toBeVisible();
 }
 
 test.describe('Configuration Manager targeted DEV smoke', () => {

@@ -63,6 +63,8 @@ Built-in handlers cover the core configuration used by most CiviCRM deployments,
 - Extensions and safely discovered extension-owned configuration
 - Option Groups and Values
 - Contact, Relationship, and Location Types
+- Tags, including portable parent-tag references
+- Profiles / UF Groups and Profile Fields
 - Financial Types and Payment Processors
 - Custom Groups and Fields
 - CiviCRM Settings through an explicit allowlist
@@ -71,10 +73,12 @@ Built-in handlers cover the core configuration used by most CiviCRM deployments,
 - Scheduled Jobs
 - SearchKit Saved Searches and Displays
 - FormBuilder Afforms
+- Contact Layouts when the Contact Layout Editor provider is available; known nested local references are translated semantically
+- Traditional CiviReport instances using `report_id + name` portable identity
 - Site Tokens
 - CiviRules configuration where portable identity is proven
 
-Capability is evaluated at runtime. A readable provider is not automatically considered write-safe.
+Capability is evaluated at runtime. A readable provider is not automatically considered write-safe. Alpha69's newly added Tags, Profiles/Profile Fields, Contact Layouts, and Report Instances currently permit reviewed create/update behavior only; delete-missing remains disabled until independent disposable-runtime preservation proof is recorded.
 
 ## Config Ignore
 

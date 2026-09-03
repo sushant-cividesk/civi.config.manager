@@ -12,6 +12,9 @@ use Civi\ConfigManager\Handler\SiteTokenHandler;
 use Civi\ConfigManager\Handler\CiviRulesHandler;
 use Civi\ConfigManager\Handler\GenericApi4CollectionHandler;
 use Civi\ConfigManager\Handler\EntityDefinitionHandler;
+use Civi\ConfigManager\Handler\ReportInstanceHandler;
+use Civi\ConfigManager\Handler\ContactLayoutHandler;
+use Civi\ConfigManager\Handler\TagHandler;
 
 class HandlerRegistry {
   private array $registrationDiagnostics = [];
@@ -45,9 +48,15 @@ class HandlerRegistry {
       new GenericApi4CollectionHandler('scheduled-jobs', 'Scheduled Jobs', 'scheduled-jobs', 'Job', ['name', 'description', 'api_entity', 'api_action', 'parameters', 'run_frequency', 'scheduled_run_date', 'is_active'], ['name' => 'ASC'], 110, 'jobs.yml', TRUE),
       new GenericApi4CollectionHandler('searchkit-saved-searches', 'SearchKit Saved Searches', 'searchkit/saved-searches', 'SavedSearch', ['name', 'label', 'api_entity', 'api_params', 'description', 'mapping_id', 'is_template', 'is_active'], ['name' => 'ASC'], 120, 'saved-searches.yml', TRUE),
       new GenericApi4CollectionHandler('searchkit-displays', 'SearchKit Displays', 'searchkit/displays', 'SearchDisplay', ['name', 'label', 'saved_search_id', 'saved_search_id.name', 'type', 'settings', 'acl_bypass', 'is_active'], ['name' => 'ASC'], 130, 'displays.yml', TRUE),
+      new TagHandler(),
       new GenericApi4CollectionHandler('formbuilder-afforms', 'FormBuilder Afforms', 'formbuilder/afforms', 'Afform', ['name', 'title', 'type', 'server_route', 'permission', 'permission_operator', 'is_public', 'is_token', 'is_dashlet', 'is_active', 'layout'], ['name' => 'ASC'], 140, 'afforms.yml', TRUE),
+      new ContactLayoutHandler(),
+      new ReportInstanceHandler(),
       new CiviRulesHandler(),
     ];
+    foreach (CoreEntityDefinitions::metadataDriven() as $type => $definition) {
+      $handlers[] = new EntityDefinitionHandler((string) $type, (array) $definition);
+    }
     $sources = [];
     foreach ($handlers as $handler) {
       $sources[spl_object_hash($handler)] = 'core_handler';

@@ -308,6 +308,48 @@ namespace Civi\ConfigManager\Tests\Unit {
       self::assertSame(['name' => 'DESC'], CivicfgHookFixture::$actions[0]->orderBy);
     }
 
+    /**
+     * Requirement: joined semantic key fields selected from API4 must survive
+     * export filtering so composite portable identities cannot disappear.
+     */
+    public function testJoinedKeyFieldSurvivesExportAndIsNotWrittenBack(): void {
+      CivicfgHookFixture::$rows = [[
+        'id' => 7,
+        'parent_id' => 91,
+        'parent_id.name' => 'parent_alpha',
+        'name' => 'child_template',
+        'label' => 'Child Template',
+      ]];
+
+      $handler = $this->buildHandler([
+        'key_fields' => ['parent_id.name', 'name'],
+        'export_fields' => ['parent_id', 'parent_id.name', 'name', 'label'],
+        'reference_fields' => [
+          'parent_id' => [
+            'entity' => 'CivicfgReferenceFixture',
+            'id_field' => 'id',
+            'key_fields' => ['name'],
+          ],
+        ],
+        'order_by' => ['parent_id.name' => 'ASC', 'name' => 'ASC'],
+      ]);
+
+      $files = $handler->export();
+      self::assertCount(1, $files);
+      self::assertSame('parent_alpha__child_template.yml', $files[0]['filename']);
+      self::assertSame('parent_alpha', $files[0]['data']['item']['parent_id.name']);
+      self::assertSame('parent_alpha', $files[0]['data']['item']['parent_id']['key']['name']);
+
+      $document = $files[0]['data'];
+      $document['item']['label'] = 'Child Template Updated';
+      $summary = $handler->import(['child.yml' => $document], FALSE);
+
+      self::assertTrue($summary['ok']);
+      self::assertSame(1, $summary['update']);
+      self::assertSame(91, CivicfgHookFixture::$updated[0]['values']['parent_id']);
+      self::assertArrayNotHasKey('parent_id.name', CivicfgHookFixture::$updated[0]['values']);
+    }
+
     public function testMultiKeyDefinitionsUseAllKeysForFilenameAndLookup(): void {
       $files = $this->buildHandler([
         'key_fields' => ['category', 'name'],

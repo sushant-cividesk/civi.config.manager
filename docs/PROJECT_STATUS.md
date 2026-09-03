@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.5-core` |
+| Active development line | `0.1.0-alpha69-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -97,11 +97,11 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 
 ### Alpha69 — coverage expansion
 
-- [ ] A69-01 Add Tags with portable parent/reference handling and round-trip proof.
-- [ ] A69-02 Add Profiles/UF Groups and fields with component/module/dependency checks.
-- [ ] A69-03 Add Contact Layouts through generic provider metadata or a reviewed adapter, with real contrib-version fixtures.
-- [ ] A69-04 Add traditional Reports/Report Instances with portable references and preservation of permissions/settings.
-- [ ] A69-05 Add provider-specific real-runtime tests for every newly advertised capability.
+- [ ] A69-01 Tags: **source implementation complete; awaiting runtime evidence.** Metadata-driven API4 management uses stable `name` identity and semantic parent-tag references. Create/update is enabled; delete-missing remains disabled. A disposable DEV → target round trip plus entity-tag/business-data preservation proof is still required.
+- [ ] A69-02 Profiles/UF Groups and Profile Fields: **source implementation complete; awaiting runtime evidence.** Profiles use stable `name`; Profile Fields use `uf_group_id.name + field_name`; UF Group and Location Type references resolve semantically. Create/update is enabled and delete-missing remains disabled. Real component/version fixtures and independent final-state proof remain required.
+- [ ] A69-03 Contact Layouts: **reviewed adapter implemented; awaiting real contrib-version evidence.** Known nested Group/Profile/Custom Group/Relationship Type IDs are converted to semantic references; unknown nested `*_id` values fail closed. Duplicate labels block portability and delete-missing is disabled.
+- [ ] A69-04 traditional Reports/Report Instances: **reviewed APIv3 adapter implemented; awaiting runtime evidence.** Portable identity is the CiviCRM schema identity `report_id + name`; saved criteria, permission, group-role, activation, and reservation settings are managed conservatively. Runtime/local IDs and delivery-recipient fields remain outside automatic management; delete-missing is disabled.
+- [ ] A69-05 Add provider-specific real-runtime tests for every newly advertised capability, including different local IDs, independent post-import queries/re-export, business-data preservation, and deliberate mutation/red evidence. **Not yet satisfied.**
 
 ### Beta2 release gate
 
