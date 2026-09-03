@@ -137,12 +137,14 @@ final class HandlerRegistryTest extends TestCase {
 
     self::assertCount(1, $matches);
     self::assertSame('core_handler', $matches[0]['registration_source']);
+    $diagnostics = $registry->getRegistrationDiagnostics();
+    self::assertCount(1, $diagnostics);
     self::assertSame([
       'type' => 'option-groups',
       'registration_source' => 'entity_definition_hook',
       'reason_code' => 'duplicate_handler_type',
       'reason' => 'Configuration type "option-groups" is already registered by core_handler; the later entity_definition_hook registration was rejected.',
-    ], $registry->getRegistrationDiagnostics());
+    ], $diagnostics[0]);
   }
 
   /** Requirement: malformed advanced-hook values cannot break unrelated providers. */
@@ -171,11 +173,13 @@ final class HandlerRegistryTest extends TestCase {
 
     self::assertContains('option-groups', $types);
     self::assertNotContains('broken_definition', $types);
+    $diagnostics = $registry->getRegistrationDiagnostics();
+    self::assertCount(1, $diagnostics);
     self::assertSame([
       'type' => 'broken_definition',
       'registration_source' => 'entity_definition_hook',
       'reason_code' => 'invalid_entity_definition',
       'reason' => 'A civicfg_entityDefinitions hook must register a non-empty string type with an array definition.',
-    ], $registry->getRegistrationDiagnostics());
+    ], $diagnostics[0]);
   }
 }

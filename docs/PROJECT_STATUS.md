@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.4-core` |
+| Active development line | `0.1.0-alpha67.4.1-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -174,3 +174,11 @@ A66-04 is complete in Alpha67.4. The next implementation action is A66-05 discov
 - Maintainer evidence carried forward before this change: 255 PHPUnit tests / 1,993 assertions, both provider mutation proofs, architecture/scenario contracts, source hygiene, and PHPStan all passed; Playwright-PHP failed at browser launch because the DDEV container lacked host browser libraries.
 - Completed A66-04 registration safety: core/earlier provider types cannot be shadowed accidentally by later hook registrations; malformed advanced-hook values are rejected without breaking unrelated providers; rejected registrations are surfaced as unavailable provider inventory metadata.
 - Next: A66-05 discovery caching, then A66-06 supported CiviCRM/provider fixtures, then the remaining Alpha67 Settings UX before Beta2 gates.
+
+### Alpha67.4.1 QA hotfix — 2026-09-03
+
+- CI exposed two Alpha67.4 test-suite defects, not provider-runtime defects: diagnostics-return tests compared a single expected diagnostic against the diagnostics list, and one branch/checkout still contained the removed `qa-browser-clean` CLI test.
+- The diagnostics tests now assert exactly one rejected registration and compare the first list item to the independent expected fields.
+- The browser workflow contract now fails if removed `qa-browser*` production CLI commands or `testQaBrowser*` unit tests reappear.
+- Targeted DEV JavaScript browser QA remains deliberately simple: run `npm install` once in the checkout, then `npm run test:ui` with the target URL/admin environment.
+

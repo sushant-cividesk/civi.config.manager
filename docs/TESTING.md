@@ -35,6 +35,18 @@ Browser validation uses the existing JavaScript Playwright + axe suite against t
 
 Use `composer qa:browser` from a Docker-capable host checkout. It creates the disposable CiviCRM runtime, seeds the browser fixture, runs Playwright + axe, cleans the fixture, checks runtime logs/network isolation, and verifies source immutability. Browser QA is not exposed through the production `civicfg` CLI.
 
+For a targeted existing DEV site from a shell that already has Node/npm, install the root QA dependencies once and run the existing suite:
+
+```bash
+npm install
+CIVICFG_BASE_URL=https://dev.example.test \
+CIVICRM_ADMIN_USER=admin \
+CIVICRM_ADMIN_PASS=... \
+npm run test:ui
+```
+
+`playwright: not found` means the root npm dev dependencies have not been installed in that checkout; it is not a CiviCRM failure.
+
 ## Standard Round-Trip Test
 
 Use this flow for every handler that supports import:

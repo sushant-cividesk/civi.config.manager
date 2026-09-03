@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha67.4.1-core
+
+- Fixed Alpha67.4 registry unit tests to assert the diagnostics list contract correctly instead of comparing one diagnostic object with the whole list.
+- Removed the last stale browser-CLI cleanup test from the QA contract and added a guard that fails if removed `qa-browser*` test cases reappear.
+- Clarified the simple targeted DEV browser workflow: install root npm dev dependencies before running the existing JavaScript Playwright suite.
+
 ## 0.1.0-alpha67.4-core
 
 - Simplified browser QA to one trustworthy stack: JavaScript Playwright + axe against the disposable real-CiviCRM runtime. Removed the experimental Playwright-PHP harness and its separate Composer/tooling path.

@@ -7,6 +7,8 @@ $composer = json_decode((string) file_get_contents($root . '/composer.json'), TR
 $standalone = (string) file_get_contents($root . '/tests/ci/run-standalone.sh');
 $qaFull = (string) file_get_contents($root . '/.github/workflows/qa-full.yml');
 $release = (string) file_get_contents($root . '/.github/workflows/release.yml');
+$cli = (string) file_get_contents($root . '/bin/civicfg');
+$cliTests = (string) file_get_contents($root . '/tests/phpunit/Unit/CliCommandTest.php');
 
 $checks = [
   'single browser stack directory' => !is_dir($root . '/tests/browser-php'),
@@ -19,6 +21,8 @@ $checks = [
   'full GitHub QA uses canonical browser command' => strpos($qaFull, 'run: composer qa:browser') !== FALSE,
   'release GitHub QA uses canonical browser command' => strpos($release, 'run: composer qa:browser') !== FALSE,
   'no Playwright-PHP workflow wording' => strpos($qaFull . $release, 'Playwright-PHP') === FALSE,
+  'production CLI has no removed browser QA commands' => strpos($cli, 'qa-browser') === FALSE,
+  'CLI tests contain no removed browser QA cases' => strpos($cliTests, 'testQaBrowser') === FALSE,
 ];
 
 foreach ($checks as $label => $passed) {
