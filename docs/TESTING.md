@@ -35,20 +35,18 @@ Browser validation uses the existing JavaScript Playwright + axe suite against t
 
 Use `composer qa:browser` from a Docker-capable host checkout. It creates the disposable CiviCRM runtime, seeds the browser fixture, runs Playwright + axe, cleans the fixture, checks runtime logs/network isolation, and verifies source immutability. Browser QA is not exposed through the production `civicfg` CLI.
 
-For a targeted existing Drupal Buildkit/DDEV site from the extension checkout, install the locked Node dependencies and Chromium once. You can prove the Drupal-login harness against its isolated mock before touching DEV/STAGE, then run the read-only target smoke:
+For a targeted existing Drupal Buildkit/DDEV site from the extension checkout, install the locked Node dependencies and Chromium once. You can prove the Drupal-login harness against its isolated mock before touching DEV/STAGE, then run either quick read-only target command from inside `ddev ssh`:
 
 ```bash
 npm install
 npx playwright install chromium
 npm run test:ui:harness
 
-CIVICFG_BASE_URL=https://dcivi-dev.civicrm.ddev.site \
-CIVICRM_ADMIN_USER=admin \
-CIVICRM_ADMIN_PASS=admin \
-npm run test:ui
+npm run test:ui:dev
+npm run test:ui:stage
 ```
 
-Use `https://dcivi-stage.civicrm.ddev.site` for STAGE. Targeted authentication uses Drupal `/user/login`, requires a Drupal `SESS`/`SSESS` session cookie, and only then checks Configuration Manager Settings. Invalid credentials and authenticated users missing Configuration Manager access are reported separately.
+The quick commands target `https://dcivi-dev.civicrm.ddev.site` and `https://dcivi-stage.civicrm.ddev.site`. For local `.ddev.site` targets the runner first asks the target Drupal codebase for a Drush `user:login` one-time URL for `CIVICRM_ADMIN_USER` (default `admin`), without changing the user's password. It verifies a Drupal `SESS`/`SSESS` session cookie and only then checks Configuration Manager Settings. Set `CIVICFG_DRUPAL_ROOT` if Buildkit root discovery needs an explicit Drupal web root. If local Drush discovery is unavailable, `CIVICRM_ADMIN_PASS` remains the normal `/user/login` fallback. Invalid authentication and authenticated users missing Configuration Manager access are reported separately.
 
 `playwright: not found` means npm dependencies are missing. A missing Chromium executable is reported before the suite starts with the exact `npx playwright install chromium` command.
 

@@ -28,13 +28,14 @@ async function installNetworkGuard(page) {
 
 
 
-test.describe('Configuration Manager targeted DEV smoke', () => {
+test.describe('Configuration Manager targeted site smoke', () => {
   test.beforeEach(async ({ page }) => {
     await installNetworkGuard(page);
     await loginToConfigurationManager(page, {
       baseUrl,
       username: process.env.CIVICRM_ADMIN_USER || 'admin',
       password: process.env.CIVICRM_ADMIN_PASS || '',
+      loginUrl: process.env.CIVICFG_DRUPAL_LOGIN_URL || '',
     });
   });
 

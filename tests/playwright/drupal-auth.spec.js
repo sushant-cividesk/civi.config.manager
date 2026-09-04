@@ -20,6 +20,15 @@ async function createDrupalMock({ allowConfigManager = true } = {}) {
     const url = new URL(req.url, 'http://127.0.0.1');
     const authenticated = /(?:^|;\s*)SESSmock=authenticated(?:;|$)/.test(req.headers.cookie || '');
 
+    if (req.method === 'GET' && url.pathname === '/user/reset/1/123/hash/login') {
+      res.writeHead(302, {
+        Location: '/user',
+        'Set-Cookie': 'SESSmock=authenticated; Path=/; HttpOnly; SameSite=Lax',
+      });
+      res.end();
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/user/login') {
       if (authenticated) {
         res.writeHead(302, { Location: '/user' });
@@ -93,6 +102,23 @@ test.describe('Drupal targeted authentication helper', () => {
         baseUrl: mock.baseUrl,
         username: 'admin',
         password: 'admin',
+      });
+      await expect(page.locator('.crm-configmanager-block')).toBeVisible();
+      const cookies = await page.context().cookies(mock.baseUrl.href);
+      expect(cookies.some(cookie => cookie.name === 'SESSmock')).toBe(true);
+    }
+    finally {
+      await mock.close();
+    }
+  });
+
+  test('uses a Drupal one-time login URL without requiring the account password', async ({ page }) => {
+    const mock = await createDrupalMock();
+    try {
+      await loginToConfigurationManager(page, {
+        baseUrl: mock.baseUrl,
+        username: 'admin',
+        loginUrl: new URL('/user/reset/1/123/hash/login', mock.baseUrl).href,
       });
       await expect(page.locator('.crm-configmanager-block')).toBeVisible();
       const cookies = await page.context().cookies(mock.baseUrl.href);

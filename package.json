@@ -5,6 +5,8 @@
   "description": "Browser QA for the CiviCRM Configuration Manager extension.",
   "scripts": {
     "test:ui": "node tests/ci/run-ui-tests.js",
+    "test:ui:dev": "CIVICFG_BASE_URL=https://dcivi-dev.civicrm.ddev.site node tests/ci/run-ui-tests.js",
+    "test:ui:stage": "CIVICFG_BASE_URL=https://dcivi-stage.civicrm.ddev.site node tests/ci/run-ui-tests.js",
     "test:ui:headed": "playwright test --headed",
     "test:ui:target": "playwright test tests/playwright/targeted-smoke.spec.js",
     "test:ui:harness": "playwright test tests/playwright/drupal-auth.spec.js"

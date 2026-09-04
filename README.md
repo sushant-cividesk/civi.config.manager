@@ -217,20 +217,18 @@ composer qa:full-ui
 
 The browser gate uses one browser stack: JavaScript Playwright + axe against the same disposable CiviCRM runtime used by the real integration suite. This keeps local and GitHub browser evidence aligned without a second Composer project or browser dependency graph.
 
-Run `composer qa:browser` from a Docker-capable host checkout. For a targeted existing Drupal Buildkit/DDEV site, install the browser once in the extension checkout and run the read-only smoke directly. The login helper uses Drupal `/user/login`, verifies the Drupal session, and then checks Configuration Manager access:
+Run `composer qa:browser` from a Docker-capable host checkout. For the local Drupal Buildkit/DDEV sites, install the browser once in the extension checkout and run the read-only smoke directly. When run inside `ddev ssh`, `.ddev.site` targets prefer a local Drush one-time login URL for the selected Drupal user; this does not change the account password. The browser still proves the Drupal session before checking Configuration Manager access.
 
 ```bash
 npm install
 npx playwright install chromium
 npm run test:ui:harness
 
-CIVICFG_BASE_URL=https://dcivi-dev.civicrm.ddev.site \
-CIVICRM_ADMIN_USER=admin \
-CIVICRM_ADMIN_PASS=admin \
-npm run test:ui
+npm run test:ui:dev
+npm run test:ui:stage
 ```
 
-Use the same command with `https://dcivi-stage.civicrm.ddev.site` for STAGE. A login failure and an authenticated-but-forbidden Configuration Manager user are reported as separate failures.
+The quick commands target `https://dcivi-dev.civicrm.ddev.site` and `https://dcivi-stage.civicrm.ddev.site` respectively and default to Drupal user `admin`. Override the user with `CIVICRM_ADMIN_USER`. If Buildkit root discovery is unavailable, set `CIVICFG_DRUPAL_ROOT` to the target Drupal web root. For non-local targets, normal `/user/login` form authentication remains available through `CIVICRM_ADMIN_PASS`. A login failure and an authenticated-but-forbidden Configuration Manager user are reported as separate failures.
 
 No browser-specific commands are part of the production `civicfg` CLI.
 

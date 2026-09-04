@@ -10,22 +10,29 @@ async function pageDiagnostic(page) {
  * before checking Configuration Manager permission/access.
  *
  * @param {import('@playwright/test').Page} page
- * @param {{baseUrl: URL, username: string, password: string}} options
+ * @param {{baseUrl: URL, username: string, password?: string, loginUrl?: string}} options
  */
 async function loginToConfigurationManager(page, options) {
-  const { baseUrl, username, password } = options;
-  const loginUrl = new URL('/user/login', baseUrl).href;
+  const { baseUrl, username, password = '', loginUrl = '' } = options;
+  const loginUrlPage = new URL('/user/login', baseUrl).href;
   const settingsUrl = new URL('/civicrm/admin/config-manager?reset=1&op=settings', baseUrl).href;
 
-  if (!password) {
-    throw new Error('CIVICRM_ADMIN_PASS is required for targeted Drupal UI QA.');
+  if (loginUrl) {
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
   }
-
-  await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+  else {
+    if (!password) {
+      throw new Error('Targeted Drupal UI QA requires either a local Drupal one-time login URL or CIVICRM_ADMIN_PASS.');
+    }
+    await page.goto(loginUrlPage, { waitUntil: 'domcontentloaded' });
+  }
   const loginForm = page.locator('form#user-login-form');
 
   // Drupal may redirect an already-authenticated browser away from /user/login.
-  if (await loginForm.count()) {
+  if (loginUrl && await loginForm.count()) {
+    throw new Error(`Drupal one-time login did not establish a session for user "${username}". ${await pageDiagnostic(page)}`);
+  }
+  if (!loginUrl && await loginForm.count()) {
     const usernameField = loginForm.locator('input[name="name"], #edit-name').first();
     const passwordField = loginForm.locator('input[name="pass"], #edit-pass').first();
     const submit = loginForm.locator('#edit-submit, button[type="submit"], input[type="submit"]').first();

@@ -61,6 +61,7 @@
             "@test:unit",
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
+            "@test:drupal-login-resolver",
             "@test:browser-workflow-contract",
             "@test:provider-browser",
             "@test:source-hygiene",
@@ -83,6 +84,7 @@
         "test:source-hygiene": "bash tests/ci/source-hygiene.sh",
         "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php",
         "test:provider-browser": "node tests/ci/provider-browser-test.js",
-        "test:alpha68-ui": "php tests/ci/alpha68-ui-behavior.php"
+        "test:alpha68-ui": "php tests/ci/alpha68-ui-behavior.php",
+        "test:drupal-login-resolver": "node tests/ci/drupal-login-url-test.js"
     }
 }

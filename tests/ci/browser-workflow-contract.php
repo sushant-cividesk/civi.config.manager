@@ -8,6 +8,7 @@ $package = json_decode((string) file_get_contents($root . '/package.json'), TRUE
 $targeted = (string) file_get_contents($root . '/tests/playwright/targeted-smoke.spec.js');
 $drupalAuth = (string) file_get_contents($root . '/tests/playwright/helpers/drupal-auth.js');
 $drupalAuthTest = (string) file_get_contents($root . '/tests/playwright/drupal-auth.spec.js');
+$drupalLoginResolver = (string) file_get_contents($root . '/tests/ci/drupal-login-url.js');
 $uiRunner = (string) file_get_contents($root . '/tests/ci/run-ui-tests.js');
 $playwrightConfig = (string) file_get_contents($root . '/playwright.config.js');
 $standalone = (string) file_get_contents($root . '/tests/ci/run-standalone.sh');
@@ -20,12 +21,15 @@ $checks = [
   'single browser stack directory' => !is_dir($root . '/tests/browser-php'),
   'browser command uses disposable runtime' => ($composer['scripts']['qa:browser'] ?? '') === 'RUN_UI_TESTS=true bash tests/ci/run-standalone.sh',
   'npm UI command dispatches by fixture context' => ($package['scripts']['test:ui'] ?? '') === 'node tests/ci/run-ui-tests.js',
+  'npm exposes quick DEV and STAGE targeted commands' => isset($package['scripts']['test:ui:dev'], $package['scripts']['test:ui:stage']),
   'targeted smoke does not require disposable fixture state' => strpos($targeted, 'ui-fixture-state.json') === FALSE,
   'targeted smoke uses dedicated Drupal authentication helper' => strpos($targeted, "require('./helpers/drupal-auth')") !== FALSE && strpos($targeted, 'loginToConfigurationManager') !== FALSE,
   'targeted login uses Drupal user login form explicitly' => strpos($drupalAuth, "new URL('/user/login', baseUrl)") !== FALSE && strpos($drupalAuth, "form#user-login-form") !== FALSE,
   'targeted login proves Drupal session before checking CiviCRM access' => strpos($drupalAuth, "/^S?SESS/") !== FALSE && strpos($drupalAuth, 'Drupal authentication failed') !== FALSE,
+  'targeted login accepts local one-time Drupal login URL' => strpos($targeted, 'CIVICFG_DRUPAL_LOGIN_URL') !== FALSE && strpos($drupalAuth, 'loginUrl') !== FALSE,
   'targeted login distinguishes authenticated permission denial' => strpos($drupalAuth, 'Drupal authentication succeeded, but user') !== FALSE,
-  'Drupal auth harness proves success credentials and permission failure paths' => substr_count($drupalAuthTest, 'loginToConfigurationManager') >= 3 && strpos($drupalAuthTest, 'Unrecognized username or password') !== FALSE && strpos($drupalAuthTest, 'allowConfigManager: false') !== FALSE,
+  'Drupal auth harness proves password one-time-login and permission failure paths' => substr_count($drupalAuthTest, 'loginToConfigurationManager') >= 4 && strpos($drupalAuthTest, '/user/reset/1/123/hash/login') !== FALSE && strpos($drupalAuthTest, 'Unrecognized username or password') !== FALSE && strpos($drupalAuthTest, 'allowConfigManager: false') !== FALSE,
+  'local DDEV login resolver uses Drush without password mutation' => strpos($drupalLoginResolver, 'user:login') !== FALSE && strpos($drupalLoginResolver, 'CIVICFG_DRUPAL_ROOT') !== FALSE && strpos($drupalLoginResolver, 'user:password') === FALSE,
   'npm exposes isolated Drupal auth harness test' => ($package['scripts']['test:ui:harness'] ?? '') === 'playwright test tests/playwright/drupal-auth.spec.js',
   'targeted runner tolerates local developer CA without weakening fixture suite' => strpos($uiRunner, "CIVICFG_IGNORE_HTTPS_ERRORS = '1'") !== FALSE,
   'browser runner requires repository-local Playwright binary' => strpos($uiRunner, "'node_modules', '.bin'") !== FALSE,
