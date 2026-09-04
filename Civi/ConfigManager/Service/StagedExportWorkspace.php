@@ -172,10 +172,10 @@ class StagedExportWorkspace {
    * Compare staged bytes with live bytes without parsing either full snapshot.
    *
    * @param string[] $stalePaths
-   * @return array{write:string[],delete:string[],skip:string[]}
+   * @return array{write:string[],create:string[],update:string[],delete:string[],skip:string[]}
    */
   public function preview(array $stalePaths): array {
-    $result = ['write' => [], 'delete' => [], 'skip' => []];
+    $result = ['write' => [], 'create' => [], 'update' => [], 'delete' => [], 'skip' => []];
     $paths = array_keys($this->files);
     sort($paths, SORT_NATURAL | SORT_FLAG_CASE);
     foreach ($paths as $relative) {
@@ -189,6 +189,7 @@ class StagedExportWorkspace {
       }
       else {
         $result['write'][] = $relative;
+        $result[$current === NULL ? 'create' : 'update'][] = $relative;
       }
     }
     foreach (array_values(array_unique(array_filter(array_map('strval', $stalePaths)))) as $relative) {

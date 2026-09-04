@@ -1584,6 +1584,8 @@ class ConfigManager {
       'effective_types' => $effectiveTypes,
       'dependency_types' => $dependencyTypes,
       'written' => [],
+      'created_count' => 0,
+      'updated_count' => 0,
       'deleted' => [],
       'planned' => [],
       'delete_planned' => [],
@@ -1764,6 +1766,8 @@ class ConfigManager {
       }
 
       if ($dryRun) {
+        $summary['created_count'] = count((array) ($preview['create'] ?? []));
+        $summary['updated_count'] = count((array) ($preview['update'] ?? []));
         foreach ($preview['write'] as $relative) {
           $summary['planned'][] = $relative;
         }
@@ -1778,6 +1782,8 @@ class ConfigManager {
       else {
         $this->reportProgress($progress, $completedSteps, $totalSteps, 'Publishing YAML snapshot', 'Atomically committing staged files; manifest.yml will be written last.', $processedItems);
         $published = $workspace->publish($stalePaths);
+        $summary['created_count'] = count((array) ($preview['create'] ?? []));
+        $summary['updated_count'] = count((array) ($preview['update'] ?? []));
         $summary['written'] = $published['written'];
         $summary['deleted'] = $published['deleted'];
         $summary['skipped'] = array_values(array_unique(array_merge($summary['skipped'], $published['skipped'])));
@@ -2156,16 +2162,8 @@ class ConfigManager {
     $handlers = $this->handlersForTypes((array) ($state['effective_types'] ?? []), (array) ($state['requested_types'] ?? []));
     $stalePaths = $this->findStaleYamlPathsForStagedExport($storage, $workspace, $handlers, array_values(array_map('strval', (array) ($state['requested_types'] ?? []))));
     $preview = $workspace->preview($stalePaths);
-    $createdPaths = [];
-    $updatedPaths = [];
-    foreach ((array) ($preview['write'] ?? []) as $relative) {
-      if ($storage->readRaw((string) $relative) === NULL) {
-        $createdPaths[] = (string) $relative;
-      }
-      else {
-        $updatedPaths[] = (string) $relative;
-      }
-    }
+    $createdPaths = array_values(array_map('strval', (array) ($preview['create'] ?? [])));
+    $updatedPaths = array_values(array_map('strval', (array) ($preview['update'] ?? [])));
     $expected = [];
     foreach ($handlers as $handler) {
       $policy = $this->scope->getPolicy((string) $handler->getType());

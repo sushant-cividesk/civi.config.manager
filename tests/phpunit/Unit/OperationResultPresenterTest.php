@@ -38,6 +38,29 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame(3, $summary['monitor_only']);
     self::assertSame(1107, $summary['saved_config_count']);
     self::assertSame('2026-09-04 15:00:00', $summary['completed_at']);
+    $message = $presenter->exportMessage($summary);
+    self::assertStringContainsString('2 Saved Config file(s) created, 5 updated', $message);
+    self::assertStringNotContainsString('7 Saved Config file(s) updated', $message);
+  }
+
+  /** Requirement: the DEV first-export toast must agree with Last Export created/updated accounting. */
+  public function testExportMessageDoesNotCollapseCreatedFilesIntoUpdated(): void {
+    $presenter = new OperationResultPresenter();
+    $summary = $presenter->exportSummary([
+      'ok' => TRUE,
+      'created_count' => 1108,
+      'updated_count' => 0,
+      'written' => array_fill(0, 1108, 'written.yml'),
+      'skipped' => ['manifest.yml'],
+      'monitor_only' => 2,
+    ], ['saved_config_count' => 1108]);
+
+    $message = $presenter->exportMessage($summary);
+
+    self::assertSame(1108, $summary['created']);
+    self::assertSame(0, $summary['updated']);
+    self::assertStringContainsString('1108 Saved Config file(s) created, 0 updated', $message);
+    self::assertStringNotContainsString('1108 Saved Config file(s) updated', $message);
   }
 
   /** Requirement: a failed queued export must never render as a successful Last Export. */

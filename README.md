@@ -217,14 +217,20 @@ composer qa:full-ui
 
 The browser gate uses one browser stack: JavaScript Playwright + axe against the same disposable CiviCRM runtime used by the real integration suite. This keeps local and GitHub browser evidence aligned without a second Composer project or browser dependency graph.
 
-Run `composer qa:browser` from a Docker-capable host checkout. For a targeted existing DEV site, use the existing JavaScript browser suite directly:
+Run `composer qa:browser` from a Docker-capable host checkout. For a targeted existing Drupal Buildkit/DDEV site, install the browser once in the extension checkout and run the read-only smoke directly. The login helper uses Drupal `/user/login`, verifies the Drupal session, and then checks Configuration Manager access:
 
 ```bash
-CIVICFG_BASE_URL=https://dev.example.test \
+npm install
+npx playwright install chromium
+npm run test:ui:harness
+
+CIVICFG_BASE_URL=https://dcivi-dev.civicrm.ddev.site \
 CIVICRM_ADMIN_USER=admin \
-CIVICRM_ADMIN_PASS=... \
+CIVICRM_ADMIN_PASS=admin \
 npm run test:ui
 ```
+
+Use the same command with `https://dcivi-stage.civicrm.ddev.site` for STAGE. A login failure and an authenticated-but-forbidden Configuration Manager user are reported as separate failures.
 
 No browser-specific commands are part of the production `civicfg` CLI.
 

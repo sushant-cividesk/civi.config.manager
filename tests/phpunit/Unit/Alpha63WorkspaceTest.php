@@ -35,6 +35,25 @@ final class Alpha63WorkspaceTest extends TestCase {
     $spool->close();
   }
 
+  /** Requirement: preview is the canonical create/update accounting boundary for exports. */
+  public function testPreviewClassifiesCreateUpdateAndSkip(): void {
+    $live = new YamlFileStorage($this->root . '/live');
+    $live->write('', 'existing.yml', ['value' => 'before']);
+    $live->write('', 'unchanged.yml', ['value' => 'same']);
+
+    $workspace = new StagedExportWorkspace($live, $this->root . '/job/export', FALSE);
+    $workspace->stage('test', '', 'new.yml', ['value' => 'new']);
+    $workspace->stage('test', '', 'existing.yml', ['value' => 'after']);
+    $workspace->stage('test', '', 'unchanged.yml', ['value' => 'same']);
+
+    $preview = $workspace->preview([]);
+
+    self::assertSame(['new.yml'], $preview['create']);
+    self::assertSame(['existing.yml'], $preview['update']);
+    self::assertSame(['existing.yml', 'new.yml'], $preview['write']);
+    self::assertSame(['unchanged.yml'], $preview['skip']);
+  }
+
   public function testPersistentStageIndexSurvivesASecondRequestObject(): void {
     $live = new YamlFileStorage($this->root . '/live');
     $workspaceRoot = $this->root . '/job/export';

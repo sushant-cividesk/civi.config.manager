@@ -27,6 +27,12 @@ if (!fs.existsSync(localPlaywright)) {
   console.error('Browser QA dependencies are not installed. Run `npm install` in the extension directory, then retry.');
   process.exit(2);
 }
+const { chromium } = require('@playwright/test');
+const chromiumPath = chromium.executablePath();
+if (!chromiumPath || !fs.existsSync(chromiumPath)) {
+  console.error('Playwright Chromium is not installed for this environment. Run `npx playwright install chromium` in the extension directory, then retry.');
+  process.exit(2);
+}
 const executable = localPlaywright;
 const childEnv = { ...process.env };
 if (!hasFixture && hasTarget && !Object.prototype.hasOwnProperty.call(childEnv, 'CIVICFG_IGNORE_HTTPS_ERRORS')) {

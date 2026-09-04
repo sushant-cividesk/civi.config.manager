@@ -6,7 +6,8 @@
   "scripts": {
     "test:ui": "node tests/ci/run-ui-tests.js",
     "test:ui:headed": "playwright test --headed",
-    "test:ui:target": "playwright test tests/playwright/targeted-smoke.spec.js"
+    "test:ui:target": "playwright test tests/playwright/targeted-smoke.spec.js",
+    "test:ui:harness": "playwright test tests/playwright/drupal-auth.spec.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

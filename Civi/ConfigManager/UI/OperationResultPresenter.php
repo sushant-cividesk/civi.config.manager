@@ -43,6 +43,29 @@ class OperationResultPresenter {
     ];
   }
 
+  /** @param array<string,mixed> $summary */
+  public function exportMessage(array $summary): string {
+    if (empty($summary['ok'])) {
+      $errors = max(1, (int) ($summary['errors'] ?? 0));
+      $message = ts('Export stopped with %1 error(s). The previous Saved Config snapshot was left unchanged.', [1 => $errors]);
+      $problem = trim((string) ($summary['problem'] ?? ''));
+      return $problem !== '' ? $message . ' ' . $problem : $message;
+    }
+
+    $created = (int) ($summary['created'] ?? 0);
+    $updated = (int) ($summary['updated'] ?? 0);
+    $removed = (int) ($summary['removed'] ?? 0);
+    $unchanged = (int) ($summary['unchanged'] ?? 0);
+    $monitorOnly = (int) ($summary['monitor_only'] ?? 0);
+    $message = ($created || $updated || $removed)
+      ? ts('Export complete. %1 Saved Config file(s) created, %2 updated, %3 stale Saved Config file(s) deleted, %4 unchanged file(s) skipped.', [1 => $created, 2 => $updated, 3 => $removed, 4 => $unchanged])
+      : ts('Export complete. Saved Config files already match Current CiviCRM configuration.');
+    if ($monitorOnly > 0) {
+      $message .= ' ' . ts('%1 monitor-only ambiguous configuration object(s) were preserved for synchronization review; automatic create/update/delete remains disabled for those identities.', [1 => $monitorOnly]);
+    }
+    return $message;
+  }
+
   /**
    * @param array<string,mixed> $result
    * @param array<string,mixed> $job

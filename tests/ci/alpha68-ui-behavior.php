@@ -56,6 +56,21 @@ $assert($export['ok'] === TRUE, 'successful export must render successful');
 $assert($export['created'] === 2 && $export['updated'] === 3, 'export created/updated counts must stay distinct');
 $assert($export['unchanged'] === 1 && $export['removed'] === 1, 'export unchanged/removed counts must be preserved');
 $assert($export['saved_config_count'] === 1107, 'persistent export result must show current Saved Config inventory');
+$exportMessage = $presenter->exportMessage($export);
+$assert(strpos($exportMessage, '2 Saved Config file(s) created') !== FALSE, 'export completion message must report the same created count as Last Export');
+$assert(strpos($exportMessage, '3 updated') !== FALSE, 'export completion message must report the same updated count as Last Export');
+$assert(strpos($exportMessage, '5 Saved Config file(s) updated') === FALSE, 'export completion message must not collapse all writes into updated');
+$devExport = $presenter->exportSummary([
+  'ok' => TRUE,
+  'created_count' => 1108,
+  'updated_count' => 0,
+  'written' => array_fill(0, 1108, 'written.yml'),
+  'skipped' => ['manifest.yml'],
+  'monitor_only' => 2,
+], ['saved_config_count' => 1108]);
+$devMessage = $presenter->exportMessage($devExport);
+$assert(strpos($devMessage, '1108 Saved Config file(s) created, 0 updated') !== FALSE, 'DEV regression: toast must agree with Last Export 1108 Created / 0 Updated');
+$assert(strpos($devMessage, '1108 Saved Config file(s) updated') === FALSE, 'DEV regression: toast must not relabel created files as updated');
 
 $import = $presenter->importSummary([
   'ok' => TRUE,

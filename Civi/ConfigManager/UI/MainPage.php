@@ -172,11 +172,9 @@ class MainPage {
       elseif ($postAction === 'export_write') {
         $requestedTypes = $types;
         $exportResult = $this->manager->export(FALSE, $requestedTypes);
-        $written = !empty($exportResult['written']) ? count($exportResult['written']) : 0;
-        $deleted = !empty($exportResult['deleted']) ? count($exportResult['deleted']) : 0;
-        $skipped = !empty($exportResult['skipped']) ? count($exportResult['skipped']) : 0;
         $dependencyTypes = (array) ($exportResult['dependency_types'] ?? []);
         $exportErrors = (array) ($exportResult['errors'] ?? []);
+        $exportSummary = $this->operationResultPresenter->exportSummary($exportResult, $this->manager->status());
         if ($exportErrors) {
           $firstError = (array) reset($exportErrors);
           $firstType = trim((string) ($firstError['type'] ?? ''));
@@ -188,9 +186,7 @@ class MainPage {
           }
         }
         else {
-          $notice = ($written || $deleted)
-            ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-            : ts('Nothing to export. Saved Config files already match Current CiviCRM configuration.');
+          $notice = $this->operationResultPresenter->exportMessage($exportSummary);
         }
         if ($dependencyTypes) {
           $notice .= ' ' . ts('Related dependency types were included automatically: %1.', [1 => implode(', ', $dependencyTypes)]);
@@ -199,7 +195,7 @@ class MainPage {
           $notice .= ' ' . ts('The temporary filter was cleared so the Synchronize tab now shows the full managed status.');
         }
         \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', NULL);
-        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $this->operationResultPresenter->exportSummary($exportResult, $this->manager->status()));
+        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $exportSummary);
         $this->redirectWithNotice($notice, 'sync', empty($exportResult['errors']) ? 'success' : 'error');
       }
       elseif ($postAction === 'import_apply') {
@@ -303,9 +299,7 @@ class MainPage {
       if ($postAction === 'export_write') {
         $result = $this->manager->export(FALSE, $types, $progress);
         $errors = (array) ($result['errors'] ?? []);
-        $written = count((array) ($result['written'] ?? []));
-        $deleted = count((array) ($result['deleted'] ?? []));
-        $skipped = count((array) ($result['skipped'] ?? []));
+        $exportSummary = $this->operationResultPresenter->exportSummary($result, $this->manager->status());
         if ($errors) {
           $first = (array) reset($errors);
           $problem = trim((string) ($first['message'] ?? ''));
@@ -316,13 +310,11 @@ class MainPage {
           $statusType = 'error';
         }
         else {
-          $message = ($written || $deleted)
-            ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-            : ts('Nothing to export. Saved Config files already match Current CiviCRM configuration.');
+          $message = $this->operationResultPresenter->exportMessage($exportSummary);
           $statusType = 'success';
         }
         \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', NULL);
-        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $this->operationResultPresenter->exportSummary($result, $this->manager->status()));
+        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $exportSummary);
         \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $statusType);
         $emit([
           'event' => 'complete',
@@ -466,17 +458,8 @@ class MainPage {
       ];
     }
     if ($operation === 'export') {
-      $written = count((array) ($result['written'] ?? []));
-      $deleted = count((array) ($result['deleted'] ?? []));
-      $skipped = count((array) ($result['skipped'] ?? []));
-      $monitorOnly = (int) ($result['monitor_only'] ?? 0);
-      $message = ($written || $deleted)
-        ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-        : ts('Export complete. Saved Config files already match Current CiviCRM configuration.');
-      if ($monitorOnly > 0) {
-        $message .= ' ' . ts('%1 monitor-only ambiguous configuration object(s) were preserved for synchronization review; automatic create/update/delete remains disabled for those identities.', [1 => $monitorOnly]);
-      }
-      return [$message, 'success'];
+      $summary = $this->operationResultPresenter->exportSummary($result, [], $job);
+      return [$this->operationResultPresenter->exportMessage($summary), 'success'];
     }
     $summary = trim((string) ($result['summary_message'] ?? ''));
     return [trim(ts('Import complete. Synchronize will verify the resulting configuration state.') . ' ' . $summary), 'success'];
