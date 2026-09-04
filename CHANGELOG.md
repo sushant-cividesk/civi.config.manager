@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha68-core
+
+- Preserved the existing Configuration Manager page structure while simplifying client-facing terminology to Saved Config, Current CiviCRM, Not Yet Saved, and Not in Current CiviCRM.
+- Added total and per-type Saved Config counts to the existing UI plus persistent Last Export and Last Import result panels with compact created/updated/unchanged/removed/warning/error summaries.
+- Simplified long-running progress wording to parts and items checked, kept unknown totals explicit, and deliberately omitted unproven ETA calculations.
+- Added queued-export created-versus-updated accounting before publish so the persistent result can distinguish new Saved Configs from changed ones without weakening atomic publication.
+- Clarified extension-owned provider visibility: only proven-safe managed providers appear in the filter, with detected monitor-only/unsupported providers reviewed in Settings. Added compact next-action guidance for failed operation summaries while broader structured error/CRUD work remains on the Alpha68 roadmap.
+
+> **Evidence boundary:** source-level and local QA must pass before this checkpoint is treated as DEV-validated. Real browser/runtime validation remains required.
+
 ## 0.1.0-alpha67.7-core
 
 - Fixed real-runtime Profile Field export collisions by moving UFField handling to a reviewed semantic adapter instead of assuming `profile + field_name` is unique. Repeated fields are distinguished by portable field type/location semantics, with label used only as a tie-breaker when necessary; local IDs never become canonical YAML identity.

@@ -95,7 +95,7 @@ class QueuedOperationService {
       'phase_index' => 0,
       'phase_total' => (int) ($plan[0]['phase_total'] ?? 0),
       'label' => ucfirst($operation) . ' queued',
-      'message' => 'Waiting for the first bounded worker unit. No active CiviCRM configuration or live YAML has been changed.',
+      'message' => 'Waiting to start. Current CiviCRM and existing Saved Configs have not been changed.',
       'processed_items' => 0,
     ]);
 
@@ -263,7 +263,7 @@ class QueuedOperationService {
       'phase' => (string) ($payload['phase'] ?? 'running'),
       'phase_index' => (int) ($payload['phase_index'] ?? 0),
       'phase_total' => (int) ($payload['phase_total'] ?? 0),
-      'label' => (string) ($payload['label'] ?? 'Configuration Manager work unit'),
+      'label' => (string) ($payload['label'] ?? 'Configuration Manager task'),
       'message' => (string) ($payload['message'] ?? 'Processing saved Configuration Manager work.'),
       'processed_items' => $processedBase,
       'item_completed' => 0,
@@ -374,8 +374,8 @@ class QueuedOperationService {
           'phase' => (string) ($payload['phase'] ?? 'running'),
           'phase_index' => (int) ($payload['phase_index'] ?? 0),
           'phase_total' => (int) ($payload['phase_total'] ?? 0),
-          'label' => (string) ($payload['label'] ?? 'Work unit complete'),
-          'message' => 'This work unit completed and its state was saved. The next bounded work unit can start.',
+          'label' => (string) ($payload['label'] ?? 'Task done'),
+          'message' => 'This part is done. Progress was saved and the next part can start.',
           'processed_items' => (int) ($result['processed_items'] ?? $latest['processed_items'] ?? 0),
           'item_completed' => (int) ($result['unit_processed'] ?? $result['baseline_items'] ?? 0),
           'item_total' => 0,

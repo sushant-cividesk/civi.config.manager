@@ -70,7 +70,7 @@ final class PresenterTest extends TestCase {
       'enabled'
     );
 
-    self::assertStringContainsString('YAML Installed but disabled', $sentence);
+    self::assertStringContainsString('Saved Config Installed but disabled', $sentence);
     self::assertStringContainsString('CiviCRM Enabled', $sentence);
   }
 
@@ -86,7 +86,7 @@ final class PresenterTest extends TestCase {
 
     self::assertCount(1, $plan);
     self::assertFalse($plan[0]['importable']);
-    self::assertSame('Backup only', $plan[0]['action']);
+    self::assertSame('Saved copy only', $plan[0]['action']);
     self::assertStringContainsString('Automatic restore is disabled', $plan[0]['note']);
   }
 
@@ -101,7 +101,7 @@ final class PresenterTest extends TestCase {
     ]]);
 
     self::assertTrue($plan[0]['importable']);
-    self::assertSame('Create in CiviCRM', $plan[0]['action']);
+    self::assertSame('Restore to Current CiviCRM', $plan[0]['action']);
   }
 
   public function testVirtualExtensionSubtypeIsPreservedForUiImportApply(): void {
@@ -151,4 +151,26 @@ final class PresenterTest extends TestCase {
 
     self::assertSame([], $messages);
   }
+  /** Requirement: one-sided sync states use client language that describes the next action clearly. */
+  public function testClientFriendlyDifferenceLabels(): void {
+    $presenter = new Presenter();
+
+    self::assertSame('Not Yet Saved', $presenter->statusLabel('new_in_db'));
+    self::assertSame('Not in Current CiviCRM', $presenter->statusLabel('missing_in_db'));
+  }
+
+  /** Requirement: the summary exposes the Saved Config inventory count without changing difference totals. */
+  public function testSummaryIncludesSavedConfigCount(): void {
+    $presenter = new Presenter();
+    $summary = $presenter->buildSummary(
+      ['ok' => TRUE, 'items' => []],
+      ['ok' => TRUE, 'sync_dir' => '/tmp/config', 'exists' => TRUE, 'writable' => TRUE, 'saved_config_count' => 1107],
+      'sync'
+    );
+
+    self::assertSame(1107, $summary['saved_config_count']);
+    self::assertSame(0, $summary['total_changes']);
+  }
+
+
 }

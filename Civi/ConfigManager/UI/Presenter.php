@@ -36,7 +36,7 @@ class Presenter {
     return $rows;
   }
 
-  public function buildTypeRows(ConfigManager $manager, array $result): array {
+  public function buildTypeRows(ConfigManager $manager, array $result, array $status = []): array {
     $diffByType = [];
     if (!empty($result['items']) && is_array($result['items'])) {
       foreach ($result['items'] as $item) {
@@ -78,6 +78,8 @@ class Presenter {
         'status' => $status,
         'dbCount' => $dbCount,
         'fileCount' => $fileCount,
+        'savedCount' => !empty($option['virtual']) ? 0 : (int) (($status['saved_config_counts'][$baseType] ?? 0)),
+        'hasSavedCount' => empty($option['virtual']),
         'changedCount' => $counts['changed'],
         'newCount' => $counts['new'],
         'missingCount' => $counts['missing'],
@@ -147,9 +149,11 @@ class Presenter {
       'total_changes' => $changed + $new + $missing,
       'exists' => $status['exists'] ?? NULL,
       'writable' => $status['writable'] ?? NULL,
+      'saved_config_count' => (int) ($status['saved_config_count'] ?? 0),
       'op' => $op,
     ];
   }
+
 
 
   public function labelsForTypes(ConfigManager $manager, array $types): array {
@@ -251,15 +255,15 @@ class Presenter {
         'action' => $possibleRename
           ? ts('Review rename')
           : ($providerWriteBlocked
-            ? ts('Backup only')
-            : ($deleteBlocked ? ts('Export to YAML') : $this->importActionLabel($status))),
+            ? ts('Saved copy only')
+            : ($deleteBlocked ? ts('Save Config') : $this->importActionLabel($status))),
         'status_label' => $this->statusLabel($status),
         'note' => $possibleRename
           ? ts('Possible identity rename detected. Configuration Manager will not apply this create/delete pair automatically; review and align the accepted identity first.')
           : ($providerWriteBlocked
             ? ts('This contributed configuration is safe to back up and compare, but its provider does not expose a write-safe portable identity on this site. Automatic restore is disabled.')
             : ($deleteBlocked
-              ? ts('This item is in selected scope but has no managed YAML yet. Selective scope never treats missing YAML as permission to delete it; export it if you want to keep managing it.')
+              ? ts('This selected item has not been saved yet. It will not be removed automatically. Export it if you want to keep managing it.')
               : $this->importActionNote($status, $importable))),
       ];
     }
@@ -268,10 +272,10 @@ class Presenter {
 
   public function statusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('Missing from CiviCRM');
+      return ts('Not in Current CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('New in CiviCRM');
+      return ts('Not Yet Saved');
     }
     if ($status === 'changed') {
       return ts('Changed');
@@ -281,23 +285,23 @@ class Presenter {
 
   private function plainStatusLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('is managed in YAML but is missing from CiviCRM');
+      return ts('is saved but is not currently in CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('is new in CiviCRM and is not in managed YAML');
+      return ts('is in Current CiviCRM but has not been saved yet');
     }
     if ($status === 'changed') {
-      return ts('has changed between YAML and CiviCRM');
+      return ts('has changed between the Saved Config and Current CiviCRM');
     }
     return ts('is in sync');
   }
 
   private function syncStateLabel(string $state, string $mergeState = ''): string {
     if ($state === 'ACTIVE_DRIFT') {
-      return ts('Active drift');
+      return ts('Current CiviCRM changed');
     }
     if ($state === 'YAML_CHANGE') {
-      return ts('YAML change');
+      return ts('Saved Config changed');
     }
     if ($state === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
       return ts('Conflict');
@@ -319,22 +323,22 @@ class Presenter {
     $syncState = (string) ($file['sync_state'] ?? '');
     $mergeState = (string) ($file['merge_state'] ?? '');
     if ($status === 'new_in_db') {
-      return ts('%1 is new in CiviCRM and is not in managed YAML yet.', [1 => $title]);
+      return ts('%1 is in Current CiviCRM but has not been saved yet.', [1 => $title]);
     }
     if ($status === 'missing_in_db') {
-      return ts('%1 is managed in YAML but is currently missing from CiviCRM.', [1 => $title]);
+      return ts('%1 is saved but is not currently in CiviCRM.', [1 => $title]);
     }
     if ($syncState === 'ACTIVE_DRIFT') {
       return ts('%1 changed in CiviCRM since the last accepted sync.', [1 => $title]);
     }
     if ($syncState === 'YAML_CHANGE') {
-      return ts('%1 changed in YAML since the last accepted sync.', [1 => $title]);
+      return ts('%1 changed in the Saved Config since the last accepted sync.', [1 => $title]);
     }
     if ($syncState === 'BOTH_CHANGED' && $mergeState === 'CONFLICT') {
-      return ts('%1 changed in both CiviCRM and YAML, with at least one conflicting field.', [1 => $title]);
+      return ts('%1 changed in both Current CiviCRM and the Saved Config, with at least one conflicting field.', [1 => $title]);
     }
     if ($syncState === 'BOTH_CHANGED') {
-      return ts('%1 changed in both CiviCRM and YAML.', [1 => $title]);
+      return ts('%1 changed in both Current CiviCRM and the Saved Config.', [1 => $title]);
     }
     return ts('%1 has configuration changes to review.', [1 => $title]);
   }
@@ -342,7 +346,7 @@ class Presenter {
   private function describeFieldChange(array $file, array $change, string $label, string $changeType, string $yamlValue, string $civiValue): string {
     $path = (string) ($change['path'] ?? '');
     if ($path === 'extension.status' && $changeType === 'changed') {
-      return ts('Extension state: YAML %1 → CiviCRM %2.', [
+      return ts('Extension state: Saved Config %1 → Current CiviCRM %2.', [
         1 => $this->friendlyExtensionStatus($yamlValue),
         2 => $this->friendlyExtensionStatus($civiValue),
       ]);
@@ -353,7 +357,7 @@ class Presenter {
       return ts('%1 was added in CiviCRM.', [1 => $field]);
     }
     if ($changeType === 'removed') {
-      return ts('%1 exists in YAML but is missing from CiviCRM.', [1 => $field]);
+      return ts('%1 exists in the Saved Config but is missing from Current CiviCRM.', [1 => $field]);
     }
     return ts('%1 changed.', [1 => $field]);
   }
@@ -543,12 +547,12 @@ class Presenter {
 
   private function importActionLabel(string $status): string {
     if ($status === 'missing_in_db') {
-      return ts('Create in CiviCRM');
+      return ts('Restore to Current CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('Remove from CiviCRM');
+      return ts('Remove from Current CiviCRM');
     }
-    return ts('Update CiviCRM');
+    return ts('Update Current CiviCRM');
   }
 
   private function importActionNote(string $status, bool $importable): string {
@@ -556,10 +560,10 @@ class Presenter {
       return ts('Import for this config type is not available yet.');
     }
     if ($status === 'new_in_db') {
-      return ts('This exists in CiviCRM but not in YAML. Import treats YAML as the source of truth and will delete this record after confirmation. Export first if you want to keep it.');
+      return ts('This exists in Current CiviCRM but has not been saved. Import follows the Saved Config and will remove this record after confirmation when this configuration type safely supports removal. Export first if you want to keep it.');
     }
     if ($status === 'missing_in_db') {
-      return ts('This exists in YAML but not in CiviCRM. Import will recreate it. CiviCRM may assign a new numeric database ID.');
+      return ts('This Saved Config is not in Current CiviCRM. Import will restore it. CiviCRM may assign a new numeric database ID.');
     }
     return '';
   }

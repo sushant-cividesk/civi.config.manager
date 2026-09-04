@@ -52,7 +52,7 @@ A duplicate or otherwise unproven source identity is preserved as a **monitor-on
 
 ### Web progress
 
-CiviCRM SQL Queue stores one durable item per bounded work unit rather than one giant Export/Import request. The browser advances at most one queue item per request and polls persisted status. WordPress/PHP session locks are released before worker advancement so status polls remain responsive. Progress text names the actual action and configuration scope (for example, `Scanning active CiviCRM — CiviRules Actions` or `Safety verification before publishing YAML`), reports real phases/processed records/heartbeats, and does not fabricate a percentage when the total is unknown. Browser refresh reconnects to the saved job; the UI does not claim that closing the browser creates an independent background worker.
+CiviCRM SQL Queue stores one durable task at a time rather than one giant Export/Import request. The browser advances at most one queue item per request and polls persisted status. WordPress/PHP session locks are released before worker advancement so status polls remain responsive. Client-facing progress uses simple labels such as `Checking Contact Types`, parts, and items checked/done. It reports a percentage only when the total is genuinely known and does not invent an ETA. Browser refresh reconnects to the saved job; the UI does not claim that closing the browser creates an independent background worker.
 
 Retry-safe read/stage/baseline units may be replayed after an interrupted worker. Indeterminate live-mutating units are blocked rather than blindly replayed. CLI operations continue to use the same ConfigManager safety/service layer synchronously and respect an active persistent job lock for the same sync root.
 
@@ -78,7 +78,7 @@ Built-in handlers cover the core configuration used by most CiviCRM deployments,
 - Site Tokens
 - CiviRules configuration where portable identity is proven
 
-Capability is evaluated at runtime. A readable provider is not automatically considered write-safe. The early coverage-expansion work in alpha67.7 adds Tags, Profiles/Profile Fields, Contact Layouts, and Report Instances with reviewed create/update behavior only; delete-missing remains disabled until the future Alpha69 runtime-evidence gate is satisfied.
+Capability is evaluated at runtime. A readable provider is not automatically considered write-safe. The early coverage-expansion work landed in alpha67.7 and remains present in alpha68; it adds Tags, Profiles/Profile Fields, Contact Layouts, and Report Instances with reviewed create/update behavior only; delete-missing remains disabled until the future Alpha69 runtime-evidence gate is satisfied.
 
 ## Config Ignore
 

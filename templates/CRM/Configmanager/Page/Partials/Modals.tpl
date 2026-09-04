@@ -6,7 +6,7 @@
           <button type="button" class="civicfg-close" data-civicfg-close="1" aria-label="{ts}Close{/ts}">×</button>
         </div>
         <div class="civicfg-modal-body">
-          <p>{ts}YAML file is the intended configuration from disk. Active CiviCRM is the current database state. Only changed fields are shown.{/ts}</p>
+          <p>{ts}Saved Config is the intended configuration from disk. Current CiviCRM is the current database state. Only changed fields are shown.{/ts}</p>
           {if $file.details_lazy}
             <div class="civicfg-lazy-detail" data-civicfg-lazy-detail-host="1">
               <p class="description">{ts}Loading field-level details for this item…{/ts}</p>
@@ -14,7 +14,7 @@
           {else}
             {if $file.rows}
               <table class="civicfg-diff-table">
-                <thead><tr><th>{ts}Field{/ts}</th><th>{ts}YAML File{/ts}</th><th>{ts}Active CiviCRM{/ts}</th></tr></thead>
+                <thead><tr><th>{ts}Field{/ts}</th><th>{ts}Saved Config{/ts}</th><th>{ts}Current CiviCRM{/ts}</th></tr></thead>
                 <tbody>
                   {foreach from=$file.rows item=row}
                     <tr>
@@ -48,7 +48,7 @@
               <input type="hidden" name="_action" value="ignore_config" />
               <input type="hidden" name="path" value="{$file.path|escape}" />
               <div class="civicfg-ignore-choice">
-                <label><input type="radio" name="ignore_scope" value="file" checked="checked" data-civicfg-ignore-file="1" /> {ts}Ignore the whole YAML file{/ts}</label>
+                <label><input type="radio" name="ignore_scope" value="file" checked="checked" data-civicfg-ignore-file="1" /> {ts}Ignore the whole Saved Config{/ts}</label>
               </div>
               {if $file.rows || $file.details_lazy}
                 <div class="civicfg-ignore-choice"{if $file.details_lazy} data-civicfg-ignore-lazy-choice="1" hidden="hidden"{/if}>

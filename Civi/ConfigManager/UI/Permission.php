@@ -21,11 +21,11 @@ class Permission {
       ],
       self::EXPORT => [
         'label' => ts('Export CiviCRM Configuration'),
-        'description' => ts('Export active CiviCRM configuration to YAML files or download YAML/ZIP exports.'),
+        'description' => ts('Export Current CiviCRM configuration to Saved Config files or download YAML/ZIP exports.'),
       ],
       self::IMPORT => [
         'label' => ts('Import CiviCRM Configuration'),
-        'description' => ts('Upload/stage YAML files and apply supported create/update configuration imports.'),
+        'description' => ts('Upload or stage Saved Config files and apply supported configuration imports.'),
       ],
       self::ADMINISTER => [
         'label' => ts('Administer Configuration Manager'),

@@ -104,7 +104,7 @@
             var note = document.createElement('p');
             note.className = 'description';
             note.textContent = payload.renamed && payload.renamed.length
-              ? 'Only the portable YAML filename changed for this configuration item.'
+              ? 'Only the Saved Config filename changed for this configuration item.'
               : 'No field-level differences remain for this item.';
             host.appendChild(note);
             populateLazyIgnoreFields(modal, []);
@@ -117,7 +117,7 @@
             table.className = 'civicfg-diff-table';
             var thead = document.createElement('thead');
             var headerRow = document.createElement('tr');
-            ['Field', 'YAML File', 'Active CiviCRM'].forEach(function(title) {
+            ['Field', 'Saved Config', 'Current CiviCRM'].forEach(function(title) {
               var th = document.createElement('th'); th.textContent = title; headerRow.appendChild(th);
             });
             thead.appendChild(headerRow); table.appendChild(thead);
@@ -787,7 +787,7 @@
       var existing = document.getElementById('civicfg-progress-overlay');
       if (existing) {
         existing.querySelector('.civicfg-progress-title').textContent = title || 'Working...';
-        existing.querySelector('.civicfg-progress-text').textContent = text || 'Progress is saved on the server while this operation runs.';
+        existing.querySelector('.civicfg-progress-text').textContent = text || 'Your progress is saved while this runs.';
         return existing;
       }
       host.classList.add('is-busy');
@@ -803,7 +803,7 @@
           '<div class="civicfg-progress-heartbeat"></div>' +
         '</div>';
       overlay.querySelector('.civicfg-progress-title').textContent = title || 'Working...';
-      overlay.querySelector('.civicfg-progress-text').textContent = text || 'Progress is saved on the server while this operation runs.';
+      overlay.querySelector('.civicfg-progress-text').textContent = text || 'Your progress is saved while this runs.';
       host.appendChild(overlay);
       return overlay;
     }
@@ -824,7 +824,7 @@
     }
 
     function updateProgress(event) {
-      var overlay = showProgress(event.label || 'Working...', event.message || 'Processing saved Configuration Manager work.');
+      var overlay = showProgress(event.label || 'Working...', event.message || 'Working on your configuration.');
       var known = event.progress_known === true || event.progress_known === 1 || event.progress_known === '1';
       var percent = Math.max(0, Math.min(100, parseInt(event.percent || 0, 10)));
       var bar = overlay.querySelector('.civicfg-progress-bar');
@@ -863,10 +863,10 @@
         var itemCompleted = parseInt(event.item_completed || 0, 10);
         var itemTotal = parseInt(event.item_total || 0, 10);
         if (phaseTotal > 0 && phaseIndex > 0) {
-          stepNode.textContent = 'Phase ' + phaseIndex + ' of ' + phaseTotal;
+          stepNode.textContent = 'Part ' + phaseIndex + ' of ' + phaseTotal;
         }
         else if (itemTotal > 0) {
-          stepNode.textContent = itemCompleted + ' / ' + itemTotal + ' in this work unit';
+          stepNode.textContent = itemCompleted + ' of ' + itemTotal + ' items done';
         }
         else {
           stepNode.textContent = '';
@@ -874,7 +874,7 @@
       }
       if (itemsNode) {
         var items = parseInt(event.processed_items || 0, 10);
-        itemsNode.textContent = items > 0 ? ('Processed: ' + items + ' record' + (items === 1 ? '' : 's')) : '';
+        itemsNode.textContent = items > 0 ? (items + ' item' + (items === 1 ? '' : 's') + ' checked') : '';
       }
       if (heartbeatNode) {
         var heartbeat = heartbeatAgeText(event.heartbeat_at || '');
@@ -925,8 +925,8 @@
         var message = String(job.message || '').trim();
         if (!message) {
           message = status === 'queued'
-            ? 'Waiting for the first bounded worker unit. No active CiviCRM configuration or live YAML has been changed.'
-            : 'The server is processing the named work unit. Saved job state will be used if this page is refreshed.';
+            ? 'Waiting to start. Current CiviCRM and existing Saved Configs have not been changed.'
+            : 'This part is still running. Your progress is saved if the page is refreshed.';
         }
         updateProgress({
           label: label,
@@ -1039,8 +1039,8 @@
           // A proxy timeout does not mean PHP failed. Keep polling the durable
           // job, and retry advancement later; the worker lock prevents overlap.
           updateProgress({
-            label: 'Checking saved job',
-            message: 'The worker connection was interrupted. Server-side job state is still being checked; this does not restart the operation.',
+            label: 'Checking progress',
+            message: 'The connection paused briefly. Your saved progress is being checked and the operation will not restart.',
             progress_known: false,
             status: 'running',
             processed_items: 0
@@ -1081,13 +1081,13 @@
     function progressTextForForm(form) {
       var action = form.querySelector('input[name="_action"]');
       var value = action ? action.value : '';
-      if (value.indexOf('import') === 0) { return ['Preparing managed import', 'Creating a durable import job. Full preflight will finish before any active CiviCRM write.']; }
-      if (value.indexOf('export') === 0) { return ['Preparing managed export', 'Creating a durable staged-export job. Live YAML will not change until safety verification succeeds.']; }
-      if (value === 'validate_files') { return ['Validating configuration', 'Checking YAML files and dependency metadata.']; }
-      if (value === 'revert_file') { return ['Reverting active CiviCRM', 'Applying the selected YAML file and dependencies back to CiviCRM.']; }
+      if (value.indexOf('import') === 0) { return ['Preparing import', 'Checking everything before any change is made to Current CiviCRM.']; }
+      if (value.indexOf('export') === 0) { return ['Preparing export', 'Checking Current CiviCRM first. Existing Saved Configs will not change until the final safety check passes.']; }
+      if (value === 'validate_files') { return ['Checking Saved Configs', 'Checking Saved Configs and required related configuration.']; }
+      if (value === 'revert_file') { return ['Restoring Current CiviCRM', 'Applying the selected Saved Config and required related configuration.']; }
       if (value === 'ignore_config') { return ['Saving ignore rule', 'Updating Config Ignore settings.']; }
       if (value === 'save_settings') { return ['Saving settings', 'Updating Configuration Manager settings.']; }
-      return ['Working', 'Progress is saved on the server while this operation runs.'];
+      return ['Working', 'Your progress is saved while this runs.'];
     }
 
     function ensureConfirmModal() {

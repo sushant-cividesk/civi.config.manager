@@ -17,14 +17,15 @@
             <div class="civicfg-checkbox-grid">
               {foreach from=$allTypes item=row}
                 {if !$row.virtual}
-                  <label class="civicfg-type-option"><input type="checkbox" name="type[]" value="{$row.type|escape}" {if $selectedTypesMap[$row.type]}checked="checked"{/if} /> <span class="civicfg-type-text"><span class="civicfg-type-name">{$row.label|escape}</span><small>{$row.directory|escape}</small></span></label>
+                  <label class="civicfg-type-option"><input type="checkbox" name="type[]" value="{$row.type|escape}" {if $selectedTypesMap[$row.type]}checked="checked"{/if} /> <span class="civicfg-type-text"><span class="civicfg-type-name">{$row.label|escape}</span><small>{$row.directory|escape}{if $row.hasSavedCount} · {$row.savedCount|escape} {ts}saved{/ts}{/if}</small></span></label>
                 {/if}
               {/foreach}
             </div>
           </div>
           <div class="civicfg-type-group civicfg-type-group-extension">
             <h4>{ts}Extension-owned managed config{/ts}</h4>
-            <p class="description">{ts}These appear automatically for enabled extensions when their API exposes safe deployable configuration. Generated/read-only provider records are skipped.{/ts}</p>
+            <p class="description">{ts}Only extension configuration proven safe for automatic management appears here. Other detected extension providers, including monitor-only or unsupported ones, are explained in Settings.{/ts}</p>
+            {if $extensionManagedTypeCount eq 0}<p class="civicfg-muted">{ts}No extension-owned configuration is currently approved for automatic management.{/ts}</p>{/if}
             <div class="civicfg-checkbox-grid">
               {foreach from=$allTypes item=row}
                 {if $row.virtual}
@@ -32,6 +33,7 @@
                 {/if}
               {/foreach}
             </div>
+            <p><a href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}">{ts}Review detected extension providers in Settings{/ts}</a></p>
           </div>
           <div class="civicfg-actions">
             <button type="submit" class="button"><span>{ts}Apply{/ts}</span></button>

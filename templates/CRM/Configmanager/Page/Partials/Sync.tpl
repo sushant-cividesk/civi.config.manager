@@ -1,6 +1,6 @@
   {if $op eq 'sync'}
     <div class="civicfg-actions">
-      {if $managedScopeConfigured && $canExport}<form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export YAML Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
+      {if $managedScopeConfigured && $canExport}<form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" {if $exportNeedsConfirmation}data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Export Saved Config Changes" data-civicfg-confirm-word="EXPORT" data-civicfg-confirm-button="Export" data-civicfg-confirm-message="{$exportConfirmMessage|escape}" data-civicfg-confirm-warning="{$exportConfirmWarning|escape}"{/if}>
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
         <input type="hidden" name="_action" value="export_write" />
         {foreach from=$selectedTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
@@ -29,12 +29,12 @@
       <div class="civicfg-panel civicfg-initial-export-panel">
         <div class="civicfg-panel-body">
           {if $watchOnlyScope}
-            <h3>{ts}Monitoring is configured; nothing is managed in YAML{/ts}</h3>
-            <p>{ts}Watch-only configuration can be scanned for drift, but it is intentionally excluded from YAML synchronization.{/ts}</p>
-            <p>{ts}Choose Manage everything or Manage selected items in Settings when you want Configuration Manager to establish a managed YAML baseline.{/ts}</p>
+            <h3>{ts}Monitoring is configured; nothing is saved for management yet{/ts}</h3>
+            <p>{ts}Watch-only configuration can be checked for changes, but it is intentionally excluded from Saved Config synchronization.{/ts}</p>
+            <p>{ts}Choose Manage everything or Manage selected items in Settings when you want Configuration Manager to create a Saved Config baseline.{/ts}</p>
           {else}
             <h3>{ts}Choose what Configuration Manager should manage{/ts}</h3>
-            <p>{ts}No configuration is currently managed in YAML, so there is no synchronization baseline and the site cannot be reported as In Sync yet.{/ts}</p>
+            <p>{ts}No configuration has been saved for management yet, so there is no synchronization baseline and the site cannot be reported as In Sync yet.{/ts}</p>
             <p>{ts}Open Settings, choose Manage everything or Manage selected items for at least one configuration type, save, then create the initial export.{/ts}</p>
           {/if}
           {if $canAdminister}<p><a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}"><span>{ts}Review Configuration Scope{/ts}</span></a></p>{/if}
@@ -44,8 +44,8 @@
       <div class="civicfg-panel civicfg-initial-export-panel">
         <div class="civicfg-panel-body">
           <h3>{ts}Create the initial configuration export{/ts}</h3>
-          <p>{ts}There is no YAML baseline yet, so Configuration Manager is not showing every existing CiviCRM record as a difference.{/ts}</p>
-          <p>{ts}Your managed scope is ready. Create the initial export; after that, Synchronize will show only real changes between managed YAML and active CiviCRM.{/ts}</p>
+          <p>{ts}There is no Saved Config baseline yet, so Configuration Manager is not showing every existing CiviCRM record as a difference.{/ts}</p>
+          <p>{ts}Your managed scope is ready. Create the initial export; after that, Synchronize will show only real changes between Saved Configs and Current CiviCRM.{/ts}</p>
           {if $canAdminister}<p><a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=settings'}"><span>{ts}Review Configuration Scope{/ts}</span></a></p>{/if}
         </div>
       </div>
@@ -71,9 +71,9 @@
           <summary>{ts}Validation Details{/ts}</summary>
           <div class="civicfg-panel-body">
             {if $validationResult.ok}
-              <div class="messages status no-popup">{ts}YAML validation passed.{/ts}</div>
+              <div class="messages status no-popup">{ts}Saved Config validation passed.{/ts}</div>
             {else}
-              <div class="messages error no-popup">{ts}YAML validation found problems.{/ts}</div>
+              <div class="messages error no-popup">{ts}Saved Config validation found problems.{/ts}</div>
             {/if}
 
             {if $validationResult.errors|@count gt 0}
@@ -106,7 +106,7 @@
                   {if $item.compatibility|@count gt 0}
                     <div class="messages status no-popup civicfg-compatibility-note">
                       <strong>{ts}Compatibility information{/ts}</strong>
-                      <p>{ts}These items are valid YAML. Configuration Manager keeps them safe by limiting automatic writes where the provider does not expose a reliable portable identity.{/ts}</p>
+                      <p>{ts}These Saved Configs are valid. Configuration Manager keeps them safe by limiting automatic changes where the provider does not expose a reliable portable identity.{/ts}</p>
                       <ul>{foreach from=$item.compatibility item=note}<li>{if $note.file}<code>{$note.file|escape}</code>: {/if}{$note.message|escape}</li>{/foreach}</ul>
                     </div>
                   {/if}
@@ -134,8 +134,8 @@
                   <div class="civicfg-type-line">
                     <strong>{$row.label|escape}</strong>
                     {if $row.changedCount gt 0}<span class="civicfg-badge warn">{$row.changedCount|escape} {ts}Changed{/ts}</span>{/if}
-                    {if $row.newCount gt 0}<span class="civicfg-badge warn">{$row.newCount|escape} {ts}New in CiviCRM{/ts}</span>{/if}
-                    {if $row.missingCount gt 0}<span class="civicfg-badge warn">{$row.missingCount|escape} {ts}Missing from CiviCRM{/ts}</span>{/if}
+                    {if $row.newCount gt 0}<span class="civicfg-badge warn">{$row.newCount|escape} {ts}Not Yet Saved{/ts}</span>{/if}
+                    {if $row.missingCount gt 0}<span class="civicfg-badge warn">{$row.missingCount|escape} {ts}Not in Current CiviCRM{/ts}</span>{/if}
                   </div>
                 {/if}
               {/foreach}
@@ -173,14 +173,14 @@
                   <div class="civicfg-row-actions">
                     <button type="button" class="button civicfg-action-secondary civicfg-line-button" data-civicfg-open="{$file.id|escape}"><span>{ts}Details{/ts}</span></button>
                     {if $canImport && ($file.status neq 'new_in_db' || $file.delete_allowed)}
-                      <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Revert Active CiviCRM From YAML" data-civicfg-confirm-word="REVERT" data-civicfg-confirm-button="Revert" data-civicfg-confirm-message="This will apply this YAML file back to active CiviCRM. If the YAML file has dependencies, those dependency YAML files are applied with it. If the YAML file does not exist, the matching managed CiviCRM record is removed only when that scope permits deletion." data-civicfg-confirm-warning="Only the selected managed file and its dependency closure are reverted: {$file.path|escape}.">
+                      <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Restore Current CiviCRM from Saved Config" data-civicfg-confirm-word="REVERT" data-civicfg-confirm-button="Revert" data-civicfg-confirm-message="This will apply this Saved Config back to Current CiviCRM. If this Saved Config has required related configs, those are applied with it. If the Saved Config does not exist, the matching managed CiviCRM record is removed only when that configuration type safely supports removal." data-civicfg-confirm-warning="Only this Saved Config and its required related configs are restored: {$file.path|escape}.">
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                         <input type="hidden" name="_action" value="revert_file" />
                         <input type="hidden" name="path" value="{$file.path|escape}" />
-                        <button type="submit" class="button civicfg-action-apply civicfg-line-button"><span>{ts}Restore from YAML{/ts}</span></button>
+                        <button type="submit" class="button civicfg-action-apply civicfg-line-button"><span>{ts}Restore Saved Config{/ts}</span></button>
                       </form>
                     {elseif $file.status eq 'new_in_db' && !$file.delete_allowed}
-                      <span class="civicfg-muted">{ts}Export to add this selected item to managed YAML.{/ts}</span>
+                      <span class="civicfg-muted">{ts}Export to save this item before it can be managed here.{/ts}</span>
                     {/if}
                     {if $canAdminister}<button type="button" class="button civicfg-action-ignore civicfg-line-button" data-civicfg-open="{$file.id|escape}-ignore"><span>{ts}Ignore{/ts}</span></button>{/if}
                   </div>
@@ -215,9 +215,9 @@
               <div><span class="civicfg-watch-stat-label">{ts}Changed{/ts}</span><strong>{$watchSummary.changed|default:0|escape}</strong></div>
               <div><span class="civicfg-watch-stat-label">{ts}Missing{/ts}</span><strong>{$watchSummary.missing|default:0|escape}</strong></div>
             </div>
-            {if $watchSummary.baseline gt 0}<p class="description">{ts}A monitoring baseline was captured for newly watched items. Future scans compare against these fingerprints; watched items still stay out of YAML and cannot be imported or deleted.{/ts}</p>{/if}
+            {if $watchSummary.baseline gt 0}<p class="description">{ts}A monitoring baseline was captured for newly watched items. Future scans compare against it; watched items still stay out of Saved Configs and cannot be imported or deleted.{/ts}</p>{/if}
           {/if}
-          <p class="description">{ts}Watched configuration is not part of YAML and cannot be imported, restored, or deleted by Configuration Manager unless you explicitly move it into managed scope. Detected watch changes are kept in local history so later scans do not hide earlier findings.{/ts}</p>
+          <p class="description">{ts}Watched configuration is not part of Saved Configs and cannot be imported, restored, or deleted unless you explicitly move it into managed scope. Detected changes are kept in local history so later scans do not hide earlier findings.{/ts}</p>
 
           <div class="civicfg-watch-section">
             <h4>{ts}Latest scan{/ts}</h4>
@@ -240,10 +240,10 @@
               <div class="civicfg-watch-history-heading">
                 <div>
                   <h4>{ts}Recent watch history{/ts}</h4>
-                  <p class="description">{ts}Newest detections are shown first. This is local operational history and does not change YAML or accepted managed baselines.{/ts}</p>
+                  <p class="description">{ts}Newest detections are shown first. This is local operational history and does not change Saved Configs or accepted managed baselines.{/ts}</p>
                 </div>
                 {if $canAdminister}
-                  <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Clear Watch History" data-civicfg-confirm-word="CLEAR" data-civicfg-confirm-button="Clear history" data-civicfg-confirm-message="This clears the local list of previously detected watch-only changes. Monitoring fingerprints and baselines are kept." data-civicfg-confirm-warning="This does not change CiviCRM configuration or YAML.">
+                  <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Clear Watch History" data-civicfg-confirm-word="CLEAR" data-civicfg-confirm-button="Clear history" data-civicfg-confirm-message="This clears the local list of previously detected watch-only changes. Monitoring fingerprints and baselines are kept." data-civicfg-confirm-warning="This does not change Current CiviCRM or Saved Configs.">
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                     <input type="hidden" name="_action" value="clear_watch_history" />
                     <button type="submit" class="button civicfg-action-secondary"><span>{ts}Clear history{/ts}</span></button>

@@ -57,6 +57,7 @@
             "@lint:architecture-contracts",
             "@lint:scenario-docs",
             "@test:audit-wrapper",
+            "@test:alpha68-ui",
             "@test:unit",
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
@@ -81,6 +82,7 @@
         "test:mutation-provider-admission": "bash tests/ci/mutation-provider-admission.sh",
         "test:source-hygiene": "bash tests/ci/source-hygiene.sh",
         "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php",
-        "test:provider-browser": "node tests/ci/provider-browser-test.js"
+        "test:provider-browser": "node tests/ci/provider-browser-test.js",
+        "test:alpha68-ui": "php tests/ci/alpha68-ui-behavior.php"
     }
 }

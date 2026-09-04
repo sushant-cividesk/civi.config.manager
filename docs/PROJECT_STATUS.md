@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.7-core` |
+| Active development line | `0.1.0-alpha68-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -78,7 +78,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] A67-01 Replace the long undifferentiated list with searchable groups: Core, Contributed, Custom, Unavailable, and Backup/Monitor-only. Alpha67.5 loads provider metadata asynchronously so the initial Settings render does not wait for full provider inventory.
 - [x] A67-02 Keep the heading **What should Configuration Manager manage?** and expose provider-safety evidence/reasons so write capability is not presented as implicit. Broader grouping/search UX remains in A67-01/A67-04-A67-06.
 - [ ] A67-03 Show per-type mode cards only for valid choices: Manage all, Manage selected, Monitor only, Ignore.
-- [ ] A67-04 Show item counts, managed YAML file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable. **Alpha67.5 delivers grouped provider/capability status, selected counts, dependency summaries, and lazy safety reasons; item/YAML counts remain.**
+- [ ] A67-04 Show item counts, Saved Config file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable. **Alpha68 adds the total Saved Config count plus lightweight per-type Saved Config counts without loading provider collections; live item/selected counts remain pending.**
 - [ ] A67-05 Load expensive item inventories only when a card/picker is opened; cache and paginate large providers. **Item pickers were already lazy; Alpha67.5 also moves metadata-rich provider inventory off the initial Settings request. Persistent caching remains deferred until measurement justifies it.**
 - [ ] A67-06 Add bulk actions, unsaved-change protection, accessible keyboard/focus behavior, concise help, and responsive layouts. **Bulk actions/unsaved protection already exist; Alpha67.5 adds responsive search/filter controls and live result counts. Remaining accessibility/focus polish is pending.**
 - [ ] A67-07 Never label a monitor-only/all-ignore/no-baseline state as In Sync.
@@ -92,12 +92,27 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] A68-05 Discard the old plan, rebuild from current YAML/active state, and run full validation/preflight again after exclusions.
 - [ ] A68-06 Bind apply to the exact new plan token/fingerprints; stale or altered plans fail closed.
 - [ ] A68-07 Report Applied, Blocked, Excluded, and Remaining Difference counts consistently in UI/API4/CLI/queue results.
-- [ ] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.”
+- [ ] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.” **Alpha68 begins the client-language pass (`Saved Config`, `Current CiviCRM`, `Not Yet Saved`, `Not in Current CiviCRM`) and keeps unsupported removal non-actionable; full provider/action audit remains pending.**
 - [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording.
+
+
+### Alpha68 UI/UX slice — approved 2026-09-04
+
+- [x] Preserve the existing page structure and use progressive disclosure; no dashboard-style redesign.
+- [x] Replace primary client-facing YAML/active-database terminology with Saved Config / Current CiviCRM wording.
+- [x] Replace awkward difference labels with Not Yet Saved / Not in Current CiviCRM.
+- [x] Show total Saved Config count in the existing summary area.
+- [x] Keep a persistent Last Export summary on Synchronize after the toast disappears.
+- [x] Simplify queued progress wording to parts/items/done language while keeping unknown totals honest and avoiding fake ETA.
+- [x] Add per-type Saved Config counts without forcing expensive provider collection during initial page render. Live item/selected counts remain part of A67-04.
+- [x] Add persistent Import result summary using the same compact progressive-disclosure pattern; keep only the most recent Export/Import result to avoid UI clutter.
+- [ ] Finish structured error/warning remediation UX across UI, CLI, API4, and logs.
+- [x] Improve extension discovery visibility by explaining the safe-managed filter boundary and linking to Settings for detected providers.
+- [ ] Complete the safe per-provider CRUD audit, starting with Tags; do not advertise delete until business-data preservation is proven.
 
 ### Alpha69 — coverage expansion
 
-> Source support for these families landed early in `0.1.0-alpha67.7-core`. This does **not** mean Alpha68 or Alpha69 was completed out of sequence: Alpha68 remains the next roadmap milestone, and the Alpha69 items remain open until their runtime/compatibility evidence is satisfied.
+> Source support for these families landed early in `0.1.0-alpha67.7-core`. This did **not** complete Alpha68 or Alpha69 out of sequence: Alpha68 is now the active milestone, and the Alpha69 items remain open until their runtime/compatibility evidence is satisfied.
 
 - [ ] A69-01 Tags: **source implementation complete; awaiting runtime evidence.** Metadata-driven API4 management uses stable `name` identity and semantic parent-tag references. Create/update is enabled; delete-missing remains disabled. A disposable DEV → target round trip plus entity-tag/business-data preservation proof is still required.
 - [ ] A69-02 Profiles/UF Groups and Profile Fields: **source implementation complete; awaiting runtime evidence.** Profiles use stable `name`; Profile Fields now use a reviewed repeated-field identity adapter with semantic Profile/field/location/type qualifiers and label only as an ambiguity tie-breaker; UF Group and Location Type references resolve semantically. Create/update is enabled and delete-missing remains disabled. Real component/version fixtures and independent final-state proof remain required.

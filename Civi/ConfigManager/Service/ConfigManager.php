@@ -1186,6 +1186,16 @@ class ConfigManager {
     $parent = dirname($dir);
     $writable = $exists ? is_writable($dir) : (is_dir($parent) && is_writable($parent));
     $yamlRuntime = SimpleYaml::runtimeStatus();
+    $handlerDirectories = [];
+    foreach ($this->getHandlers() as $handler) {
+      $handlerDirectories[(string) $handler->getType()] = (string) $handler->getDirectory();
+    }
+    $inventory = (new SavedConfigInventory())->count(
+      $exists ? (new YamlFileStorage($dir))->iterateYamlPaths() : [],
+      $handlerDirectories
+    );
+    $savedConfigCount = (int) $inventory['total'];
+    $savedConfigCounts = (array) $inventory['by_type'];
     $civiVersion = class_exists('CRM_Utils_System') ? (string) \CRM_Utils_System::version() : '';
     $providerAvailability = [];
     foreach ($this->getScopeTypeOptions() as $scopeType) {
@@ -1210,6 +1220,8 @@ class ConfigManager {
       'sync_dir' => $dir,
       'exists' => $exists,
       'writable' => $writable,
+      'saved_config_count' => $savedConfigCount,
+      'saved_config_counts' => $savedConfigCounts,
       'runtime' => [
         'php_version' => PHP_VERSION,
         'php_74_compatible' => version_compare(PHP_VERSION, '7.4.0', '>='),
@@ -1849,8 +1861,8 @@ class ConfigManager {
       'phase' => 'prepare',
       'phase_index' => 1,
       'phase_total' => 6,
-      'label' => 'Preparing export workspace',
-      'message' => 'Creating a private temporary workspace. Active CiviCRM and live YAML are unchanged.',
+      'label' => 'Preparing export',
+      'message' => 'Getting ready. Current CiviCRM and existing Saved Configs are unchanged.',
       'retry_safe' => TRUE,
     ]];
 
@@ -1873,7 +1885,7 @@ class ConfigManager {
             'phase_total' => 6,
             'handler_type' => $type,
             'unit_key' => $unitKey,
-            'label' => 'Scanning active CiviCRM — ' . (string) ($unit['label'] ?? $handler->getLabel()),
+            'label' => 'Checking ' . (string) ($unit['label'] ?? $handler->getLabel()),
             'message' => 'Reading this configuration group once and building its temporary YAML snapshot. Live YAML is unchanged.',
             'retry_safe' => TRUE,
           ];
@@ -1888,10 +1900,10 @@ class ConfigManager {
           'phase_total' => 6,
           'handler_type' => $type,
           'unit_key' => '__handler__',
-          'label' => 'Scanning active CiviCRM — ' . $handler->getLabel(),
+          'label' => 'Checking ' . $handler->getLabel(),
           'message' => (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_SELECTED)
-            ? 'Resolving the selected configuration scope and building temporary YAML. Live YAML is unchanged.'
-            : 'Reading active configuration and building temporary YAML. Live YAML is unchanged.',
+            ? 'Checking the selected Current CiviCRM items and preparing Saved Configs. Existing Saved Configs are unchanged until the final safety check passes.'
+            : 'Checking Current CiviCRM and preparing Saved Configs. Existing Saved Configs are unchanged until the final safety check passes.',
           'retry_safe' => TRUE,
         ];
       }
@@ -1903,8 +1915,8 @@ class ConfigManager {
       'phase' => 'metadata',
       'phase_index' => 3,
       'phase_total' => 6,
-      'label' => 'Finalizing temporary YAML metadata',
-      'message' => 'Rebuilding extension indexes, dependency links, manifest scope, and stale-file plan from compact staging metadata.',
+      'label' => 'Preparing Saved Config details',
+      'message' => 'Preparing the saved configuration details needed to finish this export safely.',
       'retry_safe' => TRUE,
     ];
     $tasks[] = [
@@ -1913,8 +1925,8 @@ class ConfigManager {
       'phase' => 'verify_publish',
       'phase_index' => 4,
       'phase_total' => 6,
-      'label' => 'Safety verification before publishing YAML',
-      'message' => 'Rechecking active CiviCRM immediately before publication. If anything changed, live YAML will remain untouched.',
+      'label' => 'Final safety check',
+      'message' => 'Checking Current CiviCRM one last time before saving changes. If anything changed, existing Saved Configs stay untouched.',
       'retry_safe' => FALSE,
     ];
     foreach ($handlers as $handler) {
@@ -1925,8 +1937,8 @@ class ConfigManager {
         'phase_index' => 5,
         'phase_total' => 6,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
-        'message' => 'Recording the published YAML state for future three-way synchronization checks.',
+        'label' => 'Saving comparison baseline — ' . $handler->getLabel(),
+        'message' => 'Saving the completed state so future changes can be compared safely.',
         'retry_safe' => TRUE,
       ];
     }
@@ -1936,8 +1948,8 @@ class ConfigManager {
       'phase' => 'complete',
       'phase_index' => 6,
       'phase_total' => 6,
-      'label' => 'Completing export',
-      'message' => 'Finalizing the durable export result and cleaning the temporary workspace.',
+      'label' => 'Finishing export',
+      'message' => 'Saving the export result and cleaning temporary files.',
       'retry_safe' => TRUE,
     ];
     return $tasks;
@@ -2023,7 +2035,7 @@ class ConfigManager {
           'item_completed' => (int) ($event['processed'] ?? 0),
           'item_total' => 0,
           'progress_known' => FALSE,
-          'message' => (string) ($event['message'] ?? 'Scanning active configuration.'),
+          'message' => (string) ($event['message'] ?? 'Checking configuration items.'),
         ]);
       });
       foreach ($rows as $file) {
@@ -2035,7 +2047,7 @@ class ConfigManager {
             'item_completed' => $processed,
             'item_total' => 0,
             'progress_known' => FALSE,
-            'message' => 'Temporary YAML is being built from active ' . $handler->getLabel() . ' configuration. ' . $processed . ' record(s) processed in this work unit; live YAML is unchanged.',
+            'message' => 'Checking ' . $handler->getLabel() . '. ' . $processed . ' items checked; existing Saved Configs are unchanged.',
           ]);
         }
       }
@@ -2144,6 +2156,16 @@ class ConfigManager {
     $handlers = $this->handlersForTypes((array) ($state['effective_types'] ?? []), (array) ($state['requested_types'] ?? []));
     $stalePaths = $this->findStaleYamlPathsForStagedExport($storage, $workspace, $handlers, array_values(array_map('strval', (array) ($state['requested_types'] ?? []))));
     $preview = $workspace->preview($stalePaths);
+    $createdPaths = [];
+    $updatedPaths = [];
+    foreach ((array) ($preview['write'] ?? []) as $relative) {
+      if ($storage->readRaw((string) $relative) === NULL) {
+        $createdPaths[] = (string) $relative;
+      }
+      else {
+        $updatedPaths[] = (string) $relative;
+      }
+    }
     $expected = [];
     foreach ($handlers as $handler) {
       $policy = $this->scope->getPolicy((string) $handler->getType());
@@ -2154,6 +2176,8 @@ class ConfigManager {
     }
     $state['stale_paths'] = $stalePaths;
     $state['preview'] = $preview;
+    $state['created_paths'] = $createdPaths;
+    $state['updated_paths'] = $updatedPaths;
     $state['expected_fingerprints'] = $expected;
     $workspace->persistIndex();
     $stateStore->saveState($state);
@@ -2161,6 +2185,8 @@ class ConfigManager {
       'ok' => TRUE,
       'processed_items' => (int) ($state['processed_items'] ?? 0),
       'write_count' => count((array) ($preview['write'] ?? [])),
+      'created_count' => count($createdPaths),
+      'updated_count' => count($updatedPaths),
       'delete_count' => count((array) ($preview['delete'] ?? [])),
       'skip_count' => count((array) ($preview['skip'] ?? [])),
       'monitor_only' => (int) ($state['monitor_only'] ?? 0),
@@ -2189,7 +2215,7 @@ class ConfigManager {
           'progress_known' => FALSE,
           'item_completed' => $verified,
           'item_total' => $verifyTotal,
-          'message' => 'Safety verification — ' . $handler->getLabel() . '. Re-reading active CiviCRM immediately before publication; live YAML is still unchanged.',
+          'message' => 'Final safety check for ' . $handler->getLabel() . '. Current CiviCRM is being checked again before Saved Configs are updated.',
         ]);
       }
       $this->assertActiveSnapshotMatches($handler, (array) $expected[$type]);
@@ -2201,7 +2227,7 @@ class ConfigManager {
         'progress_known' => FALSE,
         'item_completed' => $verified,
         'item_total' => $verifyTotal,
-        'message' => 'Safety verification passed. Publishing the verified staged YAML snapshot now; manifest.yml is written last.',
+        'message' => 'Safety check passed. Saving the verified configuration now.',
       ]);
     }
     $published = $workspace->publish(array_values(array_map('strval', (array) ($state['stale_paths'] ?? []))));
@@ -2288,6 +2314,8 @@ class ConfigManager {
       'effective_types' => array_values(array_map('strval', (array) ($state['effective_types'] ?? []))),
       'dependency_types' => array_values(array_map('strval', (array) ($state['dependency_types'] ?? []))),
       'written' => (array) ($published['written'] ?? []),
+      'created_count' => count((array) ($state['created_paths'] ?? [])),
+      'updated_count' => count((array) ($state['updated_paths'] ?? [])),
       'deleted' => (array) ($published['deleted'] ?? []),
       'skipped' => array_values(array_unique(array_merge((array) ($published['skipped'] ?? []), (array) ($state['skipped_stage'] ?? [])))),
       'warnings' => array_merge((array) ($state['warnings'] ?? []), (array) ($state['baseline_warnings'] ?? [])),
@@ -4011,8 +4039,8 @@ class ConfigManager {
       'phase' => 'preflight',
       'phase_index' => 1,
       'phase_total' => 5,
-      'label' => 'Import preflight — checking all managed configuration',
-      'message' => 'Validating YAML, dependencies, rename safety, provider capabilities, and active-state fingerprints. No CiviCRM writes are allowed in this phase.',
+      'label' => 'Checking import safety',
+      'message' => 'Checking Saved Configs and required related configuration before making any CiviCRM changes.',
       'retry_safe' => TRUE,
     ]];
     foreach ($handlers as $handler) {
@@ -4023,8 +4051,8 @@ class ConfigManager {
         'phase_index' => 2,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Applying YAML create/update — ' . $handler->getLabel(),
-        'message' => 'Applying only create/update operations for this configuration type. Delete-missing has not started.',
+        'label' => 'Updating ' . $handler->getLabel(),
+        'message' => 'Creating or updating this configuration type. Nothing is removed during this part.',
         'retry_safe' => FALSE,
       ];
     }
@@ -4036,8 +4064,8 @@ class ConfigManager {
         'phase_index' => 3,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Applying safe delete-missing — ' . $handler->getLabel(),
-        'message' => 'All create/update work units succeeded. Removing only identities whose full managed scope and delete safety are proven.',
+        'label' => 'Checking removals — ' . $handler->getLabel(),
+        'message' => 'Earlier updates are complete. Only configuration proven safe to remove can be removed now.',
         'retry_safe' => FALSE,
       ];
     }
@@ -4049,8 +4077,8 @@ class ConfigManager {
         'phase_index' => 4,
         'phase_total' => 5,
         'handler_type' => (string) $handler->getType(),
-        'label' => 'Recording synchronization baseline — ' . $handler->getLabel(),
-        'message' => 'Recording the applied YAML state for future synchronization checks.',
+        'label' => 'Saving comparison baseline — ' . $handler->getLabel(),
+        'message' => 'Saving the new comparison point for future Synchronize checks.',
         'retry_safe' => TRUE,
       ];
     }
@@ -4061,7 +4089,7 @@ class ConfigManager {
       'phase_index' => 5,
       'phase_total' => 5,
       'label' => 'Completing import',
-      'message' => 'Finalizing the durable import result and cleaning temporary job state.',
+      'message' => 'Finishing the import and saving the result.',
       'retry_safe' => TRUE,
     ];
     return $tasks;

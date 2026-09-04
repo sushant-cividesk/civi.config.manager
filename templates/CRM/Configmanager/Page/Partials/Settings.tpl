@@ -27,7 +27,7 @@
         {if $scopeNeedsSetup}
           <div class="messages status no-popup civicfg-onboarding" data-civicfg-onboarding>
             <strong>{ts}Welcome to Configuration Manager{/ts}</strong>
-            <p>{ts}Nothing is managed automatically on a new installation. Choose the configuration types you want to manage or monitor, save the settings, then create the first YAML export/baseline from Synchronize.{/ts}</p>
+            <p>{ts}Nothing is managed automatically on a new installation. Choose the configuration types you want to manage or monitor, save the settings, then create the first Saved Config baseline from Synchronize.{/ts}</p>
             <ol>
               <li>{ts}Select configuration types below.{/ts}</li>
               <li>{ts}Use the bulk action or individual dropdowns to choose a mode.{/ts}</li>
@@ -54,7 +54,7 @@
         <div class="civicfg-provider-inventory-state civicfg-muted" data-civicfg-provider-inventory-state aria-live="polite">{ts}Provider safety details load after the page becomes interactive.{/ts}</div>
         <p class="civicfg-scope-question"><strong>{ts}How should each configuration type be handled?{/ts}</strong> {ts}Choose one mode on each card. Additional controls appear only when they are needed.{/ts}</p>
         <div class="civicfg-mode-help civicfg-mode-help-all" data-civicfg-mode-help="all">
-          {ts}All supported items are part of managed YAML and the normal export, diff, validation, and safe restore/import workflow.{/ts}
+          {ts}All supported items are part of Saved Configs and the normal export, compare, validation, and safe restore/import workflow.{/ts}
         </div>
         <div class="civicfg-scope-bulk" data-civicfg-scope-bulk>
           <label class="civicfg-scope-select-all"><input type="checkbox" data-civicfg-scope-select-all {if $scopeOverridden}disabled="disabled"{/if} /> <span>{ts}Select all{/ts}</span></label>
@@ -77,7 +77,7 @@
 
         <div class="civicfg-scope-dependency-guide">
           <strong>{ts}Scope dependency guidance{/ts}</strong>
-          <p class="description">{ts}Some configuration types reference other types. Configuration Manager will not silently widen your saved scope, but it will warn when a managed type depends on configuration that is ignored, monitor-only, unavailable, or only partly selected. Import validation still checks the actual YAML dependency before making changes.{/ts}</p>
+          <p class="description">{ts}Some configuration types depend on other types. Configuration Manager will not silently widen your saved scope, but it will warn when required configuration is ignored, monitor-only, unavailable, or only partly selected. Import validation still checks the required Saved Config before making changes.{/ts}</p>
           <div class="messages warning no-popup civicfg-scope-dependency-summary" data-civicfg-scope-dependency-summary {if $scopeDependencyWarnings|@count eq 0}hidden="hidden"{/if}>
             <strong data-civicfg-scope-dependency-heading>{if $scopeDependencyWarnings|@count gt 0}{ts 1=$scopeDependencyWarnings|@count}%1 scope dependency item(s) need review.{/ts}{/if}</strong>
             <ul data-civicfg-scope-dependency-list>
@@ -99,7 +99,7 @@
           <section class="civicfg-provider-group" data-civicfg-provider-group="core" hidden="hidden"><h5>{ts}Core{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Configuration providers shipped with Configuration Manager and CiviCRM core support.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
           <section class="civicfg-provider-group" data-civicfg-provider-group="contributed" hidden="hidden"><h5>{ts}Contributed{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Configuration providers registered by installed extensions with explicit ownership metadata.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
           <section class="civicfg-provider-group" data-civicfg-provider-group="custom" hidden="hidden"><h5>{ts}Custom{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Site/custom hook providers whose ownership is not an installed contributed extension.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
-          <section class="civicfg-provider-group" data-civicfg-provider-group="limited" hidden="hidden"><h5>{ts}Backup / monitor-only{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Readable configuration whose automatic restore/import capability is limited. Review the capability before managing YAML.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
+          <section class="civicfg-provider-group" data-civicfg-provider-group="limited" hidden="hidden"><h5>{ts}Backup / monitor-only{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Readable configuration whose automatic restore/import capability is limited. Review the capability before managing it.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div></section>
           <section class="civicfg-provider-group" data-civicfg-provider-group="unavailable" hidden="hidden"><h5>{ts}Unavailable{/ts} <span class="civicfg-provider-group-count" data-civicfg-provider-group-count></span></h5><p class="description">{ts}Providers that cannot currently be used safely on this site.{/ts}</p><div class="civicfg-scope-grid" data-civicfg-provider-group-grid></div><div data-civicfg-provider-rejections></div></section>
           <section class="civicfg-provider-group civicfg-provider-group-loading" data-civicfg-provider-group="loading"><h5>{ts}Loading provider details...{/ts}</h5><div class="civicfg-scope-grid" data-civicfg-provider-group-grid>
           {foreach from=$scopeRows item=row}
@@ -136,7 +136,7 @@
               {/if}
 
               <div class="civicfg-mode-help civicfg-mode-help-selected" data-civicfg-mode-help="selected">
-                {ts}Only the items you choose are managed. Other items can optionally be monitored without entering YAML.{/ts}
+                {ts}Only the items you choose are managed. Other items can optionally be monitored without becoming Saved Configs.{/ts}
               </div>
               <div class="civicfg-mode-help civicfg-mode-help-watch" data-civicfg-mode-help="watch">
                 {ts}Changes are monitored locally. Nothing from this type is exported, restored, imported, or deleted by Configuration Manager.{/ts}

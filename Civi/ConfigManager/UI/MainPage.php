@@ -1,11 +1,9 @@
 <?php
 namespace Civi\ConfigManager\UI;
-
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Service\QueuedOperationService;
 use Exception;
 use RuntimeException;
-
 /**
  * Controller for the admin UI. Keeps the CRM page class thin and delegates
  * presentation/file-transfer details to focused helper classes.
@@ -15,31 +13,40 @@ class MainPage {
   private ConfigManager $manager;
   private Request $request;
   private Presenter $presenter;
+  private OperationResultPresenter $operationResultPresenter;
   private FileTransfer $files;
   private Permission $permission;
-
   public function __construct(\CRM_Core_Page $page, ?ConfigManager $manager = NULL) {
     $this->page = $page;
     $this->manager = $manager ?: new ConfigManager();
     $this->request = new Request();
     $this->presenter = new Presenter();
+    $this->operationResultPresenter = new OperationResultPresenter();
     $this->files = new FileTransfer();
     $this->permission = new Permission();
   }
-
   public function run(): void {
     \CRM_Utils_System::setTitle(ts('Configuration Manager'));
-
     $op = $this->request->getOperation();
     $postAction = $this->request->getPostAction();
     $types = $this->request->getSelectedTypes();
     $notice = NULL;
     $validationResult = NULL;
     $importResult = NULL;
+    $exportResult = NULL;
+    $importSummary = NULL;
     $sessionValidationResult = \CRM_Core_Session::singleton()->get('civicfg_last_validation_result');
     if (is_array($sessionValidationResult)) {
       $validationResult = $sessionValidationResult;
       \CRM_Core_Session::singleton()->set('civicfg_last_validation_result', NULL);
+    }
+    $sessionExportResult = \CRM_Core_Session::singleton()->get('civicfg_last_export_result');
+    if (is_array($sessionExportResult)) {
+      $exportResult = $sessionExportResult;
+    }
+    $sessionImportSummary = \CRM_Core_Session::singleton()->get('civicfg_last_import_summary');
+    if (is_array($sessionImportSummary)) {
+      $importSummary = $sessionImportSummary;
     }
     $sessionImportResult = \CRM_Core_Session::singleton()->get('civicfg_last_import_result');
     if (is_array($sessionImportResult)) {
@@ -47,9 +54,7 @@ class MainPage {
       \CRM_Core_Session::singleton()->set('civicfg_last_import_result', NULL);
     }
     $result = [];
-
     $this->permission->requireForPage($op, $postAction);
-
     try {
       if ($postAction !== '') {
         $this->requireValidCsrfToken();
@@ -114,7 +119,7 @@ class MainPage {
         }
         $ignoreRaw = trim((string) ($_POST['ignore_paths'] ?? ''));
         if ($ignoreRaw !== '') {
-          \CRM_Core_Session::setStatus(ts('Config Ignore is active. Whole-file rules exclude matching YAML files; path:dot.path rules exclude only selected values while keeping the rest of the file managed. Review ignored dependencies and never ignore portable identity fields.'), ts('Configuration Manager'), 'warning');
+          \CRM_Core_Session::setStatus(ts('Config Ignore is active. Whole-file rules exclude matching Saved Config files; path:dot.path rules exclude only selected values while keeping the rest of the file managed. Review ignored dependencies and never ignore portable identity fields.'), ts('Configuration Manager'), 'warning');
           try {
             foreach ($this->manager->getIgnoredDependencyWarnings() as $warning) {
               \CRM_Core_Session::setStatus($warning, ts('Configuration Manager'), 'warning');
@@ -146,7 +151,7 @@ class MainPage {
       elseif ($postAction === 'revert_file') {
         $path = trim((string) ($_POST['path'] ?? ''));
         $result = $this->manager->revertCiviFromYaml($path);
-        $this->redirectWithNotice((string) ($result['message'] ?? ts('Active CiviCRM was reverted from YAML.')), 'sync', empty($result['ok']) ? 'error' : 'success');
+        $this->redirectWithNotice((string) ($result['message'] ?? ts('Current CiviCRM was restored from a Saved Config.')), 'sync', empty($result['ok']) ? 'error' : 'success');
       }
       elseif ($postAction === 'ignore_config') {
         $path = trim((string) ($_POST['path'] ?? ''));
@@ -177,15 +182,15 @@ class MainPage {
           $firstType = trim((string) ($firstError['type'] ?? ''));
           $firstMessage = trim((string) ($firstError['message'] ?? ''));
           $firstProblem = trim(($firstType !== '' ? $firstType . ': ' : '') . $firstMessage);
-          $notice = ts('Export stopped with %1 error(s). The previous YAML snapshot was left unchanged.', [1 => count($exportErrors)]);
+          $notice = ts('Export stopped with %1 error(s). The previous Saved Config snapshot was left unchanged.', [1 => count($exportErrors)]);
           if ($firstProblem !== '') {
             $notice .= ' ' . $firstProblem;
           }
         }
         else {
           $notice = ($written || $deleted)
-            ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-            : ts('Nothing to export. YAML files already match active CiviCRM configuration.');
+            ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
+            : ts('Nothing to export. Saved Config files already match Current CiviCRM configuration.');
         }
         if ($dependencyTypes) {
           $notice .= ' ' . ts('Related dependency types were included automatically: %1.', [1 => implode(', ', $dependencyTypes)]);
@@ -193,12 +198,16 @@ class MainPage {
         if ($requestedTypes) {
           $notice .= ' ' . ts('The temporary filter was cleared so the Synchronize tab now shows the full managed status.');
         }
+        \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', NULL);
+        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $this->operationResultPresenter->exportSummary($exportResult, $this->manager->status()));
         $this->redirectWithNotice($notice, 'sync', empty($exportResult['errors']) ? 'success' : 'error');
       }
       elseif ($postAction === 'import_apply') {
         $importTypes = $this->request->getSelectedTypes();
         $importResult = $this->manager->import(FALSE, TRUE, $importTypes ?: []);
         \CRM_Core_Session::singleton()->set('civicfg_last_import_result', $importResult);
+        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', NULL);
+        \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', $this->operationResultPresenter->importSummary($importResult));
         $summaryMessage = (string) ($importResult['summary_message'] ?? '');
         if (!empty($importResult['ok'])) {
           // Do not run a second complete active/YAML diff in the same request.
@@ -245,11 +254,8 @@ class MainPage {
         'error' => $e->getMessage(),
       ];
     }
-
-    $this->assignTemplate($op, $types, $result, $notice, $validationResult, $importResult);
+    $this->assignTemplate($op, $types, $result, $notice, $validationResult, $importResult, $exportResult, $importSummary);
   }
-
-
   private function redirectWithNotice(string $message, string $op = 'sync', string $type = 'success', string $extraQuery = '', string $fragment = ''): void {
     \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $type);
     $query = 'reset=1&op=' . $op;
@@ -262,14 +268,12 @@ class MainPage {
     }
     \CRM_Utils_System::redirect($url);
   }
-
   private function requireValidCsrfToken(): void {
     $token = isset($_POST['civicfg_csrf']) ? (string) $_POST['civicfg_csrf'] : '';
     if ($token === '' || !\CRM_Core_Key::validate($token, 'civicfg_config_manager')) {
       throw new RuntimeException('Invalid or expired Configuration Manager form token. Reload the page and try again.');
     }
   }
-
   /**
    * Stream truthful server-side progress as newline-delimited JSON.
    * Export/import remain normal synchronous PHP operations, but the browser can
@@ -279,7 +283,6 @@ class MainPage {
     if (!in_array($postAction, ['export_write', 'import_apply'], TRUE)) {
       throw new RuntimeException('Unsupported Configuration Manager streamed operation.');
     }
-
     while (ob_get_level() > 0) {
       @ob_end_flush();
     }
@@ -288,7 +291,6 @@ class MainPage {
     header('Content-Type: application/x-ndjson; charset=UTF-8');
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Accel-Buffering: no');
-
     $emit = static function(array $event): void {
       echo json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
       @flush();
@@ -297,7 +299,6 @@ class MainPage {
       $event['event'] = 'progress';
       $emit($event);
     };
-
     try {
       if ($postAction === 'export_write') {
         $result = $this->manager->export(FALSE, $types, $progress);
@@ -308,7 +309,7 @@ class MainPage {
         if ($errors) {
           $first = (array) reset($errors);
           $problem = trim((string) ($first['message'] ?? ''));
-          $message = ts('Export stopped with %1 error(s). The previous YAML snapshot was left unchanged.', [1 => count($errors)]);
+          $message = ts('Export stopped with %1 error(s). The previous Saved Config snapshot was left unchanged.', [1 => count($errors)]);
           if ($problem !== '') {
             $message .= ' ' . $problem;
           }
@@ -316,10 +317,12 @@ class MainPage {
         }
         else {
           $message = ($written || $deleted)
-            ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-            : ts('Nothing to export. YAML files already match active CiviCRM configuration.');
+            ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
+            : ts('Nothing to export. Saved Config files already match Current CiviCRM configuration.');
           $statusType = 'success';
         }
+        \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', NULL);
+        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $this->operationResultPresenter->exportSummary($result, $this->manager->status()));
         \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $statusType);
         $emit([
           'event' => 'complete',
@@ -361,7 +364,6 @@ class MainPage {
     }
     exit;
   }
-
   /**
    * Start a persistent CiviCRM Queue job. The form action itself is used for
    * permission/CSRF checks, but the queue stores only operation metadata.
@@ -387,7 +389,6 @@ class MainPage {
     }
     $this->emitJsonAndExit($payload);
   }
-
   /** Advance at most one persistent queue item. */
   private function jsonAdvanceOperation(): void {
     try {
@@ -403,7 +404,6 @@ class MainPage {
     }
     $this->emitJsonAndExit($payload);
   }
-
   /** Read-only reconnect/status endpoint for a running queue job. */
   private function jsonOperationStatus(): void {
     try {
@@ -416,6 +416,15 @@ class MainPage {
         [$message, $type] = $this->operationTerminalMessage($job);
         $payload['terminal_message'] = $message;
         $payload['terminal_type'] = $type;
+        if ((string) ($job['operation'] ?? '') === 'export') {
+          \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', NULL);
+          \CRM_Core_Session::singleton()->set('civicfg_last_export_result', $this->operationResultPresenter->exportSummary((array) ($job['result'] ?? []), $this->manager->status(), $job));
+        }
+        elseif ((string) ($job['operation'] ?? '') === 'import' && is_array($job['result'] ?? NULL)) {
+          \CRM_Core_Session::singleton()->set('civicfg_last_import_result', (array) $job['result']);
+          \CRM_Core_Session::singleton()->set('civicfg_last_export_result', NULL);
+          \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', $this->operationResultPresenter->importSummary((array) $job['result'], $job));
+        }
         \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $type);
       }
     }
@@ -424,7 +433,6 @@ class MainPage {
     }
     $this->emitJsonAndExit($payload);
   }
-
   private function requireOperationPermission(string $operation): void {
     if ($operation === 'export') {
       Permission::require(Permission::EXPORT);
@@ -463,8 +471,8 @@ class MainPage {
       $skipped = count((array) ($result['skipped'] ?? []));
       $monitorOnly = (int) ($result['monitor_only'] ?? 0);
       $message = ($written || $deleted)
-        ? ts('Export complete. %1 YAML file(s) updated, %2 stale YAML file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
-        : ts('Export complete. YAML files already match active CiviCRM configuration.');
+        ? ts('Export complete. %1 Saved Config file(s) updated, %2 stale Saved Config file(s) deleted, %3 unchanged file(s) skipped.', [1 => $written, 2 => $deleted, 3 => $skipped])
+        : ts('Export complete. Saved Config files already match Current CiviCRM configuration.');
       if ($monitorOnly > 0) {
         $message .= ' ' . ts('%1 monitor-only ambiguous configuration object(s) were preserved for synchronization review; automatic create/update/delete remains disabled for those identities.', [1 => $monitorOnly]);
       }
@@ -641,7 +649,6 @@ class MainPage {
     \Civi::settings()->set('civicfg_last_health', []);
   }
 
-
   private function getSyncDirLockMessage(): string {
     return ts('This value is set in civicrm.settings.php and cannot be edited from the UI.');
   }
@@ -700,7 +707,7 @@ class MainPage {
     $this->emitJsonAndExit($payload);
   }
 
-  private function assignTemplate(string $op, array $types, array $result, $notice, $validationResult, $importResult): void {
+  private function assignTemplate(string $op, array $types, array $result, $notice, $validationResult, $importResult, $exportResult, $importSummary): void {
     // Settings already fetched status in run(); reuse it instead of doing the
     // same filesystem/handler status work twice in one page request.
     $status = ($op === 'settings' && isset($result['types']))
@@ -716,7 +723,7 @@ class MainPage {
     // virtual providers just to render the settings form.
     $allTypes = $op === 'settings'
       ? []
-      : $this->presenter->buildTypeRows($this->manager, $diffResult);
+      : $this->presenter->buildTypeRows($this->manager, $diffResult, $status);
     $settingsAllowlist = (array) \Civi::settings()->get('civicfg_settings_allowlist');
     foreach (['menubar_color', 'menubar_position'] as $recommendedSetting) {
       if (!in_array($recommendedSetting, $settingsAllowlist, TRUE)) {
@@ -789,11 +796,11 @@ class MainPage {
     }
     $exportNeedsConfirmation = !empty($exportDependencyTypes) || !empty($exportDeletePlanned);
     $exportConfirmMessage = !empty($exportDeletePlanned)
-      ? ts('Export will update YAML from active CiviCRM and delete stale managed YAML file(s) that no longer exist in CiviCRM. Review the changed files before continuing.')
-      : ts('The selected filter has related dependency types. Export will include those related YAML files too so the configuration can deploy safely.');
+      ? ts('Export will update Saved Configs from Current CiviCRM and delete stale managed Saved Config file(s) that no longer exist in CiviCRM. Review the changed files before continuing.')
+      : ts('The selected filter has related dependency types. Export will include those related Saved Config files too so the configuration can deploy safely.');
     $exportConfirmWarning = !empty($exportDeletePlanned)
-      ? ts('Stale YAML files to delete: %1', [1 => implode(', ', array_slice($exportDeletePlanned, 0, 10)) . (count($exportDeletePlanned) > 10 ? ' ...' : '')])
-      : ts('Export writes active CiviCRM configuration to YAML. Related dependency files will also be exported so the exported set stays deployable.');
+      ? ts('Stale Saved Config files to delete: %1', [1 => implode(', ', array_slice($exportDeletePlanned, 0, 10)) . (count($exportDeletePlanned) > 10 ? ' ...' : '')])
+      : ts('Export writes Current CiviCRM configuration to YAML. Related dependency files will also be exported so the exported set stays deployable.');
     $exportItems = $op === 'export' ? $this->files->buildExportItemsFromPreview($result) : [];
     $selectedExportItem = $op === 'export' ? $this->request->getSingleExportKey() : '';
     $singleExport = NULL;
@@ -808,6 +815,7 @@ class MainPage {
     }
 
     $allTypeKeys = array_map(fn($row) => (string) $row['type'], $allTypes);
+    $extensionManagedTypeCount = count(array_filter($allTypes, static fn(array $row): bool => !empty($row['virtual'])));
     $selectedTypesMap = array_fill_keys($allTypeKeys, FALSE);
     foreach ($types as $type) {
       $selectedTypesMap[(string) $type] = TRUE;
@@ -891,6 +899,8 @@ class MainPage {
     $this->page->assign('notice', $notice);
     $this->page->assign('result', $result);
     $this->page->assign('importResult', $importResult);
+    $this->page->assign('lastExportResult', is_array($exportResult) ? $exportResult : []);
+    $this->page->assign('lastImportSummary', is_array($importSummary) ? $importSummary : []);
     $importMessages = $this->presenter->extractImportMessages($importResult);
     $importErrorMessages = [];
     $importWarningMessages = [];
@@ -924,6 +934,7 @@ class MainPage {
     $this->page->assign('validationResult', $validationResult);
     $this->page->assign('status', $status);
     $this->page->assign('allTypes', $allTypes);
+    $this->page->assign('extensionManagedTypeCount', $extensionManagedTypeCount);
     $this->page->assign('selectedTypes', $types);
     $this->page->assign('selectedTypesMap', $selectedTypesMap);
     $this->page->assign('scopeRows', $scopeRows);

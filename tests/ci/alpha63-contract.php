@@ -84,10 +84,10 @@ $assert(strpos($queue, "!empty(\$item['retry_safe'])") !== FALSE, 'Only explicit
 $assert(strpos($operationStore, 'payload_json MEDIUMTEXT') !== FALSE && strpos($operationStore, 'retry_safe TINYINT') !== FALSE && strpos($operationStore, 'sequence_no INT') !== FALSE, 'Job items must persist durable payload/retry/ordering metadata.');
 $assert(strpos($operationStore, 'information_schema.COLUMNS') !== FALSE, 'Alpha63 operation schema upgrade must be idempotent for existing alpha62 tables.');
 $assert(strpos($operationStore, 'progress_known') !== FALSE && strpos($operationStore, 'phase_index') !== FALSE && strpos($operationStore, 'item_total') !== FALSE, 'Progress persistence must distinguish known totals, phases, and work-unit totals.');
-$assert(strpos($js, 'progress_known') !== FALSE && strpos($js, 'Phase ') !== FALSE, 'UI must render honest known/unknown progress with named phases.');
+$assert(strpos($js, 'progress_known') !== FALSE && strpos($js, 'Part ') !== FALSE, 'UI must render honest known/unknown progress with a simple part-of-total label.');
 $assert(strpos($js, "'Step ' + completed + ' of '") === FALSE, 'UI must not present heterogeneous queue work as misleading Step X of Y progress.');
 $assert(strpos($js, 'heartbeatAgeText') !== FALSE && strpos($js, 'refreshing this page will reconnect') !== FALSE, 'UI must show heartbeat/reconnect guidance.');
-$assert(strpos($js, 'Live YAML will not change until safety verification succeeds') !== FALSE, 'Export startup UX must state the real staging safety boundary.');
+$assert(strpos($js, 'Existing Saved Configs will not change until the final safety check passes') !== FALSE, 'Export startup UX must state the real staging safety boundary in client-friendly language.');
 $assert(strpos($css, '@keyframes civicfg-progress') === FALSE, 'Unknown progress must not use fake bouncing animation.');
 $assert(strpos($css, '.civicfg-progress-unknown') !== FALSE, 'Unknown-total progress must have explicit non-fake styling.');
 $assert(strpos($manager, "'monitor_only' => (int) (\$state['monitor_only'] ?? 0)") !== FALSE, 'Export result must report preserved monitor-only objects.');
