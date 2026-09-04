@@ -158,6 +158,8 @@ Each configuration type can be assigned one of four policies:
 - **Manage everything** - export, diff, validate, and import all supported items.
 - **Manage selected items** - manage only explicitly selected semantic items.
 - **Monitor only** - detect drift without writing YAML or importing changes.
+
+Last Export uses **Review only** for a different condition: objects that were exported for comparison but whose portable identity is not proven safe enough for automatic create/update/remove. These are not user-selected Monitor only scope entries; expand the Last Export review details to see the affected Saved Config paths.
 - **Ignore** - exclude the type from management and monitoring.
 
 Scope changes do not take effect until settings are saved.

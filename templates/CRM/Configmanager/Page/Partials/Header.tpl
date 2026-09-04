@@ -112,12 +112,25 @@
           <span><strong>{$lastExportResult.updated|escape}</strong> {ts}Updated{/ts}</span>
           <span><strong>{$lastExportResult.unchanged|escape}</strong> {ts}Unchanged{/ts}</span>
           <span><strong>{$lastExportResult.removed|escape}</strong> {ts}Removed{/ts}</span>
-          {if $lastExportResult.monitor_only gt 0}<span><strong>{$lastExportResult.monitor_only|escape}</strong> {ts}Monitor only{/ts}</span>{/if}
+          {if $lastExportResult.review_only gt 0}<span><strong>{$lastExportResult.review_only|escape}</strong> {ts}Review only{/ts}</span>{/if}
           {if $lastExportResult.warnings gt 0}<span><strong>{$lastExportResult.warnings|escape}</strong> {ts}Warnings{/ts}</span>{/if}
           {if $lastExportResult.errors gt 0}<span><strong>{$lastExportResult.errors|escape}</strong> {ts}Errors{/ts}</span>{/if}
         </div>
         {if $lastExportResult.ok}
           <p class="description">{ts}Export finished safely. This summary stays on the page so you can review what happened after the notification disappears.{/ts}</p>
+          {if $lastExportResult.review_only gt 0}
+            <details class="civicfg-result-details">
+              <summary><strong>{ts}Review items not automatically managed{/ts}</strong></summary>
+              <p class="description">{ts}These objects were saved for comparison, but Configuration Manager will not automatically create, update, or remove them because a safe portable identity has not been proven. This is separate from choosing Monitor only in Settings.{/ts}</p>
+              {if $lastExportResult.review_only_items|@count gt 0}
+                <ul>
+                  {foreach from=$lastExportResult.review_only_items item=item}
+                    <li><strong>{$item.label|escape}</strong>{if $item.path} &mdash; <code>{$item.path|escape}</code>{/if}</li>
+                  {/foreach}
+                </ul>
+              {/if}
+            </details>
+          {/if}
         {else}
           <p class="description"><strong>{ts}Export stopped safely.{/ts}</strong> {ts}Existing Saved Configs were left unchanged or rolled back. Review the problem before trying again.{/ts}</p>
           {if $lastExportResult.problem}<div class="messages error no-popup"><strong>{ts}Problem:{/ts}</strong> {$lastExportResult.problem|escape}</div>{/if}

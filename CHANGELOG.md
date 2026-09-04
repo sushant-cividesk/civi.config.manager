@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.1.0-alpha68-core
+- Separated automatically protected ambiguous export objects from user-selected Monitor only scope in the UI: Last Export now calls these Review only, exposes the affected Saved Config paths, and explains why automatic create/update/remove is disabled.
 
 - Reset stale Configuration Manager scope/dependency, watch/health, and browser operation-result state on uninstall/fresh install; missing baselines now suppress stale Last Export/Last Import panels even when a browser session outlives a CLI reinstall.
 - Preserved the existing Configuration Manager page structure while simplifying client-facing terminology to Saved Config, Current CiviCRM, Not Yet Saved, and Not in Current CiviCRM.

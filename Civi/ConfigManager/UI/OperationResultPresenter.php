@@ -31,7 +31,8 @@ class OperationResultPresenter {
       'created' => (int) ($result['created_count'] ?? 0),
       'unchanged' => count((array) ($result['skipped'] ?? [])),
       'removed' => count((array) ($result['deleted'] ?? [])),
-      'monitor_only' => (int) ($result['monitor_only'] ?? 0),
+      'review_only' => (int) ($result['monitor_only'] ?? 0),
+      'review_only_items' => $this->reviewOnlyItems($result),
       'warnings' => count((array) ($result['warnings'] ?? [])),
       'errors' => $errors > 0 ? $errors : ($ok ? 0 : 1),
       'problem' => $problem,
@@ -56,14 +57,33 @@ class OperationResultPresenter {
     $updated = (int) ($summary['updated'] ?? 0);
     $removed = (int) ($summary['removed'] ?? 0);
     $unchanged = (int) ($summary['unchanged'] ?? 0);
-    $monitorOnly = (int) ($summary['monitor_only'] ?? 0);
+    $reviewOnly = (int) ($summary['review_only'] ?? 0);
     $message = ($created || $updated || $removed)
       ? ts('Export complete. %1 Saved Config file(s) created, %2 updated, %3 stale Saved Config file(s) deleted, %4 unchanged file(s) skipped.', [1 => $created, 2 => $updated, 3 => $removed, 4 => $unchanged])
       : ts('Export complete. Saved Config files already match Current CiviCRM configuration.');
-    if ($monitorOnly > 0) {
-      $message .= ' ' . ts('%1 monitor-only ambiguous configuration object(s) were preserved for synchronization review; automatic create/update/delete remains disabled for those identities.', [1 => $monitorOnly]);
+    if ($reviewOnly > 0) {
+      $message .= ' ' . ts('%1 configuration object(s) were saved for review but are not automatically managed because their portable identity is not proven safe.', [1 => $reviewOnly]);
     }
     return $message;
+  }
+
+  /**
+   * @param array<string,mixed> $result
+   * @return array<int,array{type:string,label:string,path:string}>
+   */
+  private function reviewOnlyItems(array $result): array {
+    $unique = [];
+    foreach ((array) ($result['review_only_items'] ?? []) as $item) {
+      $item = (array) $item;
+      $compact = [
+        'type' => trim((string) ($item['type'] ?? '')),
+        'label' => trim((string) ($item['label'] ?? '')),
+        'path' => trim((string) ($item['path'] ?? '')),
+      ];
+      $key = $compact['path'] !== '' ? $compact['path'] : $compact['type'] . '|' . $compact['label'];
+      $unique[$key] = $compact;
+    }
+    return array_values($unique);
   }
 
   /**

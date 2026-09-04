@@ -2110,17 +2110,23 @@ class ConfigManager {
     $state['stage_unit_results'][$stageResultKey] = [
       'processed' => $processed,
       'monitor_only' => (int) ($local['monitor_only'] ?? 0),
+      'review_only_items' => array_values((array) ($local['review_only_items'] ?? [])),
       'warnings' => array_values((array) ($local['warnings'] ?? [])),
       'skipped' => array_values((array) ($local['skipped'] ?? [])),
     ];
     $state['processed_items'] = 0;
     $state['monitor_only'] = 0;
+    $state['review_only_items'] = [];
     $state['warnings'] = [];
     $state['skipped_stage'] = [];
     foreach ((array) ($state['stage_unit_results'] ?? []) as $unitResult) {
       $unitResult = (array) $unitResult;
       $state['processed_items'] += (int) ($unitResult['processed'] ?? 0);
       $state['monitor_only'] += (int) ($unitResult['monitor_only'] ?? 0);
+      $state['review_only_items'] = array_merge(
+        $state['review_only_items'],
+        (array) ($unitResult['review_only_items'] ?? [])
+      );
       $state['warnings'] = array_merge($state['warnings'], (array) ($unitResult['warnings'] ?? []));
       $state['skipped_stage'] = array_merge($state['skipped_stage'], (array) ($unitResult['skipped'] ?? []));
     }
@@ -2319,6 +2325,7 @@ class ConfigManager {
       'warnings' => array_merge((array) ($state['warnings'] ?? []), (array) ($state['baseline_warnings'] ?? [])),
       'errors' => [],
       'monitor_only' => (int) ($state['monitor_only'] ?? 0),
+      'review_only_items' => array_values((array) ($state['review_only_items'] ?? [])),
       'processed_items' => (int) ($state['processed_items'] ?? 0),
     ];
     if (!$result['written'] && !$result['deleted']) {
@@ -2651,6 +2658,14 @@ class ConfigManager {
     }
     if (!empty($metadata['monitor_only'])) {
       $summary['monitor_only']++;
+      if (!isset($summary['review_only_items'])) {
+        $summary['review_only_items'] = [];
+      }
+      $summary['review_only_items'][] = [
+        'type' => (string) $handler->getType(),
+        'label' => (string) $handler->getLabel(),
+        'path' => $relative,
+      ];
     }
     // Keep response metadata compact on large exports. Existing callers only
     // need path/type/label and do not need a duplicate YAML body in memory.

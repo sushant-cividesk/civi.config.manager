@@ -19,7 +19,11 @@ final class OperationResultPresenterTest extends TestCase {
       'written' => ['a.yml', 'b.yml', 'c.yml', 'd.yml', 'e.yml', 'f.yml', 'g.yml'],
       'skipped' => ['same.yml'],
       'deleted' => ['old.yml'],
-      'monitor_only' => 3,
+      'monitor_only' => 2,
+      'review_only_items' => [
+        ['type' => 'civirules', 'label' => 'CiviRules', 'path' => 'civirules/rules/legacy.yml'],
+        ['type' => 'extensions', 'label' => 'Extension Config', 'path' => 'extensions/example/ambiguous.yml'],
+      ],
       'warnings' => [['message' => 'warning']],
       'errors' => [],
       'processed_items' => 44,
@@ -35,7 +39,9 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame(5, $summary['updated']);
     self::assertSame(1, $summary['unchanged']);
     self::assertSame(1, $summary['removed']);
-    self::assertSame(3, $summary['monitor_only']);
+    self::assertSame(2, $summary['review_only']);
+    self::assertCount(2, $summary['review_only_items']);
+    self::assertSame('civirules/rules/legacy.yml', $summary['review_only_items'][0]['path']);
     self::assertSame(1107, $summary['saved_config_count']);
     self::assertSame('2026-09-04 15:00:00', $summary['completed_at']);
     $message = $presenter->exportMessage($summary);
@@ -53,6 +59,10 @@ final class OperationResultPresenterTest extends TestCase {
       'written' => array_fill(0, 1108, 'written.yml'),
       'skipped' => ['manifest.yml'],
       'monitor_only' => 2,
+      'review_only_items' => [
+        ['type' => 'civirules', 'label' => 'CiviRules', 'path' => 'civirules/actions/legacy.yml'],
+        ['type' => 'extensions', 'label' => 'Extension Config', 'path' => 'extensions/example/ambiguous.yml'],
+      ],
     ], ['saved_config_count' => 1108]);
 
     $message = $presenter->exportMessage($summary);
@@ -61,6 +71,10 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame(0, $summary['updated']);
     self::assertStringContainsString('1108 Saved Config file(s) created, 0 updated', $message);
     self::assertStringNotContainsString('1108 Saved Config file(s) updated', $message);
+    self::assertStringContainsString('2 configuration object(s) were saved for review', $message);
+    self::assertStringNotContainsString('monitor-only ambiguous configuration object', $message);
+    self::assertSame(2, $summary['review_only']);
+    self::assertCount(2, $summary['review_only_items']);
   }
 
   /** Requirement: a failed queued export must never render as a successful Last Export. */

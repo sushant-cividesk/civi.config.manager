@@ -51,11 +51,17 @@ $export = $presenter->exportSummary([
   'skipped' => ['same.yml'],
   'deleted' => ['old.yml'],
   'monitor_only' => 2,
+  'review_only_items' => [
+    ['type' => 'civirules', 'label' => 'CiviRules', 'path' => 'civirules/rules/legacy.yml'],
+    ['type' => 'extensions', 'label' => 'Extension Config', 'path' => 'extensions/example/ambiguous.yml'],
+  ],
 ], ['saved_config_count' => 1107], ['status' => 'complete', 'finished_at' => '2026-09-04 16:00:00']);
 $assert($export['ok'] === TRUE, 'successful export must render successful');
 $assert($export['created'] === 2 && $export['updated'] === 3, 'export created/updated counts must stay distinct');
 $assert($export['unchanged'] === 1 && $export['removed'] === 1, 'export unchanged/removed counts must be preserved');
 $assert($export['saved_config_count'] === 1107, 'persistent export result must show current Saved Config inventory');
+$assert($export['review_only'] === 2, 'automatically protected objects must be labeled Review only in the UI summary');
+$assert(count($export['review_only_items']) === 2, 'Review only count must expose compact inspectable item descriptors');
 $exportMessage = $presenter->exportMessage($export);
 $assert(strpos($exportMessage, '2 Saved Config file(s) created') !== FALSE, 'export completion message must report the same created count as Last Export');
 $assert(strpos($exportMessage, '3 updated') !== FALSE, 'export completion message must report the same updated count as Last Export');
@@ -67,10 +73,16 @@ $devExport = $presenter->exportSummary([
   'written' => array_fill(0, 1108, 'written.yml'),
   'skipped' => ['manifest.yml'],
   'monitor_only' => 2,
+  'review_only_items' => [
+    ['type' => 'civirules', 'label' => 'CiviRules', 'path' => 'civirules/actions/legacy.yml'],
+    ['type' => 'extensions', 'label' => 'Extension Config', 'path' => 'extensions/example/ambiguous.yml'],
+  ],
 ], ['saved_config_count' => 1108]);
 $devMessage = $presenter->exportMessage($devExport);
 $assert(strpos($devMessage, '1108 Saved Config file(s) created, 0 updated') !== FALSE, 'DEV regression: toast must agree with Last Export 1108 Created / 0 Updated');
 $assert(strpos($devMessage, '1108 Saved Config file(s) updated') === FALSE, 'DEV regression: toast must not relabel created files as updated');
+$assert(strpos($devMessage, '2 configuration object(s) were saved for review') !== FALSE, 'automatically protected objects must use review wording rather than explicit Monitor only scope wording');
+$assert(strpos($devMessage, 'monitor-only ambiguous configuration object') === FALSE, 'export notice must not present automatic safety protection as user-selected Monitor only scope');
 
 $import = $presenter->importSummary([
   'ok' => TRUE,
