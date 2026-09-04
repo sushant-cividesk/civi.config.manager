@@ -58,6 +58,8 @@
             "@lint:scenario-docs",
             "@test:audit-wrapper",
             "@test:alpha68-ui",
+            "@test:alpha68-lifecycle-state",
+            "@test:lifecycle-state-behavior",
             "@test:unit",
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
@@ -85,6 +87,8 @@
         "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php",
         "test:provider-browser": "node tests/ci/provider-browser-test.js",
         "test:alpha68-ui": "php tests/ci/alpha68-ui-behavior.php",
-        "test:drupal-login-resolver": "node tests/ci/drupal-login-url-test.js"
+        "test:drupal-login-resolver": "node tests/ci/drupal-login-url-test.js",
+        "test:alpha68-lifecycle-state": "php tests/ci/alpha68-lifecycle-state.php",
+        "test:lifecycle-state-behavior": "php tests/ci/lifecycle-state-behavior.php"
     }
 }

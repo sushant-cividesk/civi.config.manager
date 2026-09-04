@@ -2,6 +2,7 @@
 
 ## 0.1.0-alpha68-core
 
+- Reset stale Configuration Manager scope/dependency, watch/health, and browser operation-result state on uninstall/fresh install; missing baselines now suppress stale Last Export/Last Import panels even when a browser session outlives a CLI reinstall.
 - Preserved the existing Configuration Manager page structure while simplifying client-facing terminology to Saved Config, Current CiviCRM, Not Yet Saved, and Not in Current CiviCRM.
 - Added total and per-type Saved Config counts to the existing UI plus persistent Last Export and Last Import result panels with compact created/updated/unchanged/removed/warning/error summaries.
 - Simplified long-running progress wording to parts and items checked, kept unknown totals explicit, and deliberately omitted unproven ETA calculations.

@@ -28,6 +28,7 @@ YAML is the deployable source of truth for managed configuration. Local state ta
 The extension is intentionally conservative.
 
 - Fresh installs begin with configuration types set to **Ignore** until an administrator chooses what to manage or monitor.
+- A true uninstall/reinstall clears Configuration Manager scope/dependency caches, watch/health history, and stale Last Export/Last Import browser state; disable/enable and normal upgrades preserve configured state. Filesystem location, site identity, ignore rules, allowlists, cross-site policy, and `civicrm.settings.php` overrides are not reset by this lifecycle cleanup.
 - Import always performs a complete non-writing preflight first.
 - Site identity, dependencies, possible renames, provider capabilities, and unsafe identities are checked before writes.
 - Weak or ambiguous identities remain export/compare or monitor-only.

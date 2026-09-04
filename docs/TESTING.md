@@ -192,6 +192,7 @@ In addition to the alpha58 scope safety checks, verify:
 In addition to the existing scope and provider checks, verify:
 
 - A genuinely fresh install sets the unconfigured scope default to `Ignore`; no configuration type is exported, imported, deleted, or watched until an administrator opts it in.
+- Uninstall followed by reinstall clears persisted scope/dependency resolution, watch/health operational state, and stale Last Export/Last Import session summaries; disable/enable and normal upgrades preserve configured state, and code-owned `civicrm.settings.php` scope remains authoritative.
 - On Synchronize, an all-Ignore or empty-selected scope must show **Setup Required**, never **In Sync**; managed Export/Import/Validate controls and the watch-scan action must be absent until their corresponding scope is configured.
 - A watch-only scope must show **Monitoring Only** and keep **Scan Watched Config** available without implying that a managed YAML baseline exists.
 - A managed scope with no YAML baseline must show **Initial Export Required**; **In Sync** is valid only after a managed baseline exists and the managed diff is empty.

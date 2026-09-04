@@ -1,6 +1,7 @@
 <?php
 namespace Civi\ConfigManager\UI;
 use Civi\ConfigManager\Service\ConfigManager;
+use Civi\ConfigManager\Service\LifecycleStateCleaner;
 use Civi\ConfigManager\Service\QueuedOperationService;
 use Exception;
 use RuntimeException;
@@ -836,9 +837,18 @@ class MainPage {
     // legacy-tree check. Other tabs use only the cheap current manifest marker
     // and never recursively walk the YAML tree just to render the header. A
     // baseline is meaningful only after at least one managed scope exists.
+    $hasCurrentManifest = $this->manager->hasCurrentManifest();
     $initialExportRequired = $managedScopeConfigured && (in_array($op, ['sync', 'import'], TRUE)
       ? !empty($diffResult['initial_export_required'])
-      : !$this->manager->hasCurrentManifest());
+      : !$hasCurrentManifest);
+    if (!$hasCurrentManifest) {
+      // A browser session can outlive an uninstall/reinstall performed through
+      // CLI. Never render operation history from a configuration baseline that
+      // no longer exists, even before a new managed scope has been selected.
+      LifecycleStateCleaner::clearTransientSessionState();
+      $exportResult = NULL;
+      $importSummary = NULL;
+    }
     $watchSummary = $this->manager->getWatchSummary();
     $watchHistory = $this->manager->getWatchHistory();
     $watchDetectedCount = (int) ($watchSummary['new'] ?? 0) + (int) ($watchSummary['changed'] ?? 0) + (int) ($watchSummary['missing'] ?? 0);
