@@ -101,43 +101,6 @@ final class CoreEntityDefinitions {
         'delete_missing' => FALSE,
         'weight' => 40,
       ],
-      'profile-fields' => [
-        'provider' => 'civicrm-core',
-        'label' => 'Profile Fields',
-        'api_version' => 4,
-        'entity' => 'UFField',
-        'path' => 'profiles/fields',
-        // field_name is only unique within a profile. The joined machine name
-        // keeps matching portable when local UFGroup IDs differ by site.
-        'key_fields' => ['uf_group_id.name', 'field_name'],
-        'export_fields' => [
-          'uf_group_id', 'uf_group_id.name', 'field_name', 'is_active',
-          'is_view', 'is_required', 'weight', 'help_post', 'help_pre',
-          'visibility', 'in_selector', 'is_searchable', 'location_type_id',
-          'label', 'field_type', 'is_reserved', 'is_multi_summary',
-        ],
-        'reference_fields' => [
-          'uf_group_id' => [
-            'entity' => 'UFGroup',
-            'id_field' => 'id',
-            'key_fields' => ['name'],
-            'dependency_type' => 'profiles',
-          ],
-          'location_type_id' => [
-            'entity' => 'LocationType',
-            'id_field' => 'id',
-            'key_fields' => ['name'],
-            'dependency_type' => 'location-types',
-          ],
-        ],
-        'order_by' => ['uf_group_id.name' => 'ASC', 'weight' => 'ASC', 'field_name' => 'ASC'],
-        'split_files' => TRUE,
-        'can_create' => TRUE,
-        'can_update' => TRUE,
-        'can_delete' => FALSE,
-        'delete_missing' => FALSE,
-        'weight' => 41,
-      ],
     ];
   }
 }

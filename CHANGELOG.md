@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha67.7-core
+
+- Fixed real-runtime Profile Field export collisions by moving UFField handling to a reviewed semantic adapter instead of assuming `profile + field_name` is unique. Repeated fields are distinguished by portable field type/location semantics, with label used only as a tie-breaker when necessary; local IDs never become canonical YAML identity.
+- Added collision-resistant Profile Field filenames derived from the full semantic identity and explicit duplicate-identity diagnostics with source IDs when the runtime data is still ambiguous.
+- Allowed legacy unnamed ReportInstance rows to use a guarded `report_id + title` fallback identity when `name` is blank, while still failing closed for missing report templates/providers or ambiguous fallback identities.
+- Improved duplicate export-path diagnostics to include existing/incoming configuration identities and source IDs when available, while preserving atomic staging and the guarantee that live YAML is untouched on failure.
+- Added focused regression coverage for repeated `phone` Profile Fields, semantic target matching, legacy unnamed Reports, and template-less Report fail-closed behavior.
+
+> **Evidence boundary:** the two observed export blockers are addressed in source and vendor-free behavioral smoke coverage. Full `composer qa:fast` and the real DEV export path must still be rerun in the maintainer DDEV environment before this checkpoint is treated as runtime-validated.
+
 ## 0.1.0-alpha67.6-core
 
 - Added reviewed portable configuration coverage for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances.

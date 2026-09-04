@@ -1,20 +1,20 @@
-# Configuration Manager 0.1.0-alpha67.6-core
+# Configuration Manager 0.1.0-alpha67.7-core
 
-Alpha67.6 lands an early source checkpoint for the client-required configuration coverage expansion without skipping the roadmap: Alpha68 remains the next planned milestone, while Alpha69 remains the later runtime-evidence/coverage-completion milestone. It adds conservative create/update support for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances without broadening generic CRUD authority.
+Alpha67.7 is the follow-up repair checkpoint for the early source coverage expansion for the client-required configuration coverage expansion without skipping the roadmap: Alpha68 remains the next planned milestone, while Alpha69 remains the later runtime-evidence/coverage-completion milestone. It adds conservative create/update support for Tags, Profiles/UF Groups, Profile Fields, Contact Layouts, and traditional CiviReport instances without broadening generic CRUD authority.
 
 ## Added coverage
 
 - Tags use stable `name` identity and semantic parent-tag references.
-- Profiles use UFGroup `name`; Profile Fields use the composite `uf_group_id.name + field_name` identity and semantic UFGroup/LocationType references.
+- Profiles use UFGroup `name`; Profile Fields use a reviewed repeated-field semantic identity adapter so multiple fields such as Home/Work phone can coexist without filename or identity collisions; UFGroup/LocationType IDs resolve only at the API boundary.
 - Contact Layouts translate known nested Group, Profile, Custom Group, and Relationship Type IDs to semantic references and fail closed on unknown scalar `*_id` shapes.
-- Report Instances use APIv3 with composite `report_id + name` identity and preserve saved criteria plus explicit access/activation settings included in the reviewed projection.
+- Report Instances prefer APIv3 `report_id + name` identity and use a guarded `report_id + title` fallback for legacy unnamed rows when unambiguous, while preserving saved criteria plus explicit access/activation settings.
 
 ## Safety boundary
 
 - Delete-missing is disabled for every newly added family.
 - Entity-tag assignments, profile submissions, report output, contacts, contributions, memberships, activities, participants, grants, and other business/transactional rows are outside these handlers.
 - Contact Layout duplicate labels and unknown nested local-ID shapes fail closed.
-- Report instances without complete `report_id + name` identity fail export instead of disappearing silently.
+- Report instances missing `report_id`, blank name+title, or ambiguous fallback identity fail export instead of being guessed or silently omitted.
 - Report navigation IDs and delivery-recipient fields are not automatically managed in this checkpoint.
 
 ## Browser QA

@@ -51,6 +51,34 @@ final class Alpha63WorkspaceTest extends TestCase {
     self::assertTrue($second->files()['civirules/actions/one.yml']['monitor_only']);
   }
 
+  /** Requirement: duplicate-path failures must identify both colliding objects without changing live YAML. */
+  public function testDuplicatePathDiagnosticIncludesIdentitiesAndSourceIds(): void {
+    $live = new YamlFileStorage($this->root . '/live');
+    $workspace = new StagedExportWorkspace($live, $this->root . '/job/export', FALSE);
+    $workspace->stage('profile-fields', 'profiles/fields', 'same.yml', ['item' => ['label' => 'Home']], [
+      'config_key' => 'profile=summary|field=phone|location=Home',
+      'source_id' => '201',
+    ]);
+
+    try {
+      $workspace->stage('profile-fields', 'profiles/fields', 'same.yml', ['item' => ['label' => 'Work']], [
+        'config_key' => 'profile=summary|field=phone|location=Work',
+        'source_id' => '202',
+      ]);
+      self::fail('Expected duplicate export path to fail closed.');
+    }
+    catch (\RuntimeException $e) {
+      self::assertStringContainsString('profiles/fields/same.yml', $e->getMessage());
+      self::assertStringContainsString('existing identity=profile=summary|field=phone|location=Home', $e->getMessage());
+      self::assertStringContainsString('incoming identity=profile=summary|field=phone|location=Work', $e->getMessage());
+      self::assertStringContainsString('existing source ID=201', $e->getMessage());
+      self::assertStringContainsString('incoming source ID=202', $e->getMessage());
+      self::assertStringContainsString('No live YAML was changed', $e->getMessage());
+    }
+
+    self::assertSame([], iterator_to_array($live->iterateYamlPaths(), false));
+  }
+
   public function testDurablePublishJournalRestoresHardInterruptedSnapshot(): void {
     $live = new YamlFileStorage($this->root . '/live');
     $live->writeRaw('', 'existing.yml', "original\n");

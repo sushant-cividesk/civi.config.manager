@@ -15,6 +15,7 @@ use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 use Civi\ConfigManager\Handler\ReportInstanceHandler;
 use Civi\ConfigManager\Handler\ContactLayoutHandler;
 use Civi\ConfigManager\Handler\TagHandler;
+use Civi\ConfigManager\Handler\ProfileFieldHandler;
 
 class HandlerRegistry {
   private array $registrationDiagnostics = [];
@@ -49,6 +50,7 @@ class HandlerRegistry {
       new GenericApi4CollectionHandler('searchkit-saved-searches', 'SearchKit Saved Searches', 'searchkit/saved-searches', 'SavedSearch', ['name', 'label', 'api_entity', 'api_params', 'description', 'mapping_id', 'is_template', 'is_active'], ['name' => 'ASC'], 120, 'saved-searches.yml', TRUE),
       new GenericApi4CollectionHandler('searchkit-displays', 'SearchKit Displays', 'searchkit/displays', 'SearchDisplay', ['name', 'label', 'saved_search_id', 'saved_search_id.name', 'type', 'settings', 'acl_bypass', 'is_active'], ['name' => 'ASC'], 130, 'displays.yml', TRUE),
       new TagHandler(),
+      new ProfileFieldHandler(),
       new GenericApi4CollectionHandler('formbuilder-afforms', 'FormBuilder Afforms', 'formbuilder/afforms', 'Afform', ['name', 'title', 'type', 'server_route', 'permission', 'permission_operator', 'is_public', 'is_token', 'is_dashlet', 'is_active', 'layout'], ['name' => 'ASC'], 140, 'afforms.yml', TRUE),
       new ContactLayoutHandler(),
       new ReportInstanceHandler(),

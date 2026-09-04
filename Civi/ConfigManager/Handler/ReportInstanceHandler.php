@@ -28,7 +28,7 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
       'entity' => 'ReportInstance',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
       'field_names' => self::FIELDS,
-      'identity_fields' => ['report_id', 'name'],
+      'identity_fields' => ['report_id', 'name|title'],
       'reference_fields' => [],
       'sensitive_fields' => [],
       'runtime_fields' => ['id', 'navigation_id'],
@@ -74,21 +74,26 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
   }
 
   public function iterateExport(): iterable {
+    $seen = [];
     foreach ($this->iterateApi3Rows() as $row) {
-      $row = $this->cleanRow((array) $row);
-      $reportId = trim((string) ($row['report_id'] ?? ''));
-      $name = trim((string) ($row['name'] ?? ''));
-      if ($reportId === '' || $name === '') {
-        throw new \RuntimeException('ReportInstance requires portable report_id + name identity; an unnamed or template-less report cannot be exported safely.');
+      $raw = (array) $row;
+      $sourceId = isset($raw['id']) && is_scalar($raw['id']) ? (int) $raw['id'] : NULL;
+      $row = $this->cleanRow($raw);
+      $identity = $this->portableIdentity($row, $sourceId);
+      if (isset($seen[$identity['key']])) {
+        throw new \RuntimeException('ReportInstance portable identity is not unique: ' . $identity['key'] . '; source IDs ' . (string) $seen[$identity['key']] . ' and ' . (string) ($sourceId ?? 'unknown') . '. No live YAML was changed.');
       }
+      $seen[$identity['key']] = $sourceId ?? 'unknown';
       yield [
-        'filename' => $this->safeFilePart($reportId) . '__' . $this->safeFilePart($name) . '.yml',
+        'filename' => $this->safeFilePart($identity['report_id']) . '__' . $this->safeFilePart($identity['value']) . '--' . substr(sha1($identity['key']), 0, 10) . '.yml',
+        'source_id' => $sourceId,
         'data' => [
           'schema_version' => 1,
           'type' => 'report-instances.item',
           'entity' => 'ReportInstance',
-          'key_fields' => ['report_id', 'name'],
-          'key' => 'report_id=' . $reportId . '|name=' . $name,
+          'key_fields' => $identity['fields'],
+          'key' => $identity['key'],
+          'identity_mode' => $identity['mode'],
           'capabilities' => ['create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
           'dependencies' => [],
           'item' => $row,
@@ -106,8 +111,11 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
         continue;
       }
       $row = (array) ($document['item'] ?? []);
-      if (trim((string) ($row['report_id'] ?? '')) === '' || trim((string) ($row['name'] ?? '')) === '') {
-        $errors[] = ['file' => $filename, 'message' => 'Report instance is missing portable report_id + name identity.'];
+      try {
+        $this->portableIdentity($row, NULL);
+      }
+      catch (\Throwable $e) {
+        $errors[] = ['file' => $filename, 'message' => $e->getMessage()];
       }
       foreach (['id', 'navigation_id', 'email_to', 'email_cc'] as $forbidden) {
         if (array_key_exists($forbidden, $row)) {
@@ -129,20 +137,19 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     $summary = ['type' => $this->getType(), 'status' => $dryRun ? 'dry_run' : 'applied', 'dry_run' => $dryRun, 'create' => 0, 'update' => 0, 'delete' => 0, 'skip' => 0, 'warnings' => [], 'errors' => []];
     foreach ($items as $filename => $document) {
       $row = $this->cleanRow((array) ($document['item'] ?? []));
-      $reportId = trim((string) ($row['report_id'] ?? ''));
-      $name = trim((string) ($row['name'] ?? ''));
-      if (($document['type'] ?? '') !== 'report-instances.item' || $reportId === '' || $name === '') {
-        $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid report instance document or missing report_id + name identity.'];
+      if (($document['type'] ?? '') !== 'report-instances.item') {
+        $summary['errors'][] = ['file' => $filename, 'message' => 'Invalid report instance document.'];
         continue;
       }
       try {
-        $existing = $this->findByIdentity($reportId, $name);
+        $identity = $this->portableIdentity($row, NULL);
+        $existing = $this->findByIdentity($identity);
         if ($existing) {
           if ($this->desiredDiffers($existing, $row)) {
             $summary['update']++;
             if (!$dryRun) {
               if (empty($existing['id'])) {
-                throw new \RuntimeException('Existing report instance has no local ID for update: ' . $name);
+                throw new \RuntimeException('Existing report instance has no local ID for update: ' . $identity['key']);
               }
               $this->api3('ReportInstance', 'create', $row + ['id' => $existing['id'], 'sequential' => 1]);
             }
@@ -159,7 +166,7 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
         }
       }
       catch (\Throwable $e) {
-        $summary['errors'][] = ['file' => $filename, 'name' => $name, 'message' => $e->getMessage()];
+        $summary['errors'][] = ['file' => $filename, 'name' => (string) ($row['name'] ?? $row['title'] ?? ''), 'message' => $e->getMessage()];
       }
     }
     $summary['ok'] = !$summary['errors'];
@@ -200,13 +207,61 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     return (array) civicrm_api3($entity, $action, $params);
   }
 
-  private function findByIdentity(string $reportId, string $name): array {
-    $result = $this->api3('ReportInstance', 'get', ['sequential' => 1, 'report_id' => $reportId, 'name' => $name, 'return' => array_merge(['id'], self::FIELDS), 'options' => ['limit' => 2]]);
+  /** @param array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} $identity */
+  private function findByIdentity(array $identity): array {
+    $params = [
+      'sequential' => 1,
+      'report_id' => $identity['report_id'],
+      'return' => array_merge(['id'], self::FIELDS),
+      'options' => ['limit' => 3],
+    ];
+    if ($identity['mode'] === 'name') {
+      $params['name'] = $identity['value'];
+    }
+    else {
+      $params['title'] = $identity['value'];
+    }
+    $result = $this->api3('ReportInstance', 'get', $params);
     $rows = array_values((array) ($result['values'] ?? []));
+    if ($identity['mode'] === 'legacy-title') {
+      $rows = array_values(array_filter($rows, static function($row): bool {
+        return trim((string) ((array) $row)['name'] ?? '') === '';
+      }));
+    }
     if (count($rows) > 1) {
-      throw new \RuntimeException('ReportInstance report_id + name identity is not unique on the target site: ' . $reportId . ' / ' . $name);
+      throw new \RuntimeException('ReportInstance portable identity is ambiguous on the target site: ' . $identity['key'] . '.');
     }
     return isset($rows[0]) ? (array) $rows[0] : [];
+  }
+
+  /** @return array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} */
+  private function portableIdentity(array $row, ?int $sourceId): array {
+    $reportId = trim((string) ($row['report_id'] ?? ''));
+    $name = trim((string) ($row['name'] ?? ''));
+    $title = trim((string) ($row['title'] ?? ''));
+    $source = $sourceId === NULL ? '' : ' Source ID: ' . $sourceId . '.';
+    if ($reportId === '') {
+      throw new \RuntimeException('ReportInstance is missing report_id (report template/provider), so it cannot be managed portably.' . $source . ' No live YAML was changed.');
+    }
+    if ($name !== '') {
+      return [
+        'mode' => 'name',
+        'fields' => ['report_id', 'name'],
+        'key' => 'report_id=' . $reportId . '|name=' . $name,
+        'report_id' => $reportId,
+        'value' => $name,
+      ];
+    }
+    if ($title === '') {
+      throw new \RuntimeException('ReportInstance has neither a portable name nor a title fallback.' . $source . ' No live YAML was changed.');
+    }
+    return [
+      'mode' => 'legacy-title',
+      'fields' => ['report_id', 'title'],
+      'key' => 'report_id=' . $reportId . '|title=' . $title,
+      'report_id' => $reportId,
+      'value' => $title,
+    ];
   }
 
   private function cleanRow(array $row): array {

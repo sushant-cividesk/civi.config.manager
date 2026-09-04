@@ -27,7 +27,7 @@ The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATU
 2. Alpha66: read-only generic provider inventory and safe admission pipeline.
 3. Alpha67: Settings/inventory counts, grouping, lazy loading, accessibility, and provider explanations.
 4. Alpha68: immutable plans, dependency components, safe reduced-plan workflow, and blocker UI/API4/CLI consistency.
-5. Alpha69: complete the runtime evidence/compatibility gate for the Tags, Profiles, Contact Layouts, and traditional Reports source support that landed early in alpha67.6.
+5. Alpha69: complete the runtime evidence/compatibility gate for the Tags, Profiles, Contact Layouts, and traditional Reports source support that landed early in alpha67.7.
 6. Beta2: compatibility, upgrade, cross-environment, browser, mutation, packaging, and explicit release approval gates.
 
 ## Current command strategy

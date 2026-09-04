@@ -2605,6 +2605,7 @@ class ConfigManager {
       'hash' => (string) ($compact['hash'] ?? ''),
       'monitor_only' => !empty($data['monitor_only']) || (($data['identity_confidence'] ?? '') === ConfigIdentity::AMBIGUOUS),
       'document_type' => (string) ($data['type'] ?? ''),
+      'source_id' => isset($file['source_id']) && is_scalar($file['source_id']) ? (string) $file['source_id'] : '',
     ];
     if (($data['type'] ?? '') === 'extension_config.item') {
       $metadata['extension'] = (string) ($data['extension'] ?? '');

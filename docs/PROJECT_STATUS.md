@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha67.6-core` |
+| Active development line | `0.1.0-alpha67.7-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -97,12 +97,12 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 
 ### Alpha69 — coverage expansion
 
-> Source support for these families landed early in `0.1.0-alpha67.6-core`. This does **not** mean Alpha68 or Alpha69 was completed out of sequence: Alpha68 remains the next roadmap milestone, and the Alpha69 items remain open until their runtime/compatibility evidence is satisfied.
+> Source support for these families landed early in `0.1.0-alpha67.7-core`. This does **not** mean Alpha68 or Alpha69 was completed out of sequence: Alpha68 remains the next roadmap milestone, and the Alpha69 items remain open until their runtime/compatibility evidence is satisfied.
 
 - [ ] A69-01 Tags: **source implementation complete; awaiting runtime evidence.** Metadata-driven API4 management uses stable `name` identity and semantic parent-tag references. Create/update is enabled; delete-missing remains disabled. A disposable DEV → target round trip plus entity-tag/business-data preservation proof is still required.
-- [ ] A69-02 Profiles/UF Groups and Profile Fields: **source implementation complete; awaiting runtime evidence.** Profiles use stable `name`; Profile Fields use `uf_group_id.name + field_name`; UF Group and Location Type references resolve semantically. Create/update is enabled and delete-missing remains disabled. Real component/version fixtures and independent final-state proof remain required.
+- [ ] A69-02 Profiles/UF Groups and Profile Fields: **source implementation complete; awaiting runtime evidence.** Profiles use stable `name`; Profile Fields now use a reviewed repeated-field identity adapter with semantic Profile/field/location/type qualifiers and label only as an ambiguity tie-breaker; UF Group and Location Type references resolve semantically. Create/update is enabled and delete-missing remains disabled. Real component/version fixtures and independent final-state proof remain required.
 - [ ] A69-03 Contact Layouts: **reviewed adapter implemented; awaiting real contrib-version evidence.** Known nested Group/Profile/Custom Group/Relationship Type IDs are converted to semantic references; unknown nested `*_id` values fail closed. Duplicate labels block portability and delete-missing is disabled.
-- [ ] A69-04 traditional Reports/Report Instances: **reviewed APIv3 adapter implemented; awaiting runtime evidence.** Portable identity is the CiviCRM schema identity `report_id + name`; saved criteria, permission, group-role, activation, and reservation settings are managed conservatively. Runtime/local IDs and delivery-recipient fields remain outside automatic management; delete-missing is disabled.
+- [ ] A69-04 traditional Reports/Report Instances: **reviewed APIv3 adapter implemented; awaiting runtime evidence.** Portable identity prefers `report_id + name` and uses guarded `report_id + title` only for legacy unnamed instances; saved criteria, permission, group-role, activation, and reservation settings are managed conservatively. Runtime/local IDs and delivery-recipient fields remain outside automatic management; delete-missing is disabled.
 - [ ] A69-05 Add provider-specific real-runtime tests for every newly advertised capability, including different local IDs, independent post-import queries/re-export, business-data preservation, and deliberate mutation/red evidence. **Not yet satisfied.**
 
 ### Beta2 release gate
@@ -123,6 +123,9 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 |---|---|---|---|---|
 | BLK-001 | OptionValue stable value `3` appears with a changed email-like machine name | Full preflight blocks rename and delete-missing | Real-runtime zero-write proof; later component-aware explanation/exclusion only if safe | Test added; runtime evidence pending |
 | UX-001 | Extension warning says it is not automatically uninstalled while preview card says “Remove from CiviCRM” with zero fields | Confusing but safety text is present | One consistent non-actionable/monitor-only label and reason | Planned A68-08 |
+| BLK-002 | Runtime export produced duplicate path `profiles/fields/summary_overlay__phone.yml` because `profile + field_name` was not unique for repeated UFFields | Export stopped atomically; no live YAML changed | Dedicated semantic Profile Field identity adapter plus regression/runtime proof | Source fix in alpha67.7; DEV rerun pending |
+| BLK-003 | Runtime export encountered an unnamed ReportInstance and the strict `report_id + name` rule aborted the whole export | Export stopped atomically; no live YAML changed | Guarded `report_id + title` fallback for legacy unnamed rows; still block missing template/provider or ambiguous fallback | Source fix in alpha67.7; DEV rerun pending |
+| UX-002 | Export failures were safe but too opaque for operators (no offending object/source identity or clear remediation) | Raw exception text only | Standard structured severity/context/cause/remediation across UI, CLI, API, and logs without weakening fail-closed behavior | Partially improved in alpha67.7 duplicate-path diagnostics; broader UX work planned |
 | QA-001 | Source-string contracts can stay green while runtime behavior is broken | Kept as architecture lint | Independent behavioral, real-runtime, mutation, and browser gates | In progress |
 | CI-001 | Supplied PHP 8.1 workflow failed only because Packagist advisory download returned HTTP 502 | Direct `composer audit` failed on transient service outage | Retry only transport/408/425/429/5xx errors; advisories/unknown errors fail closed | Wrapper implemented and shell-tested |
 | CI-002 | `composer qa:fast` failed in `mutation-provider-inventory.sh` with `PHP Parse error: unexpected call_user_func` | Bash ANSI-C quoting stopped interpreting later `\n` escapes after embedded single-quote fragments, so the mutation itself contained literal `\n` text | Build the needle/replacement as literal heredoc strings; require exactly one replacement; syntax-check mutated and restored source before PHPUnit | Harness fixed 2026-09-03; mutation syntax proof passed; behavioral red/green awaits PHPUnit dependencies |

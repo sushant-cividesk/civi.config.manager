@@ -1,7 +1,7 @@
 # Alpha69 Coverage Expansion Design
 
 Date: 2026-09-03
-Status: Approved design; source support partially landed early in `0.1.0-alpha67.6-core`; Alpha69 runtime/compatibility gates remain pending
+Status: Approved design; source support partially landed early in `0.1.0-alpha67.7-core`; Alpha69 runtime/compatibility gates remain pending
 Target series: `0.1.0-alpha69.x-core`
 
 ## Purpose

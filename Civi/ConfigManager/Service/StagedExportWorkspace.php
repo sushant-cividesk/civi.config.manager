@@ -53,7 +53,22 @@ class StagedExportWorkspace {
   public function stage(string $type, string $directory, string $filename, array $data, array $metadata = []): string {
     $relative = $this->relative($directory, $filename);
     if (isset($this->files[$relative])) {
-      throw new \RuntimeException('Duplicate export path detected: ' . $relative . '. Two active configuration objects cannot share one YAML path. No live YAML was changed.');
+      $existing = (array) $this->files[$relative];
+      $existingIdentity = trim((string) ($existing['config_key'] ?? ''));
+      $incomingIdentity = trim((string) ($metadata['config_key'] ?? ''));
+      $existingSource = trim((string) ($existing['source_id'] ?? ''));
+      $incomingSource = trim((string) ($metadata['source_id'] ?? ''));
+      $details = [];
+      if ($existingIdentity !== '' || $incomingIdentity !== '') {
+        $details[] = 'existing identity=' . ($existingIdentity !== '' ? $existingIdentity : '[unknown]')
+          . '; incoming identity=' . ($incomingIdentity !== '' ? $incomingIdentity : '[unknown]');
+      }
+      if ($existingSource !== '' || $incomingSource !== '') {
+        $details[] = 'existing source ID=' . ($existingSource !== '' ? $existingSource : '[unknown]')
+          . '; incoming source ID=' . ($incomingSource !== '' ? $incomingSource : '[unknown]');
+      }
+      $suffix = $details ? ' ' . implode('. ', $details) . '.' : '';
+      throw new \RuntimeException('Duplicate export path detected: ' . $relative . '. Two active configuration objects cannot share one YAML path.' . $suffix . ' No live YAML was changed.');
     }
     $this->stage->write($directory, $filename, $data);
     $this->files[$relative] = array_merge([

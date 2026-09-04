@@ -74,11 +74,11 @@ Built-in handlers cover the core configuration used by most CiviCRM deployments,
 - SearchKit Saved Searches and Displays
 - FormBuilder Afforms
 - Contact Layouts when the Contact Layout Editor provider is available; known nested local references are translated semantically
-- Traditional CiviReport instances using `report_id + name` portable identity
+- Traditional CiviReport instances using `report_id + name` identity, with a guarded `report_id + title` fallback for legacy unnamed instances
 - Site Tokens
 - CiviRules configuration where portable identity is proven
 
-Capability is evaluated at runtime. A readable provider is not automatically considered write-safe. The early coverage-expansion work in alpha67.6 adds Tags, Profiles/Profile Fields, Contact Layouts, and Report Instances with reviewed create/update behavior only; delete-missing remains disabled until the future Alpha69 runtime-evidence gate is satisfied.
+Capability is evaluated at runtime. A readable provider is not automatically considered write-safe. The early coverage-expansion work in alpha67.7 adds Tags, Profiles/Profile Fields, Contact Layouts, and Report Instances with reviewed create/update behavior only; delete-missing remains disabled until the future Alpha69 runtime-evidence gate is satisfied.
 
 ## Config Ignore
 

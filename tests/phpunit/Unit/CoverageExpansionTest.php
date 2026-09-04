@@ -6,6 +6,7 @@ namespace Civi\ConfigManager\Tests\Unit;
 
 use Civi\ConfigManager\Handler\ContactLayoutHandler;
 use Civi\ConfigManager\Handler\ReportInstanceHandler;
+use Civi\ConfigManager\Handler\ProfileFieldHandler;
 use Civi\ConfigManager\Handler\TagHandler;
 use Civi\ConfigManager\Service\CoreEntityDefinitions;
 use Civi\ConfigManager\Service\HandlerRegistry;
@@ -27,11 +28,7 @@ final class CoverageExpansionTest extends TestCase {
     self::assertFalse($tag['delete_missing']);
 
     self::assertSame(['name'], $definitions['profiles']['key_fields']);
-    self::assertSame(['uf_group_id.name', 'field_name'], $definitions['profile-fields']['key_fields']);
-    self::assertSame('UFGroup', $definitions['profile-fields']['reference_fields']['uf_group_id']['entity']);
-    self::assertSame('LocationType', $definitions['profile-fields']['reference_fields']['location_type_id']['entity']);
-    self::assertNotContains('phone_type_id', $definitions['profile-fields']['export_fields']);
-    self::assertNotContains('website_type_id', $definitions['profile-fields']['export_fields']);
+    self::assertArrayNotHasKey('profile-fields', $definitions, 'Profile Fields require the dedicated reviewed identity adapter.');
   }
 
   /**
@@ -107,6 +104,41 @@ final class CoverageExpansionTest extends TestCase {
   }
 
   /**
+   * Requirement: two Profile Fields with the same field_name in one Profile
+   * must export to distinct portable paths when their semantic qualifiers differ.
+   */
+  public function testProfileFieldsWithSameFieldNameExportDistinctPortablePaths(): void {
+    $handler = new CoverageExpansionProfileFieldFixture();
+    $files = $handler->export();
+
+    self::assertCount(2, $files);
+    self::assertNotSame($files[0]['data']['key'], $files[1]['data']['key']);
+    self::assertNotSame($files[0]['filename'], $files[1]['filename']);
+    self::assertStringContainsString('summary_overlay__phone', $files[0]['filename']);
+    self::assertStringContainsString('summary_overlay__phone', $files[1]['filename']);
+    self::assertSame('Home', $files[0]['data']['item']['location_type_id']['key']['name']);
+    self::assertSame('Work', $files[1]['data']['item']['location_type_id']['key']['name']);
+    self::assertArrayNotHasKey('id', $files[0]['data']['item']);
+    self::assertArrayNotHasKey('id', $files[1]['data']['item']);
+  }
+
+  /** Requirement: Profile Field import must resolve semantic profile/location references at the API boundary. */
+  public function testProfileFieldImportMatchesSemanticQualifierInsteadOfFirstPhoneField(): void {
+    $handler = new CoverageExpansionProfileFieldFixture();
+    $files = $handler->export();
+    $work = $files[1]['data'];
+    $work['item']['label'] = 'Work telephone';
+
+    $result = $handler->import(['work-phone.yml' => $work], FALSE);
+
+    self::assertTrue($result['ok']);
+    self::assertSame(1, $result['update']);
+    self::assertSame(202, $handler->lastUpdatedId);
+    self::assertSame(9, $handler->lastUpdateValues['location_type_id']);
+    self::assertSame(11, $handler->lastUpdateValues['uf_group_id']);
+  }
+
+  /**
    * Requirement: report YAML must match by stable name and never persist the
    * target site's numeric ReportInstance ID.
    */
@@ -131,11 +163,38 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame('member_summary', $handler->lastCreateParams['name']);
   }
 
-  /** Requirement: a report without complete semantic identity must fail export, not disappear silently. */
-  public function testReportExportFailsClosedWithoutCompositeIdentity(): void {
+  /** Requirement: legacy unnamed reports with a template and title must remain exportable without local IDs. */
+  public function testUnnamedReportUsesGuardedTitleFallbackIdentity(): void {
+    $export = (new CoverageExpansionUnnamedReportFixture())->export();
+
+    self::assertCount(1, $export);
+    self::assertSame('legacy-title', $export[0]['data']['identity_mode']);
+    self::assertSame(['report_id', 'title'], $export[0]['data']['key_fields']);
+    self::assertSame('report_id=contact/summary|title=Unnamed report', $export[0]['data']['key']);
+    self::assertArrayNotHasKey('id', $export[0]['data']['item']);
+  }
+
+  /** Requirement: title-fallback identity must update the matching unnamed report instead of creating another one. */
+  public function testUnnamedReportFallbackUpdatesExistingUnnamedInstance(): void {
+    $handler = new CoverageExpansionUnnamedReportFixture();
+    $document = $handler->export()[0]['data'];
+    $document['item']['description'] = 'Updated legacy report';
+
+    $result = $handler->import(['legacy.yml' => $document], FALSE);
+
+    self::assertTrue($result['ok']);
+    self::assertSame(1, $result['update']);
+    self::assertSame(82, $handler->lastCreateParams['id']);
+    self::assertSame('', $handler->lastCreateParams['name']);
+    self::assertSame('Unnamed report', $handler->lastCreateParams['title']);
+  }
+
+  /** Requirement: a report with no report template/provider must still fail closed with actionable context. */
+  public function testReportWithoutTemplateStillFailsClosed(): void {
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('report_id + name identity');
-    (new CoverageExpansionUnnamedReportFixture())->export();
+    $this->expectExceptionMessage('missing report_id');
+    $this->expectExceptionMessage('Source ID: 83');
+    (new CoverageExpansionTemplateLessReportFixture())->export();
   }
 
   /**
@@ -224,6 +283,59 @@ final class CoverageExpansionTagFixture extends TagHandler {
   }
 }
 
+final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
+  public ?int $lastUpdatedId = NULL;
+  public array $lastUpdateValues = [];
+
+  protected function api4Iterate(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): \Generator {
+    foreach ($this->profileRows() as $row) {
+      yield $row;
+    }
+  }
+
+  protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
+    if ($entity !== 'UFField') return [];
+    return $this->profileRows();
+  }
+
+  protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
+    $value = $where[0][2] ?? NULL;
+    if ($entity === 'UFGroup') {
+      if (($where[0][0] ?? '') === 'id' && (int) $value === 11) return ['id' => 11, 'name' => 'summary_overlay'];
+      if (($where[0][0] ?? '') === 'name' && $value === 'summary_overlay') return ['id' => 11, 'name' => 'summary_overlay'];
+    }
+    if ($entity === 'LocationType') {
+      if ((string) $value === '8' || $value === 'Home') return ['id' => 8, 'name' => 'Home'];
+      if ((string) $value === '9' || $value === 'Work') return ['id' => 9, 'name' => 'Work'];
+    }
+    return NULL;
+  }
+
+  protected function api4Update(string $entity, array $where, array $values): array {
+    $this->lastUpdatedId = (int) ($where[0][2] ?? 0);
+    $this->lastUpdateValues = $values;
+    return $values;
+  }
+
+  protected function api4Create(string $entity, array $values): array {
+    return $values;
+  }
+
+  /** @return array<int,array<string,mixed>> */
+  private function profileRows(): array {
+    return [
+      [
+        'id' => 201, 'uf_group_id' => 11, 'field_name' => 'phone', 'label' => 'Home phone',
+        'field_type' => 'Contact', 'location_type_id' => 8, 'weight' => 1, 'is_active' => 1,
+      ],
+      [
+        'id' => 202, 'uf_group_id' => 11, 'field_name' => 'phone', 'label' => 'Work phone',
+        'field_type' => 'Contact', 'location_type_id' => 9, 'weight' => 2, 'is_active' => 1,
+      ],
+    ];
+  }
+}
+
 final class CoverageExpansionReportFixture extends ReportInstanceHandler {
   public array $lastCreateParams = [];
 
@@ -269,6 +381,8 @@ final class CoverageExpansionReportFixture extends ReportInstanceHandler {
 }
 
 final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler {
+  public array $lastCreateParams = [];
+
   protected function api3(string $entity, string $action, array $params): array {
     if ($action === 'get') {
       return ['values' => [[
@@ -276,11 +390,28 @@ final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler 
         'name' => '',
         'title' => 'Unnamed report',
         'report_id' => 'contact/summary',
+        'description' => '',
         'permission' => 'access CiviReport',
         'grouprole' => '',
         'is_active' => 1,
         'is_reserved' => 0,
         'form_values' => [],
+      ]]];
+    }
+    if ($action === 'create') {
+      $this->lastCreateParams = $params;
+      return ['values' => [$params]];
+    }
+    return ['values' => ['get' => [], 'create' => []]];
+  }
+}
+
+final class CoverageExpansionTemplateLessReportFixture extends ReportInstanceHandler {
+  protected function api3(string $entity, string $action, array $params): array {
+    if ($action === 'get') {
+      return ['values' => [[
+        'id' => 83, 'name' => 'broken_report', 'title' => 'Broken report', 'report_id' => '',
+        'permission' => 'access CiviReport', 'grouprole' => '', 'is_active' => 1, 'is_reserved' => 0, 'form_values' => [],
       ]]];
     }
     return ['values' => ['get' => [], 'create' => []]];
