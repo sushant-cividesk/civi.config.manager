@@ -38,6 +38,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame(0, $full->exportCalls);
     self::assertSame(0, $readonly->exportCalls);
     self::assertSame('full', $rows[0]['capability']);
+    self::assertSame('Managed', $rows[0]['capability_label']);
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
@@ -171,14 +172,37 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame(0, $handler->exportCalls);
   }
 
+  /**
+   * Requirement: a provider that deliberately disables delete-missing must
+   * never be presented as if it has the same management capability as a
+   * provider whose full write policy is enabled.
+   */
+  public function testManagedNoDeleteProviderGetsCreateUpdateCapability(): void {
+    $handler = new ScopeUiManagedNoDeleteFixtureHandler('safe-update-only', 'Safe Update Only');
+    $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
+
+    $rows = $manager->getScopeTypeOptions();
+
+    self::assertSame('managed_no_delete', $rows[0]['capability']);
+    self::assertSame('Create + update', $rows[0]['capability_label']);
+    self::assertStringContainsString('removal', $rows[0]['capability_help']);
+    self::assertSame(0, $handler->exportCalls);
+  }
+
   public function testRuntimeWriteGapDowngradesFullHandlerToExportOnly(): void {
     $handler = new ScopeUiRuntimeExportOnlyFixtureHandler('partial-api4', 'Partial API4');
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
 
     $rows = $manager->getScopeTypeOptions();
+    $inventory = $manager->getProviderInventory();
+    $provider = array_values(array_filter($inventory['providers'], static function(array $row): bool {
+      return ($row['type'] ?? '') === 'partial-api4';
+    }))[0];
 
     self::assertSame('export_only', $rows[0]['capability']);
     self::assertStringContainsString('delete', $rows[0]['capability_help']);
+    self::assertSame('export_only', $provider['capability']);
+    self::assertSame('handler_export_only', $provider['capability_reason_code']);
     self::assertSame(0, $handler->exportCalls);
   }
 
@@ -739,6 +763,16 @@ final class ScopeUiFixtureRegistry extends HandlerRegistry {
   public function getHandlers(): array {
     return $this->handlers;
   }
+
+  public function getHandlerRegistrations(): array {
+    return array_values(array_map(static function($handler): array {
+      return ['handler' => $handler, 'registration_source' => 'core_handler'];
+    }, $this->handlers));
+  }
+
+  public function getRegistrationDiagnostics(): array {
+    return [];
+  }
 }
 
 final class ScopeUiFixtureHandler extends AbstractHandler {
@@ -831,6 +865,34 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
   public function export(): array { $this->exportCalls++; return []; }
 }
 
+final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
+  private string $type;
+  private string $label;
+  public int $exportCalls = 0;
+
+  public function __construct(string $type, string $label) {
+    $this->type = $type;
+    $this->label = $label;
+  }
+
+  public function getType(): string { return $this->type; }
+  public function getLabel(): string { return $this->label; }
+  public function getDirectory(): string { return $this->type; }
+  public function getWeight(): int { return 20; }
+  public function getProviderMetadata(): array {
+    return ['management_capability' => 'managed_no_delete'];
+  }
+  public function getRuntimeAvailability(): array {
+    return [
+      'available' => TRUE,
+      'management_capability' => 'managed_no_delete',
+      'reason' => 'Create/update is reviewed; automatic removal is disabled.',
+    ];
+  }
+  public function export(): array { $this->exportCalls++; return []; }
+  public function import(array $items, bool $dryRun = TRUE): array { return $this->baseImportSummary($dryRun); }
+}
+
 final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
   private string $type;
   private string $label;
@@ -845,6 +907,12 @@ final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
   public function getLabel(): string { return $this->label; }
   public function getDirectory(): string { return $this->type; }
   public function getWeight(): int { return 20; }
+  public function getProviderMetadata(): array {
+    return [
+      'owner' => 'civi.config.manager',
+      'management_capability' => 'full',
+    ];
+  }
   public function getRuntimeAvailability(): array {
     return [
       'available' => TRUE,

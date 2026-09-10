@@ -200,6 +200,7 @@ class Presenter {
         $configKey = (string) ($file['config_key'] ?? '');
         $file['possible_rename'] = $configKey !== '' ? ($renameByConfigKey[$configKey] ?? NULL) : NULL;
         $file['display_title'] = $this->displayTitleForFile($file);
+        $file['show_inline_path'] = !$this->isProfileFieldFile($file);
         $file['rows'] = [];
         foreach (($file['changes'] ?? []) as $change) {
           $changePath = (string) ($change['path'] ?? 'value');
@@ -245,6 +246,8 @@ class Presenter {
         'path' => $file['path'] ?? '',
         'type' => $type,
         'type_label' => $file['type_label'] ?? $type,
+        'display_title' => $file['display_title'] ?? $this->displayTitleForFile($file),
+        'show_inline_path' => $file['show_inline_path'] ?? !$this->isProfileFieldFile($file),
         'status' => $status,
         'change_count' => $file['change_count'] ?? 0,
         'rows' => $file['rows'] ?? [],
@@ -263,7 +266,7 @@ class Presenter {
           : ($providerWriteBlocked
             ? ts('This contributed configuration is safe to back up and compare, but its provider does not expose a write-safe portable identity on this site. Automatic restore is disabled.')
             : ($deleteBlocked
-              ? ts('This selected item has not been saved yet. It will not be removed automatically. Export it if you want to keep managing it.')
+              ? ts('Automatic removal is not enabled for this type. Export this item if you want to keep it managed.')
               : $this->importActionNote($status, $importable))),
       ];
     }
@@ -288,7 +291,7 @@ class Presenter {
       return ts('is saved but is not currently in CiviCRM');
     }
     if ($status === 'new_in_db') {
-      return ts('is in Current CiviCRM but has not been saved yet');
+      return ts('is ready to be exported to Saved Configs');
     }
     if ($status === 'changed') {
       return ts('has changed between the Saved Config and Current CiviCRM');
@@ -323,7 +326,7 @@ class Presenter {
     $syncState = (string) ($file['sync_state'] ?? '');
     $mergeState = (string) ($file['merge_state'] ?? '');
     if ($status === 'new_in_db') {
-      return ts('%1 is in Current CiviCRM but has not been saved yet.', [1 => $title]);
+      return ts('Export this item to add it to Saved Configs.');
     }
     if ($status === 'missing_in_db') {
       return ts('%1 is saved but is not currently in CiviCRM.', [1 => $title]);
@@ -413,6 +416,12 @@ class Presenter {
   private function displayTitleForFile(array $file): string {
     $path = (string) ($file['path'] ?? $file['file'] ?? '');
     $typeLabel = (string) ($file['type_label'] ?? $file['type'] ?? 'Configuration');
+    if ($this->isProfileFieldFile($file)) {
+      $profileFieldTitle = $this->profileFieldDisplayTitle($file);
+      if ($profileFieldTitle !== '') {
+        return $profileFieldTitle;
+      }
+    }
     $subject = $this->subjectFromFilePath($path, '');
     if ($subject !== '') {
       return $subject;
@@ -420,6 +429,54 @@ class Presenter {
     $base = preg_replace('/\.ya?ml$/i', '', basename($path));
     $base = $this->humanizeMachineName((string) $base);
     return $base !== '' ? $base : $typeLabel;
+  }
+
+  private function isProfileFieldFile(array $file): bool {
+    $type = (string) ($file['type'] ?? '');
+    $path = (string) ($file['path'] ?? $file['file'] ?? '');
+    return $type === 'profile-fields' || (bool) preg_match('#^profiles/fields/#', $path);
+  }
+
+  private function profileFieldDisplayTitle(array $file): string {
+    $configKey = (string) ($file['config_key'] ?? '');
+    if (preg_match('/\|key=(.+)$/', $configKey, $match)) {
+      // ConfigIdentity escapes percent before pipe, so decode in reverse order.
+      $identity = str_replace(['%7C', '%25'], ['|', '%'], (string) $match[1]);
+      $parts = [];
+      foreach (explode('|', $identity) as $part) {
+        $separator = strpos($part, '=');
+        if ($separator === FALSE) {
+          continue;
+        }
+        $parts[substr($part, 0, $separator)] = substr($part, $separator + 1);
+      }
+      $profile = trim((string) ($parts['profile'] ?? ''));
+      $label = trim((string) ($parts['label'] ?? ''));
+      $field = trim((string) ($parts['field'] ?? ''));
+      if ($profile !== '' && ($label !== '' || $field !== '')) {
+        return ts('Profile Field "%1" in "%2"', [
+          1 => $label !== '' ? $label : $this->humanizeMachineName($field),
+          2 => $this->humanizeMachineName($profile),
+        ]);
+      }
+    }
+
+    // Transitional fallback for pre-adapter filenames and incomplete state.
+    // The hash is never part of a normal user-facing title.
+    $path = (string) ($file['path'] ?? $file['file'] ?? '');
+    $base = (string) preg_replace('/\.ya?ml$/i', '', basename($path));
+    $base = (string) preg_replace('/--[a-f0-9]{10}$/i', '', $base);
+    $parts = explode('__', $base);
+    if (count($parts) >= 2) {
+      $profile = array_shift($parts);
+      $field = array_shift($parts);
+      $label = $parts ? implode('__', $parts) : $field;
+      return ts('Profile Field "%1" in "%2"', [
+        1 => $this->humanizeMachineName($label),
+        2 => $this->humanizeMachineName((string) $profile),
+      ]);
+    }
+    return '';
   }
 
   private function subjectForChange(array $file, array $change, string $fallbackLabel): string {
@@ -560,7 +617,7 @@ class Presenter {
       return ts('Import for this config type is not available yet.');
     }
     if ($status === 'new_in_db') {
-      return ts('This exists in Current CiviCRM but has not been saved. Import follows the Saved Config and will remove this record after confirmation when this configuration type safely supports removal. Export first if you want to keep it.');
+      return ts('Export first if you want to keep this item managed. Import can remove it only when this configuration type has proven safe removal.');
     }
     if ($status === 'missing_in_db') {
       return ts('This Saved Config is not in Current CiviCRM. Import will restore it. CiviCRM may assign a new numeric database ID.');

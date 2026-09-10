@@ -27,7 +27,7 @@
             {foreach from=$importPlan item=item}
               <div class="civicfg-file-card civicfg-state-{$item.status|escape}">
                 <div class="civicfg-file-main">
-                  <div class="civicfg-file-title"><code class="civicfg-file-code">{$item.path|escape}</code></div>
+                  <div class="civicfg-file-title">{if $item.show_inline_path}<code class="civicfg-file-code">{$item.path|escape}</code>{else}<strong>{$item.display_title|escape}</strong>{/if}</div>
                   <div class="civicfg-file-meta">
                     <span class="civicfg-badge {if !$item.importable}warn{elseif $item.status eq 'new_in_db'}bad{else}good{/if}">{if $item.importable}{$item.action|escape}{else}{ts}Not Ready{/ts}{/if}</span>
                     <span>{$item.change_count|escape} {if $item.status eq 'changed'}{ts}changed field(s){/ts}{elseif $item.status eq 'new_in_db'}{ts}field(s) to remove{/ts}{else}{ts}field(s) to create{/ts}{/if}</span>

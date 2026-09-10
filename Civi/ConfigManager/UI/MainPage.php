@@ -641,7 +641,7 @@ class MainPage {
     try {
       $path = isset($_REQUEST['path']) ? trim((string) $_REQUEST['path']) : '';
       if ($path === '') {
-        throw new RuntimeException('Choose a managed YAML path.');
+        throw new RuntimeException('Choose a managed Saved Config path.');
       }
       $payload = $this->manager->getDiffDetail($path);
     }

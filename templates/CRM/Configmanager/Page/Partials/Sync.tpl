@@ -159,7 +159,7 @@
                       <span class="civicfg-badge civicfg-badge-{$file.status|escape}">{$file.status_label|escape}</span>
                       {if $file.sync_state_label}<span class="civicfg-badge warn">{$file.sync_state_label|escape}</span>{/if}
                       <span class="civicfg-muted">{$file.type_label|escape}</span>
-                      <span class="civicfg-muted"><code>{$file.path|escape}</code></span>
+                      {if $file.show_inline_path}<span class="civicfg-muted"><code>{$file.path|escape}</code></span>{/if}
                     </div>
                     <div class="civicfg-file-summary">{$file.summary_sentence|escape}</div>
                     {if $file.detail_sentences|@count gt 0}

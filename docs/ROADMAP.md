@@ -2,7 +2,7 @@
 
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
-The actionable item IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). The near-term sequence is alpha65 evidence foundation, alpha66 generic discovery inventory, alpha67 Settings/inventory UX, alpha68 safe reduced import plans, alpha69 missing configuration types, then the gated Beta2 candidate.
+The actionable item IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). The near-term sequence is alpha65 evidence foundation, alpha66 generic discovery inventory, alpha67 Settings/inventory UX, alpha68 safe reduced import plans plus multilingual canonicalization hardening, alpha69 provider runtime evidence, then the gated Beta2 candidate.
 
 ## Current alpha scope
 
@@ -39,6 +39,7 @@ Before treating phase 1 as complete, finish:
 ## Phase 1.1 hardening
 
 - Continue refining handler-specific human diff summaries after alpha58 introduced concise post-baseline change wording.
+- Make canonical export/diff independent of the active UI language on multilingual sites while preserving genuine translated configuration; EN/FR language switching alone must never create false drift.
 - Add more handler-specific validation.
 - Expand dependency detection for SearchKit, Afform, custom fields, option values, and future CiviRules.
 - Improve status report wording after real-world testing.

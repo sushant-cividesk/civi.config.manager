@@ -281,7 +281,10 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 ## Runtime CRUD/provider regression coverage
 
 - PHP 7.4/8.1/8.3 fast QA remains blocking.
-- API4-backed handlers advertised as **Full management** must expose every API action used by their import path; missing write actions must downgrade the type to **Export + compare** instead of failing mid-import.
+- API4-backed handlers advertised as **Managed** must expose every API action used by their import path; missing write actions must downgrade the type to **Export + compare** instead of failing mid-import.
+- A handler whose declared/runtime capability is `managed_no_delete` must be shown as **Create + update**, must not be presented as fully removable, and must retain delete-missing disabled.
+- Profile Field cards must derive their normal title from semantic Profile/field identity and must not expose the collision-resistant `--<hash>` filename suffix outside technical details.
+- **Not Yet Saved** cards must give an Export-oriented next action instead of repeating the same state in sentence form.
 - SQLTasks discovery must prefer native API4 `SqlTask` when its provider file exists, including early CLI/bootstrap contexts where the contributed extension classloader is not yet active.
 - An unavailable provider item picker must not call `export()` and must disable applying selected items.
 - Error, warning, and success messages must retain distinct semantic colors across supported CiviCRM/Drupal themes.

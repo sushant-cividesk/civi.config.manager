@@ -188,7 +188,7 @@ class FileTransfer {
     }
     $target = $targetRoot . DIRECTORY_SEPARATOR . $filename;
     $this->safeWriteUploadedFile($_FILES['single_yaml']['tmp_name'], $target, $manager->getSyncDir());
-    return ts('YAML file uploaded to %1. Review Synchronize before importing.', [1 => trim($handler->getDirectory(), '/') . '/' . $filename]);
+    return ts('Saved Config uploaded to %1. Review Synchronize before importing.', [1 => trim($handler->getDirectory(), '/') . '/' . $filename]);
   }
 
   public function uploadZipArchive(ConfigManager $manager): string {
@@ -287,9 +287,9 @@ class FileTransfer {
       $zip->close();
     }
     if ($written === 0) {
-      throw new RuntimeException('No YAML files were imported from the ZIP archive.');
+      throw new RuntimeException('No Saved Config files were imported from the ZIP archive.');
     }
-    return ts('Archive uploaded. %1 YAML file(s) staged; %2 file(s) skipped. Review Synchronize before importing.', [1 => $written, 2 => $skipped]);
+    return ts('Archive uploaded. %1 Saved Config file(s) staged; %2 file(s) skipped. Review Synchronize before importing.', [1 => $written, 2 => $skipped]);
   }
 
   public function downloadArchive(ConfigManager $manager): void {
@@ -331,7 +331,7 @@ class FileTransfer {
     }
     if ($added === 0 || !is_file($zipPath)) {
       @unlink($zipPath);
-      throw new RuntimeException('No valid managed YAML files are available for download.');
+      throw new RuntimeException('No valid Saved Config files are available for download.');
     }
 
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/zip');

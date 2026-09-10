@@ -159,6 +159,75 @@ final class PresenterTest extends TestCase {
     self::assertSame('Not in Current CiviCRM', $presenter->statusLabel('missing_in_db'));
   }
 
+  /**
+   * Requirement: Not Yet Saved is already visible as a badge, so the summary
+   * must tell the operator what to do next rather than restating that status.
+   */
+  public function testNotYetSavedSummaryExplainsNextAction(): void {
+    $presenter = new Presenter();
+    $files = $presenter->extractDiffFiles(['items' => [[
+      'type' => 'tags',
+      'label' => 'Tags',
+      'files' => [[
+        'path' => 'tags/community.yml',
+        'status' => 'new_in_db',
+        'changes' => [],
+      ]],
+    ]]]);
+
+    self::assertSame('Not Yet Saved', $files[0]['status_label']);
+    self::assertSame('Export this item to add it to Saved Configs.', $files[0]['summary_sentence']);
+    self::assertStringNotContainsString('has not been saved', $files[0]['summary_sentence']);
+  }
+
+  /**
+   * Requirement: Profile Field collision hashes remain internal identity/file
+   * details and do not become the normal card title.
+   */
+  public function testProfileFieldUsesSemanticDisplayTitleAndHidesInlinePath(): void {
+    $presenter = new Presenter();
+    $files = $presenter->extractDiffFiles(['items' => [[
+      'type' => 'profile-fields',
+      'label' => 'Profile Fields',
+      'files' => [[
+        'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+        'file' => 'summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+        'status' => 'changed',
+        'config_key' => 'profile-fields:api4:UFField|key=profile=summary_overlay%7Cfield=phone%7Cfield_type=Phone%7Clocation=Home%7Clabel=Home Phone',
+        'changes' => [['path' => 'item.label', 'type' => 'changed', 'old' => 'Home Phone', 'new' => 'Primary Phone']],
+      ]],
+    ]]]);
+
+    self::assertSame('Profile Field "Home Phone" in "Summary Overlay"', $files[0]['display_title']);
+    self::assertFalse($files[0]['show_inline_path']);
+    self::assertStringNotContainsString('7a8859f54f', $files[0]['display_title']);
+
+    $plan = $presenter->buildImportPlan($files);
+    self::assertSame($files[0]['display_title'], $plan[0]['display_title']);
+    self::assertFalse($plan[0]['show_inline_path']);
+  }
+
+  /**
+   * Requirement: legacy/incomplete Profile Field diff state must still hide a
+   * collision suffix even when the semantic config key is unavailable.
+   */
+  public function testProfileFieldFilenameFallbackStripsCollisionHash(): void {
+    $presenter = new Presenter();
+    $files = $presenter->extractDiffFiles(['items' => [[
+      'type' => 'profile-fields',
+      'label' => 'Profile Fields',
+      'files' => [[
+        'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+        'status' => 'changed',
+        'changes' => [],
+      ]],
+    ]]]);
+
+    self::assertSame('Profile Field "Home Phone" in "Summary Overlay"', $files[0]['display_title']);
+    self::assertFalse($files[0]['show_inline_path']);
+    self::assertStringNotContainsString('7a8859f54f', $files[0]['display_title']);
+  }
+
   /** Requirement: the summary exposes the Saved Config inventory count without changing difference totals. */
   public function testSummaryIncludesSavedConfigCount(): void {
     $presenter = new Presenter();

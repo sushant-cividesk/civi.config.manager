@@ -676,7 +676,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
         if ($this->isNonImportableDefinition($definition)) {
           $compatibility[] = [
             'file' => $filename,
-            'message' => sprintf('Skipped non-admitted extension provider %s %s during validation. Re-export removes obsolete generic-provider YAML; active CiviCRM business/config data is untouched.', $entry['api'], $entry['entity']),
+            'message' => sprintf('Skipped non-admitted extension provider %s %s during validation. Re-export removes the obsolete generic-provider Saved Config; Current CiviCRM business/config data is untouched.', $entry['api'], $entry['entity']),
           ];
           continue;
         }

@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha68-core` |
+| Active development line | `0.1.0-alpha68.1-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -108,7 +108,11 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] Add persistent Import result summary using the same compact progressive-disclosure pattern; keep only the most recent Export/Import result to avoid UI clutter.
 - [ ] Finish structured error/warning remediation UX across UI, CLI, API4, and logs.
 - [x] Improve extension discovery visibility by explaining the safe-managed filter boundary and linking to Settings for detected providers.
+- [x] Correct capability wording so reviewed create/update-only handlers show **Create + update**, fully managed handlers show **Managed**, and no label implies delete authority that the handler has not enabled.
+- [x] Replace duplicate **Not Yet Saved** prose with an Export next action and keep removal wording explicitly conditional on proven provider safety.
+- [x] Keep Profile Field collision hashes internal: normal Sync/Import/Export cards use semantic Profile/field titles while the underlying Saved Config filename and identity remain unchanged.
 - [ ] Complete the safe per-provider CRUD audit, starting with Tags; do not advertise delete until business-data preservation is proven.
+- [ ] A68-ML01 Design and implement locale-independent Saved Config canonicalization for multilingual sites. Switching only the active UI/site language must not rewrite equivalent Saved Configs or create false Synchronize drift; genuine translations must remain portable. **Real EN/FR reproducer recorded; implementation deliberately deferred from alpha68.1.**
 
 ### Alpha69 — coverage expansion
 
@@ -131,6 +135,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] B2-07 Production runtime ZIP includes locked runtime dependencies and passes install/enable/disable/uninstall/package inspection.
 - [ ] B2-08 Documentation, changelog, version, release notes, evidence matrix, and known limitations match observed behavior.
 - [ ] B2-09 Explicit human approval to tag and publish `v1.0.0-beta2`.
+- [ ] B2-10 Multilingual EN/FR regression proves that changing only the active language produces zero false drift/rewrites, while a genuine translated-value change is detected, exported, imported on a peer environment, and re-exported canonically.
 
 ## Known blocker ledger
 
@@ -141,6 +146,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 | BLK-002 | Runtime export produced duplicate path `profiles/fields/summary_overlay__phone.yml` because `profile + field_name` was not unique for repeated UFFields | Export stopped atomically; no live YAML changed | Dedicated semantic Profile Field identity adapter plus regression/runtime proof | Source fix in alpha67.7; DEV rerun pending |
 | BLK-003 | Runtime export encountered an unnamed ReportInstance and the strict `report_id + name` rule aborted the whole export | Export stopped atomically; no live YAML changed | Guarded `report_id + title` fallback for legacy unnamed rows; still block missing template/provider or ambiguous fallback | Source fix in alpha67.7; DEV rerun pending |
 | UX-002 | Export failures were safe but too opaque for operators (no offending object/source identity or clear remediation) | Raw exception text only | Standard structured severity/context/cause/remediation across UI, CLI, API, and logs without weakening fail-closed behavior | Partially improved in alpha67.7 duplicate-path diagnostics; broader UX work planned |
+| ML-001 | EN/FR WordPress+CiviCRM reproducer showed FormBuilder Afform title values changing with language context; examples include `Nom du foyer` vs `Household Name` and `Mettre à jour « Information Contact »` vs `Update Information Contact` | Treat language-only FormBuilder drift as unreliable; do not bulk-ignore/import it as a permanent workaround | Locale-independent canonical export/diff plus explicit preservation of genuine translations; real multilingual round-trip and mutation proof before Beta2 | Reproducer recorded; implementation deferred to later Alpha |
 | QA-001 | Source-string contracts can stay green while runtime behavior is broken | Kept as architecture lint | Independent behavioral, real-runtime, mutation, and browser gates | In progress |
 | CI-001 | Supplied PHP 8.1 workflow failed only because Packagist advisory download returned HTTP 502 | Direct `composer audit` failed on transient service outage | Retry only transport/408/425/429/5xx errors; advisories/unknown errors fail closed | Wrapper implemented and shell-tested |
 | CI-002 | `composer qa:fast` failed in `mutation-provider-inventory.sh` with `PHP Parse error: unexpected call_user_func` | Bash ANSI-C quoting stopped interpreting later `\n` escapes after embedded single-quote fragments, so the mutation itself contained literal `\n` text | Build the needle/replacement as literal heredoc strings; require exactly one replacement; syntax-check mutated and restored source before PHPUnit | Harness fixed 2026-09-03; mutation syntax proof passed; behavioral red/green awaits PHPUnit dependencies |

@@ -226,7 +226,7 @@ class QueuedOperationService {
           try {
             $recovery = $manager->recoverQueuedExportPublish($jobId, (string) $job['sync_root_hash']);
             if (!empty($recovery['recovered'])) {
-              $recoveryMessage = ' The durable YAML publication journal was recovered and the previous live YAML snapshot was restored before blocking the job.';
+              $recoveryMessage = ' The durable Saved Config publication journal was recovered and the previous Saved Config snapshot was restored before blocking the job.';
             }
             elseif (!empty($recovery['errors'])) {
               $recoveryMessage = ' Automatic YAML rollback reported: ' . implode('; ', (array) $recovery['errors']) . ' Manual filesystem review is required.';
@@ -236,7 +236,7 @@ class QueuedOperationService {
             $recoveryMessage = ' Automatic YAML rollback could not be completed: ' . $recoveryError->getMessage() . ' Manual filesystem review is required.';
           }
         }
-        $message = 'A previous Configuration Manager worker stopped during a live-mutating work unit before recording a terminal result. The job was blocked instead of replaying an indeterminate mutation.' . $recoveryMessage . ' Review current CiviCRM/YAML state and start a fresh reviewed operation.';
+        $message = 'A previous Configuration Manager worker stopped during a live-mutating work unit before recording a terminal result. The job was blocked instead of replaying an indeterminate mutation.' . $recoveryMessage . ' Review Current CiviCRM/Saved Config state and start a fresh reviewed operation.';
         $store->finishItem($jobId, $itemKey, 'blocked', [], $message);
         $store->blockJob($jobId, $message);
         return TRUE;

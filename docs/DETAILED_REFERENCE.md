@@ -13,7 +13,7 @@ Configuration Manager is a CiviCRM extension that exports selected CiviCRM confi
 - UI title: `Configuration Manager`
 - Admin path: `civicrm/admin/config-manager`
 - File format: YAML
-- Current build: read from `info.xml`; this source is `0.1.0-alpha68-core`, developed from the protected `v1.0.0-beta1` baseline
+- Current build: read from `info.xml`; this source is `0.1.0-alpha68.1-core`, developed from the protected `v1.0.0-beta1` baseline
 - Supported CiviCRM target: 5.x and 6.x
 
 For release-by-release history, see `CHANGELOG.md`. For manual QA and round-trip checks, see `docs/TESTING.md`. Update the changelog and any affected current-behavior docs whenever a functional change is made.
@@ -55,7 +55,7 @@ After installation, `civicfg status` reports the active PHP/CiviCRM versions, YA
 
 ## Runtime CRUD and provider safeguards
 
-Configuration Manager checks the runtime API surface before advertising a type as **Full management**. API4-backed handlers must expose the read/create/update/delete actions that the handler actually uses; a readable provider with missing write actions is shown as **Export + compare** instead of being allowed to fail later during import. Unavailable providers remain fail-closed. SQLTasks prefers native API4 `SqlTask` when present and retains the reviewed API3/BAO path only as a legacy fallback.
+Configuration Manager checks the runtime API surface before advertising automatic management. **Managed** is the concise label for the normal reviewed management path. **Create + update** is used when a handler deliberately disables delete-missing even though restore/import create and update are supported. **Export + compare** means automatic restore/import is not enabled. These labels describe the handler's reviewed policy; automatic removal remains provider-specific and is never inferred merely because an API exposes delete. A readable provider with missing write actions is downgraded rather than being allowed to fail later during import. Unavailable providers remain fail-closed. SQLTasks prefers native API4 `SqlTask` when present and retains the reviewed API3/BAO path only as a legacy fallback.
 
 Admin messages use explicit semantic styling so active errors remain red, warnings amber, and successful status messages green even on older Drupal/CiviCRM themes.
 

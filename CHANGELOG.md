@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha68.1-core
+
+- Corrected Settings capability presentation so handlers that intentionally disable delete-missing show **Create + update** instead of **Full management**. Fully managed handlers now use the shorter **Managed** label. No provider received broader create, update, or delete authority.
+- Kept runtime safety downgrades canonical in provider inventory: a provider declared as fully managed but found export-only at runtime remains **Export + compare** instead of being re-promoted by static metadata.
+- Replaced redundant **Not Yet Saved** prose with an explicit Export next action, while keeping destructive Import wording conservative for types whose automatic removal is not proven safe.
+- Hid collision-resistant Profile Field filename/hash suffixes from normal Synchronize, Import, and Export cards. User-facing titles now come from semantic Profile Field identity where available, while the real Saved Config path remains unchanged and is still available in Synchronize details.
+- Finished a bounded client-facing terminology cleanup around **Saved Config** and **Current CiviCRM** while retaining **YAML** when the literal `.yml`/`.yaml` file format is the subject.
+- Recorded multilingual false-drift issue **ML-001** as a later-Alpha/Beta2 blocker. Language canonicalization is deliberately not changed in this maintenance build.
+
+> **Evidence boundary:** local source/unit/static QA is recorded in `docs/RELEASE_NOTES_0.1.0-alpha68.1-core.md`. Multilingual normalization, real CiviCRM runtime validation, and browser validation remain separate follow-up work.
+
 ## 0.1.0-alpha68-core
 - Separated automatically protected ambiguous export objects from user-selected Monitor only scope in the UI: Last Export now calls these Review only, exposes the affected Saved Config paths, and explains why automatic create/update/remove is disabled.
 

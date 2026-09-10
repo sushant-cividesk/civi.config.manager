@@ -26,7 +26,7 @@
             {foreach from=$diffFiles item=file}
               <div class="civicfg-file-card civicfg-state-{$file.status|escape}">
                 <div class="civicfg-file-main">
-                  <div class="civicfg-file-title"><code class="civicfg-file-code">{$file.path|escape}</code></div>
+                  <div class="civicfg-file-title">{if $file.show_inline_path}<code class="civicfg-file-code">{$file.path|escape}</code>{else}<strong>{$file.display_title|escape}</strong>{/if}</div>
                   <div class="civicfg-file-meta">
                     <span class="civicfg-badge civicfg-badge-{$file.status|escape}">{$file.status_label|escape}</span>
                     <span class="civicfg-muted">{$file.type_label|escape}</span>

@@ -290,14 +290,7 @@ class ConfigManager {
         : [];
       $capability = $this->scopeCapabilityForHandler($handler);
       $capabilityKey = (string) $capability['key'];
-      $declaredCapability = (string) ($metadata['management_capability'] ?? '');
-      if ($capabilityKey !== 'unavailable' && in_array($declaredCapability, ['full', 'managed_no_delete', 'export_only'], TRUE)) {
-        $capabilityKey = $declaredCapability;
-      }
       $capabilityReason = (string) $capability['help'];
-      if ($capabilityKey === 'managed_no_delete') {
-        $capabilityReason = 'The provider declares safe create/update behavior but does not authorize delete-missing.';
-      }
       $owner = trim((string) ($metadata['owner'] ?? ''));
       if ($owner === '' || ($source !== 'core_handler' && $owner === 'civi.config.manager')) {
         $owner = $source === 'core_handler' ? 'civi.config.manager' : 'hook-provider';
@@ -828,7 +821,7 @@ class ConfigManager {
             'level' => 'warning',
             'source_type' => $sourceType,
             'dependency_type' => $dependencyType,
-            'message' => $sourceLabel . ' can reference ' . $dependencyLabel . ', but ' . $dependencyLabel . ' is ignored and will not be deployed in managed YAML.' . ($reason !== '' ? ' ' . $reason : ''),
+            'message' => $sourceLabel . ' can reference ' . $dependencyLabel . ', but ' . $dependencyLabel . ' is ignored and will not be included in managed Saved Configs.' . ($reason !== '' ? ' ' . $reason : ''),
           ];
         }
         elseif ($dependencyMode === ConfigScope::MODE_WATCH) {
@@ -1120,21 +1113,30 @@ class ConfigManager {
   }
 
   private function scopeCapabilityForHandler($handler): array {
+    $metadata = method_exists($handler, 'getProviderMetadata')
+      ? (array) $handler->getProviderMetadata()
+      : [];
+    $declaredCapability = (string) ($metadata['management_capability'] ?? '');
+    $runtimeCapability = '';
+    $runtimeReason = '';
+
     if (method_exists($handler, 'getRuntimeAvailability')) {
       try {
         $availability = (array) $handler->getRuntimeAvailability();
+        $runtimeReason = trim((string) ($availability['reason'] ?? ''));
         if (array_key_exists('available', $availability) && empty($availability['available'])) {
           return [
             'key' => 'unavailable',
             'label' => 'Unavailable on this site',
-            'help' => trim((string) ($availability['reason'] ?? 'Required runtime provider is not available on this site.')),
+            'help' => $runtimeReason !== '' ? $runtimeReason : 'Required runtime provider is not available on this site.',
           ];
         }
-        if (($availability['management_capability'] ?? '') === 'export_only') {
+        $runtimeCapability = (string) ($availability['management_capability'] ?? '');
+        if ($runtimeCapability === 'export_only') {
           return [
             'key' => 'export_only',
             'label' => 'Export + compare',
-            'help' => trim((string) ($availability['reason'] ?? 'The provider can be read, but safe automatic restore/import is not available on this site.')),
+            'help' => $runtimeReason !== '' ? $runtimeReason : 'The provider can be read, but safe automatic restore/import is not available on this site.',
           ];
         }
       }
@@ -1154,6 +1156,15 @@ class ConfigManager {
         'help' => 'Extension status and safe provider config can be managed. Providers without a safe portable identity stay export/monitor-only.',
       ];
     }
+
+    if ($declaredCapability === 'export_only') {
+      return [
+        'key' => 'export_only',
+        'label' => 'Export + compare',
+        'help' => $runtimeReason !== '' ? $runtimeReason : 'This handler can be exported and compared, but automatic restore/import is not enabled.',
+      ];
+    }
+
     try {
       $method = new \ReflectionMethod($handler, 'import');
       if ($method->getDeclaringClass()->getName() === \Civi\ConfigManager\Handler\AbstractHandler::class) {
@@ -1173,10 +1184,21 @@ class ConfigManager {
         'help' => 'Automatic restore/import capability could not be confirmed for this handler.',
       ];
     }
+
+    if ($runtimeCapability === 'managed_no_delete' || $declaredCapability === 'managed_no_delete') {
+      return [
+        'key' => 'managed_no_delete',
+        'label' => 'Create + update',
+        'help' => $runtimeReason !== ''
+          ? $runtimeReason
+          : 'Supports Saved Config export/compare plus safe create/update restore/import. Automatic removal is not enabled for this type.',
+      ];
+    }
+
     return [
       'key' => 'full',
-      'label' => 'Full management',
-      'help' => "Supports managed YAML plus the handler's safe import/restore behavior.",
+      'label' => 'Managed',
+      'help' => "Supports Saved Config export/compare plus the handler's reviewed restore/import behavior.",
     ];
   }
 
@@ -1679,7 +1701,7 @@ class ConfigManager {
           foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
             $summary['warnings'][] = [
               'type' => $handlerType,
-              'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.',
+              'message' => 'Configured scope selector has never resolved to a Current CiviCRM object: ' . (string) $selector . '.',
             ];
           }
           foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
@@ -1715,7 +1737,7 @@ class ConfigManager {
       // YAML tree untouched instead of publishing a partial snapshot.
       if ($summary['errors']) {
         $summary['ok'] = FALSE;
-        $summary['message'] = 'Export staging failed. The previous YAML snapshot was left unchanged.';
+        $summary['message'] = 'Export staging failed. The previous Saved Config snapshot was left unchanged.';
         return $summary;
       }
 
@@ -1780,7 +1802,7 @@ class ConfigManager {
         }
       }
       else {
-        $this->reportProgress($progress, $completedSteps, $totalSteps, 'Publishing YAML snapshot', 'Atomically committing staged files; manifest.yml will be written last.', $processedItems);
+        $this->reportProgress($progress, $completedSteps, $totalSteps, 'Saving Saved Configs', 'Saving the verified files safely; the manifest is finalized last.', $processedItems);
         $published = $workspace->publish($stalePaths);
         $summary['created_count'] = count((array) ($preview['create'] ?? []));
         $summary['updated_count'] = count((array) ($preview['update'] ?? []));
@@ -1793,7 +1815,7 @@ class ConfigManager {
           $this->scope->persistResolvedMatches((string) $type, (array) $partition);
         }
         $completedSteps++;
-        $this->reportProgress($progress, $completedSteps, $totalSteps, 'YAML snapshot committed', 'Updating local synchronization baseline.', $processedItems);
+        $this->reportProgress($progress, $completedSteps, $totalSteps, 'Saved Configs saved', 'Updating local synchronization baseline.', $processedItems);
 
         // Accept baseline state one staged YAML document at a time. This keeps
         // canonicalization memory bounded and ensures the baseline represents
@@ -1821,7 +1843,7 @@ class ConfigManager {
     catch (\Throwable $e) {
       $summary['errors'][] = ['type' => 'export', 'message' => $e->getMessage()];
       $summary['ok'] = FALSE;
-      $summary['message'] = 'Export failed. The previous YAML snapshot was preserved or rolled back.';
+      $summary['message'] = 'Export failed. The previous Saved Config snapshot was preserved or rolled back.';
       return $summary;
     }
     finally {
@@ -1830,10 +1852,10 @@ class ConfigManager {
 
     $summary['ok'] = empty($summary['errors']);
     if ($dryRun && !$summary['planned'] && !$summary['errors']) {
-      $summary['message'] = 'No export changes. YAML files already match the active database configuration.';
+      $summary['message'] = 'No export changes. Saved Configs already match Current CiviCRM.';
     }
     elseif (!$dryRun && !$summary['written'] && !$summary['deleted'] && !$summary['errors']) {
-      $summary['message'] = 'No files written. YAML files already match the active database configuration.';
+      $summary['message'] = 'No files written. Saved Configs already match Current CiviCRM.';
     }
     return $summary;
   }
@@ -1892,7 +1914,7 @@ class ConfigManager {
             'handler_type' => $type,
             'unit_key' => $unitKey,
             'label' => 'Checking ' . (string) ($unit['label'] ?? $handler->getLabel()),
-            'message' => 'Reading this configuration group once and building its temporary YAML snapshot. Live YAML is unchanged.',
+            'message' => 'Reading this configuration group once and preparing its temporary Saved Config snapshot. Existing Saved Configs are unchanged.',
             'retry_safe' => TRUE,
           ];
         }
@@ -2093,7 +2115,7 @@ class ConfigManager {
         'managed_config_keys' => array_values(array_map('strval', (array) ($partition['managed_config_keys'] ?? []))),
       ];
       foreach ((array) ($partition['unresolved_selectors'] ?? []) as $selector) {
-        $local['warnings'][] = ['type' => $handlerType, 'message' => 'Configured scope selector has never resolved to an active CiviCRM object: ' . (string) $selector . '.'];
+        $local['warnings'][] = ['type' => $handlerType, 'message' => 'Configured scope selector has never resolved to a Current CiviCRM object: ' . (string) $selector . '.'];
       }
       foreach ((array) ($partition['missing_selectors'] ?? []) as $selector) {
         $local['warnings'][] = ['type' => $handlerType, 'message' => 'Configured managed object is currently missing from CiviCRM: ' . (string) $selector . '. Existing YAML backup is preserved for review or restore.'];
@@ -2277,7 +2299,7 @@ class ConfigManager {
     $stateStore = new OperationWorkspace($jobId, $syncRootHash);
     $state = $stateStore->loadState();
     if (empty($state['published'])) {
-      throw new \RuntimeException('Cannot record export baseline before the YAML snapshot is published.');
+      throw new \RuntimeException('Cannot record the export baseline before the Saved Config snapshot is published.');
     }
     $handler = $this->handlerByType($handlerType);
     if ($handler === NULL) {
@@ -2307,7 +2329,7 @@ class ConfigManager {
     $stateStore = new OperationWorkspace($jobId, $syncRootHash);
     $state = $stateStore->loadState();
     if (empty($state['published'])) {
-      throw new \RuntimeException('Queued export cannot complete because no verified YAML snapshot was published.');
+      throw new \RuntimeException('Queued export cannot complete because no verified Saved Config snapshot was published.');
     }
     $published = (array) ($state['published_result'] ?? []);
     $result = [
@@ -2329,10 +2351,10 @@ class ConfigManager {
       'processed_items' => (int) ($state['processed_items'] ?? 0),
     ];
     if (!$result['written'] && !$result['deleted']) {
-      $result['message'] = 'No files written. YAML files already match active CiviCRM configuration.';
+      $result['message'] = 'No files written. Saved Configs already match Current CiviCRM.';
     }
     else {
-      $result['message'] = 'Export complete. The verified YAML snapshot was published successfully.';
+      $result['message'] = 'Export complete. The verified Saved Config snapshot was published successfully.';
     }
     return $result;
   }
@@ -2472,7 +2494,7 @@ class ConfigManager {
     }
     ksort($actual, SORT_STRING);
     if ($actual !== $expected) {
-      throw new \RuntimeException('Active CiviCRM configuration changed while export was being staged. Export was aborted before publish; the previous YAML snapshot remains unchanged.');
+      throw new \RuntimeException('Current CiviCRM configuration changed while export was being prepared. Export was aborted before publish; the previous Saved Config snapshot remains unchanged.');
     }
   }
 
@@ -3063,7 +3085,7 @@ class ConfigManager {
       $result['setup_required'] = !empty($scopeState['setup_required']);
       $result['message'] = !empty($scopeState['watch_only'])
         ? 'Watch-only configuration is enabled, but no configuration is currently managed in YAML.'
-        : 'Configuration scope setup is required before managed YAML synchronization can begin.';
+        : 'Configuration scope setup is required before Saved Config synchronization can begin.';
       $this->cacheHealthFromDiff($result);
       return $result;
     }
@@ -3137,7 +3159,7 @@ class ConfigManager {
         $item = $handler->diffFromExports($exported, $files);
         if (!empty($partition['unresolved_selectors'])) {
           $item['scope_warnings'] = array_values(array_map(static function($selector) {
-            return 'Configured managed selector is not present in active CiviCRM: ' . (string) $selector . '. YAML backup remains managed.';
+            return 'Configured managed selector is not present in Current CiviCRM: ' . (string) $selector . '. YAML backup remains managed.';
           }, (array) $partition['unresolved_selectors']));
         }
         if ($stateManager !== NULL) {
@@ -3678,7 +3700,7 @@ class ConfigManager {
   }
 
   private function formatMissingDependencyMessage(string $filename, string $ownerType, string $dependencyType, string $dependencyName, string $reason, string $ignoredHint = ''): string {
-    $prefix = sprintf('Cannot import %s/%s: dependency %s "%s" is not available in the managed YAML set or active CiviCRM.', $ownerType, $filename, $dependencyType, $dependencyName);
+    $prefix = sprintf('Cannot import %s/%s: dependency %s "%s" is not available in the managed Saved Config set or Current CiviCRM.', $ownerType, $filename, $dependencyType, $dependencyName);
     if ($dependencyType === 'contact-types' && preg_match('/^[0-9]+$/', $dependencyName)) {
       $prefix .= ' The dependency name is numeric, which usually means this YAML was exported by an older alpha using a local database ID instead of the Contact Type machine name.';
       $prefix .= ' Re-export Custom Groups and Fields together with Contact Types using the current build, or update the YAML dependency to the stable contact type name before importing.';
@@ -3860,7 +3882,7 @@ class ConfigManager {
     $totalSteps = max(1, 2 + ($handlerCount * ($willApply ? 5 : 2)));
     $completedSteps = 0;
     $processedItems = 0;
-    $this->reportProgress($progress, 0, $totalSteps, 'Preparing import', 'Reading managed YAML and building dependency context.', 0);
+    $this->reportProgress($progress, 0, $totalSteps, 'Preparing import', 'Reading managed Saved Configs and checking dependencies.', 0);
 
     // Every dry-run sees the complete managed YAML dependency set. This lets a
     // dependent type recognize prerequisites which are absent from the target
@@ -3934,7 +3956,7 @@ class ConfigManager {
       try {
         $type = (string) $handler->getType();
         if (isset($preflightFingerprints[$type])) {
-          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $preflightFingerprints[$type], 'Import conflict: active CiviCRM changed after preflight. No write was performed for this handler.');
+          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $preflightFingerprints[$type], 'Import conflict: Current CiviCRM changed after preflight. No write was performed for this handler.');
         }
         $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
         if (empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']))) {
@@ -3979,7 +4001,7 @@ class ConfigManager {
       try {
         $type = (string) $handler->getType();
         if (isset($postWriteFingerprints[$type])) {
-          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $postWriteFingerprints[$type], 'Import conflict: active CiviCRM changed after create/update. Delete-missing was not started for this handler.');
+          $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $postWriteFingerprints[$type], 'Import conflict: Current CiviCRM changed after create/update. Delete-missing was not started for this handler.');
         }
         $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
       }
@@ -4136,7 +4158,7 @@ class ConfigManager {
     if ($progress !== NULL) {
       $progress([
         'progress_known' => FALSE,
-        'message' => 'Dependency context is ready. Validating every managed YAML document before any active CiviCRM write.',
+        'message' => 'Dependency context is ready. Validating every managed Saved Config before any Current CiviCRM write.',
       ]);
     }
     $validation = $this->validate($validationTypes);
@@ -4198,7 +4220,7 @@ class ConfigManager {
     $this->setHandlerImportPhase($handler, TRUE, FALSE);
     try {
       if (isset($state['preflight_fingerprints'][$handlerType])) {
-        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['preflight_fingerprints'][$handlerType], 'Import conflict: active CiviCRM changed after preflight. No write was performed for this handler.');
+        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['preflight_fingerprints'][$handlerType], 'Import conflict: Current CiviCRM changed after preflight. No write was performed for this handler.');
       }
       $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
       if (empty($item['errors']) && (!array_key_exists('ok', $item) || !empty($item['ok']))) {
@@ -4243,7 +4265,7 @@ class ConfigManager {
     $this->setHandlerImportPhase($handler, FALSE, TRUE);
     try {
       if (isset($state['post_write_fingerprints'][$handlerType])) {
-        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['post_write_fingerprints'][$handlerType], 'Import conflict: active CiviCRM changed after create/update. Delete-missing was not started for this handler.');
+        $this->assertManagedActiveSnapshotMatches($handler, $storage, (array) $state['post_write_fingerprints'][$handlerType], 'Import conflict: Current CiviCRM changed after create/update. Delete-missing was not started for this handler.');
       }
       $item = $this->importManagedYamlForHandler($handler, $storage, FALSE);
     }
@@ -4992,7 +5014,7 @@ class ConfigManager {
 
     $summaryMessage = $this->buildImportSummaryMessage(['items' => $items]);
     $pathCount = count($appliedPaths);
-    $dependencyNote = $pathCount > 1 ? sprintf(' The selected file and %d dependent YAML file(s) were applied.', $pathCount - 1) : ' The selected YAML file was applied.';
+    $dependencyNote = $pathCount > 1 ? sprintf(' The selected Saved Config and %d dependent Saved Config file(s) were applied.', $pathCount - 1) : ' The selected Saved Config was applied.';
 
     return [
       'ok' => empty($errors),
@@ -5002,7 +5024,7 @@ class ConfigManager {
       'warnings' => $warnings,
       'errors' => $errors,
       'message' => empty($errors)
-        ? 'Active CiviCRM was reverted from YAML.' . $dependencyNote . ' ' . $summaryMessage
+        ? 'Current CiviCRM was restored from the Saved Config.' . $dependencyNote . ' ' . $summaryMessage
         : 'Revert from YAML found problems. ' . $summaryMessage,
     ];
   }
@@ -5210,7 +5232,7 @@ class ConfigManager {
     return [
       'level' => 'info',
       'title' => 'Configuration Manager: Status not scanned yet',
-      'message' => 'YAML configuration exists. Run Synchronize or civicfg diff to refresh the last-known configuration status.',
+      'message' => 'Saved Configs exist. Run Synchronize or civicfg diff to refresh the last-known configuration status.',
       'sync_dir' => $syncDir,
       'changed' => 0,
       'in_civicrm' => 0,
@@ -5268,7 +5290,7 @@ class ConfigManager {
       'title' => $total > 0 ? 'Configuration Manager: Pending configuration changes' : 'Configuration Manager: In sync',
       'message' => $total > 0
         ? sprintf('Last scan found %d pending difference(s): %d changed, %d only in CiviCRM, and %d only in YAML.', $total, $changed, $inCivicrm, $inYaml)
-        : 'The last Configuration Manager scan found no differences between managed YAML and active CiviCRM.',
+        : 'The last Configuration Manager scan found no differences between managed Saved Configs and Current CiviCRM.',
       'sync_dir' => $syncDir,
       'changed' => $changed,
       'in_civicrm' => $inCivicrm,
