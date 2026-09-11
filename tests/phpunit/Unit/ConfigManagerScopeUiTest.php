@@ -464,7 +464,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame(1, $optionGroups->exportCalls);
   }
 
-  public function testValidationStillBlocksDependencyMissingFromYamlAndActiveCivi(): void {
+  public function testValidationStillBlocksDependencyMissingFromSavedConfigsAndCurrentCivi(): void {
     $root = $this->createTemporaryDirectory();
     \Civi::settings()->set('civicfg_sync_dir', $root);
 
@@ -494,7 +494,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
       }
     }
     self::assertStringContainsString(
-      'is not available in the managed YAML set or active CiviCRM',
+      'is not available in the managed Saved Config set or Current CiviCRM',
       implode("\n", $messages)
     );
   }

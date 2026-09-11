@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-09-11</releaseDate>
-  <version>0.1.0-alpha68.2-core</version>
+  <version>0.1.0-alpha68.2.1-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha68.2 makes detected extension-provider inventory understandable in Settings without broadening provider admission, scope, import, or delete authority.</comments>
+  <comments>Alpha68.2.1 is a test-only hotfix aligning the missing-dependency regression expectation with Saved Config / Current CiviCRM terminology; runtime behavior is unchanged.</comments>
 </extension>

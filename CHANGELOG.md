@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha68.2.1-core
+
+- Fixed the stale missing-dependency PHPUnit expectation to match the already-adopted **Saved Config** / **Current CiviCRM** terminology.
+- Renamed the focused regression method for the same terminology; production validation/import behavior is unchanged.
+- This is a test-only hotfix for the Alpha68.2 QA failure reported on DDEV.
+
 ## 0.1.0-alpha68.2-core
 
 - Kept normal Settings management cards unchanged while adding a collapsed **Other detected providers** section for provider inventory entries that are discovered but are not represented by a configurable Settings card.
