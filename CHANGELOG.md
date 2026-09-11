@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha68.2-core
+
+- Kept normal Settings management cards unchanged while adding a collapsed **Other detected providers** section for provider inventory entries that are discovered but are not represented by a configurable Settings card.
+- Clarified the inventory count: provider entries discovered from installed extensions are not the same thing as configuration types that Configuration Manager is prepared to manage.
+- Grouped additional providers into client-facing safety states: **Managed through Extensions**, **Create + update through Extensions**, **Export + compare**, **Review only**, **Not offered separately**, **Cannot be managed automatically**, and **Unavailable**.
+- Kept extension keys, API/entity identifiers, action metadata, reason codes, and raw provider diagnostics behind **Technical details** instead of exposing them in the normal explanation.
+- Preserved fail-closed admission and scope behavior: provider discovery remains metadata-only and this checkpoint grants no new create, update, delete, or import authority.
+- Added independent provider-classification/selection tests, a deliberate hidden-provider mutation proof, and a Playwright user-flow regression for the progressive-disclosure boundary.
+
+> **Evidence boundary:** dependency-free source/behavior checks are recorded in `docs/RELEASE_NOTES_0.1.0-alpha68.2-core.md`. A real CiviCRM browser/runtime pass is still required to validate the actual provider mix and layout on DEV. ML-001 multilingual canonicalization remains a separate later-Alpha blocker before Beta2.
+
 ## 0.1.0-alpha68.1-core
 
 - Corrected Settings capability presentation so handlers that intentionally disable delete-missing show **Create + update** instead of **Full management**. Fully managed handlers now use the shorter **Managed** label. No provider received broader create, update, or delete authority.

@@ -203,6 +203,57 @@ test.describe('Configuration Manager scope settings', () => {
     await expect(page.getByText(/Continue anyway/i)).toHaveCount(0);
   });
 
+  test('explains detected extension providers that are not Settings cards', async ({ page }) => {
+    await page.route('**/*', async route => {
+      const requestUrl = new URL(route.request().url());
+      if (requestUrl.searchParams.get('op') !== 'provider-inventory-json') {
+        await route.fallback();
+        return;
+      }
+
+      const response = await route.fetch();
+      const payload = await response.json();
+      const providers = Array.isArray(payload.providers) ? payload.providers.slice() : [];
+      providers.push({
+        provider_key: 'extensions:org.example.qa:api4:QaBusinessThing',
+        type: 'extensions:org.example.qa:api4:qabusinessthing',
+        base_type: 'extensions',
+        label: 'QA Business Candidate',
+        owner: 'org.example.qa',
+        registration_source: 'automatic_extension_api',
+        api_version: 'api4',
+        entity: 'QaBusinessThing',
+        actions: { read: true, create: false, update: false, delete: false },
+        admitted: false,
+        capability: 'unsupported',
+        capability_reason_code: 'business_data_marker',
+        capability_reason: 'Fixture provider remains denied.',
+        identity_fields: ['name'],
+      });
+      payload.providers = providers;
+      payload.summary = Object.assign({}, payload.summary || {}, { provider_count: providers.length });
+      await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(payload) });
+    });
+
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const providerState = page.locator('[data-civicfg-provider-inventory-state]');
+    await expect(providerState).toContainText(/provider entries detected/i);
+    await expect(providerState).toContainText(/additional provider/i);
+
+    const panel = page.locator('[data-civicfg-provider-discovery]');
+    await expect(panel).toBeVisible();
+    await expect(panel).not.toHaveAttribute('open', '');
+    await panel.locator(':scope > summary').click();
+    const unsupportedGroup = panel.locator('[data-civicfg-detected-provider-group="unsupported"]');
+    await expect(unsupportedGroup).toBeVisible();
+    await unsupportedGroup.locator(':scope > summary').click();
+    await expect(panel.getByText('QA Business Candidate', { exact: true })).toBeVisible();
+    await expect(panel.getByText('Cannot be managed automatically', { exact: true }).first()).toBeVisible();
+    await expect(panel.getByText('This provider looks like business or transactional data, so automatic configuration management is blocked.', { exact: true })).toBeVisible();
+    await expect(panel.getByText('Fixture provider remains denied.', { exact: true })).not.toBeVisible();
+    await expect(page.locator('[data-civicfg-scope-row="extensions:org.example.qa:api4:qabusinessthing"]')).toHaveCount(0);
+  });
+
   test('supports expanded collapsible settings and Drupal-style bulk scope changes', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
     const scopeDetails = page.locator('details.civicfg-scope-settings');

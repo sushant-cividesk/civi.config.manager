@@ -503,3 +503,23 @@
 @media (max-width: 700px) {
   .civicfg-result-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Alpha68.2 provider discovery explanation: keep non-scope inventory visible without adding more management cards. */
+.crm-configmanager-block .civicfg-provider-discovery {margin:16px 0; padding:10px 12px; border:1px solid #d7dce2; border-radius:4px; background:rgba(0,0,0,.015);}
+.crm-configmanager-block .civicfg-provider-discovery > summary {cursor:pointer; display:flex; gap:.4rem; align-items:baseline;}
+.crm-configmanager-block .civicfg-provider-discovery-body {margin-top:10px;}
+.crm-configmanager-block .civicfg-detected-provider-summary {display:flex; flex-wrap:wrap; gap:6px 10px; margin:10px 0;}
+.crm-configmanager-block .civicfg-detected-provider-summary-item {display:inline-block; padding:3px 7px; border:1px solid #d7dce2; border-radius:3px; background:rgba(0,0,0,.02);}
+.crm-configmanager-block .civicfg-detected-provider-group {margin:8px 0; padding:6px 0;}
+.crm-configmanager-block .civicfg-detected-provider-group > summary {cursor:pointer;}
+.crm-configmanager-block .civicfg-detected-provider-list {list-style:none; padding:0; margin:8px 0 0;}
+.crm-configmanager-block .civicfg-detected-provider {padding:9px 0; border-top:1px solid #e5e8eb;}
+.crm-configmanager-block .civicfg-detected-provider:first-child {border-top:0;}
+.crm-configmanager-block .civicfg-detected-provider-header {display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 9px;}
+.crm-configmanager-block .civicfg-detected-provider-status {margin-left:auto; font-size:.9em; font-weight:600;}
+.crm-configmanager-block .civicfg-detected-provider-reason {margin-top:3px; line-height:1.4;}
+.crm-configmanager-block .civicfg-detected-provider-technical {margin-top:4px;}
+.crm-configmanager-block .civicfg-detected-provider-technical > summary {cursor:pointer; font-size:.92em;}
+@media (max-width:700px) {
+  .crm-configmanager-block .civicfg-detected-provider-status {width:100%; margin-left:0;}
+}

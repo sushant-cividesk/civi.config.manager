@@ -239,9 +239,21 @@ $assert(strpos((string) ($legacyProfileFile['display_title'] ?? ''), '7a8859f54f
 $syncTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Sync.tpl');
 $importTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Import.tpl');
 $exportTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Export.tpl');
+$settingsTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Settings.tpl');
+$providerBrowserSource = (string) file_get_contents(__DIR__ . '/../../js/settings-provider-browser.js');
 $assert(strpos($syncTemplate, '{if $file.show_inline_path}<span class="civicfg-muted"><code>{$file.path|escape}</code></span>{/if}') !== FALSE, 'Synchronize must honor Profile Field progressive path disclosure');
 $assert(strpos($importTemplate, '{if $item.show_inline_path}<code class="civicfg-file-code">{$item.path|escape}</code>{else}<strong>{$item.display_title|escape}</strong>{/if}') !== FALSE, 'Import preview must use the semantic Profile Field title when its path is technical');
 $assert(strpos($exportTemplate, '{if $file.show_inline_path}<code class="civicfg-file-code">{$file.path|escape}</code>{else}<strong>{$file.display_title|escape}</strong>{/if}') !== FALSE, 'Export preview must use the semantic Profile Field title when its path is technical');
+
+/**
+ * Supplemental source contract for provider-discovery progressive disclosure.
+ * Behavioral classification/selection is independently exercised by
+ * provider-browser-test.js; Playwright covers the rendered user boundary.
+ */
+$assert(strpos($settingsTemplate, 'data-civicfg-provider-discovery') !== FALSE, 'Settings must provide progressive disclosure for detected providers that are not configuration-type cards');
+$assert(strpos($settingsTemplate, 'detecting a provider never grants automatic write access') !== FALSE, 'Settings must state that discovery does not grant management authority');
+$assert(strpos($settingsTemplate, 'Every registered configuration type is listed below') === FALSE, 'Settings must not imply that every discovered provider becomes a configurable type');
+$assert(strpos($providerBrowserSource, 'providerInventoryStatus') !== FALSE, 'provider browser must use a dedicated inventory-status formatter for provider/type count wording');
 
 
 echo "alpha68 UI behavior OK ({$checks} checks)\n";

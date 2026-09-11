@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-09-10</releaseDate>
-  <version>0.1.0-alpha68.1-core</version>
+  <releaseDate>2026-09-11</releaseDate>
+  <version>0.1.0-alpha68.2-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha68.1 maintenance build refining provider capability wording, Saved Config diff presentation, and client-facing terminology without broadening import or delete authority.</comments>
+  <comments>Alpha68.2 makes detected extension-provider inventory understandable in Settings without broadening provider admission, scope, import, or delete authority.</comments>
 </extension>

@@ -66,6 +66,7 @@
             "@test:drupal-login-resolver",
             "@test:browser-workflow-contract",
             "@test:provider-browser",
+            "@test:mutation-provider-browser",
             "@test:source-hygiene",
             "@analyse",
             "@compatibility"
@@ -89,6 +90,7 @@
         "test:alpha68-ui": "php tests/ci/alpha68-ui-behavior.php",
         "test:drupal-login-resolver": "node tests/ci/drupal-login-url-test.js",
         "test:alpha68-lifecycle-state": "php tests/ci/alpha68-lifecycle-state.php",
-        "test:lifecycle-state-behavior": "php tests/ci/lifecycle-state-behavior.php"
+        "test:lifecycle-state-behavior": "php tests/ci/lifecycle-state-behavior.php",
+        "test:mutation-provider-browser": "bash tests/ci/mutation-provider-browser.sh"
     }
 }

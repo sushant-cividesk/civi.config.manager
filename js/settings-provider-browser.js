@@ -56,6 +56,144 @@
     return haystack.indexOf(query) !== -1;
   }
 
+  function isRejectedProvider(provider) {
+    return normalize(provider && provider.provider_key).indexOf('rejected:') === 0;
+  }
+
+  function classifyDetectedProvider(provider) {
+    provider = provider || {};
+    var capability = normalize(provider.capability);
+    var reasonCode = normalize(provider.capability_reason_code);
+
+    if (capability === 'unavailable') {
+      return 'unavailable';
+    }
+    if (reasonCode === 'dedicated_or_excluded_extension') {
+      return 'not_separate';
+    }
+    if (capability === 'review_only' || capability === 'monitor_only') {
+      return 'review_only';
+    }
+    if (capability === 'export_only') {
+      return 'export_only';
+    }
+    if (provider.admitted === true && capability === 'managed_no_delete') {
+      return 'create_update';
+    }
+    if (provider.admitted === true && capability === 'full') {
+      return 'managed';
+    }
+    return 'unsupported';
+  }
+
+  var detectedProviderGroups = {
+    managed: {label: 'Managed through Extensions', help: 'Portable providers which passed the current safety checks and are controlled by the Extensions configuration type.'},
+    create_update: {label: 'Create + update through Extensions', help: 'Portable providers which can be created and updated through Extensions while automatic removal remains disabled.'},
+    export_only: {label: 'Export + compare', help: 'Readable providers which can be saved and compared, but are not approved for automatic restore/import.'},
+    review_only: {label: 'Review only', help: 'Providers which remain visible for review while automatic write and remove actions stay blocked.'},
+    not_separate: {label: 'Not offered separately', help: 'Providers handled by a dedicated configuration type or intentionally excluded from generic management.'},
+    unsupported: {label: 'Cannot be managed automatically', help: 'Detected providers which did not prove the portability or safety required for automatic management.'},
+    unavailable: {label: 'Unavailable', help: 'Providers which are registered or known but cannot currently be used on this site.'}
+  };
+
+  function detectedProviderGroupMeta(status) {
+    return detectedProviderGroups[status] || {label: 'Needs review', help: 'Provider metadata needs review.'};
+  }
+
+  function detectedProviderStatusLabel(provider) {
+    return detectedProviderGroupMeta(classifyDetectedProvider(provider)).label;
+  }
+
+  function detectedProviderReason(provider) {
+    provider = provider || {};
+    var reasonCode = normalize(provider.capability_reason_code);
+    var reasons = {
+      dedicated_or_excluded_extension: 'This provider is not offered as a separate configuration type because it is handled by a dedicated type or intentionally excluded from generic management.',
+      business_data_marker: 'This provider looks like business or transactional data, so automatic configuration management is blocked.',
+      api3_requires_explicit_adapter: 'This provider needs a reviewed adapter before Configuration Manager can manage it automatically.',
+      missing_portable_identity: 'This provider does not yet have a proven stable cross-site identity, so automatic management is blocked.',
+      incomplete_identity_metadata: 'This provider does not provide enough identity information for safe cross-site management.',
+      sensitive_identity: 'This provider relies on a potentially sensitive value for identity, so automatic management is blocked.',
+      sensitive_writable_field: 'This provider may write sensitive values, so automatic management is blocked.',
+      unmapped_reference_field: 'This provider has related values that cannot yet be mapped safely across sites.',
+      reviewed_adapter: 'This provider uses reviewed portability and write-safety rules.',
+      portable_identity_and_field_policy: 'This provider passed the current cross-site identity and field-safety checks.'
+    };
+    if (reasons[reasonCode]) {
+      return reasons[reasonCode];
+    }
+
+    var status = classifyDetectedProvider(provider);
+    if (status === 'managed') {
+      return 'This provider passed the current safety checks and is managed through the Extensions configuration type.';
+    }
+    if (status === 'export_only') {
+      return 'This provider can be saved and compared, but automatic restore/import is not enabled.';
+    }
+    if (status === 'review_only') {
+      return 'This provider is visible for review, but automatic write and remove actions remain blocked.';
+    }
+    if (status === 'unavailable') {
+      return 'This provider is not available in the current site or runtime.';
+    }
+    return 'This provider was detected, but automatic management is blocked until its portability and safety are proven.';
+  }
+
+  function selectDetectedProviders(providers, representedTypes) {
+    var represented = {};
+    (representedTypes || []).forEach(function(type) {
+      represented[normalize(type)] = true;
+    });
+    return (providers || []).filter(function(provider) {
+      if (!provider || !provider.type || isRejectedProvider(provider)) {
+        return false;
+      }
+      return !represented[normalize(provider.type)];
+    }).sort(function(a, b) {
+      var aKey = [normalize(a.owner), normalize(a.label), normalize(a.provider_key)].join('\u0000');
+      var bKey = [normalize(b.owner), normalize(b.label), normalize(b.provider_key)].join('\u0000');
+      if (aKey === bKey) { return 0; }
+      return aKey < bKey ? -1 : 1;
+    });
+  }
+
+  function summarizeDetectedProviders(providers) {
+    var summary = {
+      total: 0,
+      managed: 0,
+      create_update: 0,
+      export_only: 0,
+      review_only: 0,
+      not_separate: 0,
+      unsupported: 0,
+      unavailable: 0
+    };
+    (providers || []).forEach(function(provider) {
+      var status = classifyDetectedProvider(provider);
+      summary.total++;
+      if (Object.prototype.hasOwnProperty.call(summary, status)) {
+        summary[status]++;
+      }
+    });
+    return summary;
+  }
+
+  function providerInventoryStatus(total, configurationTypeCount, detectedCount, rejectedCount) {
+    total = Number(total) || 0;
+    configurationTypeCount = Number(configurationTypeCount) || 0;
+    detectedCount = Number(detectedCount) || 0;
+    rejectedCount = Number(rejectedCount) || 0;
+
+    var message = 'Provider safety details loaded: ' + total + ' provider entr' + (total === 1 ? 'y' : 'ies') + ' detected. ' + configurationTypeCount + ' configuration type' + (configurationTypeCount === 1 ? '' : 's') + ' available in Settings.';
+    if (detectedCount > 0) {
+      message += ' ' + detectedCount + ' additional provider' + (detectedCount === 1 ? '' : 's') + ' explained under Other detected providers.';
+    }
+    if (rejectedCount > 0) {
+      message += ' ' + rejectedCount + ' registration' + (rejectedCount === 1 ? '' : 's') + ' rejected.';
+    }
+    return message;
+  }
+
   function appendMeta(dl, label, value) {
     if (!dl || !value) { return; }
     var dt = document.createElement('dt');
@@ -85,6 +223,116 @@
     row.setAttribute('data-civicfg-provider-group-key', classifyProvider(provider));
     row.setAttribute('data-civicfg-provider-owner-value', provider.owner || '');
     row.setAttribute('data-civicfg-provider-registration-value', provider.registration_source || '');
+  }
+
+  function providerActionSummary(provider) {
+    var actions = provider && provider.actions ? provider.actions : {};
+    return ['read', 'create', 'update', 'delete'].filter(function(action) {
+      return actions[action] !== null && actions[action] !== undefined;
+    }).map(function(action) {
+      return action + ': ' + (actions[action] ? 'yes' : 'no');
+    }).join(', ');
+  }
+
+  function renderDetectedProviderItem(provider) {
+    var item = document.createElement('li');
+    item.className = 'civicfg-detected-provider';
+
+    var header = document.createElement('div');
+    header.className = 'civicfg-detected-provider-header';
+    var title = document.createElement('strong');
+    title.textContent = provider.label || provider.entity || provider.type || 'Detected provider';
+    header.appendChild(title);
+    var badge = document.createElement('span');
+    badge.className = 'civicfg-detected-provider-status civicfg-detected-provider-status-' + classifyDetectedProvider(provider);
+    badge.textContent = detectedProviderStatusLabel(provider);
+    header.appendChild(badge);
+    item.appendChild(header);
+
+    var reason = document.createElement('div');
+    reason.className = 'civicfg-detected-provider-reason';
+    reason.textContent = detectedProviderReason(provider);
+    item.appendChild(reason);
+
+    var technical = document.createElement('details');
+    technical.className = 'civicfg-detected-provider-technical';
+    var technicalSummary = document.createElement('summary');
+    technicalSummary.textContent = 'Technical details';
+    technical.appendChild(technicalSummary);
+    var meta = document.createElement('dl');
+    meta.className = 'civicfg-provider-safety-meta';
+    appendMeta(meta, 'Type', provider.type);
+    appendMeta(meta, 'Provider', provider.provider_key);
+    appendMeta(meta, 'Extension / owner', provider.owner);
+    appendMeta(meta, 'Registration', provider.registration_source);
+    appendMeta(meta, 'API', provider.api_version);
+    appendMeta(meta, 'Entity', provider.entity);
+    appendMeta(meta, 'Actions', providerActionSummary(provider));
+    appendMeta(meta, 'Identity', (provider.identity_fields || []).join(', '));
+    appendMeta(meta, 'Reason code', provider.capability_reason_code);
+    appendMeta(meta, 'Provider detail', provider.capability_reason);
+    technical.appendChild(meta);
+    item.appendChild(technical);
+
+    return item;
+  }
+
+  function renderDetectedProviders(panel, providers, representedTypes) {
+    if (!panel) {
+      return summarizeDetectedProviders([]);
+    }
+    var detected = selectDetectedProviders(providers, representedTypes);
+    var summary = summarizeDetectedProviders(detected);
+    var count = panel.querySelector('[data-civicfg-provider-discovery-count]');
+    var summaryHost = panel.querySelector('[data-civicfg-provider-discovery-summary]');
+    var groupsHost = panel.querySelector('[data-civicfg-provider-discovery-groups]');
+
+    if (count) { count.textContent = '(' + summary.total + ')'; }
+    panel.hidden = summary.total === 0;
+    if (!summaryHost || !groupsHost || summary.total === 0) {
+      return summary;
+    }
+
+    summaryHost.innerHTML = '';
+    groupsHost.innerHTML = '';
+    var order = ['managed', 'create_update', 'export_only', 'review_only', 'not_separate', 'unsupported', 'unavailable'];
+    order.forEach(function(status) {
+      var statusCount = summary[status] || 0;
+      if (!statusCount) { return; }
+      var meta = detectedProviderGroupMeta(status);
+
+      var chip = document.createElement('span');
+      chip.className = 'civicfg-detected-provider-summary-item';
+      chip.textContent = meta.label + ': ' + statusCount;
+      summaryHost.appendChild(chip);
+
+      var group = document.createElement('details');
+      group.className = 'civicfg-detected-provider-group';
+      group.setAttribute('data-civicfg-detected-provider-group', status);
+      var groupSummary = document.createElement('summary');
+      var groupTitle = document.createElement('strong');
+      groupTitle.textContent = meta.label;
+      groupSummary.appendChild(groupTitle);
+      groupSummary.appendChild(document.createTextNode(' (' + statusCount + ')'));
+      group.appendChild(groupSummary);
+
+      var help = document.createElement('p');
+      help.className = 'description';
+      help.textContent = meta.help;
+      group.appendChild(help);
+
+      var list = document.createElement('ul');
+      list.className = 'civicfg-detected-provider-list';
+      detected.forEach(function(provider) {
+        if (classifyDetectedProvider(provider) === status) {
+          list.appendChild(renderDetectedProviderItem(provider));
+        }
+      });
+      group.appendChild(list);
+      groupsHost.appendChild(group);
+    });
+
+    return summary;
   }
 
   function renderRejectedRegistrations(groupsRoot, providers) {
@@ -124,6 +372,7 @@
     var filter = doc.querySelector('[data-civicfg-provider-group-filter]');
     var visibleCount = doc.querySelector('[data-civicfg-provider-visible-count]');
     var empty = doc.querySelector('[data-civicfg-provider-empty]');
+    var discoveryPanel = doc.querySelector('[data-civicfg-provider-discovery]');
     var loadingGroup = groupsRoot.querySelector('[data-civicfg-provider-group="loading"]');
     var rows = Array.prototype.slice.call(groupsRoot.querySelectorAll('[data-civicfg-scope-row]'));
     var providerByType = {};
@@ -219,11 +468,17 @@
             capability_reason: 'Provider inventory did not return metadata for this registered configuration type.'
           };
         });
-        renderRejectedRegistrations(groupsRoot, payload.providers || []);
+        var providers = payload.providers || [];
+        var representedTypes = rows.map(function(row) {
+          return row.getAttribute('data-civicfg-scope-row') || '';
+        });
+        renderRejectedRegistrations(groupsRoot, providers);
+        var detectedSummary = renderDetectedProviders(discoveryPanel, providers, representedTypes);
         placeRows();
         if (state) {
-          var count = payload.summary && payload.summary.provider_count !== undefined ? payload.summary.provider_count : rows.length;
-          state.textContent = 'Provider safety details loaded for ' + count + ' registered provider(s).';
+          var total = payload.summary && payload.summary.provider_count !== undefined ? payload.summary.provider_count : providers.length;
+          var rejectedCount = providers.filter(isRejectedProvider).length;
+          state.textContent = providerInventoryStatus(total, rows.length, detectedSummary.total, rejectedCount);
         }
       })
       .catch(function(error) {
@@ -240,6 +495,11 @@
   return {
     classifyProvider: classifyProvider,
     matchesSearch: matchesSearch,
+    classifyDetectedProvider: classifyDetectedProvider,
+    detectedProviderReason: detectedProviderReason,
+    selectDetectedProviders: selectDetectedProviders,
+    summarizeDetectedProviders: summarizeDetectedProviders,
+    providerInventoryStatus: providerInventoryStatus,
     init: init
   };
 });

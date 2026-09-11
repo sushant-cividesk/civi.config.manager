@@ -36,7 +36,7 @@
             </ol>
           </div>
         {/if}
-        <p class="description">{ts}Every registered configuration type is listed below. Third-party providers that do not expose a safe portable identity remain backup/monitor-only instead of being written automatically.{/ts}</p>
+        <p class="description">{ts}Every configurable type is listed below. Additional provider APIs detected from installed extensions are explained separately; detecting a provider never grants automatic write access.{/ts}</p>
         <div class="civicfg-provider-browser-toolbar" data-civicfg-provider-browser-toolbar>
           <label for="civicfg-provider-search"><strong>{ts}Find a configuration type{/ts}</strong></label>
           <input type="search" id="civicfg-provider-search" class="crm-form-text" data-civicfg-provider-search placeholder="{ts}Search by name, type, or provider...{/ts}" autocomplete="off" />
@@ -190,6 +190,15 @@
           </div></section>
           <div class="messages status no-popup civicfg-provider-empty" data-civicfg-provider-empty hidden="hidden">{ts}No configuration types match the current search and filter.{/ts}</div>
         </div>
+
+        <details class="civicfg-provider-discovery" data-civicfg-provider-discovery hidden="hidden">
+          <summary><strong>{ts}Other detected providers{/ts}</strong> <span class="civicfg-muted" data-civicfg-provider-discovery-count></span></summary>
+          <div class="civicfg-provider-discovery-body">
+            <p class="description">{ts}One extension can expose many API providers, so this number can be much larger than the configuration types above. These entries are informational: safe extension providers are controlled through Extensions, while providers that have not proved portability or write safety remain limited or blocked. Extensions that expose no deployable configuration do not become management cards.{/ts}</p>
+            <div class="civicfg-detected-provider-summary" data-civicfg-provider-discovery-summary aria-live="polite"></div>
+            <div data-civicfg-provider-discovery-groups></div>
+          </div>
+        </details>
 
         <details class="civicfg-settings-example" open="open">
           <summary>{ts}Use the same scope from civicrm.settings.php{/ts}</summary>

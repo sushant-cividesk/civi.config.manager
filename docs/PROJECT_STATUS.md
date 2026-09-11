@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha68.1-core` |
+| Active development line | `0.1.0-alpha68.2-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -107,7 +107,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] Add per-type Saved Config counts without forcing expensive provider collection during initial page render. Live item/selected counts remain part of A67-04.
 - [x] Add persistent Import result summary using the same compact progressive-disclosure pattern; keep only the most recent Export/Import result to avoid UI clutter.
 - [ ] Finish structured error/warning remediation UX across UI, CLI, API4, and logs.
-- [x] Improve extension discovery visibility by explaining the safe-managed filter boundary and linking to Settings for detected providers.
+- [x] Improve extension discovery visibility: the normal management cards stay focused on configurable types, while Settings now explains additional discovered provider entries in collapsed safety groups. Provider counts no longer imply that every detected API is separately manageable; technical identifiers/reasons stay behind progressive disclosure. **Alpha68.2 adds no provider authority.**
 - [x] Correct capability wording so reviewed create/update-only handlers show **Create + update**, fully managed handlers show **Managed**, and no label implies delete authority that the handler has not enabled.
 - [x] Replace duplicate **Not Yet Saved** prose with an Export next action and keep removal wording explicitly conditional on proven provider safety.
 - [x] Keep Profile Field collision hashes internal: normal Sync/Import/Export cards use semantic Profile/field titles while the underlying Saved Config filename and identity remain unchanged.

@@ -65,7 +65,7 @@ test.describe('Configuration Manager targeted site smoke', () => {
     const providerState = page.locator('[data-civicfg-provider-inventory-state]');
     await expect(providerSearch).toBeVisible();
     await expect(providerFilter).toBeVisible();
-    await expect(providerState).toContainText(/Provider safety details loaded for/i);
+    await expect(providerState).toContainText(/Provider safety details loaded:/i);
     await expect(page.locator('[data-civicfg-provider-group]:not([hidden])').first()).toBeVisible();
 
     await providerSearch.fill('configuration-type-that-does-not-exist');
