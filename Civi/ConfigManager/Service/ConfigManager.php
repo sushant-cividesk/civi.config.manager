@@ -3943,8 +3943,10 @@ class ConfigManager {
     }
 
     $planTypes = array_values(array_map('strval', (array) ($plan['requested_types'] ?? [])));
-    $submitted = $this->normaliseTypeFilter($submittedTypes);
-    if ($submitted && $this->sortedInventoryStrings($submitted) !== $this->sortedInventoryStrings($planTypes)) {
+    // Compare submitted values before managed-type normalization. Dropping an
+    // unknown extra type here would turn request tampering into a valid plan.
+    $submitted = $this->sortedInventoryStrings($submittedTypes);
+    if ($submitted && $submitted !== $this->sortedInventoryStrings($planTypes)) {
       throw $this->importPlanGuard->stale('the requested configuration type selection changed');
     }
 

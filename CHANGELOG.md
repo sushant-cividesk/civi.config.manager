@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha68.3.1-core
+
+- Fixed reviewed-plan tamper validation so an extra or unknown submitted type cannot be normalized away and silently treated as the original reviewed type selection.
+- Corrected the queue regression expectation to use the actual `import_preflight` action while separately asserting the user-facing `preflight` phase.
+- Strengthened the regression test to prove the exact reviewed type selection still validates before the tampered selection is rejected.
+
 ## 0.1.0-alpha68.3-core
 
 - Bound Import apply to an immutable server-side reviewed plan instead of trusting mutable browser/API/CLI type values.

@@ -127,9 +127,12 @@ final class ConfigManagerImportPlanTest extends TestCase {
     [$manager] = $this->fixture();
     $preview = $manager->createImportReviewPlan(['review-plan-test']);
 
+    $loaded = $manager->validateImportReviewPlan((string) $preview['plan_id'], ['review-plan-test'], FALSE);
+    self::assertSame(['review-plan-test'], $loaded['requested_types']);
+
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('type selection changed');
-    $manager->validateImportReviewPlan((string) $preview['plan_id'], ['settings'], FALSE);
+    $manager->validateImportReviewPlan((string) $preview['plan_id'], ['review-plan-test', 'settings'], FALSE);
   }
 
   public function testQueuedImportPlanRequiresReviewedPlanAndCarriesOpaqueId(): void {
@@ -146,7 +149,8 @@ final class ConfigManagerImportPlanTest extends TestCase {
     $preview = $manager->createImportReviewPlan(['review-plan-test']);
     $queuePlan = $manager->buildQueuedImportPlan(['review-plan-test'], (string) $preview['plan_id']);
     self::assertSame($preview['plan_id'], $queuePlan[0]['review_plan_id']);
-    self::assertSame('preflight', $queuePlan[0]['action']);
+    self::assertSame('import_preflight', $queuePlan[0]['action']);
+    self::assertSame('preflight', $queuePlan[0]['phase']);
     foreach ($queuePlan as $task) {
       self::assertSame($preview['plan_id'], $task['review_plan_id']);
     }
