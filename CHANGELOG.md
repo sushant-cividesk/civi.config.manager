@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0-alpha68.3.2-core
+
+- Removed unused delete-phase state from the immutable Import-plan PHPUnit fixture after PHPStan correctly reported it as write-only dead code.
+- Kept the fixture behavior focused on the create/update write boundary it actually asserts; no production Import, delete-missing, queue, provider, or Saved Config behavior changed.
+
 ## 0.1.0-alpha68.3.1-core
 
 - Fixed reviewed-plan tamper validation so an extra or unknown submitted type cannot be normalized away and silently treated as the original reviewed type selection.

@@ -222,7 +222,6 @@ final class ImportPlanFixtureHandler extends AbstractHandler {
   public string $activeLabel = 'original';
   public int $realApplyCalls = 0;
   private bool $writeEnabled = TRUE;
-  private bool $deleteEnabled = TRUE;
 
   public function getType(): string { return 'review-plan-test'; }
   public function getLabel(): string { return 'Review Plan Test'; }
@@ -253,11 +252,6 @@ final class ImportPlanFixtureHandler extends AbstractHandler {
 
   public function setImportWriteEnabled(bool $enabled): self {
     $this->writeEnabled = $enabled;
-    return $this;
-  }
-
-  public function setDeleteMissingEnabled(bool $enabled): self {
-    $this->deleteEnabled = $enabled;
     return $this;
   }
 
