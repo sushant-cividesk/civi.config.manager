@@ -9,16 +9,21 @@
         <summary>{ts}Import Preview{/ts}{if $diffTotal gt 0} <span class="civicfg-muted">({$diffTotal|escape} {ts}changed items{/ts})</span>{/if}</summary>
         <div class="civicfg-panel-body">
           <div class="civicfg-actions">
-            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
+            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok and $importPlanId}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import Saved Config to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply Saved Config as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses Saved Config as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                 <input type="hidden" name="_action" value="import_apply" />
+                <input type="hidden" name="import_plan_id" value="{$importPlanId|escape}" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
                 <button type="submit" class="button"><span>{ts}Import{/ts}</span></button>
               </form>
             {/if}
             <a class="button" href="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}"><span>{ts}Back{/ts}</span></a>
           </div>
+
+          {if $importPlanId}
+            <div class="messages status no-popup civicfg-import-plan-status"><strong>{ts}Reviewed preview protected.{/ts}</strong> {ts}Import will use this exact reviewed plan. If Saved Config, Current CiviCRM, scope, or provider capability changes before apply, Configuration Manager will stop and require a fresh preview.{/ts}</div>
+          {/if}
 
           {if $diffPageCount gt 1}
             <div class="civicfg-pagination-summary">{ts}Showing page{/ts} {$diffPage|escape} {ts}of{/ts} {$diffPageCount|escape}. {ts}The Import action still applies the full selected managed type after complete server-side preflight; this list is paginated only for review.{/ts}</div>
@@ -67,10 +72,11 @@
             </div>
           {/if}
           <div class="civicfg-actions">
-            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok}
+            {if $canImport and $importApplyTypes|@count gt 0 and $importErrorCount eq 0 and $importResult.ok and $importPlanId}
               <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=sync'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Import Saved Config to CiviCRM" data-civicfg-confirm-word="IMPORT" data-civicfg-confirm-button="Import" data-civicfg-confirm-message="Import will apply Saved Config as the source of truth. Supported records may be created, updated, or deleted. Continue only after reviewing the changed files and dependency warnings." data-civicfg-confirm-warning="Import uses Saved Config as the source of truth. Supported CiviCRM records may be created, updated, deleted, or recreated with new database IDs.">
           <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
                 <input type="hidden" name="_action" value="import_apply" />
+                <input type="hidden" name="import_plan_id" value="{$importPlanId|escape}" />
                 {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
                 <button type="submit" class="button"><span>{ts}Import{/ts}</span></button>
               </form>

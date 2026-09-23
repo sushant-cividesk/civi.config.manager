@@ -173,15 +173,19 @@ final class CivicfgImportBlockerSafety {
     $blockerYamlHash = hash_file('sha256', $yamlPath);
 
     $before = $this->independentState();
-    $preview = $manager->import(TRUE, FALSE, ['option-groups']);
+    $preview = $manager->createImportReviewPlan(['option-groups']);
     $this->assertTrue(empty($preview['ok']), 'Preview did not report the required blocking result.');
     $this->assertContains('Possible OptionValue identity rename detected', $preview, 'Preview did not identify the OptionValue rename blocker.');
+    $this->assertSame('', (string) ($preview['plan_id'] ?? ''), 'A blocked preview must not issue an apply-capable reviewed plan.');
     $this->assertSame($before, $this->independentState(), 'Preview changed independently queried CiviCRM state.');
 
-    $apply = $manager->import(FALSE, TRUE, ['option-groups']);
-    $this->assertTrue(empty($apply['ok']), 'Confirmed import did not remain blocked.');
-    $this->assertTrue(empty($apply['applied']), 'Confirmed blocked import incorrectly reports that it applied.');
-    $this->assertContains('Possible OptionValue identity rename detected', $apply, 'Confirmed import lost the blocker diagnostic.');
+    try {
+      $manager->import(FALSE, TRUE, ['option-groups']);
+      throw new RuntimeException('Direct confirmed import unexpectedly bypassed the reviewed-plan requirement.');
+    }
+    catch (RuntimeException $e) {
+      $this->assertTrue(strpos($e->getMessage(), 'reviewed Import plan') !== FALSE, 'Direct apply was blocked for an unexpected reason: ' . $e->getMessage());
+    }
 
     $after = $this->independentState();
     $this->assertSame($before, $after, 'Blocked confirmed import changed independently queried CiviCRM state.');
@@ -196,7 +200,7 @@ final class CivicfgImportBlockerSafety {
     $this->assertSame($oldName, (string) ($valueAfter['name'] ?? ''), 'Blocked import renamed the database OptionValue.');
     $this->assertSame($stableValue, (string) ($valueAfter['value'] ?? ''), 'Blocked import changed the stable database OptionValue value.');
 
-    $this->evidence['requirement'] = 'OptionValue identity-rename blockers perform zero writes in preview and confirmed import.';
+    $this->evidence['requirement'] = 'OptionValue identity-rename blockers issue no apply-capable plan and direct write bypass performs zero writes.';
     $this->evidence['boundary'] = 'ConfigManager import service against disposable real CiviCRM';
     $this->evidence['oracle'] = 'direct API4 rows, direct SQL counts, setting fingerprint, and raw YAML hash';
     $this->evidence['adversarial_review'] = 'This service-boundary test could still pass if API4, CLI, browser, or queued execution bypassed the service; each of those boundaries therefore remains a separate required gate.';

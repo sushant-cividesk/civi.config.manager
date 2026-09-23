@@ -186,7 +186,9 @@ final class CivicfgFullRealFixtures {
     $this->assertOk($manager->export(FALSE, ['dedupe-rules']), 'Dedupe Rule Group export must succeed.');
     $this->api4Update($entity, [['id', '=', $id]], ['title' => 'QA Dedupe changed in CiviCRM']);
     $this->assertJsonContains($manager->diff(['dedupe-rules']), $name, 'Dedupe Rule Group diff must include the changed fixture.');
-    $this->assertOk($manager->import(FALSE, TRUE, ['dedupe-rules']), 'Dedupe Rule Group import must restore YAML.');
+    $review = $manager->createImportReviewPlan(['dedupe-rules']);
+    $this->assertOk($review, 'Dedupe Rule Group reviewed import preview must succeed.');
+    $this->assertOk($manager->applyImportReviewPlan((string) $review['plan_id']), 'Dedupe Rule Group import must restore YAML.');
     $restored = $this->api4GetFirst($entity, [['id', '=', $id]], ['title']);
     $this->assertSame('QA Dedupe Rule Group ' . $this->runId, (string) ($restored['title'] ?? ''), 'Dedupe Rule Group import must restore the YAML title.');
 
@@ -216,7 +218,9 @@ final class CivicfgFullRealFixtures {
     $this->assertOk($manager->export(FALSE, ['contact-types']), 'Contact Type export must succeed.');
     $this->api4Update($entity, [['id', '=', $id]], ['label' => 'QA Contact Type changed in CiviCRM']);
     $this->assertJsonContains($manager->diff(['contact-types']), $name, 'Contact Type diff must include the changed fixture.');
-    $this->assertOk($manager->import(FALSE, TRUE, ['contact-types']), 'Contact Type import must restore YAML.');
+    $review = $manager->createImportReviewPlan(['contact-types']);
+    $this->assertOk($review, 'Contact Type reviewed import preview must succeed.');
+    $this->assertOk($manager->applyImportReviewPlan((string) $review['plan_id']), 'Contact Type import must restore YAML.');
     $restored = $this->api4GetFirst($entity, [['id', '=', $id]], ['label']);
     $this->assertSame('QA Contact Type ' . $this->runId, (string) ($restored['label'] ?? ''), 'Contact Type import must restore the YAML label.');
 
@@ -391,9 +395,9 @@ final class CivicfgFullRealFixtures {
       }
     }
 
-    $preview = $manager->import(TRUE, FALSE, ['extensions', 'civirules']);
+    $preview = $manager->createImportReviewPlan(['extensions', 'civirules']);
     $this->assertOk($preview, 'Extension configuration import preview must succeed.');
-    $apply = $manager->import(FALSE, TRUE, ['extensions', 'civirules']);
+    $apply = $manager->applyImportReviewPlan((string) $preview['plan_id']);
     $this->assertOk($apply, 'Extension configuration import must succeed.');
     $second = $manager->import(TRUE, FALSE, ['extensions', 'civirules']);
     $this->assertOk($second, 'Second extension configuration import preview must be safe.');
@@ -472,9 +476,9 @@ final class CivicfgFullRealFixtures {
     $manager = new ConfigManager();
     $this->assertOk($manager->export(FALSE, []), 'Full export must succeed.');
     $this->assertOk($manager->validate([]), 'Full validation must succeed after export.');
-    $preview = $manager->import(TRUE, FALSE, []);
+    $preview = $manager->createImportReviewPlan([]);
     $this->assertOk($preview, 'Full import preview after export must succeed.');
-    $apply = $manager->import(FALSE, TRUE, []);
+    $apply = $manager->applyImportReviewPlan((string) $preview['plan_id']);
     $this->assertOk($apply, 'Full import after export must succeed.');
     $second = $manager->import(TRUE, FALSE, []);
     $this->assertOk($second, 'Second full import preview must succeed.');

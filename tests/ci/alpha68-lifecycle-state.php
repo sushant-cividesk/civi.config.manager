@@ -21,6 +21,8 @@ $assert(strpos($main, 'if (!$hasCurrentManifest)') !== FALSE, 'stale operation h
 $assert(strpos($main, 'LifecycleStateCleaner::clearTransientSessionState()') !== FALSE, 'missing baseline must invalidate stale browser operation history');
 $assert(strpos($main, '$exportResult = NULL;') !== FALSE, 'stale Last Export must be suppressed when the baseline is missing');
 $assert(strpos($main, '$importSummary = NULL;') !== FALSE, 'stale Last Import must be suppressed when the baseline is missing');
+$assert(strpos($cleaner, "'civicfg_import_review_plan_id'") !== FALSE, 'reviewed Import plan session identity must be cleared with other transient lifecycle state');
+$assert(strpos($cleaner, '(new ImportPlanStore())->cleanupAll()') !== FALSE, 'fresh install and uninstall must clear private reviewed Import plan files');
 foreach (['civicfg_scope_default_mode', 'civicfg_scope', 'civicfg_scope_resolved', 'civicfg_last_health', 'civicfg_watch_summary', 'civicfg_watch_history'] as $setting) {
   $assert(strpos($cleaner, "'{$setting}'") !== FALSE, $setting . ' must be reset as lifecycle-local state');
 }

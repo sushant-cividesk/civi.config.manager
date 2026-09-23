@@ -249,7 +249,7 @@ civicfg cross-site-import --deny
 civicfg export --write
 civicfg export --type searchkit-saved-searches --write
 civicfg import --dry-run
-civicfg import --yes
+civicfg import --yes --plan <plan_id>
 ```
 
 The extension-local `ext/civi.config.manager/bin/civicfg` remains a direct fallback. Composer projects can additionally use `vendor/bin/civicfg`.
@@ -493,7 +493,7 @@ civicfg diff
 civicfg validate
 civicfg watch
 civicfg import --dry-run
-civicfg import --yes
+civicfg import --yes --plan <plan_id>
 ```
 
 See `docs/CLI.md` for Composer/non-Composer behavior, ownership, registry, and uninstall details.

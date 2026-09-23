@@ -29,6 +29,7 @@ final class LifecycleStateCleaner {
       'civicfg_last_export_result',
       'civicfg_last_import_summary',
       'civicfg_last_import_result',
+      'civicfg_import_review_plan_id',
     ];
   }
 
@@ -39,6 +40,13 @@ final class LifecycleStateCleaner {
       }
     }
     self::clearTransientSessionState();
+    try {
+      (new ImportPlanStore())->cleanupAll();
+    }
+    catch (\Throwable $e) {
+      // Fresh install/uninstall must not fail merely because old private plan
+      // files are already absent or their former temp directory is unavailable.
+    }
   }
 
   public static function clearTransientSessionState(): void {

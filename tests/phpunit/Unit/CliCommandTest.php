@@ -122,6 +122,42 @@ final class CliCommandTest extends TestCase {
     self::assertStringContainsString('either --allow or --deny', implode("\n", $lines));
   }
 
+  public function testImportDryRunBuildsReviewedPlanThroughApi(): void {
+    [$exit, $lines] = $this->runCli(['import', '--dry-run', '--type', 'custom-data']);
+
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertContains('ConfigManager.import', $lines);
+    self::assertContains('dryRun=1', $lines);
+    self::assertContains('yes=0', $lines);
+    self::assertContains('planId=', $lines);
+  }
+
+  public function testImportApplyRequiresReviewedPlanId(): void {
+    [$exit, $lines] = $this->runCli(['import', '--yes']);
+
+    self::assertSame(2, $exit);
+    self::assertStringContainsString('requires --plan PLAN_ID', implode("\n", $lines));
+  }
+
+  public function testImportApplyRejectsMalformedPlanIdBeforeApiCall(): void {
+    [$exit, $lines] = $this->runCli(['import', '--yes', '--plan', '../unsafe']);
+
+    self::assertSame(2, $exit);
+    self::assertStringContainsString('48-character plan_id', implode("\n", $lines));
+    self::assertNotContains('ConfigManager.import', $lines);
+  }
+
+  public function testImportApplyPassesReviewedPlanIdToApi(): void {
+    $planId = str_repeat('b', 48);
+    [$exit, $lines] = $this->runCli(['import', '--yes', '--plan', $planId]);
+
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertContains('ConfigManager.import', $lines);
+    self::assertContains('dryRun=0', $lines);
+    self::assertContains('yes=1', $lines);
+    self::assertContains('planId=' . $planId, $lines);
+  }
+
   /**
    * @return array{0:int,1:array<int,string>}
    */

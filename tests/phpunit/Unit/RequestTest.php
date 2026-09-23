@@ -31,4 +31,29 @@ final class RequestTest extends TestCase {
 
     self::assertSame('provider-inventory-json', (new Request())->getOperation());
   }
+
+  public function testExtensionProviderSubtypeIsAcceptedAsSelectedType(): void {
+    $_REQUEST = [
+      'type' => [
+        'extensions:de.systopia.sqltasks:api4:SqlTask',
+        '../unsafe',
+      ],
+    ];
+
+    self::assertSame(
+      ['extensions:de.systopia.sqltasks:api4:SqlTask'],
+      (new Request())->getSelectedTypes()
+    );
+  }
+
+  public function testImportPlanIdentifierMustBeOpaqueReviewedToken(): void {
+    $request = new Request();
+    $_REQUEST = ['import_plan_id' => str_repeat('a', 48)];
+    self::assertSame(str_repeat('a', 48), $request->requireImportPlanId());
+
+    $_REQUEST = ['import_plan_id' => '../not-a-plan'];
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('requires the reviewed Import plan');
+    $request->requireImportPlanId();
+  }
 }

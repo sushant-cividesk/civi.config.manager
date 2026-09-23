@@ -29,11 +29,27 @@ class Request {
     $types = [];
     foreach ($raw as $type) {
       $type = trim((string) $type);
-      if ($type !== '' && $type !== 'all' && preg_match('/^[A-Za-z0-9_.-]+$/', $type)) {
+      // Extension provider subtypes use colon-delimited semantic keys, e.g.
+      // extensions:org.example:api4:Entity. Keep the request allowlist strict
+      // while accepting the same portable type syntax used by ConfigManager.
+      if ($type !== '' && $type !== 'all' && preg_match('/^[A-Za-z0-9_.:-]+$/', $type)) {
         $types[] = $type;
       }
     }
     return array_values(array_unique($types));
+  }
+
+  public function getImportPlanId(): string {
+    $value = isset($_REQUEST['import_plan_id']) ? trim((string) $_REQUEST['import_plan_id']) : '';
+    return preg_match('/^[a-f0-9]{48}$/', $value) ? $value : '';
+  }
+
+  public function requireImportPlanId(): string {
+    $value = $this->getImportPlanId();
+    if ($value === '') {
+      throw new \RuntimeException('Import apply requires the reviewed Import plan. Build and review a fresh preview first.');
+    }
+    return $value;
   }
 
   public function getSingleExportKey(): string {

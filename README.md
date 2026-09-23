@@ -29,8 +29,8 @@ The extension is intentionally conservative.
 
 - Fresh installs begin with configuration types set to **Ignore** until an administrator chooses what to manage or monitor.
 - A true uninstall/reinstall clears Configuration Manager scope/dependency caches, watch/health history, and stale Last Export/Last Import browser state; disable/enable and normal upgrades preserve configured state. Filesystem location, site identity, ignore rules, allowlists, cross-site policy, and `civicrm.settings.php` overrides are not reset by this lifecycle cleanup.
-- Import always performs a complete non-writing preflight first.
-- Site identity, dependencies, possible renames, provider capabilities, and unsafe identities are checked before writes.
+- Import always performs a complete non-writing preflight first. A green preview creates a private reviewed plan, and apply requires that exact plan ID.
+- Site identity, dependencies, possible renames, provider capabilities, unsafe identities, Saved Config content, Current CiviCRM state, scope, and implementation fingerprints are checked before writes.
 - Weak or ambiguous identities remain export/compare or monitor-only.
 - Create/update completes before delete-missing begins.
 - A create/update failure prevents the delete phase from starting.
@@ -43,7 +43,7 @@ The protected release is `v1.0.0-beta1`; current work continues on numbered deve
 
 Alpha63 keeps the bounded-memory streaming model introduced in alpha62 and makes the web execution model genuinely multi-unit. High-volume CiviRules and discovered extension providers are scanned once into a private disk spool while compact identity multiplicities are calculated, then temporary YAML is built from that spool. Staging also records compact identity/hash/name/dependency metadata so finalization does not repeatedly parse thousands of YAML documents merely to rebuild indexes.
 
-A web Export is a durable plan: prepare private workspace -> scan/stage handler or provider units -> finalize compact metadata -> re-scan active CiviCRM immediately before publication -> publish the verified snapshot with `manifest.yml` last -> record baselines -> complete. A durable publication journal can restore the previous coherent YAML tree if a PHP worker dies after live filesystem mutation begins. Import similarly uses full preflight -> create/update units -> delete-missing units -> baseline -> complete; no delete unit can run if preflight or any create/update unit fails.
+A web Export is a durable plan: prepare private workspace -> scan/stage handler or provider units -> finalize compact metadata -> re-scan active CiviCRM immediately before publication -> publish the verified snapshot with `manifest.yml` last -> record baselines -> complete. A durable publication journal can restore the previous coherent YAML tree if a PHP worker dies after live filesystem mutation begins. Import similarly uses reviewed plan -> full preflight -> create/update units -> delete-missing units -> baseline -> complete. The reviewed plan is reusable across refresh/reconnect only while its Saved Config, Current CiviCRM, scope, provider, site, and implementation fingerprints remain unchanged; no delete unit can run if preflight or any create/update unit fails.
 
 The extension does **not** raise PHP `memory_limit`. `composer qa:stress` runs both the alpha62 API/YAML iterator stress and alpha63 disk-spool/persistent-workspace recovery stress under a 256 MB ceiling. Providers which cannot be read safely fail closed instead of being silently truncated.
 

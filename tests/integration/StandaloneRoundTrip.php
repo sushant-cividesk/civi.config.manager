@@ -249,11 +249,11 @@ final class CivicfgStandaloneRoundTrip {
     $this->assertTrue(!empty($dryExport['ok']), 'Dry-run export must succeed.');
     $this->assertSame($originalHash, hash_file('sha256', $path), 'Dry-run export must not modify YAML files.');
 
-    $dryImport = $manager->import(TRUE, FALSE, ['option-groups']);
+    $dryImport = $manager->createImportReviewPlan(['option-groups']);
     $this->assertTrue(!empty($dryImport['ok']), 'Dry-run import must succeed.');
     $this->assertSame($changedTitle, $this->getOptionGroupTitle($groupId), 'Dry-run import must not modify CiviCRM.');
 
-    $apply = $manager->import(FALSE, TRUE, ['option-groups']);
+    $apply = $manager->applyImportReviewPlan((string) $dryImport['plan_id']);
     $this->assertTrue(!empty($apply['ok']), 'Applied Option Group import must succeed.');
     $this->assertSame($originalTitle, $this->getOptionGroupTitle($groupId), 'Import must restore the YAML value.');
 
@@ -424,7 +424,9 @@ final class CivicfgStandaloneRoundTrip {
     $templateDiff = $this->findItemByType($diff['items'] ?? [], 'message-templates');
     $this->assertSame('changed', (string) ($templateDiff['status'] ?? ''), 'Message Template change must be detected.');
 
-    $apply = $manager->import(FALSE, TRUE, ['message-templates']);
+    $preview = $manager->createImportReviewPlan(['message-templates']);
+    $this->assertTrue(!empty($preview['ok']), 'Message Template reviewed import preview must succeed.');
+    $apply = $manager->applyImportReviewPlan((string) $preview['plan_id']);
     $this->assertTrue(!empty($apply['ok']), 'Message Template import must succeed.');
     $restored = MessageTemplate::get(FALSE)
       ->addSelect('msg_subject', 'msg_text', 'msg_html')
@@ -492,14 +494,14 @@ final class CivicfgStandaloneRoundTrip {
     $bytes = file_put_contents($path, SimpleYaml::dump($yaml), LOCK_EX);
     $this->assertTrue($bytes !== FALSE, 'Deletion-safety YAML must be updated in the isolated directory.');
 
-    $preview = $manager->import(TRUE, FALSE, ['option-groups']);
+    $preview = $manager->createImportReviewPlan(['option-groups']);
     $summary = $this->findItemByType($preview['items'] ?? [], 'option-groups');
     $this->assertSame(1, (int) ($summary['values']['delete'] ?? 0), 'Dry-run must propose deleting only the non-reserved Option Value.');
     $this->assertTrue((int) ($summary['values']['skip'] ?? 0) >= 1, 'Dry-run must skip the reserved Option Value.');
     $warningText = strtolower((string) json_encode($summary['warnings'] ?? []));
     $this->assertTrue(strpos($warningText, 'reserved option value') !== FALSE, 'Dry-run must explain why the reserved Option Value is protected.');
 
-    $apply = $manager->import(FALSE, TRUE, ['option-groups']);
+    $apply = $manager->applyImportReviewPlan((string) $preview['plan_id']);
     $this->assertTrue(!empty($apply['ok']), 'Deletion-safety import must succeed.');
     $this->assertSame(0, $this->countOptionValue($normalValueId), 'Non-reserved Option Value missing from YAML must be deleted.');
     $this->assertSame(1, $this->countOptionValue($reservedValueId), 'Reserved Option Value missing from YAML must remain unchanged.');

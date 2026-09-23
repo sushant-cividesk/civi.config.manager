@@ -200,8 +200,7 @@ class MainPage {
         $this->redirectWithNotice($notice, 'sync', empty($exportResult['errors']) ? 'success' : 'error');
       }
       elseif ($postAction === 'import_apply') {
-        $importTypes = $this->request->getSelectedTypes();
-        $importResult = $this->manager->import(FALSE, TRUE, $importTypes ?: []);
+        $importResult = $this->manager->applyImportReviewPlan($this->request->requireImportPlanId());
         \CRM_Core_Session::singleton()->set('civicfg_last_import_result', $importResult);
         \CRM_Core_Session::singleton()->set('civicfg_last_export_result', NULL);
         \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', $this->operationResultPresenter->importSummary($importResult));
@@ -326,7 +325,7 @@ class MainPage {
         ]);
       }
       else {
-        $result = $this->manager->import(FALSE, TRUE, $types, $progress);
+        $result = $this->manager->applyImportReviewPlan($this->request->requireImportPlanId(), $progress);
         \CRM_Core_Session::singleton()->set('civicfg_last_import_result', $result);
         $summaryMessage = (string) ($result['summary_message'] ?? '');
         if (!empty($result['ok'])) {
@@ -374,7 +373,8 @@ class MainPage {
       else {
         throw new RuntimeException('Unsupported Configuration Manager queued operation.');
       }
-      $job = (new QueuedOperationService())->start($operation, $types);
+      $reviewPlanId = $operation === 'import' ? $this->request->getImportPlanId() : '';
+      $job = (new QueuedOperationService())->start($operation, $types, $reviewPlanId);
       $payload = ['ok' => TRUE, 'job' => $job] + $this->operationLinks((int) $job['id']);
     }
     catch (\Throwable $e) {
@@ -749,9 +749,12 @@ class MainPage {
       ? \CRM_Utils_System::url('civicrm/admin/config-manager', $diffPageBaseQuery . '&diff_page=' . ($diffPage + 1), FALSE, NULL, FALSE)
       : '';
 
+    $importPlanId = '';
     if ($op === 'import' && $importResult === NULL && $importApplyTypes) {
       try {
-        $importResult = $this->manager->import(TRUE, FALSE, $importApplyTypes);
+        $review = (new ImportReviewPlanCoordinator($this->manager))->loadOrCreate($importApplyTypes);
+        $importResult = $review['result'];
+        $importPlanId = $review['plan_id'];
       }
       catch (Exception $e) {
         $importResult = [
@@ -972,6 +975,7 @@ class MainPage {
     $this->page->assign('diffNextUrl', $diffNextUrl);
     $this->page->assign('diffDetailUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=diff-detail-json', FALSE, NULL, FALSE));
     $this->page->assign('importPlan', $importPlan);
+    $this->page->assign('importPlanId', $importPlanId);
     $this->page->assign('importApplyTypes', $importApplyTypes);
     $this->page->assign('importApplyTypesMap', $importApplyTypesMap);
     $this->page->assign('effectiveExportTypes', $effectiveExportTypes);

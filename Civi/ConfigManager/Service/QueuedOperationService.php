@@ -21,7 +21,7 @@ class QueuedOperationService {
    * @param string[] $types
    * @return array<string,mixed>
    */
-  public function start(string $operation, array $types = []): array {
+  public function start(string $operation, array $types = [], string $reviewPlanId = ''): array {
     if (!in_array($operation, ['export', 'import'], TRUE)) {
       throw new \RuntimeException('Unsupported Configuration Manager queued operation.');
     }
@@ -40,9 +40,17 @@ class QueuedOperationService {
       return $active + ['reconnected' => TRUE];
     }
 
+    if ($operation === 'import') {
+      if ($reviewPlanId === '') {
+        throw new \RuntimeException('Import apply requires the reviewed Import plan ID. Build and review a fresh Import preview first.');
+      }
+      $reviewPlan = $this->manager->validateImportReviewPlan($reviewPlanId, $types, FALSE);
+      $types = array_values(array_map('strval', (array) ($reviewPlan['requested_types'] ?? [])));
+    }
+
     $plan = $operation === 'export'
       ? $this->manager->buildQueuedExportPlan($types)
-      : $this->manager->buildQueuedImportPlan($types);
+      : $this->manager->buildQueuedImportPlan($types, $reviewPlanId);
     if (!$plan) {
       throw new \RuntimeException('Configuration Manager could not build an operation plan.');
     }
@@ -237,6 +245,7 @@ class QueuedOperationService {
           }
         }
         $message = 'A previous Configuration Manager worker stopped during a live-mutating work unit before recording a terminal result. The job was blocked instead of replaying an indeterminate mutation.' . $recoveryMessage . ' Review Current CiviCRM/Saved Config state and start a fresh reviewed operation.';
+        self::discardReviewedImportPlan($manager, $job, $payload);
         $store->finishItem($jobId, $itemKey, 'blocked', [], $message);
         $store->blockJob($jobId, $message);
         return TRUE;
@@ -323,7 +332,8 @@ class QueuedOperationService {
           $result = $manager->queuedExportComplete($jobId, $syncRootHash);
           break;
         case 'import_preflight':
-          $result = $manager->queuedImportPreflight($jobId, $syncRootHash, $types, $progress);
+          $reviewPlanId = trim((string) ($payload['review_plan_id'] ?? ''));
+          $result = $manager->queuedImportPreflight($jobId, $syncRootHash, $reviewPlanId, $types, $progress);
           break;
         case 'import_create_update':
           $result = $manager->queuedImportCreateUpdate($jobId, $syncRootHash, $handlerType);
@@ -344,6 +354,7 @@ class QueuedOperationService {
       $ok = !array_key_exists('ok', $result) || !empty($result['ok']);
       if (!$ok) {
         $message = self::firstResultError($result);
+        self::discardReviewedImportPlan($manager, $job, $payload);
         $store->finishItem($jobId, $itemKey, 'failed', $result, $message);
         $store->failJob($jobId, $message, $result);
         return TRUE;
@@ -384,6 +395,7 @@ class QueuedOperationService {
       return TRUE;
     }
     catch (\Throwable $e) {
+      self::discardReviewedImportPlan($manager, $job, $payload);
       $store->finishItem($jobId, $itemKey, 'failed', [], $e->getMessage());
       $store->failJob($jobId, $e->getMessage());
       if ($logger !== NULL) {
@@ -397,6 +409,23 @@ class QueuedOperationService {
         ]);
       }
       return TRUE;
+    }
+  }
+
+  private static function discardReviewedImportPlan(ConfigManager $manager, array $job, array $payload): void {
+    if ((string) ($job['operation'] ?? '') !== 'import') {
+      return;
+    }
+    $planId = trim((string) ($payload['review_plan_id'] ?? ''));
+    if (!preg_match('/^[a-f0-9]{48}$/', $planId)) {
+      return;
+    }
+    try {
+      $manager->discardImportReviewPlan($planId);
+    }
+    catch (\Throwable $e) {
+      // Job failure is already authoritative; expiry/lifecycle cleanup will
+      // remove any private plan file that could not be discarded here.
     }
   }
 

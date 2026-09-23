@@ -17,6 +17,8 @@ require_once __DIR__ . '/../../Civi/ConfigManager/Service/SavedConfigInventory.p
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigIdentity.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigScope.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/HandlerRegistry.php';
+require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportPlanStore.php';
+require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportReviewPlanGuard.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigManager.php';
 
 use Civi\ConfigManager\Service\ConfigManager;
@@ -244,6 +246,9 @@ $providerBrowserSource = (string) file_get_contents(__DIR__ . '/../../js/setting
 $assert(strpos($syncTemplate, '{if $file.show_inline_path}<span class="civicfg-muted"><code>{$file.path|escape}</code></span>{/if}') !== FALSE, 'Synchronize must honor Profile Field progressive path disclosure');
 $assert(strpos($importTemplate, '{if $item.show_inline_path}<code class="civicfg-file-code">{$item.path|escape}</code>{else}<strong>{$item.display_title|escape}</strong>{/if}') !== FALSE, 'Import preview must use the semantic Profile Field title when its path is technical');
 $assert(strpos($exportTemplate, '{if $file.show_inline_path}<code class="civicfg-file-code">{$file.path|escape}</code>{else}<strong>{$file.display_title|escape}</strong>{/if}') !== FALSE, 'Export preview must use the semantic Profile Field title when its path is technical');
+$assert(substr_count($importTemplate, 'name="import_plan_id"') >= 2, 'Import actions must submit the opaque reviewed-plan ID from both action areas');
+$assert(strpos($importTemplate, 'Reviewed preview protected.') !== FALSE, 'Import must explain that the reviewed preview is protected against stale state');
+$assert(strpos($importTemplate, 'If Saved Config, Current CiviCRM, scope, or provider capability changes before apply') !== FALSE, 'Import must explain the stale-plan safety boundary in user language');
 
 /**
  * Supplemental source contract for provider-discovery progressive disclosure.

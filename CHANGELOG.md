@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha68.3-core
+
+- Bound Import apply to an immutable server-side reviewed plan instead of trusting mutable browser/API/CLI type values.
+- Persisted private short-lived plan IDs with integrity checks and fingerprints for site/sync-root identity, Configuration Scope + Config Ignore, manifest, provider/runtime capability, implementation version, managed Saved Config content, and managed Current CiviCRM state.
+- Reused an unchanged reviewed plan across Import page refresh/reconnect; stale, expired, tampered, wrong-site, wrong-scope, changed-provider, changed-Saved-Config, or changed-Current-CiviCRM plans fail closed before new writes.
+- Required the same reviewed plan boundary for synchronous UI, persistent queue, API4, and `civicfg import --yes --plan <plan_id>`. Direct write-mode service calls without a reviewed plan are rejected.
+- Kept existing per-handler before-write and before-delete conflict checks as a second safety barrier, and made reviewed plans single-use after apply starts.
+- Added plan-store, stale-state, queue-boundary, CLI/API, lifecycle, refresh/reconnect, and mutation regression coverage.
+- Corrected extension-provider request filtering so colon-delimited semantic provider type keys are preserved.
+- Kept Export behavior isolated from Import review-plan state; no provider received broader CRUD/delete authority.
+
 ## 0.1.0-alpha68.2.1-core
 
 - Fixed the stale missing-dependency PHPUnit expectation to match the already-adopted **Saved Config** / **Current CiviCRM** terminology.

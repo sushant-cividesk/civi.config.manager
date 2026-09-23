@@ -22,6 +22,7 @@ Common options:
   --dry-run         Preview only. Default for import; optional for export.
   --write           Write YAML files for export.
   --yes, -y         Apply import or answer yes where supported.
+  --plan PLAN_ID    Reviewed Import plan ID required with --yes.
   --json            Ask cv for JSON output when supported.
   -h, --help        Show this help.
 
@@ -37,7 +38,8 @@ Cross-site options:
 Examples:
   civicfg export --write
   civicfg import --dry-run
-  civicfg import --yes
+  civicfg import --dry-run --json
+  civicfg import --yes --plan <plan_id>
   civicfg validate
   civicfg watch
   civicfg scope --json
@@ -90,6 +92,7 @@ mode=""
 watch_unmanaged="0"
 cross_allow="0"
 cross_deny="0"
+plan_id=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -136,6 +139,14 @@ while [[ $# -gt 0 ]]; do
       yes="1"
       dry_run="0"
       ;;
+    --plan)
+      shift
+      [[ $# -gt 0 ]] || fail "Missing value for --plan"
+      plan_id="$1"
+      ;;
+    --plan=*)
+      plan_id="${1#--plan=}"
+      ;;
     --json)
       json="1"
       ;;
@@ -165,6 +176,10 @@ if [[ ${#selectors[@]} -gt 0 ]]; then
   selector_json=$(json_array "${selectors[@]}")
 fi
 
+if [[ "$command" != "import" && -n "$plan_id" ]]; then
+  fail "--plan is only valid for import."
+fi
+
 case "$command" in
   export)
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for export."
@@ -174,7 +189,16 @@ case "$command" in
   import)
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for import."
     [[ -n "$dry_run" ]] || dry_run="1"
-    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json"
+    if [[ "$yes" == "1" && -z "$plan_id" ]]; then
+      fail "Import --yes requires --plan PLAN_ID from a reviewed dry-run preview."
+    fi
+    if [[ -n "$plan_id" && ! "$plan_id" =~ ^[a-f0-9]{48}$ ]]; then
+      fail "Import --plan must be the 48-character plan_id returned by the reviewed dry-run preview."
+    fi
+    if [[ "$yes" != "1" && -n "$plan_id" ]]; then
+      fail "--plan is only valid with import --yes."
+    fi
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json" planId="$plan_id"
     ;;
   diff)
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for diff."

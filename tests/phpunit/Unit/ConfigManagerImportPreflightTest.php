@@ -45,19 +45,23 @@ final class ConfigManagerImportPreflightTest extends TestCase {
     $handler = new ImportPreflightFixtureHandler(TRUE);
     $manager = new ImportPreflightFixtureManager('local-site', new ImportPreflightFixtureRegistry([$handler]));
 
-    $preview = $manager->import(TRUE, FALSE);
+    $preview = $manager->createImportReviewPlan();
 
     self::assertFalse($preview['ok']);
     self::assertFalse($preview['applied']);
     self::assertStringContainsString('does not match this site_id', (string) json_encode($preview['validation']['errors']));
     self::assertStringContainsString('fixture handler blocker', (string) json_encode($preview['items']));
     self::assertSame(0, $handler->realApplyCalls);
+    self::assertSame('', $preview['plan_id']);
 
-    $apply = $manager->import(FALSE, TRUE);
-    self::assertFalse($apply['ok']);
-    self::assertFalse($apply['applied']);
+    try {
+      $manager->import(FALSE, TRUE);
+      self::fail('Blocked preview must not be bypassable through direct write mode.');
+    }
+    catch (\RuntimeException $e) {
+      self::assertStringContainsString('reviewed Import plan', $e->getMessage());
+    }
     self::assertSame(0, $handler->realApplyCalls);
-    self::assertStringContainsString('complete preflight', (string) ($apply['message'] ?? ''));
   }
 
   public function testCreateUpdateFailureSkipsEntireDeleteMissingPhase(): void {
@@ -78,7 +82,9 @@ final class ConfigManagerImportPreflightTest extends TestCase {
     $handler = new ImportPreflightFixtureHandler(FALSE, TRUE);
     $manager = new ImportPreflightFixtureManager('local-site', new ImportPreflightFixtureRegistry([$handler]));
 
-    $result = $manager->import(FALSE, TRUE);
+    $preview = $manager->createImportReviewPlan();
+    self::assertTrue($preview['ok']);
+    $result = $manager->applyImportReviewPlan((string) $preview['plan_id']);
 
     self::assertFalse($result['ok']);
     self::assertTrue($result['partial_apply']);

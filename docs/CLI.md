@@ -20,8 +20,8 @@ civicfg cross-site-import
 civicfg cross-site-import --allow
 civicfg cross-site-import --deny
 civicfg export --write
-civicfg import --dry-run
-civicfg import --yes
+civicfg import --dry-run --json
+civicfg import --yes --plan <plan_id>
 ```
 
 Use `civicfg --help` for the complete option list.
@@ -164,8 +164,8 @@ civicfg export --write
 civicfg export --type searchkit-saved-searches --write
 civicfg diff
 civicfg validate
-civicfg import --dry-run
-civicfg import --yes
+civicfg import --dry-run --json
+civicfg import --yes --plan <plan_id>
 ```
 
 The equivalent API4 actions remain available through `cv api4 ConfigManager.*`.

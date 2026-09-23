@@ -121,6 +121,20 @@ test.describe('Configuration Manager isolated UI', () => {
     await expect(apply).toBeEnabled();
   });
 
+  test('keeps the same reviewed Import plan across a browser refresh', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import', { waitUntil: 'domcontentloaded' });
+
+    const planInput = page.locator('input[name="import_plan_id"]').first();
+    await expect(planInput).toHaveCount(1);
+    const firstPlanId = await planInput.inputValue();
+    expect(firstPlanId).toMatch(/^[a-f0-9]{48}$/);
+    await expect(page.getByText('Reviewed preview protected.', { exact: true })).toBeVisible();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const refreshedPlanId = await page.locator('input[name="import_plan_id"]').first().inputValue();
+    expect(refreshedPlanId).toBe(firstPlanId);
+  });
+
   test('has no serious or critical accessibility violations in the extension UI', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=sync', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.crm-configmanager-block')).toBeVisible();

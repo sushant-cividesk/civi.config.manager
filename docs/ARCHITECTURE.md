@@ -270,7 +270,7 @@ A real Export is a staged filesystem transaction rather than a sequence of indep
 8. restore the journal if publication fails; and
 9. accept the new local baseline only after successful publication.
 
-Import preserves the complete-preflight barrier. Static validation, dependency checks, rename/identity/provider checks, and handler dry-run complete before the first write. Every create/update phase finishes before delete-missing can begin. Any create/update failure prevents the global delete phase. Compact active fingerprints are checked again before writes and before delete-missing so an external/manual change becomes a conflict instead of a blind overwrite.
+Import preserves the complete-preflight barrier and now binds apply to an immutable reviewed plan. A green preview persists only opaque IDs plus compact fingerprints/snapshots in private operational storage; the browser never becomes the authority for scope or content. Before apply, Configuration Manager rechecks site/sync-root identity, selected scope, Config Ignore, provider/runtime capability, implementation version, Saved Config hashes, and Current CiviCRM hashes. Static validation, dependency checks, rename/identity/provider checks, and handler dry-run still complete before the first write. Every create/update phase finishes before delete-missing can begin. Any create/update failure prevents the global delete phase. Per-handler Saved Config and active fingerprints are checked again immediately before writes and before delete-missing so an external/manual change becomes a conflict instead of a blind overwrite.
 
 ### Persistent web operations, ambiguity, and progress
 

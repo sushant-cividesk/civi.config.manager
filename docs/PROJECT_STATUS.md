@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha68.2.1-core` |
+| Active development line | `0.1.0-alpha68.3-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -85,15 +85,15 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 
 ### Alpha68 — safe reduced import plans and blocker UX
 
-- [ ] A68-01 Represent import operations and dependencies as immutable versioned plans with content/scope/active-state fingerprints.
+- [x] A68-01 Represent import operations and dependencies as immutable versioned plans with content/scope/active-state fingerprints. **Alpha68.3 persists private reviewed plans with site/scope/provider/implementation/Saved Config/Current CiviCRM fingerprints and reuses the same valid plan across refresh/reconnect.**
 - [ ] A68-02 Group blockers into dependency components and explain the affected files/types/actions in plain language.
 - [ ] A68-03 Offer **Fix and preview again** for every blocker; offer **Exclude component and build a new preview** only when graph closure is proven safe.
 - [ ] A68-04 Require explicit component selection and confirmation; never silently remove dependencies or individual rows.
 - [ ] A68-05 Discard the old plan, rebuild from current YAML/active state, and run full validation/preflight again after exclusions.
-- [ ] A68-06 Bind apply to the exact new plan token/fingerprints; stale or altered plans fail closed.
+- [x] A68-06 Bind apply to the exact new plan token/fingerprints; stale or altered plans fail closed. **Alpha68.3 requires the reviewed plan ID across UI/API4/CLI/queue apply paths, rejects tampered/stale plans before write, and keeps existing per-handler conflict checks as a second barrier.**
 - [ ] A68-07 Report Applied, Blocked, Excluded, and Remaining Difference counts consistently in UI/API4/CLI/queue results.
 - [ ] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.” **Alpha68 begins the client-language pass (`Saved Config`, `Current CiviCRM`, `Not Yet Saved`, `Not in Current CiviCRM`) and keeps unsupported removal non-actionable; full provider/action audit remains pending.**
-- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording.
+- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording. **Alpha68.3 adds refresh/reconnect reviewed-plan browser coverage; stale-plan browser rejection remains pending with the later blocker/reduced-plan UI work.**
 
 
 ### Alpha68 UI/UX slice — approved 2026-09-04

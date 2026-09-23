@@ -21,6 +21,13 @@ class Import extends AbstractAction {
   protected $yes = FALSE;
 
   /**
+   * Opaque reviewed-plan identifier required for write mode.
+   *
+   * @var string
+   */
+  protected $planId = '';
+
+  /**
    * Optional type filter.
    *
    * @var array
@@ -28,7 +35,17 @@ class Import extends AbstractAction {
   protected $type = [];
 
   public function _run(Result $result) {
+    $manager = new ConfigManager();
     $effectiveDryRun = (bool) $this->dryRun || !(bool) $this->yes;
-    $result[] = (new ConfigManager())->import($effectiveDryRun, (bool) $this->yes, (array) $this->type);
+    if ($effectiveDryRun) {
+      $result[] = $manager->createImportReviewPlan((array) $this->type);
+      return;
+    }
+
+    $planId = trim((string) $this->planId);
+    if ($planId === '') {
+      throw new \RuntimeException('Import apply requires planId from a reviewed dry-run preview. Run ConfigManager.import in dry-run mode, review the result, then apply that planId.');
+    }
+    $result[] = $manager->applyImportReviewPlan($planId, NULL, (array) $this->type);
   }
 }
