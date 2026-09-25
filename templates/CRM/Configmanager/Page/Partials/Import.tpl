@@ -25,6 +25,67 @@
             <div class="messages status no-popup civicfg-import-plan-status"><strong>{ts}Reviewed preview protected.{/ts}</strong> {ts}Import will use this exact reviewed plan. If Saved Config, Current CiviCRM, scope, or provider capability changes before apply, Configuration Manager will stop and require a fresh preview.{/ts}</div>
           {/if}
 
+          {if $importExcludedComponents|@count gt 0}
+            <div class="messages warning no-popup civicfg-import-excluded-status">
+              <strong>{ts}Reduced Import preview.{/ts}</strong>
+              {ts}The following dependency component(s) were explicitly excluded from this preview and are not considered applied. Synchronize remains authoritative for their current state:{/ts}
+              <ul>
+                {foreach from=$importExcludedComponents item=excludedComponent}
+                  <li><strong>{$excludedComponent.title|escape}</strong>{if $excludedComponent.types|@count gt 0} — {ts}excluded types:{/ts} {foreach from=$excludedComponent.types item=excludedType name=excludedhistory}{$excludedType|escape}{if !$smarty.foreach.excludedhistory.last}, {/if}{/foreach}{/if}{if $excludedComponent.files|@count gt 0} — {$excludedComponent.files|@count} {ts}affected Saved Config file(s){/ts}{/if}</li>
+                {/foreach}
+              </ul>
+            </div>
+          {/if}
+
+          {if $importDependencyComponents|@count gt 0}
+            <div class="messages error no-popup civicfg-import-blockers">
+              <strong>{ts}Import is blocked by dependency component(s).{/ts}</strong>
+              {ts}Fix the missing dependency and preview again, or exclude a complete component only when Configuration Manager proves the remaining import is dependency-closed.{/ts}
+            </div>
+            {foreach from=$importDependencyComponents item=component}
+              <details class="civicfg-panel civicfg-dependency-component" open="open">
+                <summary><strong>{$component.title|escape}</strong> — {$component.blocker_count|escape} {ts}blocker(s){/ts}</summary>
+                <div class="civicfg-panel-body">
+                  <p><strong>{ts}Affected configuration types:{/ts}</strong> {$component.title|escape}</p>
+                  <p><strong>{ts}Full exclusion scope:{/ts}</strong>
+                    {foreach from=$component.excluded_types item=excludedType name=excludedtypes}{$excludedType|escape}{if !$smarty.foreach.excludedtypes.last}, {/if}{/foreach}
+                  </p>
+                  <p><strong>{ts}Remaining Import scope after exclusion:{/ts}</strong>
+                    {foreach from=$component.remaining_requested_types item=remainingType name=remainingtypes}{$remainingType|escape}{if !$smarty.foreach.remainingtypes.last}, {/if}{/foreach}
+                  </p>
+                  <p><strong>{ts}Planned actions:{/ts}</strong> {$component.action_text|escape}</p>
+                  {if $component.files|@count gt 0}
+                    <p><strong>{ts}Affected Saved Configs:{/ts}</strong> {$component.files|@count}</p>
+                    <ul>
+                      {foreach from=$component.files item=componentFile}
+                        <li><code>{$componentFile|escape}</code></li>
+                      {/foreach}
+                    </ul>
+                  {/if}
+                  <ul>
+                    {foreach from=$component.blockers item=blocker}
+                      <li>{$blocker.message|escape}</li>
+                    {/foreach}
+                  </ul>
+                  <div class="civicfg-actions">
+                    <a class="button" href="{crmURL p='civicrm/admin/config-manager' q=$diffPageBaseQuery}"><span>{ts}Fix and preview again{/ts}</span></a>
+                    {if $canImport and $component.can_exclude}
+                      <form method="post" action="{crmURL p='civicrm/admin/config-manager' q='reset=1&op=import'}" data-civicfg-confirm-modal="1" data-civicfg-confirm-title="Exclude Dependency Component" data-civicfg-confirm-word="EXCLUDE" data-civicfg-confirm-button="Build New Preview" data-civicfg-confirm-message="This excludes the complete dependency component from this Import only. Configuration Manager will discard any prior reviewed plan and build a completely new preview from current Saved Config and Current CiviCRM state." data-civicfg-confirm-warning="Excluded differences remain visible on Synchronize and are not considered applied or in sync.">
+                        <input type="hidden" name="civicfg_csrf" value="{$civicfgCsrfToken|escape}" />
+                        <input type="hidden" name="_action" value="import_exclude_component" />
+                        <input type="hidden" name="dependency_component_id" value="{$component.id|escape}" />
+                        {foreach from=$importApplyTypes item=type}<input type="hidden" name="type[]" value="{$type|escape}" />{/foreach}
+                        <button type="submit" class="button"><span>{ts}Exclude component and build new preview{/ts}</span></button>
+                      </form>
+                    {else}
+                      <span class="civicfg-muted">{$component.exclusion_reason|escape}</span>
+                    {/if}
+                  </div>
+                </div>
+              </details>
+            {/foreach}
+          {/if}
+
           {if $diffPageCount gt 1}
             <div class="civicfg-pagination-summary">{ts}Showing page{/ts} {$diffPage|escape} {ts}of{/ts} {$diffPageCount|escape}. {ts}The Import action still applies the full selected managed type after complete server-side preflight; this list is paginated only for review.{/ts}</div>
           {/if}

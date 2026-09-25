@@ -18,6 +18,7 @@ require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigIdentity.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigScope.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/HandlerRegistry.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportPlanStore.php';
+require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportDependencyPlanner.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportReviewPlanGuard.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ConfigManager.php';
 
@@ -249,6 +250,12 @@ $assert(strpos($exportTemplate, '{if $file.show_inline_path}<code class="civicfg
 $assert(substr_count($importTemplate, 'name="import_plan_id"') >= 2, 'Import actions must submit the opaque reviewed-plan ID from both action areas');
 $assert(strpos($importTemplate, 'Reviewed preview protected.') !== FALSE, 'Import must explain that the reviewed preview is protected against stale state');
 $assert(strpos($importTemplate, 'If Saved Config, Current CiviCRM, scope, or provider capability changes before apply') !== FALSE, 'Import must explain the stale-plan safety boundary in user language');
+$assert(strpos($importTemplate, 'Import is blocked by dependency component(s).') !== FALSE, 'Import must group dependency blockers for review');
+$assert(strpos($importTemplate, 'Exclude component and build new preview') !== FALSE, 'Import must expose safe whole-component exclusion instead of row-level bypass');
+$assert(strpos($importTemplate, 'Fix and preview again') !== FALSE, 'Every dependency blocker must retain the safe fix-and-preview path');
+$assert(strpos($importTemplate, 'Planned actions:') !== FALSE, 'Dependency component review must explain affected actions');
+$assert(strpos($importTemplate, 'Full exclusion scope:') !== FALSE, 'Dependency component review must show the complete conservative exclusion scope before confirmation');
+$assert(strpos($importTemplate, 'Remaining Import scope after exclusion:') !== FALSE, 'Dependency component review must show what remains after exclusion');
 
 /**
  * Supplemental source contract for provider-discovery progressive disclosure.

@@ -15,6 +15,7 @@ class MainPage {
   private Request $request;
   private Presenter $presenter;
   private OperationResultPresenter $operationResultPresenter;
+  private ImportActionCoordinator $importActions;
   private FileTransfer $files;
   private Permission $permission;
   public function __construct(\CRM_Core_Page $page, ?ConfigManager $manager = NULL) {
@@ -23,6 +24,7 @@ class MainPage {
     $this->request = new Request();
     $this->presenter = new Presenter();
     $this->operationResultPresenter = new OperationResultPresenter();
+    $this->importActions = new ImportActionCoordinator($this->manager, $this->operationResultPresenter);
     $this->files = new FileTransfer();
     $this->permission = new Permission();
   }
@@ -200,24 +202,13 @@ class MainPage {
         $this->redirectWithNotice($notice, 'sync', empty($exportResult['errors']) ? 'success' : 'error');
       }
       elseif ($postAction === 'import_apply') {
-        $importResult = $this->manager->applyImportReviewPlan($this->request->requireImportPlanId());
-        \CRM_Core_Session::singleton()->set('civicfg_last_import_result', $importResult);
-        \CRM_Core_Session::singleton()->set('civicfg_last_export_result', NULL);
-        \CRM_Core_Session::singleton()->set('civicfg_last_import_summary', $this->operationResultPresenter->importSummary($importResult));
-        $summaryMessage = (string) ($importResult['summary_message'] ?? '');
-        if (!empty($importResult['ok'])) {
-          // Do not run a second complete active/YAML diff in the same request.
-          // The redirect opens Synchronize, whose fresh request performs the
-          // authoritative post-import diff with a clean memory budget.
-          $notice = trim(ts('Import complete. Synchronize will verify the resulting configuration state.') . ' ' . $summaryMessage);
-          $type = 'success';
-        }
-        else {
-          $firstProblem = $this->presenter->firstImportProblem($importResult);
-          $notice = trim(ts('Import found problems.') . ' ' . ($firstProblem ?: ts('Review the warnings or errors below.')) . ' ' . $summaryMessage);
-          $type = 'error';
-        }
-        $this->redirectWithNotice($notice, 'sync', $type);
+        $outcome = $this->importActions->apply($this->request->requireImportPlanId());
+        $this->redirectWithNotice($outcome['notice'], 'sync', $outcome['type']);
+      }
+      elseif ($postAction === 'import_exclude_component') {
+        $outcome = $this->importActions->excludeDependencyComponent($this->request->requireDependencyComponentId(), $types);
+        $query = implode('&', array_map(static fn(string $type): string => 'type[]=' . rawurlencode($type), $outcome['remaining_types']));
+        $this->redirectWithNotice($outcome['notice'], 'import', $outcome['type'], $query);
       }
       elseif ($postAction === 'validate_files') {
         $validationResult = $this->manager->validate($types);
@@ -750,9 +741,10 @@ class MainPage {
       : '';
 
     $importPlanId = '';
+    $importReviewCoordinator = new ImportReviewPlanCoordinator($this->manager);
     if ($op === 'import' && $importResult === NULL && $importApplyTypes) {
       try {
-        $review = (new ImportReviewPlanCoordinator($this->manager))->loadOrCreate($importApplyTypes);
+        $review = $importReviewCoordinator->loadOrCreate($importApplyTypes);
         $importResult = $review['result'];
         $importPlanId = $review['plan_id'];
       }
@@ -763,6 +755,7 @@ class MainPage {
         ];
       }
     }
+    $importExcludedComponents = $op === 'import' ? $importReviewCoordinator->getExcludedComponents($importApplyTypes) : [];
 
     $effectiveExportTypes = $this->manager->getEffectiveExportTypeFilter($types);
     $exportDependencyTypes = $types ? array_values(array_diff($effectiveExportTypes, $types)) : [];
@@ -973,9 +966,12 @@ class MainPage {
     $this->page->assign('diffPerPage', $diffPerPage);
     $this->page->assign('diffPrevUrl', $diffPrevUrl);
     $this->page->assign('diffNextUrl', $diffNextUrl);
+    $this->page->assign('diffPageBaseQuery', $diffPageBaseQuery);
     $this->page->assign('diffDetailUrl', \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=diff-detail-json', FALSE, NULL, FALSE));
     $this->page->assign('importPlan', $importPlan);
     $this->page->assign('importPlanId', $importPlanId);
+    $this->page->assign('importDependencyComponents', (array) ($importResult['dependency_components'] ?? []));
+    $this->page->assign('importExcludedComponents', $importExcludedComponents);
     $this->page->assign('importApplyTypes', $importApplyTypes);
     $this->page->assign('importApplyTypesMap', $importApplyTypesMap);
     $this->page->assign('effectiveExportTypes', $effectiveExportTypes);

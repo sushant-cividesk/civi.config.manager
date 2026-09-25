@@ -51,7 +51,7 @@ class Permission {
       self::require(self::EXPORT);
     }
 
-    if ($op === 'import' || in_array($postAction, ['import_apply', 'import_single_yaml', 'import_zip_archive', 'revert_file'], TRUE)) {
+    if ($op === 'import' || in_array($postAction, ['import_apply', 'import_exclude_component', 'import_single_yaml', 'import_zip_archive', 'revert_file'], TRUE)) {
       self::require(self::IMPORT);
     }
 

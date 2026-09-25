@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha68.3.2-core` |
+| Active development line | `0.1.0-alpha68.4-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -86,14 +86,14 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 ### Alpha68 — safe reduced import plans and blocker UX
 
 - [x] A68-01 Represent import operations and dependencies as immutable versioned plans with content/scope/active-state fingerprints. **Alpha68.3 persists private reviewed plans with site/scope/provider/implementation/Saved Config/Current CiviCRM fingerprints and reuses the same valid plan across refresh/reconnect.**
-- [ ] A68-02 Group blockers into dependency components and explain the affected files/types/actions in plain language.
-- [ ] A68-03 Offer **Fix and preview again** for every blocker; offer **Exclude component and build a new preview** only when graph closure is proven safe.
-- [ ] A68-04 Require explicit component selection and confirmation; never silently remove dependencies or individual rows.
-- [ ] A68-05 Discard the old plan, rebuild from current YAML/active state, and run full validation/preflight again after exclusions.
+- [x] A68-02 Group blockers into dependency components and explain the affected files/types/actions in plain language. **Alpha68.4 groups missing portable dependencies by connected type component and shows affected Saved Config files, configuration types, blocker reasons, and planned dry-run actions. Runtime QA pending.**
+- [x] A68-03 Offer **Fix and preview again** for every blocker; offer **Exclude component and build a new preview** only when graph closure is proven safe. **Alpha68.4 keeps the fix path universal and enables exclusion only for a whole component that leaves a non-empty closed remaining scope. Runtime QA pending.**
+- [x] A68-04 Require explicit component selection and confirmation; never silently remove dependencies or individual rows. **Alpha68.4 posts only an opaque component ID through the existing confirmation modal; the server recomputes the current component and refuses stale/unsafe IDs. Runtime QA pending.**
+- [x] A68-05 Discard the old plan, rebuild from current YAML/active state, and run full validation/preflight again after exclusions. **Alpha68.4 never edits a reviewed plan in place; the UI clears the prior plan and the service rebuilds full validation/preflight from current Saved Config and Current CiviCRM before issuing a new plan ID. Runtime QA pending.**
 - [x] A68-06 Bind apply to the exact new plan token/fingerprints; stale or altered plans fail closed. **Alpha68.3 requires the reviewed plan ID across UI/API4/CLI/queue apply paths, rejects tampered/stale plans before write, and keeps existing per-handler conflict checks as a second barrier.**
 - [ ] A68-07 Report Applied, Blocked, Excluded, and Remaining Difference counts consistently in UI/API4/CLI/queue results.
 - [ ] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.” **Alpha68 begins the client-language pass (`Saved Config`, `Current CiviCRM`, `Not Yet Saved`, `Not in Current CiviCRM`) and keeps unsupported removal non-actionable; full provider/action audit remains pending.**
-- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording. **Alpha68.3 adds refresh/reconnect reviewed-plan browser coverage; stale-plan browser rejection remains pending with the later blocker/reduced-plan UI work.**
+- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording. **Alpha68.4 adds UI contracts plus service/CLI regression and mutation coverage for reduced plans; real browser scenarios for safe/unsafe exclusion and partial-status wording remain pending.**
 
 
 ### Alpha68 UI/UX slice — approved 2026-09-04

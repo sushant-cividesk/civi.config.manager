@@ -27,6 +27,14 @@ class Import extends AbstractAction {
    */
   protected $planId = '';
 
+
+  /**
+   * Optional blocked dependency component to exclude while building a new preview.
+   *
+   * @var string
+   */
+  protected $excludeComponentId = '';
+
   /**
    * Optional type filter.
    *
@@ -37,9 +45,15 @@ class Import extends AbstractAction {
   public function _run(Result $result) {
     $manager = new ConfigManager();
     $effectiveDryRun = (bool) $this->dryRun || !(bool) $this->yes;
+    $excludeComponentId = trim((string) $this->excludeComponentId);
     if ($effectiveDryRun) {
-      $result[] = $manager->createImportReviewPlan((array) $this->type);
+      $result[] = $excludeComponentId !== ''
+        ? $manager->createReducedImportReviewPlan($excludeComponentId, (array) $this->type)
+        : $manager->createImportReviewPlan((array) $this->type);
       return;
+    }
+    if ($excludeComponentId !== '') {
+      throw new \RuntimeException('excludeComponentId is only valid while building a new Import preview. Apply the planId returned by that preview instead.');
     }
 
     $planId = trim((string) $this->planId);

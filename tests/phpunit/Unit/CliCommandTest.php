@@ -132,6 +132,32 @@ final class CliCommandTest extends TestCase {
     self::assertContains('planId=', $lines);
   }
 
+  public function testImportReducedPreviewPassesDependencyComponentToApi(): void {
+    $componentId = str_repeat('c', 24);
+    [$exit, $lines] = $this->runCli(['import', '--dry-run', '--type', 'custom-data', '--exclude-component', $componentId]);
+
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertContains('ConfigManager.import', $lines);
+    self::assertContains('dryRun=1', $lines);
+    self::assertContains('yes=0', $lines);
+    self::assertContains('excludeComponentId=' . $componentId, $lines);
+  }
+
+  public function testImportReducedPreviewRejectsMalformedComponentId(): void {
+    [$exit, $lines] = $this->runCli(['import', '--dry-run', '--exclude-component', '../unsafe']);
+
+    self::assertSame(2, $exit);
+    self::assertStringContainsString('24-character component ID', implode("\n", $lines));
+    self::assertNotContains('ConfigManager.import', $lines);
+  }
+
+  public function testImportApplyRejectsExcludeComponentOption(): void {
+    [$exit, $lines] = $this->runCli(['import', '--yes', '--plan', str_repeat('b', 48), '--exclude-component', str_repeat('c', 24)]);
+
+    self::assertSame(2, $exit);
+    self::assertStringContainsString('cannot be combined with import --yes', implode("\n", $lines));
+  }
+
   public function testImportApplyRequiresReviewedPlanId(): void {
     [$exit, $lines] = $this->runCli(['import', '--yes']);
 

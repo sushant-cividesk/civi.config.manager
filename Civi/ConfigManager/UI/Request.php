@@ -52,6 +52,14 @@ class Request {
     return $value;
   }
 
+  public function requireDependencyComponentId(): string {
+    $value = isset($_POST['dependency_component_id']) ? trim((string) $_POST['dependency_component_id']) : '';
+    if (!preg_match('/^[a-f0-9]{24}$/', $value)) {
+      throw new \RuntimeException('Select a valid dependency component from the current Import preview.');
+    }
+    return $value;
+  }
+
   public function getSingleExportKey(): string {
     return isset($_REQUEST['export_item']) ? trim((string) $_REQUEST['export_item']) : '';
   }

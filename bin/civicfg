@@ -23,6 +23,7 @@ Common options:
   --write           Write YAML files for export.
   --yes, -y         Apply import or answer yes where supported.
   --plan PLAN_ID    Reviewed Import plan ID required with --yes.
+  --exclude-component ID  Build a fresh preview without one safe blocked dependency component.
   --json            Ask cv for JSON output when supported.
   -h, --help        Show this help.
 
@@ -39,6 +40,7 @@ Examples:
   civicfg export --write
   civicfg import --dry-run
   civicfg import --dry-run --json
+  civicfg import --dry-run --exclude-component <component_id>
   civicfg import --yes --plan <plan_id>
   civicfg validate
   civicfg watch
@@ -93,6 +95,7 @@ watch_unmanaged="0"
 cross_allow="0"
 cross_deny="0"
 plan_id=""
+exclude_component_id=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -147,6 +150,14 @@ while [[ $# -gt 0 ]]; do
     --plan=*)
       plan_id="${1#--plan=}"
       ;;
+    --exclude-component)
+      shift
+      [[ $# -gt 0 ]] || fail "Missing value for --exclude-component"
+      exclude_component_id="$1"
+      ;;
+    --exclude-component=*)
+      exclude_component_id="${1#--exclude-component=}"
+      ;;
     --json)
       json="1"
       ;;
@@ -176,8 +187,8 @@ if [[ ${#selectors[@]} -gt 0 ]]; then
   selector_json=$(json_array "${selectors[@]}")
 fi
 
-if [[ "$command" != "import" && -n "$plan_id" ]]; then
-  fail "--plan is only valid for import."
+if [[ "$command" != "import" && ( -n "$plan_id" || -n "$exclude_component_id" ) ]]; then
+  fail "--plan and --exclude-component are only valid for import."
 fi
 
 case "$command" in
@@ -198,7 +209,13 @@ case "$command" in
     if [[ "$yes" != "1" && -n "$plan_id" ]]; then
       fail "--plan is only valid with import --yes."
     fi
-    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json" planId="$plan_id"
+    if [[ -n "$exclude_component_id" && ! "$exclude_component_id" =~ ^[a-f0-9]{24}$ ]]; then
+      fail "Import --exclude-component must be the 24-character component ID shown by the blocked preview."
+    fi
+    if [[ "$yes" == "1" && -n "$exclude_component_id" ]]; then
+      fail "--exclude-component builds a new preview and cannot be combined with import --yes."
+    fi
+    exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.import dryRun="$dry_run" yes="$yes" type="$type_json" planId="$plan_id" excludeComponentId="$exclude_component_id"
     ;;
   diff)
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for diff."

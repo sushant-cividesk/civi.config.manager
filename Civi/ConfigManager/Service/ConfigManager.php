@@ -38,15 +38,17 @@ class ConfigManager {
   private HandlerRegistry $registry;
   private ConfigScope $scope;
   private ImportReviewPlanGuard $importPlanGuard;
+  private ImportDependencyPlanner $importDependencyPlanner;
   private ?array $allHandlersCache = NULL;
   private ?array $managedTypeOptionsCache = NULL;
   private ?array $scopeTypeOptionsCache = NULL;
   private array $activeDependencyNamesCache = [];
 
-  public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL, ?ImportPlanStore $importPlanStore = NULL) {
+  public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL, ?ImportPlanStore $importPlanStore = NULL, ?ImportDependencyPlanner $importDependencyPlanner = NULL) {
     $this->registry = $registry ?: new HandlerRegistry();
     $this->scope = $scope ?: new ConfigScope();
     $this->importPlanGuard = new ImportReviewPlanGuard($importPlanStore ?: new ImportPlanStore(), $this->scope);
+    $this->importDependencyPlanner = $importDependencyPlanner ?: new ImportDependencyPlanner();
   }
 
   public function getSyncDir(): string {
@@ -1277,7 +1279,7 @@ class ConfigManager {
       }
     }
 
-    $map = $this->getExportRelatedTypeMap();
+    $map = $this->importDependencyPlanner->relatedTypeMap();
     $changed = TRUE;
     while ($changed) {
       $changed = FALSE;
@@ -1340,27 +1342,6 @@ class ConfigManager {
       return $handler->filterYamlFilesByRuntimeFilters($files);
     }
     return $files;
-  }
-
-  private function getExportRelatedTypeMap(): array {
-    return [
-      // A SearchKit saved search is normally deployed with its displays, and
-      // FormBuilder afforms may embed those displays. Export the set together.
-      'searchkit-saved-searches' => ['searchkit-displays', 'formbuilder-afforms'],
-      'searchkit-displays' => ['searchkit-saved-searches', 'formbuilder-afforms'],
-      'formbuilder-afforms' => ['searchkit-displays', 'searchkit-saved-searches'],
-
-      // Custom fields can depend on option groups and the contact type scope.
-      'custom-data' => ['option-groups', 'contact-types', 'site-tokens'],
-
-      // Extension-owned config is bundled under each extension file.
-      'extensions' => ['message-templates', 'contact-types', 'custom-data', 'option-groups'],
-
-      // Relationship types can depend on contact/sub-contact types.
-      'relationship-types' => ['contact-types'],
-      'civirules' => ['extensions'],
-      'site-tokens' => ['extensions'],
-    ];
   }
 
   /**
@@ -3605,73 +3586,51 @@ class ConfigManager {
   private function addDependencyWarningsFromMetadata(array &$result, array $available, array $dependencyMetadata): void {
     $registeredTypes = [];
     foreach ($this->getAllHandlers() as $handler) {
-      $registeredTypes[$handler->getType()] = $handler->getLabel();
+      $registeredTypes[(string) $handler->getType()] = (string) $handler->getLabel();
     }
     $managedTypes = [];
     foreach ($this->getHandlers() as $handler) {
-      $managedTypes[$handler->getType()] = $handler->getLabel();
+      $managedTypes[(string) $handler->getType()] = (string) $handler->getLabel();
     }
+
+    $analysis = $this->importDependencyPlanner->analyze(
+      $dependencyMetadata,
+      $available,
+      $registeredTypes,
+      $managedTypes,
+      fn(string $type, string $name): bool => $this->activeDependencyExists($type, $name),
+      fn(string $type, string $name): string => $this->ignoredDependencyHint($type, $name)
+    );
+
     $itemIndex = [];
     foreach ($result['items'] as $index => $item) {
       if (!empty($item['type'])) {
         $itemIndex[(string) $item['type']] = $index;
       }
     }
-
-    foreach ($dependencyMetadata as $type => $files) {
+    foreach ((array) ($analysis['dependency_blockers'] ?? []) as $blocker) {
+      $type = (string) ($blocker['source_type'] ?? '');
       if (!isset($itemIndex[$type])) {
         continue;
       }
-      foreach ($files as $filename => $metadata) {
-        foreach ((array) ($metadata['dependencies'] ?? []) as $dependency) {
-          $dependencyType = (string) ($dependency['type'] ?? '');
-          $dependencyName = (string) ($dependency['name'] ?? '');
-          if ($dependencyType === '' || $dependencyName === '') {
-            continue;
-          }
-          if (!isset($registeredTypes[$dependencyType])) {
-            // Non-managed runtime dependencies such as api-entity are informational.
-            continue;
-          }
-          if (isset($available[$dependencyType][$dependencyName])) {
-            continue;
-          }
-
-          // Selective configuration is allowed to depend on existing target
-          // configuration that is intentionally outside the managed YAML set.
-          // This is safe because handlers resolve these references by stable
-          // semantic names during import. Only block when the dependency is
-          // absent from both the import bundle and active CiviCRM.
-          if ($this->activeDependencyExists($dependencyType, $dependencyName)) {
-            continue;
-          }
-
-          $result['ok'] = FALSE;
-          $reason = (string) ($dependency['reason'] ?? 'This YAML item references another managed config item.');
-          $ignoredHint = $this->ignoredDependencyHint($dependencyType, $dependencyName);
-          $message = $this->formatMissingDependencyMessage($filename, $type, $dependencyType, $dependencyName, $reason, $ignoredHint);
-          $result['items'][$itemIndex[$type]]['errors'][] = [
-            'file' => $filename,
-            'message' => $message,
-          ];
-        }
-        foreach ((array) ($metadata['required_by'] ?? []) as $requiredBy) {
-          $requiredByType = (string) ($requiredBy['type'] ?? '');
-          $requiredByName = (string) ($requiredBy['name'] ?? '');
-          if ($requiredByType === '' || $requiredByName === '' || !isset($managedTypes[$requiredByType])) {
-            continue;
-          }
-          if (!isset($available[$requiredByType][$requiredByName])) {
-            $result['items'][$itemIndex[$type]]['warnings'][] = [
-              'file' => $filename,
-              'message' => sprintf('Reverse dependency metadata says this item is required by %s "%s", but that YAML item is not present. This is usually stale metadata or a filtered/ignored dependency; re-export the related items together before relying on this dependency graph.', $requiredByType, $requiredByName),
-            ];
-          }
-        }
+      $result['ok'] = FALSE;
+      $result['items'][$itemIndex[$type]]['errors'][] = [
+        'file' => (string) ($blocker['source_file'] ?? ''),
+        'message' => (string) ($blocker['message'] ?? 'Import dependency is missing.'),
+      ];
+    }
+    foreach ((array) ($analysis['warnings_by_type'] ?? []) as $type => $warnings) {
+      if (isset($itemIndex[$type])) {
+        $result['items'][$itemIndex[$type]]['warnings'] = array_merge(
+          (array) ($result['items'][$itemIndex[$type]]['warnings'] ?? []),
+          (array) $warnings
+        );
       }
     }
+    $result['dependency_edges'] = (array) ($analysis['dependency_edges'] ?? []);
+    $result['dependency_blockers'] = (array) ($analysis['dependency_blockers'] ?? []);
+    $result['dependency_components'] = (array) ($analysis['dependency_components'] ?? []);
   }
-
 
   private function activeDependencyExists(string $type, string $name): bool {
     if (!array_key_exists($type, $this->activeDependencyNamesCache)) {
@@ -3699,21 +3658,6 @@ class ConfigManager {
       $this->activeDependencyNamesCache[$type] = $names;
     }
     return isset($this->activeDependencyNamesCache[$type][$name]);
-  }
-
-  private function formatMissingDependencyMessage(string $filename, string $ownerType, string $dependencyType, string $dependencyName, string $reason, string $ignoredHint = ''): string {
-    $prefix = sprintf('Cannot import %s/%s: dependency %s "%s" is not available in the managed Saved Config set or Current CiviCRM.', $ownerType, $filename, $dependencyType, $dependencyName);
-    if ($dependencyType === 'contact-types' && preg_match('/^[0-9]+$/', $dependencyName)) {
-      $prefix .= ' The dependency name is numeric, which usually means this YAML was exported by an older alpha using a local database ID instead of the Contact Type machine name.';
-      $prefix .= ' Re-export Custom Groups and Fields together with Contact Types using the current build, or update the YAML dependency to the stable contact type name before importing.';
-    }
-    else {
-      $prefix .= ' ' . $reason . ' Re-export the related items together, or restore the missing YAML file before importing.';
-    }
-    if ($ignoredHint !== '') {
-      $prefix .= ' The dependency appears to be hidden by Config Ignore: ' . $ignoredHint . '. Remove or narrow that ignore rule before importing this item.';
-    }
-    return $prefix;
   }
 
   private function ignoredDependencyHint(string $type, string $name): string {
@@ -3917,6 +3861,11 @@ class ConfigManager {
     $preview['plan_expires_at'] = (string) $plan['expires_at'];
     $preview['review_plan_ready'] = TRUE;
     return $preview;
+  }
+
+  /** @return array<string,mixed> */
+  public function createReducedImportReviewPlan(string $componentId, array $typeFilter = []): array {
+    return (new ReducedImportPlanService($this->importDependencyPlanner))->build($this, $componentId, $typeFilter);
   }
 
   /**
@@ -4173,6 +4122,18 @@ class ConfigManager {
         $processedItems
       );
     }, $willApply || $captureFingerprints || $reviewPlan !== NULL);
+    $exclusionEffectiveTypes = $effectiveTypes ?: array_values(array_map(static function($handler): string {
+      return (string) $handler->getType();
+    }, $handlers));
+    $preflight['dependency_components'] = $this->importDependencyPlanner->addExclusionSafety(
+      (array) ($preflight['dependency_components'] ?? []),
+      $requestedTypes,
+      $exclusionEffectiveTypes
+    );
+    $preflight['dependency_components'] = $this->importDependencyPlanner->addActionSummaries(
+      (array) $preflight['dependency_components'],
+      (array) ($preflight['items'] ?? [])
+    );
 
     if ($dryRun || !$yes) {
       $this->reportProgress($progress, $totalSteps, $totalSteps, 'Import preview complete', 'Complete non-writing preflight finished.', $processedItems);
@@ -4661,6 +4622,9 @@ class ConfigManager {
       'validation' => $validation,
       'items' => [],
       'errors' => [],
+      'dependency_edges' => (array) ($validation['dependency_edges'] ?? []),
+      'dependency_blockers' => (array) ($validation['dependency_blockers'] ?? []),
+      'dependency_components' => (array) ($validation['dependency_components'] ?? []),
     ];
 
     try {

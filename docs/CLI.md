@@ -21,10 +21,13 @@ civicfg cross-site-import --allow
 civicfg cross-site-import --deny
 civicfg export --write
 civicfg import --dry-run --json
+civicfg import --dry-run --exclude-component <component_id> --json
 civicfg import --yes --plan <plan_id>
 ```
 
 Use `civicfg --help` for the complete option list.
+
+When a preview is blocked by a dependency component, `--exclude-component <component_id>` asks Configuration Manager to recompute the blocker graph, prove the whole component can be removed safely, discard the old scope, and build a completely fresh preview for the remaining configuration. It cannot be combined with `--yes`; apply the new `plan_id` returned by the fresh preview.
 
 ## Browser QA
 
@@ -165,6 +168,7 @@ civicfg export --type searchkit-saved-searches --write
 civicfg diff
 civicfg validate
 civicfg import --dry-run --json
+civicfg import --dry-run --exclude-component <component_id> --json
 civicfg import --yes --plan <plan_id>
 ```
 

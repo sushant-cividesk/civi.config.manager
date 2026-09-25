@@ -30,6 +30,7 @@ final class LifecycleStateCleaner {
       'civicfg_last_import_summary',
       'civicfg_last_import_result',
       'civicfg_import_review_plan_id',
+      'civicfg_import_reduced_state',
     ];
   }
 

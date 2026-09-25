@@ -30,6 +30,7 @@ The extension is intentionally conservative.
 - Fresh installs begin with configuration types set to **Ignore** until an administrator chooses what to manage or monitor.
 - A true uninstall/reinstall clears Configuration Manager scope/dependency caches, watch/health history, and stale Last Export/Last Import browser state; disable/enable and normal upgrades preserve configured state. Filesystem location, site identity, ignore rules, allowlists, cross-site policy, and `civicrm.settings.php` overrides are not reset by this lifecycle cleanup.
 - Import always performs a complete non-writing preflight first. A green preview creates a private reviewed plan, and apply requires that exact plan ID.
+- Dependency blockers are grouped into complete components. A component may be excluded only when the remaining scope is proven closed; exclusion always builds a brand-new preview and never mutates an approved plan.
 - Site identity, dependencies, possible renames, provider capabilities, unsafe identities, Saved Config content, Current CiviCRM state, scope, and implementation fingerprints are checked before writes.
 - Weak or ambiguous identities remain export/compare or monitor-only.
 - Create/update completes before delete-missing begins.
@@ -176,6 +177,7 @@ civicfg export --write
 civicfg diff
 civicfg validate
 civicfg import --dry-run
+civicfg import --dry-run --exclude-component <component_id> --json
 ```
 
 The CLI delegates to the same API/service layer as the UI. See [CLI documentation](docs/CLI.md) for installation, global launcher behavior, permissions, and all commands.

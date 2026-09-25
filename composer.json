@@ -64,6 +64,7 @@
             "@test:mutation-provider-inventory",
             "@test:mutation-provider-admission",
             "@test:mutation-import-plan",
+            "@test:mutation-reduced-import",
             "@test:drupal-login-resolver",
             "@test:browser-workflow-contract",
             "@test:provider-browser",
@@ -93,6 +94,7 @@
         "test:alpha68-lifecycle-state": "php tests/ci/alpha68-lifecycle-state.php",
         "test:lifecycle-state-behavior": "php tests/ci/lifecycle-state-behavior.php",
         "test:mutation-provider-browser": "bash tests/ci/mutation-provider-browser.sh",
-        "test:mutation-import-plan": "bash tests/ci/mutation-import-plan.sh"
+        "test:mutation-import-plan": "bash tests/ci/mutation-import-plan.sh",
+        "test:mutation-reduced-import": "bash tests/ci/mutation-reduced-import.sh"
     }
 }

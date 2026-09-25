@@ -64,6 +64,8 @@ final class ImportReviewPlanGuard {
       ConfigIdentity::class,
       Canonicalizer::class,
       ImportPlanStore::class,
+      ImportDependencyPlanner::class,
+      ReducedImportPlanService::class,
       self::class,
       \Civi\ConfigManager\Storage\YamlFileStorage::class,
     ];
