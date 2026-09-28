@@ -15,6 +15,8 @@ $uiRunner = (string) file_get_contents($root . '/tests/ci/run-ui-tests.js');
 $playwrightConfig = (string) file_get_contents($root . '/playwright.config.js');
 $standalone = (string) file_get_contents($root . '/tests/ci/run-standalone.sh');
 $ddevStateful = (string) file_get_contents($root . '/tests/ci/run-ddev-stateful-ui.sh');
+$ddevTargeted = (string) file_get_contents($root . '/tests/ci/run-ddev-targeted-ui.sh');
+$ddevPlaywright = (string) file_get_contents($root . '/tests/ci/ensure-ddev-playwright.sh');
 $dockerBrowser = (string) file_get_contents($root . '/tests/ci/run-playwright-docker.sh');
 $qaFull = (string) file_get_contents($root . '/.github/workflows/qa-full.yml');
 $release = (string) file_get_contents($root . '/.github/workflows/release.yml');
@@ -56,6 +58,10 @@ $checks = [
   'Docker browser fallback copies Drupal login resolver needed by shared fixture suite' => strpos($dockerBrowser, 'drupal-login-url.js') !== FALSE,
   'stateful DDEV browser runner is DDEV-only and always wires cleanup' => strpos($ddevStateful, '*.ddev.site') !== FALSE && strpos($ddevStateful, 'UiFixture.php cleanup') !== FALSE && strpos($ddevStateful, 'trap cleanup') !== FALSE,
   'stateful DDEV browser runner refuses to overwrite prior fixture state' => strpos($ddevStateful, 'Refusing to overwrite an existing UI fixture state') !== FALSE,
+  'DDEV browser prerequisite helper installs current-container libraries and pinned Chromium' => strpos($ddevPlaywright, 'playwright install-deps chromium') !== FALSE && strpos($ddevPlaywright, 'playwright install chromium') !== FALSE,
+  'targeted DDEV wrapper prepares Playwright before read-only smoke' => strpos($ddevTargeted, 'ensure-ddev-playwright.sh') !== FALSE && strpos($ddevTargeted, 'npm run test:ui') !== FALSE && strpos($ddevTargeted, '*.ddev.site') !== FALSE,
+  'stateful DDEV wrapper prepares Playwright before fixture seed' => strpos($ddevStateful, 'ensure-ddev-playwright.sh') !== FALSE,
+  'stateful DDEV wrapper explicitly bootstraps CiviCRM for seed and cleanup' => strpos($ddevStateful, 'CIVICRM_SETTINGS_PATH') !== FALSE && substr_count($ddevStateful, 'CIVICRM_SETTINGS=${q_civicrm_settings}') >= 2 && strpos($ddevStateful, 'civicrm.settings.php') !== FALSE,
   'full GitHub QA uses canonical browser command' => strpos($qaFull, 'run: composer qa:browser') !== FALSE,
   'release GitHub QA uses canonical browser command' => strpos($release, 'run: composer qa:browser') !== FALSE,
   'no Playwright-PHP workflow wording' => strpos($qaFull . $release, 'Playwright-PHP') === FALSE,

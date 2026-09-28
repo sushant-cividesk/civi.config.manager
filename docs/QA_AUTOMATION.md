@@ -246,9 +246,20 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 
 `npm run test:ui` now detects its context. With the disposable QA fixture state present it runs the full seeded browser suite. Without that fixture, an explicit `CIVICFG_BASE_URL` runs a read-only targeted smoke instead. Targeted mode does not execute fixture-dependent import/watch/cross-site mutations.
 
-### Alpha68.5 stateful DDEV Import proof
+### Alpha68 DDEV browser proof
 
-The normal targeted DDEV smoke remains read-only. For deterministic A68-09 Import state transitions, use the dedicated DDEV-only wrapper from the host:
+Run DDEV browser QA from the host checkout, not from an interactive web-container shell. The wrappers install/verify Playwright prerequisites in the current DDEV container first, which keeps browser QA working after DDEV container recreation.
+
+Read-only targeted smoke:
+
+```bash
+CIVICFG_BASE_URL="https://dcivi-dev.civicrm.ddev.site" \
+CIVICRM_ADMIN_USER="admin" \
+CIVICRM_ADMIN_PASS="admin" \
+./tests/ci/run-ddev-targeted-ui.sh
+```
+
+For deterministic A68-09 Import state transitions:
 
 ```bash
 CIVICFG_BASE_URL="https://dcivi-dev.civicrm.ddev.site" \
@@ -257,5 +268,5 @@ CIVICRM_ADMIN_PASS="admin" \
 ./tests/ci/run-ddev-stateful-ui.sh
 ```
 
-The wrapper refuses non-`.ddev.site` targets and refuses to overwrite an existing `ui-fixture-state.json`. It seeds disposable Option Group, Relationship Type, Saved Config, and missing-dependency fixture state, runs the full Playwright suite, then restores backed-up Configuration Manager settings and removes the disposable CiviCRM records and sync directory even when the browser run fails. Do not use this stateful wrapper against STAGE or PROD.
+The stateful wrapper refuses non-`.ddev.site` targets and refuses to overwrite an existing `ui-fixture-state.json`. It locates the active `civicrm.settings.php`, passes it explicitly to `cv scr`, seeds disposable Option Group, Relationship Type, Saved Config, and missing-dependency fixture state, runs the full Playwright suite, then restores backed-up Configuration Manager settings and removes the disposable CiviCRM records and sync directory even when the browser run fails. Do not use this stateful wrapper against STAGE or PROD.
 

@@ -9,7 +9,7 @@
     <email>sushant@cividesk.com</email>
   </maintainer>
   <releaseDate>2026-09-28</releaseDate>
-  <version>0.1.0-alpha68.6-core</version>
+  <version>0.1.0-alpha68.6.1-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha68.6 adds deterministic stateful DDEV browser proof for dependency-safe reduced Import plans, stale-plan invalidation, refresh/reconnect, and canonical outcome UI.</comments>
+  <comments>Alpha68.6.1 hardens DDEV browser QA prerequisites and CiviCRM bootstrap discovery while preserving Alpha68.6 runtime behavior.</comments>
 </extension>

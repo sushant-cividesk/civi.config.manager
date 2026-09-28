@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-alpha68.6.1-core
+
+- Added a host-side DDEV Playwright prerequisite helper that installs the required browser libraries in the current web container and the pinned Chromium build for the normal DDEV web user.
+- Added a DDEV-only targeted browser wrapper so read-only smoke QA self-prepares Playwright instead of failing after a container rebuild or restart drops system packages.
+- Fixed the stateful DDEV browser wrapper to locate the active `civicrm.settings.php` and pass `CIVICRM_SETTINGS` explicitly to both fixture seed and cleanup, so `cv scr` no longer depends on being launched from the CMS document root.
+- Kept all Configuration Manager production services and Alpha68 Import behavior unchanged; this is a QA harness/environment hotfix only.
+
+> **Evidence boundary:** Alpha68.6 DDEV `composer qa:fast` passed with 319 PHPUnit tests / 2,304 assertions plus all configured mutation/static gates. The browser failures that triggered this hotfix occurred before application tests executed: missing Linux browser libraries and `cv` failing to locate `civicrm.settings.php`. Real DDEV browser rerun is still required.
+
 ## 0.1.0-alpha68.6-core
 
 - Added a disposable DDEV browser fixture for A68-09 with real Option Group, Relationship Type, and deliberately blocked Custom Data state; fixture state is backed up and cleaned automatically.
