@@ -27,6 +27,8 @@ $checks = [
   'targeted login uses Drupal user login form explicitly' => strpos($drupalAuth, "new URL('/user/login', baseUrl)") !== FALSE && strpos($drupalAuth, "form#user-login-form") !== FALSE,
   'targeted login proves Drupal session before checking CiviCRM access' => strpos($drupalAuth, "/^S?SESS/") !== FALSE && strpos($drupalAuth, 'Drupal authentication failed') !== FALSE,
   'targeted login accepts local one-time Drupal login URL' => strpos($targeted, 'CIVICFG_DRUPAL_LOGIN_URL') !== FALSE && strpos($drupalAuth, 'loginUrl') !== FALSE,
+  'targeted login prefers explicit password over generated one-time URL' => strpos($targeted, 'if (password)') !== FALSE && strpos($targeted, "loginUrl = '';") !== FALSE,
+  'targeted DDEV login generates a fresh one-time URL per test context' => strpos($targeted, 'resolveDrupalLoginUrl({ baseUrl, username })') !== FALSE,
   'targeted login distinguishes authenticated permission denial' => strpos($drupalAuth, 'Drupal authentication succeeded, but user') !== FALSE,
   'Drupal auth harness proves password one-time-login and permission failure paths' => substr_count($drupalAuthTest, 'loginToConfigurationManager') >= 4 && strpos($drupalAuthTest, '/user/reset/1/123/hash/login') !== FALSE && strpos($drupalAuthTest, 'Unrecognized username or password') !== FALSE && strpos($drupalAuthTest, 'allowConfigManager: false') !== FALSE,
   'local DDEV login resolver uses Drush without password mutation' => strpos($drupalLoginResolver, 'user:login') !== FALSE && strpos($drupalLoginResolver, 'CIVICFG_DRUPAL_ROOT') !== FALSE && strpos($drupalLoginResolver, 'user:password') === FALSE,

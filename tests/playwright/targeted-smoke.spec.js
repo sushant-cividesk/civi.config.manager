@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { loginToConfigurationManager } = require('./helpers/drupal-auth');
+const { resolveDrupalLoginUrl } = require('../ci/drupal-login-url');
 
 const baseUrl = new URL(process.env.CIVICFG_BASE_URL);
 const canonicalBaseUrl = new URL(process.env.CIVICFG_CANONICAL_BASE_URL || baseUrl.href);
@@ -31,11 +32,24 @@ async function installNetworkGuard(page) {
 test.describe('Configuration Manager targeted site smoke', () => {
   test.beforeEach(async ({ page }) => {
     await installNetworkGuard(page);
+    const username = process.env.CIVICRM_ADMIN_USER || 'admin';
+    const password = process.env.CIVICRM_ADMIN_PASS || '';
+    let loginUrl = process.env.CIVICFG_DRUPAL_LOGIN_URL || '';
+
+    // Prefer repeatable password authentication when explicitly provided.
+    // Otherwise generate a fresh single-use Drupal ULI for every test context.
+    if (password) {
+      loginUrl = '';
+    }
+    else if (!loginUrl && baseUrl.hostname.endsWith('.ddev.site')) {
+      loginUrl = resolveDrupalLoginUrl({ baseUrl, username });
+    }
+
     await loginToConfigurationManager(page, {
       baseUrl,
-      username: process.env.CIVICRM_ADMIN_USER || 'admin',
-      password: process.env.CIVICRM_ADMIN_PASS || '',
-      loginUrl: process.env.CIVICFG_DRUPAL_LOGIN_URL || '',
+      username,
+      password,
+      loginUrl,
     });
   });
 

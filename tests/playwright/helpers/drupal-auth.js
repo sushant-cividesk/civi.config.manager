@@ -2,7 +2,9 @@ const { expect } = require('@playwright/test');
 
 async function pageDiagnostic(page) {
   const heading = await page.locator('h1').first().textContent().catch(() => '');
-  return `url=${page.url()} title=${await page.title()} h1=${(heading || '').trim()}`;
+  const title = await page.title().catch(() => '');
+  const url = page.isClosed() ? '(page closed)' : page.url();
+  return `url=${url} title=${title} h1=${(heading || '').trim()}`;
 }
 
 /**

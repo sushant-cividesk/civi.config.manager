@@ -1,7 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { resolveDrupalLoginUrl } = require('./drupal-login-url');
 
 const root = path.resolve(__dirname, '../..');
 const artifactDir = process.env.QA_ARTIFACT_DIR || path.join(root, 'tests/ci/artifacts');
@@ -36,23 +35,21 @@ if (!chromiumPath || !fs.existsSync(chromiumPath)) {
 }
 const executable = localPlaywright;
 const childEnv = { ...process.env };
-if (!hasFixture && hasTarget && !childEnv.CIVICFG_DRUPAL_LOGIN_URL) {
+if (!hasFixture && hasTarget) {
   const baseUrl = new URL(childEnv.CIVICFG_BASE_URL);
   const username = childEnv.CIVICRM_ADMIN_USER || 'admin';
-  if (baseUrl.hostname.endsWith('.ddev.site')) {
-    const localLoginUrl = resolveDrupalLoginUrl({ baseUrl, username });
-    if (localLoginUrl) {
-      childEnv.CIVICFG_DRUPAL_LOGIN_URL = localLoginUrl;
-      console.log(`Drupal QA authentication: local Drush one-time login for ${username} (password unchanged).`);
-    }
-    else if (!childEnv.CIVICRM_ADMIN_PASS) {
-      console.error('Could not generate a local Drupal one-time login URL and CIVICRM_ADMIN_PASS is not set.');
-      console.error('For Buildkit/DDEV, run inside `ddev ssh`, or set CIVICFG_DRUPAL_ROOT to the target Drupal web root.');
-      process.exit(2);
-    }
-    else {
-      console.log('Drupal QA authentication: local Drush login discovery unavailable; falling back to CIVICRM_ADMIN_PASS.');
-    }
+  if (childEnv.CIVICRM_ADMIN_PASS) {
+    console.log(`Drupal QA authentication: password login for ${username}.`);
+  }
+  else if (childEnv.CIVICFG_DRUPAL_LOGIN_URL) {
+    console.log(`Drupal QA authentication: explicit one-time login URL for ${username}.`);
+  }
+  else if (baseUrl.hostname.endsWith('.ddev.site')) {
+    console.log(`Drupal QA authentication: fresh local Drush one-time login per test for ${username} (password unchanged).`);
+  }
+  else {
+    console.error('Targeted Drupal UI QA requires CIVICRM_ADMIN_PASS or CIVICFG_DRUPAL_LOGIN_URL for non-DDEV targets.');
+    process.exit(2);
   }
 }
 if (!hasFixture && hasTarget && !Object.prototype.hasOwnProperty.call(childEnv, 'CIVICFG_IGNORE_HTTPS_ERRORS')) {
