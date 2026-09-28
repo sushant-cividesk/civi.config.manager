@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Civi\Api4\OptionGroup;
 use Civi\Api4\OptionValue;
+use Civi\Api4\RelationshipType;
 use Civi\ConfigManager\Service\ConfigManager;
+use Civi\ConfigManager\Util\SimpleYaml;
 
 final class CivicfgUiFixture {
   private string $action;
@@ -114,7 +116,23 @@ final class CivicfgUiFixture {
       ->execute()
       ->first();
 
-    $export = (new ConfigManager())->export(FALSE, ['option-groups']);
+    // A68-09: create an independent real-runtime diff. It remains importable
+    // when the blocked Custom Data dependency component is excluded.
+    $relationshipName = 'qa_civicfg_rel_' . substr(hash('sha256', $this->runId), 0, 10);
+    $relationship = RelationshipType::create(FALSE)
+      ->addValue('name_a_b', $relationshipName)
+      ->addValue('label_a_b', 'QA browser relation A to B')
+      ->addValue('name_b_a', $relationshipName . '_reverse')
+      ->addValue('label_b_a', 'QA browser relation B to A')
+      ->addValue('contact_type_a', 'Individual')
+      ->addValue('contact_type_b', 'Individual')
+      ->addValue('is_active', TRUE)
+      ->addValue('is_reserved', FALSE)
+      ->execute()
+      ->first();
+    $relationshipId = (int) $relationship['id'];
+
+    $export = (new ConfigManager())->export(FALSE, ['option-groups', 'relationship-types']);
     if (empty($export['ok'])) {
       throw new RuntimeException('Could not export the UI test fixture.');
     }
@@ -123,6 +141,55 @@ final class CivicfgUiFixture {
       ->addWhere('id', '=', $groupId)
       ->addValue('title', 'QA UI Fixture changed in CiviCRM')
       ->execute();
+    RelationshipType::update(FALSE)
+      ->addWhere('id', '=', $relationshipId)
+      ->addValue('label_a_b', 'QA browser relation changed in CiviCRM')
+      ->execute();
+
+    // A68-09: this valid Custom Data document references a deliberately absent
+    // Option Group. Dependency analysis must block it before any write.
+    $missingDependencyName = 'qa_missing_choices_' . substr(hash('sha256', $this->runId), 0, 10);
+    $blockedGroupName = 'qa_blocked_custom_' . substr(hash('sha256', $this->runId), 0, 10);
+    $blockedRelativePath = 'custom-data/groups/' . $blockedGroupName . '.yml';
+    $blockedPath = $this->root . '/sync/' . $blockedRelativePath;
+    if (!is_dir(dirname($blockedPath)) && !mkdir(dirname($blockedPath), 0775, TRUE) && !is_dir(dirname($blockedPath))) {
+      throw new RuntimeException('Could not create blocked Custom Data fixture directory.');
+    }
+    file_put_contents($blockedPath, SimpleYaml::dump([
+      'schema_version' => 1,
+      'type' => 'custom_group',
+      'name' => $blockedGroupName,
+      'dependencies' => [[
+        'type' => 'option-groups',
+        'entity' => 'OptionGroup',
+        'name' => $missingDependencyName,
+        'reason' => 'QA browser fixture requires a deliberately missing option group.',
+      ]],
+      'group' => [
+        'name' => $blockedGroupName,
+        'title' => 'QA blocked Custom Data fixture',
+        'extends' => 'Contact',
+        'style' => 'Inline',
+        'collapse_display' => FALSE,
+        'weight' => 1,
+        'is_active' => TRUE,
+        'is_multiple' => FALSE,
+        'collapse_adv_display' => FALSE,
+        'is_reserved' => FALSE,
+        'is_public' => FALSE,
+      ],
+      'fields' => [[
+        'name' => 'QAChoice',
+        'label' => 'QA Choice',
+        'data_type' => 'String',
+        'html_type' => 'Select',
+        'option_group_name' => $missingDependencyName,
+        'is_required' => FALSE,
+        'is_searchable' => FALSE,
+        'weight' => 1,
+        'is_active' => TRUE,
+      ]],
+    ]), LOCK_EX);
 
     $state = [
       'name' => $this->name,
@@ -130,6 +197,11 @@ final class CivicfgUiFixture {
       'root' => $this->root,
       'option_group_id' => $groupId,
       'option_value_id' => (int) $value['id'],
+      'relationship_type_id' => $relationshipId,
+      'relationship_type_name' => $relationshipName,
+      'blocked_relative_path' => $blockedRelativePath,
+      'blocked_group_name' => $blockedGroupName,
+      'missing_dependency_name' => $missingDependencyName,
       'settings_backup' => $backup,
     ];
     file_put_contents($this->stateFile, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
@@ -152,6 +224,9 @@ final class CivicfgUiFixture {
     if (!empty($state['option_group_id'])) {
       OptionGroup::delete(FALSE)->addWhere('id', '=', (int) $state['option_group_id'])->execute();
     }
+    if (!empty($state['relationship_type_id'])) {
+      RelationshipType::delete(FALSE)->addWhere('id', '=', (int) $state['relationship_type_id'])->execute();
+    }
     if (!empty($state['option_value_id'])) {
       $remaining = OptionValue::get(FALSE)->addWhere('id', '=', (int) $state['option_value_id'])->execute()->count();
       if ($remaining !== 0) {
@@ -162,6 +237,12 @@ final class CivicfgUiFixture {
       $remaining = OptionGroup::get(FALSE)->addWhere('id', '=', (int) $state['option_group_id'])->execute()->count();
       if ($remaining !== 0) {
         throw new RuntimeException('Disposable UI Option Group still exists after cleanup.');
+      }
+    }
+    if (!empty($state['relationship_type_id'])) {
+      $remaining = RelationshipType::get(FALSE)->addWhere('id', '=', (int) $state['relationship_type_id'])->execute()->count();
+      if ($remaining !== 0) {
+        throw new RuntimeException('Disposable UI Relationship Type still exists after cleanup.');
       }
     }
     foreach ((array) ($state['settings_backup'] ?? []) as $name => $value) {

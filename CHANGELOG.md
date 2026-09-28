@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha68.6-core
+
+- Added a disposable DDEV browser fixture for A68-09 with real Option Group, Relationship Type, and deliberately blocked Custom Data state; fixture state is backed up and cleaned automatically.
+- Added stateful Playwright proof that whole-import exclusion is unavailable, safe component exclusion builds a fresh reduced plan, refresh reconnects to the exact reviewed plan, and an unrelated Saved Config export invalidates the stale plan.
+- Added a real reduced-Import apply flow that verifies the Last Import panel exposes Applied, Blocked, Excluded, and Remaining Difference after the safe reduced plan is applied.
+- Fixed targeted Drupal browser authentication so explicit password login is repeatable across isolated browser contexts and DDEV one-time login URLs are generated fresh per test when no password is supplied.
+- Hardened browser failure diagnostics so a closed page cannot mask the original authentication/setup failure.
+
+> **Evidence boundary:** Alpha68.5 DDEV `composer qa:fast` is green with 319 PHPUnit tests / 2,304 assertions plus all configured mutation/static gates. The Alpha68.6 stateful browser suite is implemented and source-checked but still requires its first real DDEV execution. A deliberately induced browser-level partial-write failure remains pending rather than introducing a test-only production bypass.
+
 ## 0.1.0-alpha68.5-core
 
 - Added one canonical Import outcome model for **Applied**, **Blocked**, **Excluded**, and **Remaining Difference**, reused by synchronous UI/API4/CLI and queued Import results instead of recomputing counts independently.

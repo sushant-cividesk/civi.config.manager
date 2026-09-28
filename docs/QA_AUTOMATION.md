@@ -245,3 +245,17 @@ The alpha61 SQLTasks follow-up regression also verifies that directory-style API
 ### Alpha67.4.2 targeted DEV mode
 
 `npm run test:ui` now detects its context. With the disposable QA fixture state present it runs the full seeded browser suite. Without that fixture, an explicit `CIVICFG_BASE_URL` runs a read-only targeted smoke instead. Targeted mode does not execute fixture-dependent import/watch/cross-site mutations.
+
+### Alpha68.5 stateful DDEV Import proof
+
+The normal targeted DDEV smoke remains read-only. For deterministic A68-09 Import state transitions, use the dedicated DDEV-only wrapper from the host:
+
+```bash
+CIVICFG_BASE_URL="https://dcivi-dev.civicrm.ddev.site" \
+CIVICRM_ADMIN_USER="admin" \
+CIVICRM_ADMIN_PASS="admin" \
+./tests/ci/run-ddev-stateful-ui.sh
+```
+
+The wrapper refuses non-`.ddev.site` targets and refuses to overwrite an existing `ui-fixture-state.json`. It seeds disposable Option Group, Relationship Type, Saved Config, and missing-dependency fixture state, runs the full Playwright suite, then restores backed-up Configuration Manager settings and removes the disposable CiviCRM records and sync directory even when the browser run fails. Do not use this stateful wrapper against STAGE or PROD.
+

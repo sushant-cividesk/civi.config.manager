@@ -2,6 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { loginToConfigurationManager } = require('./helpers/drupal-auth');
+const { resolveDrupalLoginUrl } = require('../ci/drupal-login-url');
 
 const artifactDir = process.env.QA_ARTIFACT_DIR || path.resolve(__dirname, '../ci/artifacts');
 const statePath = path.join(artifactDir, 'ui-fixture-state.json');
@@ -37,19 +39,61 @@ async function installNetworkGuard(page) {
 }
 
 async function login(page) {
+  const username = process.env.CIVICRM_ADMIN_USER || 'admin';
+  const configuredPassword = process.env.CIVICRM_ADMIN_PASS || '';
+
+  // The disposable suite also runs directly against Drupal DDEV during
+  // maintainer QA. Reuse the proven Drupal authentication path there while
+  // retaining the standalone /civicrm/login flow in isolated CI.
+  if (baseUrl.hostname.endsWith('.ddev.site')) {
+    let loginUrl = process.env.CIVICFG_DRUPAL_LOGIN_URL || '';
+    if (configuredPassword) {
+      loginUrl = '';
+    }
+    else if (!loginUrl) {
+      loginUrl = resolveDrupalLoginUrl({ baseUrl, username });
+    }
+    await loginToConfigurationManager(page, {
+      baseUrl,
+      username,
+      password: configuredPassword,
+      loginUrl,
+    });
+    return;
+  }
+
   await page.goto('/civicrm/login');
   const password = page.locator('input[type="password"]').first();
   if (await password.count()) {
-    const username = page.locator(
+    const usernameField = page.locator(
       'input[name="name"], input[name="username"], input[type="email"], #edit-name'
     ).first();
-    await expect(username).toBeVisible();
+    await expect(usernameField).toBeVisible();
     await expect(password).toBeVisible();
-    await username.fill(process.env.CIVICRM_ADMIN_USER || 'admin');
-    await password.fill(process.env.CIVICRM_ADMIN_PASS || 'qa-admin-password');
+    await usernameField.fill(username);
+    await password.fill(configuredPassword || 'qa-admin-password');
     await page.locator('button[type="submit"], input[type="submit"]').first().click();
     await page.waitForLoadState('domcontentloaded');
   }
+}
+
+async function confirmModalAction(page, trigger, word) {
+  await trigger.click();
+  const modal = page.locator('#civicfg-confirm-modal');
+  await expect(modal).toBeVisible();
+  const apply = modal.locator('[data-civicfg-confirm-apply]');
+  await modal.locator('#civicfg-confirm-reviewed').check();
+  await modal.locator('#civicfg-confirm-text').fill(word);
+  await expect(apply).toBeEnabled();
+  await apply.click();
+  await page.waitForLoadState('domcontentloaded');
+}
+
+async function submitNativeFormAndWait(page, form) {
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    form.evaluate(node => HTMLFormElement.prototype.submit.call(node)),
+  ]);
 }
 
 test.describe('Configuration Manager isolated UI', () => {
@@ -101,7 +145,7 @@ test.describe('Configuration Manager isolated UI', () => {
   });
 
   test('requires review and the exact IMPORT confirmation word', async ({ page }) => {
-    await page.goto('/civicrm/admin/config-manager?reset=1&op=import', { waitUntil: 'domcontentloaded' });
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=option-groups', { waitUntil: 'domcontentloaded' });
 
     const block = page.locator('.crm-configmanager-block');
     await expect(block.getByText(state.relative_path, { exact: true })).toBeVisible();
@@ -122,7 +166,7 @@ test.describe('Configuration Manager isolated UI', () => {
   });
 
   test('keeps the same reviewed Import plan across a browser refresh', async ({ page }) => {
-    await page.goto('/civicrm/admin/config-manager?reset=1&op=import', { waitUntil: 'domcontentloaded' });
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=option-groups', { waitUntil: 'domcontentloaded' });
 
     const planInput = page.locator('input[name="import_plan_id"]').first();
     await expect(planInput).toHaveCount(1);
@@ -147,6 +191,105 @@ test.describe('Configuration Manager isolated UI', () => {
       violation.impact === 'serious' || violation.impact === 'critical'
     );
     expect(blocking).toEqual([]);
+  });
+});
+
+test.describe.serial('A68-09 stateful Import browser proof', () => {
+  test.beforeEach(async ({ page }) => {
+    await installNetworkGuard(page);
+    await login(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    expect(blockedRequests.get(page) || [], 'A68-09 browser proof attempted external network requests.').toEqual([]);
+  });
+
+  test('refuses dependency exclusion when it would leave nothing to import', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=custom-data', { waitUntil: 'domcontentloaded' });
+
+    const blocker = page.locator('.civicfg-import-blockers');
+    await expect(blocker).toBeVisible();
+    await expect(blocker).toContainText('Import is blocked by dependency component(s).');
+    const component = page.locator('.civicfg-dependency-component').first();
+    await expect(component).toContainText(state.missing_dependency_name);
+    await expect(component.getByRole('button', { name: 'Exclude component and build new preview' })).toHaveCount(0);
+    await expect(component.getByText(/leave nothing to import/i)).toBeVisible();
+    await expect(page.getByText(/Continue anyway/i)).toHaveCount(0);
+  });
+
+  test('builds a fresh reduced plan and reconnects to the exact plan after refresh', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=custom-data&type%5B%5D=relationship-types', { waitUntil: 'domcontentloaded' });
+
+    const component = page.locator('.civicfg-dependency-component').first();
+    await expect(component).toContainText(state.missing_dependency_name);
+    const exclude = component.getByRole('button', { name: 'Exclude component and build new preview' });
+    await expect(exclude).toBeVisible();
+    await expect(component.getByText('Remaining Import scope after exclusion:', { exact: true })).toBeVisible();
+    await confirmModalAction(page, exclude, 'EXCLUDE');
+
+    await expect(page.getByText('Reduced Import preview.', { exact: true })).toBeVisible();
+    await expect(page.locator('.civicfg-import-excluded-status')).toContainText('custom-data');
+    const planInput = page.locator('input[name="import_plan_id"]').first();
+    await expect(planInput).toHaveCount(1);
+    const reducedPlanId = await planInput.inputValue();
+    expect(reducedPlanId).toMatch(/^[a-f0-9]{48}$/);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('Reviewed preview protected.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Reduced Import preview.', { exact: true })).toBeVisible();
+    expect(await page.locator('input[name="import_plan_id"]').first().inputValue()).toBe(reducedPlanId);
+  });
+
+  test('does not reconnect a reviewed plan after an unrelated Saved Config export makes it stale', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=custom-data&type%5B%5D=relationship-types', { waitUntil: 'domcontentloaded' });
+    const component = page.locator('.civicfg-dependency-component').first();
+    const exclude = component.getByRole('button', { name: 'Exclude component and build new preview' });
+    await expect(exclude).toBeVisible();
+    await confirmModalAction(page, exclude, 'EXCLUDE');
+
+    const planInput = page.locator('input[name="import_plan_id"]').first();
+    const stalePlanId = await planInput.inputValue();
+    expect(stalePlanId).toMatch(/^[a-f0-9]{48}$/);
+
+    const mutatePage = await page.context().newPage();
+    await installNetworkGuard(mutatePage);
+    await mutatePage.goto('/civicrm/admin/config-manager?reset=1&op=sync&type%5B%5D=option-groups', { waitUntil: 'domcontentloaded' });
+    const exportForm = mutatePage.locator('form').filter({ has: mutatePage.locator('input[name="_action"][value="export_write"]') }).first();
+    await expect(exportForm).toBeVisible();
+    await submitNativeFormAndWait(mutatePage, exportForm);
+    await expect(mutatePage.locator('.crm-configmanager-block')).toBeVisible();
+    expect(blockedRequests.get(mutatePage) || [], 'Stale-plan mutation tab attempted external network requests.').toEqual([]);
+    await mutatePage.close();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const refreshedPlan = page.locator('input[name="import_plan_id"]').first();
+    await expect(refreshedPlan).toHaveCount(1);
+    const refreshedPlanId = await refreshedPlan.inputValue();
+    expect(refreshedPlanId).toMatch(/^[a-f0-9]{48}$/);
+    expect(refreshedPlanId).not.toBe(stalePlanId);
+    await expect(page.getByText('Reviewed preview protected.', { exact: true })).toBeVisible();
+  });
+
+  test('shows canonical reduced-Import outcome accounting after apply', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import&type%5B%5D=custom-data&type%5B%5D=relationship-types', { waitUntil: 'domcontentloaded' });
+    const exclude = page.locator('.civicfg-dependency-component').first().getByRole('button', { name: 'Exclude component and build new preview' });
+    await expect(exclude).toBeVisible();
+    await confirmModalAction(page, exclude, 'EXCLUDE');
+
+    const importButton = page.locator('form[data-civicfg-confirm-modal]').filter({ has: page.locator('input[name="_action"][value="import_apply"]') }).getByRole('button', { name: 'Import', exact: true });
+    await expect(importButton).toBeVisible();
+    await confirmModalAction(page, importButton, 'IMPORT');
+    await page.waitForURL(/op=sync/, { timeout: 45_000 });
+
+    const lastImport = page.locator('.civicfg-last-result');
+    await expect(lastImport).toBeVisible();
+    await expect(lastImport).toContainText('Applied');
+    await expect(lastImport).toContainText('Blocked');
+    await expect(lastImport).toContainText('Excluded');
+    await expect(lastImport).toContainText('Remaining Difference');
+    const outcome = lastImport.locator('.civicfg-import-outcome-summary');
+    await expect(outcome).toBeVisible();
+    await expect(outcome).toContainText(/Excluded/);
   });
 });
 

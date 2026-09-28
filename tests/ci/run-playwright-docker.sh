@@ -26,6 +26,7 @@ docker run --rm \
     mkdir -p /tmp/civicfg-ui/tests/ci
     cp /source/package.json /source/playwright.config.js /tmp/civicfg-ui/
     cp -R /source/tests/playwright /tmp/civicfg-ui/tests/playwright
+    cp /source/tests/ci/drupal-login-url.js /tmp/civicfg-ui/tests/ci/drupal-login-url.js
     ln -s /qa-artifacts /tmp/civicfg-ui/tests/ci/artifacts
     cd /tmp/civicfg-ui
     npm install --no-package-lock --no-audit --no-fund
