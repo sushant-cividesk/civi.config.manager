@@ -8,8 +8,8 @@
     <author>Sushant Paste</author>
     <email>sushant@cividesk.com</email>
   </maintainer>
-  <releaseDate>2026-09-25</releaseDate>
-  <version>0.1.0-alpha68.4-core</version>
+  <releaseDate>2026-09-28</releaseDate>
+  <version>0.1.0-alpha68.5-core</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>5.0</ver>
@@ -18,5 +18,5 @@
   <mixins>
     <mixin>scan-classes@1.0.0</mixin>
   </mixins>
-  <comments>Alpha68.4 groups Import dependency blockers into reviewable components and allows only proven-safe whole-component exclusion through a completely fresh immutable preview.</comments>
+  <comments>Alpha68.5 normalizes Import outcome accounting and removes misleading unsupported-removal wording while preserving dependency-safe immutable plans.</comments>
 </extension>

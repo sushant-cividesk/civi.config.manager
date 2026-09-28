@@ -85,4 +85,28 @@ test.describe('Configuration Manager targeted site smoke', () => {
     expect(consoleErrors, `Browser console errors: ${consoleErrors.join('\n')}`).toEqual([]);
     expect(pageErrors, `Uncaught page errors: ${pageErrors.join('\n')}`).toEqual([]);
   });
+
+  test('keeps Import fail-closed language and outcome accounting visible', async ({ page }) => {
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=import', { waitUntil: 'domcontentloaded' });
+    const block = page.locator('.crm-configmanager-block');
+    await expect(block).toBeVisible();
+    await expect(page.getByText(/Continue anyway/i)).toHaveCount(0);
+
+    const blocker = page.locator('.civicfg-import-blockers');
+    if (await blocker.count()) {
+      await expect(blocker).toContainText('Import is blocked by dependency component(s).');
+      await expect(page.getByText('Fix and preview again', { exact: true }).first()).toBeVisible();
+      const excludeButton = page.getByRole('button', { name: 'Exclude component and build new preview' });
+      if (await excludeButton.count()) {
+        await expect(page.getByText('Full exclusion scope:', { exact: true }).first()).toBeVisible();
+        await expect(page.getByText('Remaining Import scope after exclusion:', { exact: true }).first()).toBeVisible();
+      }
+    }
+
+    const protectedPlan = page.getByText('Reviewed preview protected.', { exact: true });
+    if (await protectedPlan.count()) {
+      await expect(protectedPlan).toBeVisible();
+    }
+  });
+
 });

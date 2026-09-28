@@ -48,9 +48,13 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
     self::assertMatchesRegularExpression('/^[a-f0-9]{48}$/', (string) $reduced['plan_id']);
     self::assertSame(['independent-test'], $reduced['remaining_requested_types']);
     self::assertContains('blocked-source', $reduced['excluded_component']['types']);
+    self::assertSame(1, $reduced['result_accounting']['excluded']);
 
     $result = $manager->applyImportReviewPlan((string) $reduced['plan_id']);
     self::assertTrue($result['ok']);
+    self::assertSame(1, $result['result_accounting']['excluded']);
+    self::assertTrue($result['result_accounting']['remaining_difference_known']);
+    self::assertGreaterThan(0, $result['result_accounting']['remaining_difference']);
     self::assertSame(0, $blocked->realApplyCalls);
     self::assertGreaterThan(0, $independent->realApplyCalls);
   }

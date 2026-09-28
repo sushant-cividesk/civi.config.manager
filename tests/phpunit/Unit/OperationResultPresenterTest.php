@@ -115,6 +115,10 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame(8, $summary['unchanged']);
     self::assertSame(1, $summary['warnings']);
     self::assertSame(0, $summary['errors']);
+    self::assertSame(10, $summary['applied']);
+    self::assertSame(0, $summary['blocked']);
+    self::assertSame(0, $summary['excluded']);
+    self::assertFalse($summary['remaining_difference_known']);
     self::assertArrayNotHasKey('items', $summary);
     self::assertSame('2026-09-04 15:30:00', $summary['completed_at']);
   }

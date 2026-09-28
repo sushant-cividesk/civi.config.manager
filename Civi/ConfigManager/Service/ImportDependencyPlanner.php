@@ -198,6 +198,12 @@ final class ImportDependencyPlanner {
           $counts[$action] += (int) (($byType[(string) $type][$action] ?? 0));
         }
       }
+      $excludedCounts = ['create' => 0, 'update' => 0, 'delete' => 0, 'install' => 0, 'enable' => 0, 'disable' => 0];
+      foreach ((array) ($component['excluded_types'] ?? []) as $type) {
+        foreach ($excludedCounts as $action => $ignored) {
+          $excludedCounts[$action] += (int) (($byType[(string) $type][$action] ?? 0));
+        }
+      }
       $actions = array_filter($counts, static fn(int $count): bool => $count > 0);
       $labels = [
         'create' => 'Create',
@@ -212,6 +218,8 @@ final class ImportDependencyPlanner {
         $parts[] = $labels[$action] . ' ' . $count;
       }
       $component['actions'] = $actions;
+      $component['action_count'] = array_sum($counts);
+      $component['excluded_action_count'] = array_sum($excludedCounts);
       $component['action_text'] = $parts ? implode(', ', $parts) : 'Validation only';
     }
     unset($component);

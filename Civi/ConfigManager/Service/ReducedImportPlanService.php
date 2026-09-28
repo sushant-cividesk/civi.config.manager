@@ -45,16 +45,21 @@ final class ReducedImportPlanService {
       throw new \RuntimeException('Excluding this dependency component would leave nothing to import. Fix the blocker and preview again.');
     }
 
-    $fresh = $manager->createImportReviewPlan($remainingTypes);
-    $fresh['reduced_plan'] = TRUE;
-    $fresh['excluded_component'] = [
+    $excludedComponent = [
       'id' => (string) $component['id'],
       'title' => (string) ($component['title'] ?? 'Dependency component'),
       'types' => array_values(array_map('strval', (array) ($component['excluded_types'] ?? []))),
       'type_labels' => array_values(array_map('strval', (array) ($component['type_labels'] ?? []))),
       'files' => array_values(array_map('strval', (array) ($component['files'] ?? []))),
       'blocker_count' => (int) ($component['blocker_count'] ?? 0),
+      'action_count' => (int) ($component['action_count'] ?? 0),
+      'excluded_action_count' => (int) ($component['excluded_action_count'] ?? 0),
     ];
+    $fresh = $manager->createImportReviewPlan($remainingTypes, [
+      'excluded_components' => [$excludedComponent],
+    ]);
+    $fresh['reduced_plan'] = TRUE;
+    $fresh['excluded_component'] = $excludedComponent;
     $fresh['remaining_requested_types'] = $remainingTypes;
     return $fresh;
   }

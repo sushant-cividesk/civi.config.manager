@@ -20,7 +20,7 @@ Alpha68.4 completes the dependency-safe reduced Import-plan architecture (A68-02
 
 ## Verification boundary
 
-The source package is syntax/contract checked in the authoring environment. Full PHPUnit/PHPStan/PHPCompatibility and real CiviCRM/browser execution must be rerun in the maintainer DDEV/CI environment before this alpha is treated as runtime-validated. The prior Alpha68.3.2 baseline was reported green on DDEV (305 PHPUnit tests / 2,227 assertions); that evidence does not substitute for rerunning the new Alpha68.4 tests.
+Maintainer DDEV `composer qa:fast` passed on 2026-09-25: 315 PHPUnit tests / 2,278 assertions plus provider/import mutation proofs, PHPStan, compatibility, contracts, and source hygiene. Playwright Chromium downloaded successfully, but the browser could not launch because the DDEV image was missing required Linux browser libraries; that is an environment prerequisite, not product-runtime evidence.
 
 ## Still pending before Beta2
 

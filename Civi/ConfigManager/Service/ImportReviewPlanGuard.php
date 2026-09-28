@@ -66,6 +66,7 @@ final class ImportReviewPlanGuard {
       ImportPlanStore::class,
       ImportDependencyPlanner::class,
       ReducedImportPlanService::class,
+      ImportResultAccounting::class,
       self::class,
       \Civi\ConfigManager\Storage\YamlFileStorage::class,
     ];

@@ -39,6 +39,7 @@ class ConfigManager {
   private ConfigScope $scope;
   private ImportReviewPlanGuard $importPlanGuard;
   private ImportDependencyPlanner $importDependencyPlanner;
+  private ImportResultAccounting $importResultAccounting;
   private ?array $allHandlersCache = NULL;
   private ?array $managedTypeOptionsCache = NULL;
   private ?array $scopeTypeOptionsCache = NULL;
@@ -49,6 +50,7 @@ class ConfigManager {
     $this->scope = $scope ?: new ConfigScope();
     $this->importPlanGuard = new ImportReviewPlanGuard($importPlanStore ?: new ImportPlanStore(), $this->scope);
     $this->importDependencyPlanner = $importDependencyPlanner ?: new ImportDependencyPlanner();
+    $this->importResultAccounting = new ImportResultAccounting();
   }
 
   public function getSyncDir(): string {
@@ -3814,7 +3816,7 @@ class ConfigManager {
    *
    * @return array<string,mixed>
    */
-  public function createImportReviewPlan(array $typeFilter = []): array {
+  public function createImportReviewPlan(array $typeFilter = [], array $reviewMetadata = []): array {
     $context = $this->buildImportReviewContext($typeFilter);
     $preview = $this->import(TRUE, FALSE, $context['requested_types'], NULL, TRUE);
     $activeSnapshots = (array) ($preview['_active_fingerprints'] ?? []);
@@ -3823,7 +3825,7 @@ class ConfigManager {
     if (empty($preview['ok'])) {
       $preview['plan_id'] = '';
       $preview['review_plan_ready'] = FALSE;
-      return $preview;
+      return $this->importResultAccounting->attach($preview);
     }
 
     $storage = new YamlFileStorage($this->getSyncDir());
@@ -3854,13 +3856,15 @@ class ConfigManager {
       'yaml_snapshots' => $yamlSnapshots,
       'active_snapshots' => $activeSnapshots,
       'preview_fingerprint' => $this->importPlanGuard->preflightFingerprint($preview),
+      'excluded_components' => $this->sanitizeExcludedComponents((array) ($reviewMetadata['excluded_components'] ?? [])),
     ]);
 
     $preview['plan_id'] = (string) $plan['plan_id'];
     $preview['plan_fingerprint'] = (string) $plan['integrity_hash'];
     $preview['plan_expires_at'] = (string) $plan['expires_at'];
     $preview['review_plan_ready'] = TRUE;
-    return $preview;
+    $preview['excluded_components'] = (array) ($plan['excluded_components'] ?? []);
+    return $this->importResultAccounting->attach($preview, $preview['excluded_components']);
   }
 
   /** @return array<string,mixed> */
@@ -3955,7 +3959,10 @@ class ConfigManager {
       throw $e;
     }
     try {
-      return $this->import(FALSE, TRUE, (array) $plan['requested_types'], $progress, FALSE, $plan);
+      $result = $this->import(FALSE, TRUE, (array) $plan['requested_types'], $progress, FALSE, $plan);
+      $excluded = (array) ($plan['excluded_components'] ?? []);
+      $verifiedDiff = $this->verifiedPostImportDiff();
+      return $this->importResultAccounting->attach($result, $excluded, $verifiedDiff);
     }
     finally {
       // A plan is single-use once apply has started. Even a partial runtime
@@ -3974,7 +3981,8 @@ class ConfigManager {
     $preview['plan_fingerprint'] = (string) ($plan['integrity_hash'] ?? '');
     $preview['plan_expires_at'] = (string) ($plan['expires_at'] ?? '');
     $preview['review_plan_ready'] = TRUE;
-    return $preview;
+    $preview['excluded_components'] = (array) ($plan['excluded_components'] ?? []);
+    return $this->importResultAccounting->attach($preview, $preview['excluded_components']);
   }
 
   public function discardImportReviewPlan(string $planId): void {
@@ -4439,6 +4447,7 @@ class ConfigManager {
       'items' => [],
       'processed_items' => $processed,
       'state_warning' => '',
+      'excluded_components' => (array) ($reviewPlan['excluded_components'] ?? []),
     ];
     $stateStore->saveState($state);
 
@@ -4447,15 +4456,16 @@ class ConfigManager {
       $preflight['dry_run'] = FALSE;
       $preflight['applied'] = FALSE;
       $preflight['message'] = 'Import stopped before writes because the complete preflight found blocking errors. Zero writes were performed.';
-      return $preflight;
+      return $this->importResultAccounting->attach($preflight, (array) ($reviewPlan['excluded_components'] ?? []));
     }
-    return [
+    return $this->importResultAccounting->attach([
       'ok' => TRUE,
       'dry_run' => TRUE,
       'applied' => FALSE,
       'summary_message' => (string) ($preflight['summary_message'] ?? ''),
       'processed_items' => $processed,
-    ];
+      'items' => (array) ($preflight['items'] ?? []),
+    ], (array) ($reviewPlan['excluded_components'] ?? []));
   }
 
   /** @return array<string,mixed> */
@@ -4502,8 +4512,9 @@ class ConfigManager {
       $result['partial_apply'] = TRUE;
       $result['delete_phase_skipped'] = TRUE;
       $result['message'] = 'Import stopped after a create/update work-unit failure. No delete-missing work unit will run. Review the applied handlers and restore/retry from the pre-import database backup if needed.';
+      $result['items'] = (array) ($state['items'] ?? []);
     }
-    return $result;
+    return $this->importResultAccounting->attach($result, (array) ($state['excluded_components'] ?? []));
   }
 
   /** @return array<string,mixed> */
@@ -4549,8 +4560,9 @@ class ConfigManager {
       $result['errors'] = (array) ($item['errors'] ?? []);
       $result['partial_apply'] = TRUE;
       $result['message'] = 'Import delete-missing stopped with an error after earlier create/update work units had succeeded. Remaining queue work was not continued.';
+      $result['items'] = (array) ($state['items'] ?? []);
     }
-    return $result;
+    return $this->importResultAccounting->attach($result, (array) ($state['excluded_components'] ?? []));
   }
 
   /** @return array<string,mixed> */
@@ -4605,8 +4617,12 @@ class ConfigManager {
         $result['partial_apply'] = TRUE;
       }
     }
-    $result['summary_message'] = $this->buildImportSummaryMessage($result);
     $result['processed_items'] = (int) ($state['processed_items'] ?? 0);
+    $result = $this->importResultAccounting->attach(
+      $result,
+      (array) ($state['excluded_components'] ?? []),
+      $this->verifiedPostImportDiff()
+    );
     $reviewPlanId = trim((string) ($state['review_plan_id'] ?? ''));
     if ($reviewPlanId !== '') {
       $this->importPlanGuard->discard($reviewPlanId);
@@ -4761,53 +4777,44 @@ class ConfigManager {
   }
 
   private function countImportItemActivity(array $item): int {
-    $count = 0;
-    foreach (['create', 'update', 'delete', 'skip', 'install', 'enable', 'disable'] as $key) {
-      $count += (int) ($item[$key] ?? 0);
-    }
-    foreach (['groups', 'values', 'settings', 'config'] as $group) {
-      foreach (['create', 'update', 'delete', 'skip'] as $key) {
-        $count += (int) (($item[$group][$key] ?? 0));
-      }
-    }
-    return $count;
+    return $this->importResultAccounting->countActivity($item);
   }
 
   private function buildImportSummaryMessage(array $result): string {
-    $create = $update = $delete = $skip = $errors = $warnings = 0;
-    foreach (($result['items'] ?? []) as $item) {
-      $create += (int) ($item['create'] ?? 0);
-      $update += (int) ($item['update'] ?? 0);
-      $delete += (int) ($item['delete'] ?? 0);
-      $skip += (int) ($item['skip'] ?? 0);
+    $accounted = $this->importResultAccounting->attach($result);
+    return (string) ($accounted['summary_message'] ?? '');
+  }
 
-      if (!empty($item['groups']) && is_array($item['groups'])) {
-        $create += (int) ($item['groups']['create'] ?? 0);
-        $update += (int) ($item['groups']['update'] ?? 0);
-        $skip += (int) ($item['groups']['skip'] ?? 0);
-      }
-      if (!empty($item['values']) && is_array($item['values'])) {
-        $create += (int) ($item['values']['create'] ?? 0);
-        $update += (int) ($item['values']['update'] ?? 0);
-        $delete += (int) ($item['values']['delete'] ?? 0);
-        $skip += (int) ($item['values']['skip'] ?? 0);
-      }
-      if (!empty($item['settings']) && is_array($item['settings'])) {
-        $update += (int) ($item['settings']['update'] ?? 0);
-        $skip += (int) ($item['settings']['skip'] ?? 0);
-      }
-      if (!empty($item['config']) && is_array($item['config'])) {
-        $create += (int) ($item['config']['create'] ?? 0);
-        $update += (int) ($item['config']['update'] ?? 0);
-        $delete += (int) ($item['config']['delete'] ?? 0);
-        $skip += (int) ($item['config']['skip'] ?? 0);
-      }
-      $update += (int) ($item['install'] ?? 0) + (int) ($item['enable'] ?? 0) + (int) ($item['disable'] ?? 0);
-
-      $errors += !empty($item['errors']) ? count($item['errors']) : 0;
-      $warnings += !empty($item['warnings']) ? count($item['warnings']) : 0;
+  /** @return array<string,mixed>|null */
+  private function verifiedPostImportDiff(): ?array {
+    try {
+      $diff = $this->diff();
+      return !empty($diff['ok']) ? $diff : NULL;
     }
-    return sprintf('Import result: %d created, %d updated, %d deleted, %d skipped, %d warning(s), %d error(s).', $create, $update, $delete, $skip, $warnings, $errors);
+    catch (\Throwable $e) {
+      return NULL;
+    }
+  }
+
+  /** @return array<int,array<string,mixed>> */
+  private function sanitizeExcludedComponents(array $components): array {
+    $sanitized = [];
+    foreach ($components as $component) {
+      if (!is_array($component)) {
+        continue;
+      }
+      $sanitized[] = [
+        'id' => trim((string) ($component['id'] ?? '')),
+        'title' => trim((string) ($component['title'] ?? 'Dependency component')),
+        'types' => array_values(array_unique(array_map('strval', (array) ($component['types'] ?? [])))),
+        'type_labels' => array_values(array_unique(array_map('strval', (array) ($component['type_labels'] ?? [])))),
+        'files' => array_values(array_unique(array_map('strval', (array) ($component['files'] ?? [])))),
+        'blocker_count' => max(0, (int) ($component['blocker_count'] ?? 0)),
+        'action_count' => max(0, (int) ($component['action_count'] ?? 0)),
+        'excluded_action_count' => max(0, (int) ($component['excluded_action_count'] ?? 0)),
+      ];
+    }
+    return $sanitized;
   }
 
   private function setHandlerImportPhase($handler, bool $writeEnabled, bool $deleteEnabled): void {

@@ -90,6 +90,24 @@ final class PresenterTest extends TestCase {
     self::assertStringContainsString('Automatic restore is disabled', $plan[0]['note']);
   }
 
+
+  public function testUnsafeRemovalUsesExportActionInsteadOfRemoveLanguage(): void {
+    $presenter = new Presenter();
+    $plan = $presenter->buildImportPlan([[
+      'type' => 'extensions',
+      'type_label' => 'Extensions',
+      'status' => 'new_in_db',
+      'path' => 'extensions/example.yml',
+      'write_safe' => TRUE,
+      'delete_allowed' => FALSE,
+    ]]);
+
+    self::assertFalse($plan[0]['importable']);
+    self::assertSame('Export to Saved Config', $plan[0]['action']);
+    self::assertStringContainsString('remains in Current CiviCRM', $plan[0]['note']);
+    self::assertStringNotContainsString('Remove from Current CiviCRM', $plan[0]['action']);
+  }
+
   public function testWriteSafeExtensionProviderStillOffersCreate(): void {
     $presenter = new Presenter();
     $plan = $presenter->buildImportPlan([[

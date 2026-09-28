@@ -11,6 +11,7 @@ if (!function_exists('ts')) {
   }
 }
 
+require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportResultAccounting.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/UI/OperationResultPresenter.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/UI/Presenter.php';
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/SavedConfigInventory.php';
@@ -112,6 +113,9 @@ $assert($import['updated'] === 3, 'import updated count must include nested hand
 $assert($import['removed'] === 1, 'import removed count must be preserved');
 $assert($import['unchanged'] === 5, 'import unchanged count must include nested handler groups');
 $assert(!array_key_exists('items', $import), 'persistent import summary must not retain large item payloads');
+$assert($import['applied'] === 7, 'Import summary must expose canonical Applied accounting');
+$assert($import['blocked'] === 0 && $import['excluded'] === 0, 'Successful full Import must expose zero Blocked/Excluded counts');
+$assert(array_key_exists('remaining_difference_known', $import), 'Import summary must expose Remaining Difference verification state');
 
 $failed = $presenter->importSummary([
   'ok' => FALSE,
@@ -244,6 +248,11 @@ $importTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Con
 $exportTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Export.tpl');
 $settingsTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Settings.tpl');
 $providerBrowserSource = (string) file_get_contents(__DIR__ . '/../../js/settings-provider-browser.js');
+$headerTemplate = (string) file_get_contents(__DIR__ . '/../../templates/CRM/Configmanager/Page/Partials/Header.tpl');
+$assert(strpos($headerTemplate, '{ts}Applied{/ts}') !== FALSE, 'Last Import must show Applied accounting');
+$assert(strpos($headerTemplate, '{ts}Blocked{/ts}') !== FALSE, 'Last Import must show Blocked accounting');
+$assert(strpos($headerTemplate, '{ts}Excluded{/ts}') !== FALSE, 'Last Import must show Excluded accounting');
+$assert(strpos($headerTemplate, '{ts}Remaining Difference{/ts}') !== FALSE, 'Last Import must show Remaining Difference accounting');
 $assert(strpos($syncTemplate, '{if $file.show_inline_path}<span class="civicfg-muted"><code>{$file.path|escape}</code></span>{/if}') !== FALSE, 'Synchronize must honor Profile Field progressive path disclosure');
 $assert(strpos($importTemplate, '{if $item.show_inline_path}<code class="civicfg-file-code">{$item.path|escape}</code>{else}<strong>{$item.display_title|escape}</strong>{/if}') !== FALSE, 'Import preview must use the semantic Profile Field title when its path is technical');
 $assert(strpos($exportTemplate, '{if $file.show_inline_path}<code class="civicfg-file-code">{$file.path|escape}</code>{else}<strong>{$file.display_title|escape}</strong>{/if}') !== FALSE, 'Export preview must use the semantic Profile Field title when its path is technical');
@@ -256,6 +265,8 @@ $assert(strpos($importTemplate, 'Fix and preview again') !== FALSE, 'Every depen
 $assert(strpos($importTemplate, 'Planned actions:') !== FALSE, 'Dependency component review must explain affected actions');
 $assert(strpos($importTemplate, 'Full exclusion scope:') !== FALSE, 'Dependency component review must show the complete conservative exclusion scope before confirmation');
 $assert(strpos($importTemplate, 'Remaining Import scope after exclusion:') !== FALSE, 'Dependency component review must show what remains after exclusion');
+$assert(strpos($importTemplate, 'unsaved difference(s)') !== FALSE, 'Unsupported removal must not be described as a pending removal');
+$assert(strpos($importTemplate, '{if $item.importable}{$item.action|escape}{else}{ts}Not Ready{/ts}{/if}') === FALSE, 'Import cards must explain the actual safe action instead of a generic Not Ready label');
 
 /**
  * Supplemental source contract for provider-discovery progressive disclosure.

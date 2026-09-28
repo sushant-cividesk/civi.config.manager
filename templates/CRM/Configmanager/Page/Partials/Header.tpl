@@ -144,14 +144,23 @@
     <details class="civicfg-panel civicfg-last-result" open="open">
       <summary><strong>{ts}Last Import{/ts}</strong> <span class="civicfg-muted">{$lastImportSummary.completed_at|escape}</span></summary>
       <div class="civicfg-panel-body">
-        <div class="civicfg-result-summary">
-          <span><strong>{$lastImportSummary.created|escape}</strong> {ts}Created{/ts}</span>
-          <span><strong>{$lastImportSummary.updated|escape}</strong> {ts}Updated{/ts}</span>
-          <span><strong>{$lastImportSummary.removed|escape}</strong> {ts}Removed{/ts}</span>
-          <span><strong>{$lastImportSummary.unchanged|escape}</strong> {ts}Unchanged{/ts}</span>
-          {if $lastImportSummary.warnings gt 0}<span><strong>{$lastImportSummary.warnings|escape}</strong> {ts}Warnings{/ts}</span>{/if}
-          {if $lastImportSummary.errors gt 0}<span><strong>{$lastImportSummary.errors|escape}</strong> {ts}Errors{/ts}</span>{/if}
+        <div class="civicfg-result-summary civicfg-import-outcome-summary">
+          <span><strong>{$lastImportSummary.applied|escape}</strong> {ts}Applied{/ts}</span>
+          <span><strong>{$lastImportSummary.blocked|escape}</strong> {ts}Blocked{/ts}</span>
+          <span><strong>{$lastImportSummary.excluded|escape}</strong> {ts}Excluded{/ts}</span>
+          <span><strong>{if $lastImportSummary.remaining_difference_known}{$lastImportSummary.remaining_difference|escape}{else}—{/if}</strong> {ts}Remaining Difference{/ts}</span>
         </div>
+        <details class="civicfg-result-details">
+          <summary>{ts}Applied action details{/ts}</summary>
+          <div class="civicfg-result-summary">
+            <span><strong>{$lastImportSummary.created|escape}</strong> {ts}Created{/ts}</span>
+            <span><strong>{$lastImportSummary.updated|escape}</strong> {ts}Updated{/ts}</span>
+            <span><strong>{$lastImportSummary.removed|escape}</strong> {ts}Removed{/ts}</span>
+            <span><strong>{$lastImportSummary.unchanged|escape}</strong> {ts}Unchanged{/ts}</span>
+            {if $lastImportSummary.warnings gt 0}<span><strong>{$lastImportSummary.warnings|escape}</strong> {ts}Warnings{/ts}</span>{/if}
+            {if $lastImportSummary.errors gt 0}<span><strong>{$lastImportSummary.errors|escape}</strong> {ts}Errors{/ts}</span>{/if}
+          </div>
+        </details>
         {if $lastImportSummary.ok}
           <p class="description">{ts}Import finished. Synchronize below shows the current result after applying the Saved Configs.{/ts}</p>
         {else}

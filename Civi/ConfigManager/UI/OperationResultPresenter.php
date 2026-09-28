@@ -1,6 +1,8 @@
 <?php
 namespace Civi\ConfigManager\UI;
 
+use Civi\ConfigManager\Service\ImportResultAccounting;
+
 /**
  * Builds compact, user-facing operation summaries for the admin UI.
  *
@@ -92,47 +94,34 @@ class OperationResultPresenter {
    * @return array<string,mixed>
    */
   public function importSummary(array $result, array $job = []): array {
-    $totals = [
-      'created' => 0,
-      'updated' => 0,
-      'removed' => 0,
-      'unchanged' => 0,
-      'warnings' => 0,
-      'errors' => 0,
-    ];
-    foreach ((array) ($result['items'] ?? []) as $item) {
-      if (!is_array($item)) {
-        continue;
-      }
-      $totals['created'] += (int) ($item['create'] ?? 0);
-      $totals['updated'] += (int) ($item['update'] ?? 0);
-      $totals['removed'] += (int) ($item['delete'] ?? 0);
-      $totals['unchanged'] += (int) ($item['skip'] ?? 0);
-      $totals['updated'] += (int) ($item['install'] ?? 0) + (int) ($item['enable'] ?? 0) + (int) ($item['disable'] ?? 0);
-      foreach (['groups', 'values', 'settings', 'config'] as $group) {
-        $groupResult = (array) ($item[$group] ?? []);
-        $totals['created'] += (int) ($groupResult['create'] ?? 0);
-        $totals['updated'] += (int) ($groupResult['update'] ?? 0);
-        $totals['removed'] += (int) ($groupResult['delete'] ?? 0);
-        $totals['unchanged'] += (int) ($groupResult['skip'] ?? 0);
-      }
-      $totals['warnings'] += count((array) ($item['warnings'] ?? []));
-      $totals['errors'] += count((array) ($item['errors'] ?? []));
+    $accounting = (array) ($result['result_accounting'] ?? []);
+    if (!$accounting) {
+      $result = (new ImportResultAccounting())->attach($result);
+      $accounting = (array) ($result['result_accounting'] ?? []);
     }
-    $totals['warnings'] += count((array) ($result['warnings'] ?? []));
-    $totals['errors'] += count((array) ($result['errors'] ?? []));
 
     $jobStatus = trim((string) ($job['status'] ?? ''));
     $ok = ($jobStatus === '' || $jobStatus === 'complete')
-      && $totals['errors'] === 0
+      && (int) ($accounting['errors'] ?? 0) === 0
       && (($result['ok'] ?? TRUE) !== FALSE);
     $problem = trim((string) ($job['error'] ?? ''));
     if ($problem === '') {
       $problem = $this->firstProblem($result);
     }
 
-    return $totals + [
+    return [
       'ok' => $ok,
+      'applied' => (int) ($accounting['applied'] ?? 0),
+      'blocked' => (int) ($accounting['blocked'] ?? 0),
+      'excluded' => (int) ($accounting['excluded'] ?? 0),
+      'remaining_difference' => $accounting['remaining_difference'] ?? NULL,
+      'remaining_difference_known' => !empty($accounting['remaining_difference_known']),
+      'created' => (int) ($accounting['created'] ?? 0),
+      'updated' => (int) ($accounting['updated'] ?? 0),
+      'removed' => (int) ($accounting['removed'] ?? 0),
+      'unchanged' => (int) ($accounting['unchanged'] ?? 0),
+      'warnings' => (int) ($accounting['warnings'] ?? 0),
+      'errors' => (int) ($accounting['errors'] ?? 0),
       'problem' => $problem,
       'next_action' => $ok ? '' : ts('Review the problem and current Synchronize state before retrying. Fix the blocked configuration first; if earlier changes were applied, verify them before another import.'),
       'completed_at' => (string) ($job['finished_at'] ?? date('Y-m-d H:i:s')),

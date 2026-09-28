@@ -259,7 +259,7 @@ class Presenter {
           ? ts('Review rename')
           : ($providerWriteBlocked
             ? ts('Saved copy only')
-            : ($deleteBlocked ? ts('Save Config') : $this->importActionLabel($status))),
+            : ($deleteBlocked ? ts('Export to Saved Config') : $this->importActionLabel($status))),
         'status_label' => $this->statusLabel($status),
         'note' => $possibleRename
           ? ts('Possible identity rename detected. Configuration Manager will not apply this create/delete pair automatically; review and align the accepted identity first.')
@@ -617,7 +617,7 @@ class Presenter {
       return ts('Import for this config type is not available yet.');
     }
     if ($status === 'new_in_db') {
-      return ts('Export first if you want to keep this item managed. Import can remove it only when this configuration type has proven safe removal.');
+      return ts('This item remains in Current CiviCRM. Export it to Saved Config if you want Configuration Manager to manage it; automatic removal is unavailable for this type.');
     }
     if ($status === 'missing_in_db') {
       return ts('This Saved Config is not in Current CiviCRM. Import will restore it. CiviCRM may assign a new numeric database ID.');

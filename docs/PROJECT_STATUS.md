@@ -7,7 +7,7 @@ This is the durable implementation checklist and decision log. Update it in the 
 | Item | Current value |
 |---|---|
 | Protected release baseline | `v1.0.0-beta1` at `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e` |
-| Active development line | `0.1.0-alpha68.4-core` |
+| Active development line | `0.1.0-alpha68.5-core` |
 | Next public candidate | `1.0.0-beta2`, only after the gates below pass and release is explicitly approved |
 | Product purpose | Portable, Git-reviewable CiviCRM configuration synchronization across DEV, STAGE, PROD, and peer environments |
 | Source of truth | Managed YAML for supported configuration; local tables contain rebuildable operational state only |
@@ -91,9 +91,9 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [x] A68-04 Require explicit component selection and confirmation; never silently remove dependencies or individual rows. **Alpha68.4 posts only an opaque component ID through the existing confirmation modal; the server recomputes the current component and refuses stale/unsafe IDs. Runtime QA pending.**
 - [x] A68-05 Discard the old plan, rebuild from current YAML/active state, and run full validation/preflight again after exclusions. **Alpha68.4 never edits a reviewed plan in place; the UI clears the prior plan and the service rebuilds full validation/preflight from current Saved Config and Current CiviCRM before issuing a new plan ID. Runtime QA pending.**
 - [x] A68-06 Bind apply to the exact new plan token/fingerprints; stale or altered plans fail closed. **Alpha68.3 requires the reviewed plan ID across UI/API4/CLI/queue apply paths, rejects tampered/stale plans before write, and keeps existing per-handler conflict checks as a second barrier.**
-- [ ] A68-07 Report Applied, Blocked, Excluded, and Remaining Difference counts consistently in UI/API4/CLI/queue results.
-- [ ] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.” **Alpha68 begins the client-language pass (`Saved Config`, `Current CiviCRM`, `Not Yet Saved`, `Not in Current CiviCRM`) and keeps unsupported removal non-actionable; full provider/action audit remains pending.**
-- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording. **Alpha68.4 adds UI contracts plus service/CLI regression and mutation coverage for reduced plans; real browser scenarios for safe/unsafe exclusion and partial-status wording remain pending.**
+- [x] A68-07 Report Applied, Blocked, Excluded, and Remaining Difference counts consistently in UI/API4/CLI/queue results. **Alpha68.5 uses one canonical accounting service across synchronous and queued results; successful apply computes Remaining Difference from a fresh post-import Synchronize diff, while reduced-plan exclusions are persisted in the immutable plan. DDEV rerun pending.**
+- [x] A68-08 Fix misleading action labels such as an extension warning saying “not uninstalled” while a card says “Remove from CiviCRM.” **Alpha68.5 now shows `Export to Saved Config` and explicitly says the item remains in Current CiviCRM whenever removal is not proven safe; destructive wording remains only on delete-enabled types.**
+- [ ] A68-09 Add browser tests for blocker explanation, unavailable unsafe exclusion, safe component exclusion, stale-plan rejection, and partial-status wording. **Alpha68.5 extends the targeted read-only Playwright smoke to Import fail-closed/blocker/reduced-plan language and keeps source/service/mutation coverage. Stateful real-browser safe/unsafe exclusion and stale-plan scenarios remain pending because the DDEV browser runtime still needs its Linux host libraries.**
 
 
 ### Alpha68 UI/UX slice — approved 2026-09-04
@@ -135,14 +135,14 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] B2-07 Production runtime ZIP includes locked runtime dependencies and passes install/enable/disable/uninstall/package inspection.
 - [ ] B2-08 Documentation, changelog, version, release notes, evidence matrix, and known limitations match observed behavior.
 - [ ] B2-09 Explicit human approval to tag and publish `v1.0.0-beta2`.
-- [ ] B2-10 Multilingual EN/FR regression proves that changing only the active language produces zero false drift/rewrites, while a genuine translated-value change is detected, exported, imported on a peer environment, and re-exported canonically.
+- [ ] B2-10 Language-independent multilingual regression proves that changing only the active language/locale to any configured language produces zero false drift/rewrites, while a genuine translated-value change is detected, exported, imported on a peer environment, and re-exported canonically. Representative real multilingual fixtures must include more than one locale pair; EN/FR remains only the original reproducer.
 
 ## Known blocker ledger
 
 | ID | Evidence | Current handling | Target improvement | Status |
 |---|---|---|---|---|
 | BLK-001 | OptionValue stable value `3` appears with a changed email-like machine name | Full preflight blocks rename and delete-missing | Real-runtime zero-write proof; later component-aware explanation/exclusion only if safe | Test added; runtime evidence pending |
-| UX-001 | Extension warning says it is not automatically uninstalled while preview card says “Remove from CiviCRM” with zero fields | Confusing but safety text is present | One consistent non-actionable/monitor-only label and reason | Planned A68-08 |
+| UX-001 | Extension warning says it is not automatically uninstalled while preview card says “Remove from CiviCRM” with zero fields | Unsupported removal now renders as `Export to Saved Config` and states that Current CiviCRM is unchanged | Keep destructive wording only for delete-enabled types | Fixed in alpha68.5 |
 | BLK-002 | Runtime export produced duplicate path `profiles/fields/summary_overlay__phone.yml` because `profile + field_name` was not unique for repeated UFFields | Export stopped atomically; no live YAML changed | Dedicated semantic Profile Field identity adapter plus regression/runtime proof | Source fix in alpha67.7; DEV rerun pending |
 | BLK-003 | Runtime export encountered an unnamed ReportInstance and the strict `report_id + name` rule aborted the whole export | Export stopped atomically; no live YAML changed | Guarded `report_id + title` fallback for legacy unnamed rows; still block missing template/provider or ambiguous fallback | Source fix in alpha67.7; DEV rerun pending |
 | UX-002 | Export failures were safe but too opaque for operators (no offending object/source identity or clear remediation) | Raw exception text only | Standard structured severity/context/cause/remediation across UI, CLI, API, and logs without weakening fail-closed behavior | Partially improved in alpha67.7 duplicate-path diagnostics; broader UX work planned |

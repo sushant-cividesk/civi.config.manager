@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-alpha68.5-core
+
+- Added one canonical Import outcome model for **Applied**, **Blocked**, **Excluded**, and **Remaining Difference**, reused by synchronous UI/API4/CLI and queued Import results instead of recomputing counts independently.
+- Persisted reduced-plan exclusion metadata inside the immutable reviewed plan so later apply/queue results retain the same exclusion accounting; successful apply verifies Remaining Difference from a fresh post-import Synchronize diff.
+- Kept partial queue failures accountable by returning the accumulated applied work plus the same compact outcome fields rather than only the final failing work unit.
+- Replaced unsupported removal wording with **Export to Saved Config** / “remains in Current CiviCRM”; safe removal wording is shown only when delete-missing is actually allowed.
+- Added focused accounting/unit coverage, a mutation proof for exclusion accounting, and an additional read-only Playwright Import safety smoke path.
+
+> **Evidence boundary:** Alpha68.4 was reported green on DDEV with 315 PHPUnit tests / 2,278 assertions plus all mutation/static gates. Alpha68.5 passes dependency-free syntax/contracts/source hygiene in the authoring environment; the vendor-dependent DDEV suite and real browser run must be rerun for this new alpha.
+
 ## 0.1.0-alpha68.4-core
 
 - Grouped missing managed Import dependencies into order-independent deterministic review components with affected types, Saved Config files, blocker reasons, and planned actions.
@@ -8,7 +18,7 @@
 - Added the same reduced-preview boundary to API4/CLI, lifecycle cleanup for reduced-plan session state, focused unit/mutation coverage, and UI contracts.
 - Extracted Import action orchestration from `MainPage.php` and kept the page below 1,000 lines while the dependency/exclusion policy lives in a focused service.
 
-> **Evidence boundary:** dependency-free syntax/contract checks pass in the authoring environment. Full DDEV `composer qa:fast` plus real browser/runtime validation must be rerun for this new alpha before it is treated as runtime-validated.
+> **Alpha68.4 validation:** maintainer DDEV `composer qa:fast` passed with 315 PHPUnit tests / 2,278 assertions plus the configured mutation/static gates. Playwright execution was blocked by missing Linux browser libraries in the DDEV image.
 
 ## 0.1.0-alpha68.3.2-core
 
