@@ -266,7 +266,7 @@ class Presenter {
           : ($providerWriteBlocked
             ? ts('This contributed configuration is safe to back up and compare, but its provider does not expose a write-safe portable identity on this site. Automatic restore is disabled.')
             : ($deleteBlocked
-              ? ts('Automatic removal is not enabled for this type. Export this item if you want to keep it managed.')
+              ? ts('This item remains in Current CiviCRM. Export it to Saved Config if you want Configuration Manager to manage it; automatic removal is unavailable for this type.')
               : $this->importActionNote($status, $importable))),
       ];
     }

@@ -83,6 +83,8 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
       'schema_version' => 1,
       'site_id' => 'reduced-plan-site',
     ]);
+    // Keep the excluded component genuinely drifted so Remaining Difference
+    // proves post-import Synchronize state rather than merely blocker presence.
     $this->writeYaml($root . '/blocked-source/source.yml', [
       'schema_version' => 1,
       'type' => 'blocked-source.item',
@@ -92,7 +94,7 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
         'name' => 'target',
         'reason' => 'The source requires this target.',
       ]],
-      'item' => ['name' => 'source', 'label' => 'Source'],
+      'item' => ['name' => 'source', 'label' => 'Saved Source'],
     ]);
     $this->writeYaml($root . '/independent-test/item.yml', $this->document('independent-test.item', 'item'));
     @mkdir($root . '/dependency-target', 0775, TRUE);
