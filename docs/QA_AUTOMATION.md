@@ -10,7 +10,9 @@ See [Beta2 priorities](BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md).
 
 The default `composer qa:fast` PHPUnit run includes only the
-`tests/phpunit/Unit` suite in `phpunit.xml.dist`. The requirement-first ML-001
+`tests/phpunit/Unit` suite in `phpunit.xml.dist`, which also excludes
+`tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php` if left by a
+legacy ZIP-overlay installation. The requirement-first ML-001
 reproducer is deliberately stored outside that directory at
 `tests/pending/ml001/MultilingualAfformCanonicalizationTest.php` and must be
 run explicitly:
@@ -18,6 +20,7 @@ run explicitly:
 ```bash
 composer qa:fast                  # Implemented behavior gate
 composer test:ml001:pending       # Expected to fail until ML-001 is fixed
+phpunit --configuration phpunit.xml.dist --list-tests  # No legacy ML-001 test in default suite
 ```
 
 2026-10-08 prior DDEV/CI evidence: 321 PHPUnit tests, 2,306 assertions,

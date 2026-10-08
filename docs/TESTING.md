@@ -2,7 +2,7 @@
 
 ## Beta2 priority and ML-001 pending reproducer (2026-10-08)
 
-Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the proposed task order and
+Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the user-confirmed 2026-10-08 P0/P1 order and
 [ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md) for exact multilingual
 acceptance criteria. The untranslated source of Afform titles/labels/layout
 must be verified before changing canonicalization.
@@ -12,6 +12,13 @@ must be verified before changing canonicalization.
 one expected locale-equivalence failure while preserving the genuine-edit
 assertion. The original DDEV/CI failure was 321 tests / 2,306 assertions /
 1 failure. The reclassified suite needs a fresh maintainer DDEV/CI run.
+When updating an existing checkout by extracting a source ZIP over it, an
+old `tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php` can remain
+on disk. The current PHPUnit config excludes **that exact legacy path**;
+verify with `phpunit --configuration phpunit.xml.dist --list-tests` and move
+the obsolete file aside if present (inspect Git state first). The real
+regression remains executable with `composer test:ml001:pending`.
+
 Never call ML-001 fixed because the default suite passes.
 
 

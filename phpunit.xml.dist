@@ -10,6 +10,9 @@
   <testsuites>
     <testsuite name="Configuration Manager unit tests">
       <directory suffix="Test.php">tests/phpunit/Unit</directory>
+      <!-- Exact legacy path guard: a ZIP overlay cannot remove previously shipped tests.
+           ML-001 remains explicitly runnable from tests/pending/ml001/. -->
+      <exclude>tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php</exclude>
     </testsuite>
   </testsuites>
   <coverage processUncoveredFiles="true">

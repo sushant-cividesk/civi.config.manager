@@ -2,9 +2,12 @@
 
 This is the durable implementation checklist and decision log. Update it in the same change as code, tests, or a changed decision. `info.xml` is authoritative for the development version; `CHANGELOG.md` records completed work.
 
-The current **proposed** release-blocker order and its evidence requirements are
-maintained in [Beta2 priorities](BETA2_PRIORITIES.md). Changing priority does
-not remove any Beta2 gate.
+The **user-confirmed P0/P1 task order (2026-10-08)** and mandatory evidence
+are maintained in [Beta2 priorities](BETA2_PRIORITIES.md). The exact order is
+QA-003, ML-001, A69-05, B2-02/03, A67-04/06, A68-09, B2-04/05,
+B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
+Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
+commitment to add new features before Beta2**. No order change waives a release gate.
 
 ## Authoritative state
 
@@ -146,7 +149,10 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 **2026-10-08 QA note:** The new ML-001 requirement-first test caused the reported
 `composer qa:fast` / GitHub CI failure (321 tests, 2,306 assertions, 1 failure).
 It has been moved to `tests/pending/ml001/` and exposed as
-`composer test:ml001:pending`. The latest corrected checkout still needs a
+`composer test:ml001:pending`. On the old DDEV checkout the original path
+remained discoverable after the ZIP was extracted over existing files.
+`phpunit.xml.dist` now excludes that exact legacy path for overlay safety.
+The latest corrected checkout still needs a
 DDEV/CI rerun. This is QA classification, **not** a multilingual product fix.
 
 
@@ -175,7 +181,7 @@ DDEV/CI rerun. This is QA classification, **not** a multilingual product fix.
 | Composer audit retry | `tests/ci/composer-audit-wrapper-test.sh` | Passed again 2026-09-03: transient recovery, advisory fail-closed, exhausted failure |
 | Authoring checks | JSON parse, Bash syntax, `git diff --check` | 2026-09-03: archive SHA-256/integrity matched handoff; `info.xml` is `0.1.0-alpha66-core`; composer/package JSON parsed; all 10 test Bash scripts passed `bash -n`; all 108 project PHP files passed syntax under PHP 8.4. `validate-scenarios.php` could not start because `vendor/autoload.php` is absent. |
 
-Current Alpha67.5 checkpoint: A66-02c, A66-03, and A66-04 are implemented; Settings now renders scope/capability controls first and loads metadata-rich provider inventory asynchronously into searchable groups. Maintainer evidence from Alpha67.4.2 observed 255 PHPUnit tests / 1,993 assertions green before the final PHPStan hotfix; Alpha67.5 adds request-local scope-option reuse plus provider-browser tests. Full PHPUnit/static-analysis/real-runtime/browser gates must rerun before release promotion.
+Historical Alpha67.5 checkpoint (superseded by the Alpha68.6.1 status above): A66-02c, A66-03, and A66-04 are implemented; Settings now renders scope/capability controls first and loads metadata-rich provider inventory asynchronously into searchable groups. Maintainer evidence from Alpha67.4.2 observed 255 PHPUnit tests / 1,993 assertions green before the final PHPStan hotfix; Alpha67.5 adds request-local scope-option reuse plus provider-browser tests. Full PHPUnit/static-analysis/real-runtime/browser gates must rerun before release promotion.
 
 A66-04 is complete. Alpha67.5 intentionally prioritizes lazy/searchable Settings UX over persistent discovery caching: full provider inventory is no longer required for initial Settings render. Next: finish A67 counts/accessibility/mode-choice polish, add A66-06 supported-version/provider fixtures, then measure discovery cost before deciding whether persistent caching is justified.
 

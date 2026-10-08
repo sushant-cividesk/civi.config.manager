@@ -1,17 +1,27 @@
 # Changelog
 
-## Unreleased — QA classification and Beta2 planning (2026-10-08)
+## Unreleased — QA migration safety and approved Beta2 priorities (2026-10-08)
+
+- Fixed QA-003 source-package overlay compatibility: PHPUnit now excludes the
+  **single obsolete ML-001 test path** if extraction over an existing
+  development tree leaves it behind. The proper pending test remains runnable;
+  no Afform canonicalization or Import behavior was changed.
+- Recorded the user-confirmed 11-task P0/P1 Beta2 priority order across the
+  current roadmap, status, implementation plan, QA, testing, README, and
+  release policy. Optional Phase 2 P1 denotes planning, not a release promise.
 
 - Preserved the ML-001 multilingual false-drift test as an explicitly executable,
   intentionally failing reproducer outside the default release-blocking PHPUnit
   discovery tree. No comparison, translation, or Import behavior changed.
 - Added `composer test:ml001:pending` to keep the unresolved assertion easy to
   run without misrepresenting it as a passing test.
-- Recorded proposed Beta2 work priorities and required release evidence in
-  `docs/BETA2_PRIORITIES.md`, and synchronized current planning/QA documents.
+- Consolidated the approved task order and mandatory release evidence in
+  `docs/BETA2_PRIORITIES.md`; keep this authoritative on later changes.
 - On 2026-10-08, the **previous** DDEV and GitHub Action runs both reported
-  321 tests / 2,306 assertions / one ML-001 failure. The post-change DDEV/
-  GitHub QA rerun is still required; this changelog does not claim it passed.
+  321 tests / 2,306 assertions / one ML-001 failure. The repeated DDEV
+  failure comes from the obsolete test path left in a ZIP-overlay checkout.
+  The corrected PHPUnit configuration and documentation were source-verified,
+  but a fresh DDEV/GitHub Composer QA run is still required to prove it passes.
 
 
 ## 0.1.0-alpha68.6.1-core

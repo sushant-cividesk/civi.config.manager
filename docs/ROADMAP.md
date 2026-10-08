@@ -2,11 +2,13 @@
 
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
-For the actionable before-Beta2 priorities and mandatory proof, see
-[Beta2 priorities](BETA2_PRIORITIES.md). Priorities are recommendations until
-the user confirms them.
+The user **confirmed** the P0/P1 work order on 2026-10-08. Its authoritative
+ranking and mandatory proof are in [Beta2 priorities](BETA2_PRIORITIES.md).
+P0 starts with QA-003, ML-001, A69-05, B2-02/03, and optional A67-04/06.
+P1 includes A68-09, remaining release gates, optional UX-002, and optional
+Phase 2 planning. **P1 Phase 2 does not extend Beta2 release scope**.
 
-The actionable item IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). The near-term sequence is alpha65 evidence foundation, alpha66 generic discovery inventory, alpha67 Settings/inventory UX, alpha68 safe reduced import plans plus multilingual canonicalization hardening, alpha69 provider runtime evidence, then the gated Beta2 candidate.
+The actionable IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Historical delivery proceeded through Alpha65 evidence, Alpha66 discovery, Alpha67 Settings UX, and Alpha68 Import safety; the **current** sequence is the confirmed list above, not that historical milestone chronology.
 
 ## Current alpha scope
 
@@ -50,6 +52,8 @@ Before treating phase 1 as complete, finish:
 - Add documentation for deployment workflows between dev/stage/prod.
 
 ## Phase 2 candidates
+
+Phase 2 is **P1 optional for scoping/planning**, per the confirmed Beta2 priority list. Its listed feature expansions are not automatically included in Beta2 and must not postpone mandatory release evidence.
 
 - SQL query definitions.
 - Mosaico/contact-layout/base-template asset deployment review through the generic bundled bundled extension config support.

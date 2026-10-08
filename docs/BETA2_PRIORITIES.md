@@ -1,88 +1,97 @@
 # Beta2 priorities and evidence gates
 
-**Planning checkpoint:** 2026-10-08. **Development baseline:** `0.1.0-alpha68.6.1-core`.
-**Protected release:** `v1.0.0-beta1`, commit `5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e`.
-**Target:** `v1.0.0-beta2` after all mandatory evidence and explicit human approval.
+**Approved task priority order:** 2026-10-08 (user-confirmed). **Development baseline:**
+`0.1.0-alpha68.6.1-core`. **Protected release:** `v1.0.0-beta1` at
+`5055d6edc58fa3d17c7fd28ab8bc0f74a2e21e2e`.
 
-This is the **recommended** work order, not a user-approved reprioritization.
-Use the in-chat interactive priority planner to choose ordering, then update this
-file and the linked documents with the submitted choices. Priority **never**
-waives a mandatory Beta2 release gate.
+**Release target:** `v1.0.0-beta2`, only after every mandatory gate below is
+actually verified and the user explicitly authorizes tagging and publication.
+The approved **priority order is not a release approval**.
 
-## How to read priorities
+## Approved order (authoritative)
 
-- **P0 / Now:** next critical work; do not start optional features while blocked.
-- **P1 / Before RC:** required release proof after immediate blockers.
-- **P2 / Capacity:** useful improvements only if they do not delay mandatory gates.
-- **After Beta2:** optional future scope; do not include in Beta2 readiness claims.
+| Order | ID | Priority | Scope and current state | Gate / evidence required |
+|---:|---|---|---|---|
+| 1 | **QA-003** | **P0, required** | Restore normal QA; legacy ML-001 file still causes failures in old DDEV/CI checkouts. Source fix ready; updated DDEV/CI run **not yet verified**. | `composer qa:fast` passes in the supported PHP matrix; separately run `composer test:ml001:pending` to preserve the known red ML-001 reproducer. |
+| 2 | **ML-001** | **P0, required** | Multilingual Afform/FormBuilder false drift. Reproduced; semantic fix **not implemented**. | Locale-only switch gives zero false differences/rewrites, genuine translated edits are detected, multiple locales, real API4 round trip, independent oracle. |
+| 3 | **A69-05** | **P0, required** | Certify a selected, limited provider set. Runtime create/update/delete permission is **not yet established**. | Disposable real-CiviCRM different-ID round trips, independent final-state checks, preservation of business data; deletion certified separately. |
+| 4 | **B2-02/03** | **P0, required** | Cross-environment and API/CLI/queue parity; final real-runtime matrix **pending**. | Same Saved Config DEV to STAGE, canonical re-export, and consistent UI/API4/CLI/queue accounting on Drupal/WordPress/Standalone as supported. |
+| 5 | **A67-04/06** | **P0, optional** | Remaining interface counts, selection/keyboard/focus/accessibility polish; **partially implemented**. | UX tests and observed accessible interaction; optional work must not block the P0 required tasks. |
+| 6 | **A68-09** | **P1, required** | Playwright and stateful Import-safety proof; Drupal login + settings-discovery harness issues, partial-write scenario **open**. | Targeted/stateful browser tests, safe/unsafe exclusions, stale review plans, partial accounting, deliberately induced failure without later deletion. |
+| 7 | **B2-04/05** | **P1, required** | Adversarial safety cases; final evidence **pending**. | Race/stale-plan, blocker, rollback/recovery, secrets, ignored/unselected scope, preservation and mutation-red evidence. |
+| 8 | **B2-06/07** | **P1, required** | Upgrade, compatibility and installable runtime ZIP; release packaging gate **pending**. | Beta1 upgrade, documented PHP/CiviCRM matrix, install/enable/disable/uninstall, production ZIP with locked dependencies and SHA256. |
+| 9 | **B2-08/09** | **P1, required** | Final documentation and release-candidate review; **pending**. | Full evidence ledger, manual demo, consistent docs/version/release notes, user authorization before tag/publish. |
+| 10 | **UX-002** | **P1, optional** | Consistent warnings, structured errors and operator remediation across UI/API4/CLI/logs; **partial**. | Actionable language and preserved fail-closed behavior, without blocking required release work. |
+| 11 | **Phase 2** | **P1, optional** | Additional provider/feature expansion; **not part of committed Beta2 scope**. | P1 permits *planning/scoping* before Beta2; implementing new Phase 2 capabilities still requires separate scope approval and must not weaken/delay mandatory gates. |
 
-`Implemented` means code exists; `Verified` requires exact observed evidence.
-A green default PHPUnit suite alone does not imply a release gate passed.
+The numbers in this table represent the user's selected order, **not** completion
+percentages. P0 is first for scheduling; P1 is the next group. Optional P0/P1
+entries must never consume the time needed for mandatory Beta2 gates.
+Every mandatory task remains a release blocker independent of priority.
 
-## Mandatory Beta2 work
+## QA-003 diagnosis: why the old test still failed
 
-| ID | Recommended priority | Work | Current state | Acceptance evidence |
-|---|---|---|---|---|
-| QA-003 | P0 | Restore default fast QA while keeping the intentionally red ML-001 requirement executable | Source adjustment in this checkpoint; DDEV/CI rerun pending | `composer qa:fast` green on supported PHP matrix; `composer test:ml001:pending` separately reproduces ML-001 until fixed |
-| ML-001 | P0 | Language-independent Afform/FormBuilder canonicalization | Bug reproduced; implementation pending | Locale switch causes zero false drift/rewrites; genuine translation edit detected; more than one locale pair; peer-site import/re-export; independent oracle |
-| A68-09 | P0 | Real browser import-safety and reliable DDEV harness | Fixture scripts exist; Drupal login and `candidate` failures remain; partial-write scenario unproven | Successful targeted + stateful Playwright; safe exclusion, stale-plan, partial outcomes, deliberately induced write failure with zero later deletes |
-| A69-05 | P0 | Prove selected provider CRUD boundaries | Provider support exists; runtime certification incomplete | Disposable real-CiviCRM round trips, different numeric IDs, independent final state, business-data preservation, delete independently certified |
-| B2-02/B2-03 | P1 | Cross-site, Drupal/WordPress/Standalone, CLI/API4/queue parity | Final matrix pending | Same YAML DEV to STAGE; canonical re-export; correct outcome counts on each supported surface |
-| B2-04/B2-05 | P1 | Adversarial safety matrix | Core safety implemented; runtime edge evidence incomplete | Blockers, stale/race, secrets, ignored/unselected config, partial failure, rollback/recovery and mutation proof |
-| B2-06/B2-07 | P1 | Upgrade, compatibility and installable release ZIP | Final lifecycle/package gate pending | Beta1 upgrade preserves settings/YAML; supported PHP/CiviCRM matrix; install/enable/disable/uninstall; runtime ZIP contains locked production dependencies |
-| B2-08/B2-09 | P1 | Final QA evidence, docs and release approval | Pending | Complete evidence ledger, manual demo, exact release docs, explicit human sign-off before tag/publish |
+On 2026-10-08 the user's DDEV run again reported **321 tests, 2,306 assertions,
+one failure** at `tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php:25`.
+Earlier GitHub Actions on PHP 8.1 showed the same red test. The previous
+source ZIP moved that intentionally failing regression into
+`tests/pending/ml001/` but extraction *over* an older extension does not delete
+old files. The old PHPUnit-discoverable file was therefore left in place.
 
-## Optional improvements (do not replace mandatory gates)
-
-| ID | Recommended priority | Work | Current state | Decision |
-|---|---|---|---|---|
-| UX-002 | P2 | Consistent structured warning/error and remediation messages across UI/API4/CLI/logs | Partially improved; not closed | Include only if it reduces blocking demo/operator risk |
-| A67-04/A67-06 | After Beta2 | Live item/selection counts, remaining accessibility/focus polish | Partially implemented | Defer unless a concrete usability regression blocks Beta2 |
-| Phase 2 | After Beta2 | Broad new provider support and optional UI/tooling expansion | Not in the Beta2 release gate | Scope only after Beta2 evidence and approval |
-
-## Fixed safety boundaries
-
-- No unsafe Import override, speculative translated-value equivalence, or blanket `title`/`label` exclusion.
-- An unproven provider remains read-only, review-only, or export/compare; delete is separately authorized by real evidence.
-- Keep the approved Synchronize / Import / Export / Settings UI; no dashboard redesign.
-- No commit, push, tag, deploy or release without explicit user instruction.
-
-## QA-003 implementation and truth in CI
-
-The pending ML-001 regression was added before a semantic fix existed. The
-2026-10-08 DDEV/CI evidence showed 321 tests, 2,306 assertions, one expected
-locale-equivalence failure. This was a real release-QA gate failure due to test
-classification, **not** proof that ML-001 was fixed.
-
-The unmodified assertion now lives in
-`tests/pending/ml001/MultilingualAfformCanonicalizationTest.php`, outside
-`phpunit.xml.dist`'s default `tests/phpunit/Unit` discovery tree. This allows
-normal QA to assess *implemented* functionality while preserving the original
-ML-001 failing reproduction for explicit execution:
+**Corrective source change:** `phpunit.xml.dist` now explicitly excludes only the
+obsolete path `tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php`.
+The current `tests/pending/ml001/MultilingualAfformCanonicalizationTest.php`
+remains an explicit requirement-first reproduction via:
 
 ```bash
 composer qa:fast
-composer test:ml001:pending    # Expected non-zero until ML-001 is fixed
+composer test:ml001:pending     # Expected to fail until the real ML-001 fix
 ```
 
-Run and record both outcomes separately. **Do not treat green `qa:fast` as ML-001
-completion**. The pending test is not sufficient by itself: real-language,
-real-Afform import/export evidence remains mandatory. Once the verified fix
-exists, move the regression into the normal suite and prove red/green plus
-end-to-end behavior.
+For clean migration, inspect current `git status --short`, then move the
+**exact obsolete file** out of the PHPUnit-discovery directory (keep a backup
+if it is locally modified). Do not delete other tests or unrelated files. The
+exact-path XML exclusion also protects **overlay installs** where the file
+remains on disk. Verify `phpunit --configuration phpunit.xml.dist --list-tests`
+no longer discovers this class. The failing reproducer remains a **known open
+product bug**, not something to be disabled or declared fixed.
 
-## Documentation maintenance for every following change
+A source-level overlay simulation confirmed the old file survives ZIP overlay;
+**post-change DDEV PHPUnit, complete Composer QA, and GitHub CI remain unverified**
+until run against the corrected files in those environments.
 
-1. Update this plan with changed priority, status, evidence, and acceptance gate.
-2. Update [`PROJECT_STATUS.md`](PROJECT_STATUS.md) when any checkpoint or blocker changes.
-3. Update [`../CHANGELOG.md`](../CHANGELOG.md) with implemented work; never state a planned fix as shipped.
-4. Update affected user-facing/current-behavior docs (`../README.md`,
+## Non-negotiable safety and release boundaries
+
+- No broad ignore of `title`/`label`, hard-coded language dictionary, or inferred
+  translation equivalence. A real translated edit must remain observable.
+- No `Continue anyway` Import bypass. Safe exclusion requires a fresh reduced
+  plan, complete preflight, and independent post-apply verification.
+- An unproven provider stays review/export/compare only. Delete authorization
+  requires separate runtime and business-data preservation evidence.
+- Keep Synchronize / Import / Export / Settings, the approved client-friendly
+  terminology, and incremental UX (not a dashboard redesign).
+- Do not commit, push, switch Git branches, tag, publish, deploy, or mutate PROD
+  without explicit user authorization.
+- Do not publish a source-only ZIP as an installable release. No Beta2 claim
+  from unit/static tests without complete runtime/browser/upgrade evidence.
+
+## Documentation maintenance on every subsequent implementation batch
+
+1. Keep this file as the **authoritative, user-approved** order and evidence
+   ledger. Change this order only with a later explicit user decision.
+2. Reconcile [`PROJECT_STATUS.md`](PROJECT_STATUS.md), [`ROADMAP.md`](ROADMAP.md),
+   [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md), and the affected active
+   engineering/QA documents in the same implementation batch.
+3. Update [`../CHANGELOG.md`](../CHANGELOG.md) for completed implementation,
+   evidence and important corrections; never describe plans as shipped code.
+4. Update affected current behavior guides: [`../README.md`](../README.md),
    [`TESTING.md`](TESTING.md), [`QA_AUTOMATION.md`](QA_AUTOMATION.md),
-   [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CLI.md`](CLI.md), and
-   [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)) when their facts change.
-5. Update [`RELEASE_AND_UPGRADE_POLICY.md`](RELEASE_AND_UPGRADE_POLICY.md) and
-   the version-specific release notes **at the time of an actual release**, not
-   retroactively to claim unshipped work exists in historical versions.
-6. Record commands actually run, pass/fail results, unverified environments,
-   and any production-data risks; do not substitute source-string checks for
-   real-runtime proof.
+   [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CLI.md`](CLI.md),
+   [`DETAILED_REFERENCE.md`](DETAILED_REFERENCE.md), and any others whose
+   instructions or facts actually change.
+5. Keep [`RELEASE_AND_UPGRADE_POLICY.md`](RELEASE_AND_UPGRADE_POLICY.md) and
+   future release notes aligned with gates and evidence, **but preserve
+   historical version-specific release notes unchanged**.
+6. Record commands actually run, pass/fail counts, and remaining unverified
+   runtime boundaries. Verify that all relative doc links resolve and that
+   version-specific history is not accidentally rewritten.

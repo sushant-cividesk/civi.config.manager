@@ -2,10 +2,13 @@
 
 The protected release baseline is `v1.0.0-beta1`. Development continues on numbered alpha builds; `1.0.0-beta2` requires the full checklist in [`PROJECT_STATUS.md`](PROJECT_STATUS.md) plus explicit approval to tag/publish.
 
-[Beta2 priorities](BETA2_PRIORITIES.md) lists the recommended order and the
-proof needed for every mandatory gate. No gate can be postponed beyond Beta2
-merely by changing its priority; ML-001 must be resolved and its intentionally
-red pending regression re-integrated before final release testing.
+[Beta2 priorities](BETA2_PRIORITIES.md) contains the **2026-10-08 confirmed
+P0/P1 order** and proof for every mandatory gate. The user prioritised optional
+interface work at P0 and optional UX/Phase 2 at P1; that does **not** broaden
+the Beta2 release scope or allow required gates to be skipped. ML-001 must be
+resolved, its regression moved into the normal suite, and its real-runtime
+behavior verified before final release testing. Never tag or publish without
+explicit separate release approval.
 
 ## Compatibility rules after beta
 

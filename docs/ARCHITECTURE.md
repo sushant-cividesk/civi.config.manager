@@ -8,7 +8,8 @@ Approved future architecture and its implementation/evidence status are tracked 
 
 The currently open multilingual canonicalization risk and required evidence are
 tracked in [ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md); the required
-Beta2 release order is in [Beta2 priorities](BETA2_PRIORITIES.md).
+user-confirmed Beta2 task order and non-negotiable release gates are in
+[Beta2 priorities](BETA2_PRIORITIES.md).
 
 ## Import blocker policy
 

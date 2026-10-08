@@ -13,7 +13,7 @@ Configuration Manager brings a Git-friendly configuration workflow to CiviCRM. I
 but multilingual false drift (ML-001), browser/runtime validation, provider
 proof, and release/upgrade checks remain open. The default PHPUnit suite
 excludes an intentionally red, explicitly runnable ML-001 reproduction; see
-[Beta2 priorities](docs/BETA2_PRIORITIES.md) and
+[user-confirmed Beta2 priorities](docs/BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](docs/ML-001-RUNTIME-EVIDENCE.md).
 
 ## What it does
@@ -258,7 +258,7 @@ Do not publish a release solely because unit tests pass. The full isolated integ
 - [Release and Upgrade Policy](docs/RELEASE_AND_UPGRADE_POLICY.md) - compatibility and release rules
 - [Detailed Reference](docs/DETAILED_REFERENCE.md) - extended behavior and maintainer notes moved out of this landing page
 - [Changelog](CHANGELOG.md) - release-by-release history
-- [Beta2 Priorities](docs/BETA2_PRIORITIES.md) - current proposed order, unresolved gates, and documentation policy
+- [Beta2 Priorities](docs/BETA2_PRIORITIES.md) - user-confirmed 2026-10-08 order, mandatory release gates, and documentation policy
 
 ## License
 

@@ -1,6 +1,7 @@
 # Configuration Manager Detailed Reference
 
-Current pre-release gates and priority order: [Beta2 priorities](BETA2_PRIORITIES.md).
+User-confirmed 2026-10-08 pre-release task order and evidence gates:
+[Beta2 priorities](BETA2_PRIORITIES.md).
 
 This document preserves detailed current-behavior notes that are useful for maintainers and advanced operators but are intentionally kept out of the repository landing page.
 

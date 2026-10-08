@@ -4,9 +4,12 @@ This document records current implementation decisions and remaining work. Versi
 
 The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
 
-Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the current recommended
-sequence. Record actual evidence after each change; do not mark an unverified
-capability as released.
+Follow the **user-approved 2026-10-08 P0/P1 order** in
+[Beta2 priorities](BETA2_PRIORITIES.md): QA-003, ML-001, A69-05, B2-02/03,
+A67-04/06, A68-09, B2-04/05, B2-06/07, B2-08/09, UX-002, then Phase 2.
+Optional tasks do not waive gates; Phase 2 P1 means planning only unless
+additional feature scope is separately approved. Record actual evidence after
+each change; do not mark an unverified capability as released.
 
 ## Locked decisions
 
@@ -25,7 +28,7 @@ capability as released.
 - Generic provider policy: runtime discovery and metadata/hooks are preferred; CRUD availability or an extension-specific heuristic cannot by itself grant write/delete authority
 - Test policy: every important test follows the eight-rule contract in `PROJECT_STATUS.md`
 
-## Approved implementation sequence
+## Historical milestone sequence (does not override approved Beta2 order)
 
 1. Alpha65: durable tracking, honest QA classification, real blocker regression, and mandatory real-runtime release gates.
 2. Alpha66: read-only generic provider inventory and safe admission pipeline.
