@@ -47,6 +47,7 @@
         "test:alpha62-contract": "php tests/ci/alpha62-contract.php",
         "test:scenarios": "@lint:scenario-docs",
         "test:unit": "phpunit --configuration phpunit.xml.dist",
+        "test:ml001:pending": "phpunit --configuration phpunit.xml.dist tests/pending/ml001/MultilingualAfformCanonicalizationTest.php",
         "test:hook": "phpunit --configuration phpunit.xml.dist --filter EntityDefinitionHandlerTest",
         "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
         "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",

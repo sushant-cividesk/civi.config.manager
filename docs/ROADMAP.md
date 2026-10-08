@@ -2,6 +2,10 @@
 
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
+For the actionable before-Beta2 priorities and mandatory proof, see
+[Beta2 priorities](BETA2_PRIORITIES.md). Priorities are recommendations until
+the user confirms them.
+
 The actionable item IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). The near-term sequence is alpha65 evidence foundation, alpha66 generic discovery inventory, alpha67 Settings/inventory UX, alpha68 safe reduced import plans plus multilingual canonicalization hardening, alpha69 provider runtime evidence, then the gated Beta2 candidate.
 
 ## Current alpha scope

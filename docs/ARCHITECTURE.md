@@ -6,11 +6,15 @@ This document describes current architecture only. Release history belongs in [`
 
 Approved future architecture and its implementation/evidence status are tracked separately in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Planned behavior is not current capability.
 
+The currently open multilingual canonicalization risk and required evidence are
+tracked in [ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md); the required
+Beta2 release order is in [Beta2 priorities](BETA2_PRIORITIES.md).
+
 ## Import blocker policy
 
 Current behavior is strict: any unresolved preflight blocker stops the complete import before writes. There is no “continue anyway” path.
 
-The approved future reduced-plan model will preserve that rule. An administrator may exclude a complete blocked dependency component only when graph analysis proves the remainder is closed and safe. Exclusion discards the original immutable plan, creates a new explicitly scoped plan from current YAML/database state, and reruns complete validation/preflight. Apply is bound to that new plan's scope/content/active-state fingerprints. Excluded differences remain visible and the site cannot be labelled In Sync.
+The implemented reduced-plan model preserves that rule (real browser proof remains pending). An administrator may exclude a complete blocked dependency component only when graph analysis proves the remainder is closed and safe. Exclusion discards the original immutable plan, creates a new explicitly scoped plan from current YAML/database state, and reruns complete validation/preflight. Apply is bound to that new plan's scope/content/active-state fingerprints. Excluded differences remain visible and the site cannot be labelled In Sync.
 
 ## Generic provider admission policy
 

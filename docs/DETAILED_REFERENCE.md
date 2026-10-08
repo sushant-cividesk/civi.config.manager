@@ -1,5 +1,7 @@
 # Configuration Manager Detailed Reference
 
+Current pre-release gates and priority order: [Beta2 priorities](BETA2_PRIORITIES.md).
+
 This document preserves detailed current-behavior notes that are useful for maintainers and advanced operators but are intentionally kept out of the repository landing page.
 
 For the concise product overview and quick start, see [`../README.md`](../README.md). For system design, see [`ARCHITECTURE.md`](ARCHITECTURE.md). Release history belongs in [`../CHANGELOG.md`](../CHANGELOG.md).
@@ -230,7 +232,8 @@ cv api4 ConfigManager.crossSiteSet allowed=1
 cv api4 ConfigManager.export dryRun=1
 cv api4 ConfigManager.export dryRun=0
 cv api4 ConfigManager.import dryRun=1 type=option-groups
-cv api4 ConfigManager.import dryRun=0 yes=1 type=option-groups
+# A write requires planId from an unchanged reviewed Import preview.
+cv api4 ConfigManager.import dryRun=0 yes=1 planId=<reviewed-plan-id>
 ```
 
 Preferred CLI usage:

@@ -2,6 +2,11 @@
 
 The protected release baseline is `v1.0.0-beta1`. Development continues on numbered alpha builds; `1.0.0-beta2` requires the full checklist in [`PROJECT_STATUS.md`](PROJECT_STATUS.md) plus explicit approval to tag/publish.
 
+[Beta2 priorities](BETA2_PRIORITIES.md) lists the recommended order and the
+proof needed for every mandatory gate. No gate can be postponed beyond Beta2
+merely by changing its priority; ML-001 must be resolved and its intentionally
+red pending regression re-integrated before final release testing.
+
 ## Compatibility rules after beta
 
 - Treat exported YAML as user-owned configuration. Avoid changing YAML structure unless there is a documented migration path.

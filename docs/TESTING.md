@@ -1,5 +1,20 @@
 # Testing
 
+## Beta2 priority and ML-001 pending reproducer (2026-10-08)
+
+Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the proposed task order and
+[ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md) for exact multilingual
+acceptance criteria. The untranslated source of Afform titles/labels/layout
+must be verified before changing canonicalization.
+
+`composer qa:fast` intentionally does not discover tests under
+`tests/pending/`. Run `composer test:ml001:pending` explicitly to reproduce
+one expected locale-equivalence failure while preserving the genuine-edit
+assertion. The original DDEV/CI failure was 321 tests / 2,306 assertions /
+1 failure. The reclassified suite needs a fresh maintainer DDEV/CI run.
+Never call ML-001 fixed because the default suite passes.
+
+
 This document records the current test expectations for Configuration Manager. Release history is maintained in `../CHANGELOG.md`.
 
 The frozen eight-rule test contract, milestone checklist, and evidence state live in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). No important test is complete merely because the extension returned `ok`, a stub passed, a source string existed, or scenario YAML was structurally valid.

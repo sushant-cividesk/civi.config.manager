@@ -4,6 +4,10 @@ This document records current implementation decisions and remaining work. Versi
 
 The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
 
+Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the current recommended
+sequence. Record actual evidence after each change; do not mark an unverified
+capability as released.
+
 ## Locked decisions
 
 - Extension key: `civi.config.manager`
@@ -17,7 +21,7 @@ The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATU
 - Payment processors: export sanitized data only; never export secrets
 - `org.civicoop.configitems`: reference only; not a dependency
 - Release policy: preserve `v1.0.0-beta1`, develop through numbered alphas, and promote to `1.0.0-beta2` only after all recorded gates and explicit approval
-- Blocker policy: full import remains strict; a future safe reduced plan may exclude only a complete proven-safe dependency component and must rebuild/re-preflight from scratch
+- Blocker policy: the implemented safe reduced plan may exclude only a complete proven-safe dependency component, and must rebuild/re-preflight from scratch; browser-runtime proof is pending
 - Generic provider policy: runtime discovery and metadata/hooks are preferred; CRUD availability or an extension-specific heuristic cannot by itself grant write/delete authority
 - Test policy: every important test follows the eight-rule contract in `PROJECT_STATUS.md`
 
@@ -42,7 +46,8 @@ cv api4 ConfigManager.validate
 cv api4 ConfigManager.export dryRun=1
 cv api4 ConfigManager.export dryRun=0
 cv api4 ConfigManager.import dryRun=1 type=option-groups
-cv api4 ConfigManager.import dryRun=0 yes=1 type=option-groups
+# Apply requires the planId from an unchanged, confirmed preview.
+cv api4 ConfigManager.import dryRun=0 yes=1 planId=<reviewed-plan-id>
 ```
 
 The custom `cv civicfg:*` wrapper is paused. Do not document or build release processes around that wrapper until the API4/UI behavior is stable.

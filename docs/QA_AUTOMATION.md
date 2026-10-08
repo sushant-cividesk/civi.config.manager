@@ -4,6 +4,28 @@ Configuration Manager uses a fast GitHub Actions workflow plus a required isolat
 
 The frozen requirement and evidence checklist is maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
+## Pending acceptance tests versus release QA
+
+See [Beta2 priorities](BETA2_PRIORITIES.md) and
+[ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md).
+
+The default `composer qa:fast` PHPUnit run includes only the
+`tests/phpunit/Unit` suite in `phpunit.xml.dist`. The requirement-first ML-001
+reproducer is deliberately stored outside that directory at
+`tests/pending/ml001/MultilingualAfformCanonicalizationTest.php` and must be
+run explicitly:
+
+```bash
+composer qa:fast                  # Implemented behavior gate
+composer test:ml001:pending       # Expected to fail until ML-001 is fixed
+```
+
+2026-10-08 prior DDEV/CI evidence: 321 PHPUnit tests, 2,306 assertions,
+one ML-001 failure. The code/classification adjustment in this development
+checkpoint still needs a fresh maintainer DDEV/CI run. A passing fast suite
+**never** substitutes for real multilingual Afform proof or Beta2 clearance.
+
+
 ## Evidence rules for important tests
 
 Before implementation, record the observable obligation and failure mode. Expected results must use an oracle independent of the production canonicalizer/resolver/classifier/provider under test. Prove red/green against the known defect or with a deliberate disposable mutation. Execute through the relevant public boundary and independently inspect final CiviCRM/filesystem state. Assert preservation of business records, secrets, unrelated YAML, ignored types, and unselected configuration. Stubs are supporting evidence only; every advertised provider capability needs disposable real-CiviCRM proof. Finish with the adversarial question: “How could this implementation still be broken while these tests remain green?”

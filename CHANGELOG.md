@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — QA classification and Beta2 planning (2026-10-08)
+
+- Preserved the ML-001 multilingual false-drift test as an explicitly executable,
+  intentionally failing reproducer outside the default release-blocking PHPUnit
+  discovery tree. No comparison, translation, or Import behavior changed.
+- Added `composer test:ml001:pending` to keep the unresolved assertion easy to
+  run without misrepresenting it as a passing test.
+- Recorded proposed Beta2 work priorities and required release evidence in
+  `docs/BETA2_PRIORITIES.md`, and synchronized current planning/QA documents.
+- On 2026-10-08, the **previous** DDEV and GitHub Action runs both reported
+  321 tests / 2,306 assertions / one ML-001 failure. The post-change DDEV/
+  GitHub QA rerun is still required; this changelog does not claim it passed.
+
+
 ## 0.1.0-alpha68.6.1-core
 
 - Added a host-side DDEV Playwright prerequisite helper that installs the required browser libraries in the current web container and the pinned Chromium build for the normal DDEV web user.
