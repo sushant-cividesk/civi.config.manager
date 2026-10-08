@@ -3,6 +3,8 @@
 Status: NOT FIXED. This document and the red regression test are investigation
 artifacts only; they do not authorize a Beta2 release or a production import.
 
+Priority: **P0**, mandatory before Beta2. See [Beta2 priorities](BETA2_PRIORITIES.md).
+
 ## Observed reproducer
 
 On La Cause multilingual WordPress + CiviCRM, 181 Afform Saved Config files
@@ -41,10 +43,18 @@ On a disposable copy of a representative multilingual CiviCRM environment:
 6. Repeat with another locale pair, not just English/French. Test missing
    metadata, extension-owned Afforms, custom Afforms and nested labels.
 
-Unit test: `tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php`
-intentionally has one red locale-equivalence test and one preservation test.
-These payload-only tests establish the problem but cannot independently prove
-real translation identity. Do not turn them green by dropping the title field.
+The deliberately red reproducer lives at
+`tests/pending/ml001/MultilingualAfformCanonicalizationTest.php`.
+Run it explicitly with `composer test:ml001:pending` (expected non-zero).
+The ordinary PHPUnit suite does not discover `tests/pending/`. On older
+checkouts the original `tests/phpunit/Unit/MultilingualAfformCanonicalizationTest.php`
+may still exist after extracting a new ZIP over the old tree. The new PHPUnit
+config excludes **only that exact obsolete path**; remove/move the obsolete
+file after checking the working tree. These two payload-only assertions
+expose the problem but cannot prove translation identity. Their expectation
+is not an acceptable implementation shortcut without translation metadata.
+Do not make the test green by dropping titles or labels. An ordinary green
+`composer qa:fast` does not clear the mandatory Beta2 ML-001 gate.
 
 After runtime discovery, add a focused Afform-specific normalization boundary
 based only on trustworthy source translation metadata. Test it through the

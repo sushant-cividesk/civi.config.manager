@@ -2,6 +2,14 @@
 
 ## Beta2 priority and ML-001 pending reproducer (2026-10-08)
 
+**QA-003 source package integrity:** The 2026-10-08 `Permission denied` at
+`tests/ci/composer-audit.sh` was caused by a source ZIP losing 22 Unix
+executable bits, not by PHP application logic. The corrected ZIP preserves
+those permissions. `composer qa:fast` now checks executable modes first;
+`source-hygiene.sh` must fail when any required mode is missing. The former
+audit-wrapper test has a local fail-then-pass reproduction after restoring
+modes; complete DDEV/GitHub validation remains pending.
+
 Follow [Beta2 priorities](BETA2_PRIORITIES.md) for the user-confirmed 2026-10-08 P0/P1 order and
 [ML-001 runtime evidence](ML-001-RUNTIME-EVIDENCE.md) for exact multilingual
 acceptance criteria. The untranslated source of Afform titles/labels/layout
@@ -20,6 +28,17 @@ the obsolete file aside if present (inspect Git state first). The real
 regression remains executable with `composer test:ml001:pending`.
 
 Never call ML-001 fixed because the default suite passes.
+
+**QA-003 later DDEV evidence (2026-10-08):** the normal unit suite reached
+319 tests / 2,297 assertions with one CLI installer availability failure;
+`CliInstaller::status()` requires `bin/civicfg` to be executable. Another run
+stopped at source hygiene because six `.DS_Store` files were left in the
+checkout. Only the default **local Composer QA** command permits
+ignored/untracked Finder metadata in an authoritative Git checkout; direct
+source-hygiene still rejects it. Both reject packaged/tracked
+metadata and unsafe file modes. Run `composer test:source-hygiene-behavior`
+for its disposable negative/positive tests. The full post-correction DDEV/CI
+run remains pending; do not mark QA-003 complete yet.
 
 
 This document records the current test expectations for Configuration Manager. Release history is maintained in `../CHANGELOG.md`.

@@ -12,7 +12,7 @@ The approved **priority order is not a release approval**.
 
 | Order | ID | Priority | Scope and current state | Gate / evidence required |
 |---:|---|---|---|---|
-| 1 | **QA-003** | **P0, required** | Restore normal QA; legacy ML-001 file still causes failures in old DDEV/CI checkouts. Source fix ready; updated DDEV/CI run **not yet verified**. | `composer qa:fast` passes in the supported PHP matrix; separately run `composer test:ml001:pending` to preserve the known red ML-001 reproducer. |
+| 1 | **QA-003** | **P0, required** | Source modes and legacy ML-001 discovery corrected. Later DDEV exposed CLI availability (319 tests, 2,297 assertions, one failure) and ignored `.DS_Store` metadata (six files). New source-hygiene classification and test are locally verified; **full DDEV/CI rerun pending**. | `composer qa:fast` passes on the supported PHP matrix; executable CLI availability is proven in DDEV; `composer test:source-hygiene-behavior` passes; separate `composer test:ml001:pending` retains the known ML-001 reproducer. |
 | 2 | **ML-001** | **P0, required** | Multilingual Afform/FormBuilder false drift. Reproduced; semantic fix **not implemented**. | Locale-only switch gives zero false differences/rewrites, genuine translated edits are detected, multiple locales, real API4 round trip, independent oracle. |
 | 3 | **A69-05** | **P0, required** | Certify a selected, limited provider set. Runtime create/update/delete permission is **not yet established**. | Disposable real-CiviCRM different-ID round trips, independent final-state checks, preservation of business data; deletion certified separately. |
 | 4 | **B2-02/03** | **P0, required** | Cross-environment and API/CLI/queue parity; final real-runtime matrix **pending**. | Same Saved Config DEV to STAGE, canonical re-export, and consistent UI/API4/CLI/queue accounting on Drupal/WordPress/Standalone as supported. |
@@ -59,6 +59,49 @@ product bug**, not something to be disabled or declared fixed.
 A source-level overlay simulation confirmed the old file survives ZIP overlay;
 **post-change DDEV PHPUnit, complete Composer QA, and GitHub CI remain unverified**
 until run against the corrected files in those environments.
+
+## 2026-10-08 QA-003 source ZIP executable-mode regression
+
+The previous source ZIP was created from a tree that had lost its Unix
+executable bits. Relative to the original Alpha68.6.1 source archive, **22
+executable scripts** changed from `0755` to `0644`, including
+`tests/ci/composer-audit.sh` and `bin/civicfg`. Overlay extraction therefore
+changed their Git file modes and the Composer audit-wrapper test stopped at
+`Permission denied` (exit 126). This is a package-building defect, not an
+application logic defect or an upstream Composer advisory failure.
+
+The corrected source archive stores the original Unix mode for all 22 scripts.
+`tests/ci/source-hygiene.sh` now checks executable modes and runs first in
+`composer qa:fast`; `scripts/build-release.sh` rejects a non-executable CLI.
+Locally, the exact audit-wrapper command failed with exit 126 before correcting
+permissions and passed afterwards, including negative security-advisory tests.
+**A fresh full DDEV/CI run is still required to close QA-003.** Do not use
+success of that QA pipeline to mark ML-001 as fixed.
+
+## QA-003 later DDEV failures: CLI availability and local Finder metadata
+
+A later DDEV `composer qa:fast` passed syntax/contracts/audit wrapper but the
+unit suite reported **319 tests, 2,297 assertions, one failure** for CLI
+availability. `CliInstaller::status()` is correct to reject a missing or
+non-executable `bin/civicfg`; the corrected source ZIP preserves mode `0755`.
+The assertion now states the exact file, existence, and executable state.
+No product behavior is bypassed to turn this test green.
+
+The next DDEV runs stopped earlier because the working tree contained six
+macOS `.DS_Store` files. Re-extracting a ZIP over an existing checkout cannot
+remove those files. Source hygiene now treats only untracked, Git-ignored Finder
+files in the extension Git checkout or a containing parent Git worktree as
+local metadata (non-blocking,
+non-deleting) **only in `composer qa:fast`**. Strict direct source hygiene,
+tracked/unignored debris, extracted source ZIPs containing
+`.DS_Store`, `__MACOSX`, and lost executable modes remain hard errors.
+A new disposable test in the normal QA sequence verifies the classification.
+The production release builder still rejects shipped Finder metadata.
+
+**Evidence:** local direct CLI status probe, source-hygiene positive/negative
+fixtures, audit wrapper, and architecture/lifecycle contracts passed. The
+complete DDEV/CI suite and actual installation/browser workflows remain
+unverified. QA-003 cannot be closed on source checks alone.
 
 ## Non-negotiable safety and release boundaries
 

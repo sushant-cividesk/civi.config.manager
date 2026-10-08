@@ -21,6 +21,10 @@ if [ ! -f "$ROOT/composer.json" ]; then
   echo "ERROR: composer.json is required to build bundled runtime dependencies." >&2
   exit 1
 fi
+if [ ! -x "$ROOT/bin/civicfg" ]; then
+  echo "ERROR: bin/civicfg is not executable; source packaging lost Unix file modes." >&2
+  exit 1
+fi
 
 VERSION="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "$ROOT/info.xml" | head -n 1)"
 if [ -z "$VERSION" ]; then

@@ -4,6 +4,55 @@ Configuration Manager uses a fast GitHub Actions workflow plus a required isolat
 
 The frozen requirement and evidence checklist is maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
+## Source archive permissions (QA-003)
+
+The first `composer qa:fast` step is now `@test:source-hygiene`, which fails
+if executable permission bits are missing from `bin/civicfg` or any shipped
+`*.sh` file under `scripts/` or `tests/ci/`. A previous source ZIP converted
+22 scripts from `0755` to `0644`, causing `composer-audit.sh: Permission denied`
+(exit 126). The corrected source ZIP restores those modes. This gate detects
+faulty extractions before the dependent audit/CLI checks execute.
+
+Verify a source ZIP by inspecting stored Unix modes, extracting it with `unzip`,
+and executing `bash tests/ci/source-hygiene.sh` and
+`bash tests/ci/composer-audit-wrapper-test.sh`. A passing fixture test does
+not substitute for the fresh full DDEV Composer run.
+
+## Git checkout metadata and CLI availability (QA-003)
+
+A later DDEV run reached PHPUnit with **319 tests, 2,297 assertions, one failure**
+for `CliInstallerTest::testStatusReportsExtensionVendorAndGlobalAvailabilityWithoutWriting`.
+`CliInstaller::status()` intentionally requires a real executable `bin/civicfg`.
+The unit failure has a more specific diagnostic in the updated source and the
+source-hygiene gate verifies executable permissions **before** PHPUnit. The
+corrected ZIP stores executable mode `0755`, and a local direct status probe
+reported the CLI available; a fresh DDEV unit run is still required.
+
+A subsequent DDEV `qa:fast` stopped because six `.DS_Store` files were present
+in the existing checkout. Those are local Finder artifacts and do not come
+from the corrected source ZIP. `composer qa:fast` opts into local-worktree classification using
+`CIVICFG_LOCAL_QA=1`. Direct `bash tests/ci/source-hygiene.sh` is strict
+and rejects all Finder metadata. The checks distinguish two cases:
+
+- **Git checkout or containing parent Git worktree:** only **untracked,
+  Git-ignored** regular `.DS_Store` files
+  are non-blocking; the script logs their count and leaves them untouched.
+- **Extracted source ZIP without Git:** `.DS_Store` is a hard failure, as are
+  tracked metadata files and `__MACOSX`. `scripts/build-release.sh` separately
+  rejects any `.DS_Store` copied into its production staging tree.
+
+The source ZIP is rooted at `civi.config.manager/` for safe path alignment with
+`/var/www/html/ext/civi.config.manager/`. An overlay must extract into
+`/var/www/html/ext`, not inside that extension directory, so the tested code
+is actually replaced. A plain ZIP overlay cannot remove ignored files from
+older installations; the local-QA allowance accounts for that explicitly.
+
+`composer test:source-hygiene-behavior` uses disposable filesystem/Git fixtures
+to prove all of these boundaries and the executable-mode failure. It runs in
+`composer qa:fast`; it never mutates the project's real checkout. This is a
+**QA classification and diagnostics improvement**, not ML-001 completion or
+proof that the full DDEV/CI matrix now passes.
+
 ## Pending acceptance tests versus release QA
 
 See [Beta2 priorities](BETA2_PRIORITIES.md) and

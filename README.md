@@ -16,6 +16,30 @@ excludes an intentionally red, explicitly runnable ML-001 reproduction; see
 [user-confirmed Beta2 priorities](docs/BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](docs/ML-001-RUNTIME-EVIDENCE.md).
 
+**Source archive note:** Developer source ZIPs must preserve executable modes
+for `bin/civicfg`, `scripts/*.sh`, and `tests/ci/*.sh`. On Linux/macOS use a
+mode-preserving unzip command. The first `composer qa:fast` gate checks these
+permissions and reports packaging errors before running dependent shell tests.
+An extracted source archive is not an installable production release.
+The maintained development source ZIP has a top-level `civi.config.manager/`
+directory so that `unzip -o <source-zip> -d /var/www/html/ext` updates the
+existing DDEV extension at `/var/www/html/ext/civi.config.manager/` (review
+local changes first). Do not extract it *inside* the extension directory,
+which would create an unused nested copy.
+
+For an existing **Git checkout** (including an extension within a parent Git
+worktree), `composer qa:fast` does not fail merely because
+macOS Finder generated untracked `.DS_Store` files that Git explicitly ignores.
+It does **not** delete them. Direct `bash tests/ci/source-hygiene.sh` is
+still strict; the local-QA allowance is opt-in via `CIVICFG_LOCAL_QA=1` from
+Composer. Tracked metadata, `__MACOSX`, other prohibited artifacts, and
+missing executable modes still fail. In a source ZIP without Git
+metadata, all `.DS_Store` files are rejected; the production release builder
+also rejects them. The behavior is verified by
+`composer test:source-hygiene-behavior`. An earlier CLI availability unit failure
+is diagnosed by checking that `bin/civicfg` exists and is executable; do not
+change `CliInstaller` to report an unusable command as available.
+
 ## What it does
 
 Configuration Manager is designed for controlled DEV -> STAGE -> PROD configuration promotion.

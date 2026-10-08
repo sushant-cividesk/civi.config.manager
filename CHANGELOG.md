@@ -2,6 +2,29 @@
 
 ## Unreleased — QA migration safety and approved Beta2 priorities (2026-10-08)
 
+- Corrected QA-003 source-hygiene classification: ignored and untracked Finder
+  `.DS_Store` files generated in an existing Git checkout no longer block
+  `composer qa:fast`. Direct source-hygiene remains strict; only local Composer
+  QA sets `CIVICFG_LOCAL_QA=1`. A source ZIP without Git metadata, tracked Finder files,
+  `__MACOSX`, and missing executable permissions still fail. No files are deleted.
+- Added a disposable source-hygiene behavior regression to the default fast QA
+  sequence and clarified the CLI installer test diagnostic for a missing or
+  non-executable `bin/civicfg`.
+- The latest DDEV logs also reported one CLI installer availability assertion
+  failure (319 PHPUnit tests, 2,297 assertions) and later six ignored Finder
+  metadata files. These are separate QA/worktree issues; post-change full
+  DDEV/CI QA remains unverified, and ML-001 remains unresolved.
+
+- Fixed a source ZIP packaging regression that removed executable permissions
+  from 22 CLI/build/QA scripts. A clean reproduction of the reported
+  `composer-audit.sh: Permission denied` (exit 126) passes after restoring the
+  original file modes; the updated source archive preserves those modes.
+- Run source hygiene **first** in `composer qa:fast` and reject missing executable
+  permissions before downstream tests produce unrelated errors. The release
+  builder also refuses to ship a non-executable `bin/civicfg`.
+- QA-003 still requires a fresh DDEV and GitHub Composer run; the package-level
+  checks do not establish ML-001 product correctness or Beta2 readiness.
+
 - Fixed QA-003 source-package overlay compatibility: PHPUnit now excludes the
   **single obsolete ML-001 test path** if extraction over an existing
   development tree leaves it behind. The proper pending test remains runnable;

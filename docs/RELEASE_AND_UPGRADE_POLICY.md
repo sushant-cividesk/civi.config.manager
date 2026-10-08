@@ -10,6 +10,12 @@ resolved, its regression moved into the normal suite, and its real-runtime
 behavior verified before final release testing. Never tag or publish without
 explicit separate release approval.
 
+A source-only ZIP must preserve Unix executable permissions for its CLI,
+script and QA entrypoints. `composer qa:fast` validates them before other
+checks, and the runtime package builder must fail if `bin/civicfg` is not
+executable. This source-package validation does **not** replace the later
+installable runtime ZIP and upgrade/lifecycle release gate.
+
 ## Compatibility rules after beta
 
 - Treat exported YAML as user-owned configuration. Avoid changing YAML structure unless there is a documented migration path.
@@ -19,6 +25,13 @@ explicit separate release approval.
 - Document any change that can affect export/import/diff output, CLI behavior, UI review text, ignore/revert/delete behavior, or extension-owned config discovery.
 - Include upgrade notes in `CHANGELOG.md` for every beta and release candidate.
 - Do not make broad destructive import/delete behavior the default for existing users.
+
+Source-hygiene concessions for ignored, untracked `.DS_Store` files apply
+**only to local QA in a Git checkout**. They are not permission to ship such
+files: the production release builder must continue rejecting `.DS_Store` in
+its staged archive. Source-only archives must preserve executable modes and
+exclude Finder-generated files. A green local source-hygiene check is not a
+substitute for examining the actual installable release ZIP.
 
 ## Release checklist
 

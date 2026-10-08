@@ -144,7 +144,27 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] B2-09 Explicit human approval to tag and publish `v1.0.0-beta2`.
 - [ ] B2-10 Language-independent multilingual regression proves that changing only the active language/locale to any configured language produces zero false drift/rewrites, while a genuine translated-value change is detected, exported, imported on a peer environment, and re-exported canonically. Representative real multilingual fixtures must include more than one locale pair; EN/FR remains only the original reproducer.
 
+**2026-10-08 QA-003 follow-up:** a later DDEV run reached PHPUnit with 319
+tests / 2,297 assertions / one failure in `CliInstallerTest` status reporting.
+The `bin/civicfg` executable permission is a real precondition and must not be
+mocked away. A subsequent DDEV run stopped at source hygiene on six local
+`.DS_Store` files. The source ZIP contains no such files. Source hygiene now
+allows only *untracked, explicitly Git-ignored* Finder metadata during
+`composer qa:fast` in the actual checkout; direct source hygiene stays strict.
+All checks retain protection against tracked/source-archive
+metadata, unsafe shell/CLI file modes, and other debris. A new disposable
+regression script is included in `qa:fast`. PHP syntax, local CLI availability,
+source-hygiene boundary fixtures, and available contracts were checked; a fresh
+**complete DDEV/CI run is still required to close QA-003**. ML-001 is unchanged.
+
 ## Known blocker ledger
+
+**2026-10-08 QA source-package regression:** The latest source ZIP incorrectly
+stripped executable flags from 22 originally executable files. This caused the
+new `tests/ci/composer-audit.sh: Permission denied` error (exit 126). The
+corrected source ZIP restores all modes and its fast QA orders a permission
+gate first. The audit-wrapper failure was reproduced and the focused test
+passed after restoring modes. Full fresh DDEV/CI verification remains pending.
 
 **2026-10-08 QA note:** The new ML-001 requirement-first test caused the reported
 `composer qa:fast` / GitHub CI failure (321 tests, 2,306 assertions, 1 failure).

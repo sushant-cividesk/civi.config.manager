@@ -73,7 +73,15 @@ final class CliInstallerTest extends TestCase {
     $installer = new CliInstaller(new CliInstallerTestConfigManager($this->projectRoot, 'shared-site'));
     $before = $installer->status();
 
-    self::assertTrue($before['extension_cli_available']);
+    self::assertTrue(
+      $before['extension_cli_available'],
+      sprintf(
+        'Bundled CLI at %s must be a readable executable file (exists=%s; executable=%s). Restore bin/civicfg mode 0755.',
+        $before['extension_cli'],
+        is_file($before['extension_cli']) ? 'yes' : 'no',
+        is_executable($before['extension_cli']) ? 'yes' : 'no'
+      )
+    );
     self::assertFalse($before['vendor_launcher_available']);
     self::assertFalse($before['global_launcher_available']);
     self::assertFalse($before['registered']);
