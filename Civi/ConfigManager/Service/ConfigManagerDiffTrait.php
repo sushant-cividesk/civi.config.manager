@@ -14,7 +14,7 @@ trait ConfigManagerDiffTrait {
 
   public function diff(array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
-    $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => []];
+    $result = ['ok' => TRUE, 'sync_dir' => $storage->getRoot(), 'items' => [], 'errors' => [], 'baseline_unverified' => 0];
     $scopeState = $this->getScopeSetupState();
     if (empty($scopeState['managed'])) {
       $result['no_managed_scope'] = TRUE;
@@ -75,6 +75,7 @@ trait ConfigManagerDiffTrait {
               $stateManager = NULL;
             }
           }
+          $result['baseline_unverified'] += (int) ($item['state_summary']['NO_BASELINE'] ?? 0);
           $item = $this->filterIgnoredDiffItem($item, $handler->getDirectory());
           if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files'])) {
             $result['items'][] = $item;
@@ -108,6 +109,7 @@ trait ConfigManagerDiffTrait {
             $stateManager = NULL;
           }
         }
+        $result['baseline_unverified'] += (int) ($item['state_summary']['NO_BASELINE'] ?? 0);
         $item = $this->filterIgnoredDiffItem($item, $handler->getDirectory());
         if (($item['status'] ?? '') !== 'in_sync' || !empty($item['files']) || !empty($item['scope_warnings'])) {
           $result['items'][] = $item;
@@ -119,7 +121,11 @@ trait ConfigManagerDiffTrait {
       }
     }
     $result['ok'] = empty($result['errors']);
-    $this->cacheHealthFromDiff($result);
+    // A filtered Synchronize call is not an authoritative site-wide scan.
+    // Do not overwrite the last full health result with a partial success.
+    if (!$typeFilter) {
+      $this->cacheHealthFromDiff($result);
+    }
     return $result;
   }
 

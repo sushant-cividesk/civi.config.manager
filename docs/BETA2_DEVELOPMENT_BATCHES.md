@@ -50,7 +50,30 @@ the relevant, now smaller source concerns. Keep basic functional tests for
 each change and defer the documented advanced release matrix until feature
 freeze, without waiving its requirements.
 
-## Feature bundles (on hold until structural boundaries are suitable)
+## Feature bundle 1: Synchronization correctness (in progress — 2026-10-16)
+
+**A67-07 implementation:** `DiffStateClassifier` distinguishes `NO_BASELINE`
+from baseline-verified `IN_SYNC`. Both compact streaming and detailed diff
+paths report the count of matching-but-unbaselined objects, even if no changed
+file is displayed. Cached site-wide health now warns when a provider scan is
+incomplete, baseline persistence fails, selectors remain unresolved, or a
+comparison lacks an accepted baseline. A type-filtered diff cannot replace the
+last site-wide health report. Watch-only, ignore-only, initial-export, actual
+changes, and confirmed clean baselines retain their previous behavior.
+
+**Evidence:** New dependency-free `tests/ci/sync-state-health-smoke.php` has a
+red-before/green-after result (21 assertions), including both full and compact
+state enrichment. Basic syntax/contract checks passed; full runtime QA is
+not claimed. No database schema, provider capability, YAML or import change.
+
+**ML-001 remains open:** The CiviCRM Afform API may return active-language
+values, including programmatically generated forms. Genuine translated edits
+must remain detectable. Do not drop labels/titles or make the pending ML-001
+test green by hiding values. The next code change needs verified raw Afform
+source or translation catalog data from a disposable multilingual runtime.
+See `ML-001-RUNTIME-EVIDENCE.md` for the exact read-only comparison.
+
+## Feature bundles (structural prerequisite completed; implement in order)
 
 | Order | Bundle | Included backlog IDs / work | Delivery and basic verification |
 |---:|---|---|---|

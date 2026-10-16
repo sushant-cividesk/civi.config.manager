@@ -25,6 +25,21 @@ See [code structure](CODE_STRUCTURE.md) and
 bundle is ML-001/A67-07; no Beta2 functional bug has yet been resolved by
 this structural change. Mandatory release requirements remain unchanged.
 
+## 2026-10-16 Bundle 1 functional checkpoint
+
+**A67-07 locally implemented:** `NO_BASELINE` is distinct from accepted
+`IN_SYNC`; errors, unavailable baseline state, unresolved managed selectors,
+and type-filtered scans no longer overwrite site-wide health with a false
+clean result. A dependency-free red/green smoke passed (21 assertions) and
+relevant contracts passed. Real CiviCRM runtime has not been exercised in
+this container. No export/import, schema, or permission semantics changed.
+
+**ML-001 still P0/open.** CiviCRM stores Afform layout source and translations
+through distinct mechanisms; the current exported localized API payload does
+not independently prove translation equivalence. See
+[ML-001 evidence](ML-001-RUNTIME-EVIDENCE.md). Basic development may proceed
+but no locale-only false-drift fix has been claimed or implemented.
+
 ## Authoritative state
 
 | Item | Current value |
@@ -104,7 +119,7 @@ Status meanings: **done** = implemented and locally inspectable; **awaiting runt
 - [ ] A67-04 Show item counts, Saved Config file counts, selected counts, provider/capability status, dependency summaries, and a clear reason when full management is unavailable. **Alpha68 adds the total Saved Config count plus lightweight per-type Saved Config counts without loading provider collections; live item/selected counts remain pending.**
 - [ ] A67-05 Load expensive item inventories only when a card/picker is opened; cache and paginate large providers. **Item pickers were already lazy; Alpha67.5 also moves metadata-rich provider inventory off the initial Settings request. Persistent caching remains deferred until measurement justifies it.**
 - [ ] A67-06 Add bulk actions, unsaved-change protection, accessible keyboard/focus behavior, concise help, and responsive layouts. **Bulk actions/unsaved protection already exist; Alpha67.5 adds responsive search/filter controls and live result counts. Remaining accessibility/focus polish is pending.**
-- [ ] A67-07 Never label a monitor-only/all-ignore/no-baseline state as In Sync.
+- [x] A67-07 Never label a monitor-only/all-ignore/no-baseline state as In Sync. **Implemented and locally regression-tested 2026-10-16; real CiviCRM smoke deferred.**
 
 ### Alpha68 — safe reduced import plans and blocker UX
 

@@ -130,7 +130,7 @@ final class ConfigStateManagerTest extends TestCase {
     $diff = $handler->diffFromExports($active, $yaml);
     $enriched = $manager->enrichDiff($handler, $active, $yaml, $diff);
 
-    self::assertSame(['IN_SYNC' => 2], $enriched['state_summary']);
+    self::assertSame(['NO_BASELINE' => 2], $enriched['state_summary']);
     self::assertCount(2, $store->objectStates);
     foreach ($store->objectStates as $state) {
       self::assertSame('AMBIGUOUS', $state['identity']['identity_confidence']);

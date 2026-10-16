@@ -17,7 +17,8 @@ class DiffStateClassifier {
       if ($activeHash === NULL) {
         return 'ONLY_IN_YAML';
       }
-      return $yamlHash === $activeHash ? 'IN_SYNC' : 'DIFFERENT';
+      // A matching two-way comparison is not an accepted three-way baseline.
+      return $yamlHash === $activeHash ? 'NO_BASELINE' : 'DIFFERENT';
     }
 
     // Once a baseline exists, absence is itself a meaningful state change.

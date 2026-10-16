@@ -16,6 +16,11 @@ waived; preserve basic functional and data-safety checks for every edit.
 
 The actionable IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Historical delivery proceeded through Alpha65 evidence, Alpha66 discovery, Alpha67 Settings UX, and Alpha68 Import safety; the **current** sequence is the confirmed list above, not that historical milestone chronology.
 
+**Bundle 1 implementation update (2026-10-16):** A67-07 status
+misclassification corrected with basic red/green PHP behavior evidence. ML-001
+remains the active P0 product defect, requiring real multilingual source
+provenance; final runtime QA remains deferred until feature freeze.
+
 ## Current alpha scope
 
 The current alpha focuses on a safe, reviewable configuration workflow:

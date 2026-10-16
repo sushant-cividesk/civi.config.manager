@@ -37,6 +37,9 @@ trait PresenterChangeDescriptionsTrait {
   }
 
   private function syncStateLabel(string $state, string $mergeState = ''): string {
+    if ($state === 'NO_BASELINE') {
+      return ts('Baseline not established');
+    }
     if ($state === 'ACTIVE_DRIFT') {
       return ts('Current CiviCRM changed');
     }

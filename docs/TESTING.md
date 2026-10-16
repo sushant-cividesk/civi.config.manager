@@ -20,6 +20,17 @@ event handler registrations. This is not real browser/CiviCRM QA.
 See [CODE_STRUCTURE.md](CODE_STRUCTURE.md) for concern ownership and warnings.
 
 
+## Bundle 1 Synchronize classification smoke (2026-10-16)
+
+Run `composer test:sync-state-health` or `php tests/ci/sync-state-health-smoke.php`.
+The independent FakeCivi fixture asserts that no baseline, a failed provider,
+an unavailable baseline store, and unresolved selectors never report a clean
+site-wide health result. It also covers detailed and compact state enrichment,
+verified clean states, watch-only, unconfigured, initial-export, and pending
+change paths. It does **not** test real-language Afform equivalence or live
+CiviCRM runtime. Filtered diff health-cache behavior requires a later real
+CiviCRM smoke; full release verification remains deferred.
+
 ## Beta2 priority and ML-001 pending reproducer (2026-10-08)
 
 **QA-003 source package integrity:** The 2026-10-08 `Permission denied` at

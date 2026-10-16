@@ -11,7 +11,7 @@ final class DiffStateClassifierTest extends TestCase {
   public function testTwoWayStatesWithoutBaseline(): void {
     $classifier = new DiffStateClassifier();
 
-    self::assertSame('IN_SYNC', $classifier->classify(NULL, 'A', 'A'));
+    self::assertSame('NO_BASELINE', $classifier->classify(NULL, 'A', 'A'));
     self::assertSame('DIFFERENT', $classifier->classify(NULL, 'A', 'B'));
     self::assertSame('ONLY_IN_CIVICRM', $classifier->classify(NULL, NULL, 'A'));
     self::assertSame('ONLY_IN_YAML', $classifier->classify(NULL, 'A', NULL));

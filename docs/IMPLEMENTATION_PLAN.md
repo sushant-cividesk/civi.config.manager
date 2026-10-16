@@ -8,6 +8,12 @@ and [Beta2 development bundles](BETA2_DEVELOPMENT_BATCHES.md)). Begin Bundle 1
 ML-001 and A67-07 next. Advanced QA remains deferred to feature freeze, not
 waived; preserve basic functional and data-safety checks for every edit.
 
+Bundle 1 (2026-10-16): A67-07 synchronization status correctness is
+implemented with a targeted `test:sync-state-health` command. No import logic,
+provider capabilities, or YAML formats were changed; ML-001 remains open until
+language-independent Afform translation provenance is available. Keep its
+pending regression unchanged.
+
 The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
 
 Follow the **user-approved 2026-10-08 P0/P1 order** in

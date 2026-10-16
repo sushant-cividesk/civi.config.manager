@@ -25,6 +25,33 @@ verbatim. Neither layer reads a language-independent translation map.
 - If the runtime supplies only one localized string, do not claim semantic
   equivalence or enable automatic writes based on that assumption.
 
+## Additional source evidence (2026-10-16; not runtime proof)
+
+CiviCRM's Afform API4 `Get` action merges scanner metadata with forms supplied
+through the `civi.afform.get` hook. Hook-supplied forms can call `ts()` for
+titles, so identical underlying definitions can emit locale-dependent API
+strings. The Afform save path writes the source layout (`.aff.html`) and
+metadata, while layout translations use `TranslationSource` and locale-specific
+`Translation` records; entity-field translation uses a separate mechanism.
+Neither a pair of localized API4 strings nor a source-text match is enough to
+prove two translated edits equivalent. **Do not normalize this away by ignoring
+`title`, `label` or layout text.**
+
+Sources (upstream implementation and developer guide):
+- https://github.com/civicrm/civicrm-core/blob/master/ext/afform/core/Civi/Api4/Action/Afform/Get.php
+- https://github.com/civicrm/civicrm-core/blob/master/ext/afform/core/Civi/Api4/Utils/AfformSaveTrait.php
+- https://docs.civicrm.org/dev/en/latest/translation/entity/
+- https://docs.civicrm.org/dev/en/latest/hooks/civi.afform.get/
+
+A minimal **read-only** DEV evidence capture for a *known existing* form
+`af_household` is: use API4 `Afform.get` twice, in two configured languages,
+selecting `name`, `title`, `layout`; then inspect the authoritative scanner
+source file/metadata and corresponding active translation-source rows. Do not
+edit the Afform, call create/update, or copy client data into test fixtures.
+Only if provenance proves equivalence should the handler compare a stable
+source/translation representation. A dynamically generated Afform without
+source identity must remain unverified for semantic locale matching.
+
 ## Runtime evidence still needed
 
 On a disposable copy of a representative multilingual CiviCRM environment:

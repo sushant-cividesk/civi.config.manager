@@ -257,16 +257,43 @@ trait ConfigManagerMonitoringTrait {
       $inYaml += count((array) ($item['missing_in_db'] ?? []));
     }
     $total = $changed + $inCivicrm + $inYaml;
+    $errors = (array) ($diff['errors'] ?? []);
+    $scopeWarnings = 0;
+    foreach ((array) ($diff['items'] ?? []) as $item) {
+      $scopeWarnings += count((array) ($item['scope_warnings'] ?? []));
+    }
+    $stateWarning = trim((string) ($diff['state_warning'] ?? ''));
+    $baselineUnverified = (int) ($diff['baseline_unverified'] ?? 0);
+    // A failed/partial provider scan, missing baseline state, or unresolved
+    // selected scope must never be presented as a verified clean comparison.
+    $incomplete = empty($diff['ok']) || $errors || $scopeWarnings || $stateWarning !== '';
+    if ($incomplete) {
+      $title = 'Configuration Manager: Scan incomplete';
+      $message = sprintf('Last scan was incomplete (%d provider error(s), %d unresolved scope warning(s)%s). Review Synchronize before accepting or importing configuration.',
+        count($errors), $scopeWarnings, $stateWarning !== '' ? ', baseline tracking unavailable' : '');
+    }
+    elseif ($total > 0) {
+      $title = 'Configuration Manager: Pending configuration changes';
+      $message = sprintf('Last scan found %d pending difference(s): %d changed, %d only in CiviCRM, and %d only in YAML.', $total, $changed, $inCivicrm, $inYaml);
+    }
+    elseif ($baselineUnverified > 0) {
+      $title = 'Configuration Manager: Baseline not established';
+      $message = sprintf('Saved Configs match Current CiviCRM for %d object(s), but no accepted baseline is available. Review and accept a baseline before treating the configuration as synchronized.', $baselineUnverified);
+    }
+    else {
+      $title = 'Configuration Manager: In sync';
+      $message = 'The last Configuration Manager scan found no differences between managed Saved Configs and Current CiviCRM.';
+    }
     $health = [
-      'level' => $total > 0 ? 'warning' : 'info',
-      'title' => $total > 0 ? 'Configuration Manager: Pending configuration changes' : 'Configuration Manager: In sync',
-      'message' => $total > 0
-        ? sprintf('Last scan found %d pending difference(s): %d changed, %d only in CiviCRM, and %d only in YAML.', $total, $changed, $inCivicrm, $inYaml)
-        : 'The last Configuration Manager scan found no differences between managed Saved Configs and Current CiviCRM.',
+      'level' => ($incomplete || $total > 0 || $baselineUnverified > 0) ? 'warning' : 'info',
+      'title' => $title,
+      'message' => $message,
       'sync_dir' => $syncDir,
       'changed' => $changed,
       'in_civicrm' => $inCivicrm,
       'in_yaml' => $inYaml,
+      'baseline_unverified' => $baselineUnverified,
+      'scan_errors' => count($errors),
       'scanned_at' => date('c'),
     ];
     \Civi::settings()->set('civicfg_last_health', $health);

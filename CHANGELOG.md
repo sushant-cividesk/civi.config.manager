@@ -2,6 +2,17 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **Bundle 1 / A67-07:** Corrected Synchronize health classification. Matching
+  Saved Config/Current CiviCRM values without an accepted baseline now report
+  `NO_BASELINE`, not a confirmed `IN_SYNC`. Failed/incomplete provider scans,
+  missing baseline tracking, and unresolved managed selectors no longer cache
+  a misleading "In sync" health result. Scoped/filtered scans no longer replace
+  the last complete site-wide health result. No import/write logic was changed.
+- Added a focused 21-assertion PHP-only red/green regression to fast QA and
+  updated existing state-classifier PHPUnit expectations. Full CiviCRM/DDEV
+  execution remains deferred. ML-001 multilingual Afform normalization remains
+  open pending authoritative source/translation metadata.
+
 - **R0.2:** Decomposed all six production PHP files above 750 lines into 34
   cohesive state-preserving concern traits. The largest resulting production
   PHP file is 608 lines; 440 existing method bodies and public/private method

@@ -16,6 +16,15 @@ excludes an intentionally red, explicitly runnable ML-001 reproduction; see
 [user-confirmed Beta2 priorities](docs/BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](docs/ML-001-RUNTIME-EVIDENCE.md).
 
+**Bundle 1 status (2026-10-16):** A67-07 synchronization health reporting now
+separates verified In Sync, no accepted baseline, incomplete provider scans,
+and partial/scope-only scans. The focused `composer test:sync-state-health` smoke
+passes without CiviCRM; actual runtime behavior still requires a DEV check.
+ML-001 multilingual Afform drift is **still open**: comparing localized strings
+without authoritative translation identity would hide genuine changes. See the
+[development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
+
+
 **Structural R0.2 checkpoint (2026-10-16):** The six largest production
 classes have been divided into focused named concerns while keeping the
 existing PHP entry points and method bodies unchanged. `ConfigManager.php` is
