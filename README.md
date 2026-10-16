@@ -16,6 +16,14 @@ excludes an intentionally red, explicitly runnable ML-001 reproduction; see
 [user-confirmed Beta2 priorities](docs/BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](docs/ML-001-RUNTIME-EVIDENCE.md).
 
+**Development-first checkpoint (2026-10-16):** Initial behavior-preserving
+refactoring moved Config Ignore rules and contributed-provider portable-identity
+rules into separate classes. The large export/import coordinator and extension
+provider discovery logic remain for further decomposition before adding new
+features. See [Beta2 development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
+Use `composer test:refactor-boundaries` for a fast PHP-only smoke check. This
+checkpoint does not fix ML-001 or waive final release testing.
+
 **Source archive note:** Developer source ZIPs must preserve executable modes
 for `bin/civicfg`, `scripts/*.sh`, and `tests/ci/*.sh`. On Linux/macOS use a
 mode-preserving unzip command. The first `composer qa:fast` gate checks these

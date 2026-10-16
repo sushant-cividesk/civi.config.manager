@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
+
+- Split Config Ignore rule ownership out of the oversized `ConfigManager`
+  into `ConfigIgnoreRules` while retaining existing entry points, built-in
+  patterns, CiviCRM settings migration, and ignore-only diff behavior.
+- Split pure provider-identity selection and uniqueness/multiplicity rules
+  out of `ExtensionHandler` into `ExtensionProviderIdentity`; provider API
+  queries, caches, and import/delete decisions remain in the handler.
+- Added a dependency-free 26-check refactor boundary smoke that passed against
+  both the previous source and the extracted implementation. Added it to fast
+  QA and documented the refactor-first development bundles.
+- This is **not** an ML-001 fix or a Beta2-ready release. Oversized orchestration
+  and discovery sections need additional controlled decomposition. Full
+  CiviCRM runtime QA was not run in the authoring environment.
+
 ## Unreleased — QA migration safety and approved Beta2 priorities (2026-10-08)
 
 - Corrected QA-003 source-hygiene classification: ignored and untracked Finder

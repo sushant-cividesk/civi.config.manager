@@ -2,6 +2,12 @@
 
 This document records current implementation decisions and remaining work. Version history is maintained in `../CHANGELOG.md`.
 
+**Current development execution plan (2026-10-16):** Implement structural
+checkpoint R0 and subsequent six coherent feature bundles in
+[BETA2_DEVELOPMENT_BATCHES.md](BETA2_DEVELOPMENT_BATCHES.md). The user deferred
+advanced QA to final feature freeze but did not waive any mandatory release
+gate; keep basic functional and import-safety regression checks for each edit.
+
 The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
 
 Follow the **user-approved 2026-10-08 P0/P1 order** in

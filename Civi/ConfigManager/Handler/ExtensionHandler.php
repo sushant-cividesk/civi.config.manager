@@ -6,6 +6,7 @@ use Civi\ConfigManager\Service\DiskRowSpool;
 use Civi\ConfigManager\Service\ProviderAdmissionPolicy;
 
 class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface, ChunkedStreamingHandlerInterface {
+  private ?ExtensionProviderIdentity $providerIdentityRules = NULL;
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
   private ?array $discoveredEntityDefinitions = NULL;
@@ -17,6 +18,13 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   private static array $api3WritableFieldsByEntity = [];
   private static array $api3DeleteActionByEntity = [];
   private array $exportErrors = [];
+
+  private function providerIdentityRules(): ExtensionProviderIdentity {
+    if ($this->providerIdentityRules === NULL) {
+      $this->providerIdentityRules = new ExtensionProviderIdentity();
+    }
+    return $this->providerIdentityRules;
+  }
 
   public function getType(): string { return 'extensions'; }
   public function getLabel(): string { return 'Extensions'; }
@@ -2658,48 +2666,15 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   }
 
   private function identityField(array $row, array $definition = []): ?string {
-    foreach ((array) ($definition['match_fields'] ?? []) as $field) {
-      $field = (string) $field;
-      if ($field !== 'id' && array_key_exists($field, $row) && is_scalar($row[$field]) && (string) $row[$field] !== '') {
-        return $field;
-      }
-    }
-    foreach (['key', 'machine_name', 'name', 'workflow_name', 'name_a_b'] as $field) {
-      if (!empty($row[$field]) && is_scalar($row[$field])) {
-        return $field;
-      }
-    }
-    // Weak identities are still useful for export/diff visibility, but imports
-    // are blocked unless the provider exposes a stronger stable key.
-    foreach (['title', 'label'] as $field) {
-      if (!empty($row[$field]) && is_scalar($row[$field])) {
-        return $field;
-      }
-    }
-    return NULL;
+    return $this->providerIdentityRules()->identityField($row, $definition);
   }
 
   private function identityConfidence(string $field, array $definition = []): string {
-    if (in_array($field, array_map('strval', (array) ($definition['match_fields'] ?? [])), TRUE)) {
-      return 'API_VERIFIED';
-    }
-    return in_array(strtolower($field), ['key', 'machine_name', 'name', 'workflow_name', 'name_a_b'], TRUE)
-      ? 'DISCOVERED_UNIQUE'
-      : 'AMBIGUOUS';
+    return $this->providerIdentityRules()->identityConfidence($field, $definition);
   }
 
   private function identityValueIsUnique(array $rows, string $field, string $identity): bool {
-    $matches = 0;
-    foreach ($rows as $row) {
-      $row = (array) $row;
-      if (array_key_exists($field, $row) && is_scalar($row[$field]) && (string) $row[$field] === $identity) {
-        $matches++;
-        if ($matches > 1) {
-          return FALSE;
-        }
-      }
-    }
-    return $matches === 1;
+    return $this->providerIdentityRules()->identityValueIsUnique($rows, $field, $identity);
   }
 
   private function runtimeIdentityConfidence(array $definition, string $field, string $identity): string {
@@ -2768,18 +2743,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   }
 
   private function identityValueHasDuplicateConflict(array $rows, string $field, string $identity): bool {
-    $matches = 0;
-    foreach ($rows as $row) {
-      $row = (array) $row;
-      if (!array_key_exists($field, $row) || !is_scalar($row[$field]) || (string) $row[$field] !== $identity) {
-        continue;
-      }
-      $matches++;
-      if ($matches > 1) {
-        return TRUE;
-      }
-    }
-    return FALSE;
+    return $this->providerIdentityRules()->identityValueHasDuplicateConflict($rows, $field, $identity);
   }
 
   private function invalidateIdentityRowsForDefinition(array $definition): void {
@@ -2829,24 +2793,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
    * Summarize whether current provider rows have safe cross-environment keys.
    */
   private function identitySafetyForRows(array $rows, array $definition): string {
-    if (!$rows) {
-      return 'UNVERIFIED';
-    }
-
-    $counts = $this->identityMultiplicityForRows($rows, $definition);
-    foreach ($rows as $row) {
-      $row = (array) $row;
-      $field = $this->identityField($row, $definition);
-      if ($field === NULL || $this->identityConfidence($field, $definition) === 'AMBIGUOUS') {
-        return 'UNSAFE';
-      }
-      $identity = (string) $row[$field];
-      if (($counts[$field][$identity] ?? 0) !== 1) {
-        return 'UNSAFE';
-      }
-    }
-
-    return 'SAFE';
+    return $this->providerIdentityRules()->identitySafetyForRows($rows, $definition);
   }
 
   /**
@@ -2859,17 +2806,7 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
    * @return array<string,array<string,int>>
    */
   private function identityMultiplicityForRows(array $rows, array $definition): array {
-    $counts = [];
-    foreach ($rows as $row) {
-      $row = (array) $row;
-      $field = $this->identityField($row, $definition);
-      if ($field === NULL || !array_key_exists($field, $row) || !is_scalar($row[$field])) {
-        continue;
-      }
-      $identity = (string) $row[$field];
-      $counts[$field][$identity] = ($counts[$field][$identity] ?? 0) + 1;
-    }
-    return $counts;
+    return $this->providerIdentityRules()->identityMultiplicityForRows($rows, $definition);
   }
 
   private function findExistingEntityRow(array $definition, string $identityField, string $identity): ?array {

@@ -9,6 +9,20 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
+## 2026-10-16 development-first structural checkpoint
+
+At the user's request, **pause new Beta2 feature work until the oversized
+coordinator/handler files are decomposed by responsibility**. Structural
+checkpoint R0.1 extracted `ConfigIgnoreRules` and `ExtensionProviderIdentity`
+without altering active configuration behavior, provider admissions, import
+side effects, or public service entry points. Basic independent smoke/contract
+checks passed; full DDEV/runtime verification remains deferred, not complete.
+The original source files remain oversized and require further targeted splits
+before adding functionality to those paths. See
+[BETA2_DEVELOPMENT_BATCHES.md](BETA2_DEVELOPMENT_BATCHES.md) for the actionable
+six-bundle development plan and outstanding structural milestones. This
+scheduling choice does **not** cancel mandatory Beta2 release requirements.
+
 ## Authoritative state
 
 | Item | Current value |

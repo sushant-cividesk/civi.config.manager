@@ -8,6 +8,12 @@ P0 starts with QA-003, ML-001, A69-05, B2-02/03, and optional A67-04/06.
 P1 includes A68-09, remaining release gates, optional UX-002, and optional
 Phase 2 planning. **P1 Phase 2 does not extend Beta2 release scope**.
 
+**Current development execution plan (2026-10-16):** Implement structural
+checkpoint R0 and subsequent six coherent feature bundles in
+[BETA2_DEVELOPMENT_BATCHES.md](BETA2_DEVELOPMENT_BATCHES.md). The user deferred
+advanced QA to final feature freeze but did not waive any mandatory release
+gate; keep basic functional and import-safety regression checks for each edit.
+
 The actionable IDs, statuses, blockers, and evidence are maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Historical delivery proceeded through Alpha65 evidence, Alpha66 discovery, Alpha67 Settings UX, and Alpha68 Import safety; the **current** sequence is the confirmed list above, not that historical milestone chronology.
 
 ## Current alpha scope
