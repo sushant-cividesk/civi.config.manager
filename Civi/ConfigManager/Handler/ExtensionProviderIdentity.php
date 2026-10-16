@@ -6,6 +6,7 @@ namespace Civi\ConfigManager\Handler;
  * extension configuration providers. No API calls or stateful row caching.
  */
 final class ExtensionProviderIdentity {
+
   public function identityField(array $row, array $definition = []): ?string {
     foreach ((array) ($definition['match_fields'] ?? []) as $field) {
       $field = (string) $field;
@@ -100,4 +101,5 @@ final class ExtensionProviderIdentity {
     }
     return $counts;
   }
+
 }

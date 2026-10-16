@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\UI;
 
-
 /**
  * PresenterChangeDescriptions methods from Presenter.
  *
@@ -520,4 +519,5 @@ trait PresenterChangeDescriptionsTrait {
     }
     return [$start, $valueEnd];
   }
+
 }

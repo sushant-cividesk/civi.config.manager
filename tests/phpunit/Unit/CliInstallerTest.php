@@ -14,7 +14,8 @@ final class CliInstallerTest extends TestCase {
   private string $globalBin;
   private string $registryDir;
 
-  /** @var array<string, string|false> */
+  /**
+   * @var array<string, string|false> */
   private array $environment = [];
 
   protected function setUp(): void {
@@ -244,6 +245,7 @@ final class CliInstallerTest extends TestCase {
     }
     @rmdir($path);
   }
+
 }
 
 final class CliInstallerTestConfigManager extends ConfigManager {
@@ -262,4 +264,5 @@ final class CliInstallerTestConfigManager extends ConfigManager {
   public function getSiteIdentifier(): string {
     return $this->siteId;
   }
+
 }

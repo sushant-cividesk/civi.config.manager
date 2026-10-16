@@ -77,7 +77,7 @@ class Canonicalizer {
 
     if ($isList) {
       if ($this->pathIsListed($path, $unordered)) {
-        usort($result, function($a, $b) {
+        usort($result, function ($a, $b) {
           return strcmp($this->stableJson($a), $this->stableJson($b));
         });
       }
@@ -156,4 +156,5 @@ class Canonicalizer {
     $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
     return $json === FALSE ? '' : $json;
   }
+
 }

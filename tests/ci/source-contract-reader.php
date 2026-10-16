@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Read a production source file and explicitly declared same-directory traits.
  *

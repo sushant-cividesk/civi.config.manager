@@ -2,18 +2,37 @@
 namespace Civi\ConfigManager\Handler;
 
 class SettingHandler extends AbstractHandler {
-  public function getType(): string { return 'settings'; }
-  public function getLabel(): string { return 'CiviCRM Settings'; }
-  public function getDirectory(): string { return 'settings'; }
-  public function getWeight(): int { return 80; }
+
+  public function getType(): string {
+    return 'settings';
+  }
+
+  public function getLabel(): string {
+    return 'CiviCRM Settings';
+  }
+
+  public function getDirectory(): string {
+    return 'settings';
+  }
+
+  public function getWeight(): int {
+    return 80;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'settings_service', 'entity' => 'Setting',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'settings_service',
+      'entity' => 'Setting',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
-      'field_names' => ['name','value'], 'identity_fields' => ['name'], 'reference_fields' => [],
-      'sensitive_fields' => ['dynamic_name_policy'], 'runtime_fields' => [], 'management_capability' => 'managed_no_delete',
-      'identity_evidence' => 'explicit_allowlist', 'metadata_completeness' => 'declared_policy',
+      'field_names' => ['name', 'value'],
+      'identity_fields' => ['name'],
+      'reference_fields' => [],
+      'sensitive_fields' => ['dynamic_name_policy'],
+      'runtime_fields' => [],
+      'management_capability' => 'managed_no_delete',
+      'identity_evidence' => 'explicit_allowlist',
+      'metadata_completeness' => 'declared_policy',
     ];
   }
 
@@ -174,7 +193,7 @@ class SettingHandler extends AbstractHandler {
     // inside the portable file. Current exports keep this local policy out of
     // YAML and write one setting per file instead.
     if (array_key_exists('allowlist', $file) && is_array($file['allowlist'])) {
-      $allowlist = array_values(array_filter(array_map('strval', $file['allowlist']), function(string $name): bool {
+      $allowlist = array_values(array_filter(array_map('strval', $file['allowlist']), function (string $name): bool {
         return $this->isSafeSettingName($name) && !$this->isSensitiveSettingName($name);
       }));
       $allowlist = array_values(array_unique($allowlist));
@@ -216,4 +235,5 @@ class SettingHandler extends AbstractHandler {
     $normalised = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $name);
     return (bool) preg_match('/(?:password|passwd|secret|token|credential|(?:^|[_.:-])key(?:$|[_.:-])|(?:api|private|access|auth|signing|encryption|consumer)[_-]?key)/i', (string) $normalised);
   }
+
 }

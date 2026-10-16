@@ -15,20 +15,36 @@ class OptionGroupHandler extends AbstractHandler implements StreamingHandlerInte
     return $this;
   }
 
-  public function getType(): string { return 'option-groups'; }
-  public function getLabel(): string { return 'Option Groups and Values'; }
-  public function getDirectory(): string { return 'option-groups'; }
-  public function getWeight(): int { return 20; }
+  public function getType(): string {
+    return 'option-groups';
+  }
+
+  public function getLabel(): string {
+    return 'Option Groups and Values';
+  }
+
+  public function getDirectory(): string {
+    return 'option-groups';
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'OptionGroup+OptionValue',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'api4',
+      'entity' => 'OptionGroup+OptionValue',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
-      'field_names' => ['name','title','description','data_type','is_reserved','is_active','values.name','values.label','values.value','values.description','values.weight','values.is_default','values.is_optgroup','values.is_reserved','values.is_active','values.component_id','values.domain_id','values.visibility_id'],
-      'identity_fields' => ['group.name','values.name','values.value'],
-      'reference_fields' => ['values.component_id','values.domain_id','values.visibility_id'],
-      'sensitive_fields' => [], 'runtime_fields' => [], 'management_capability' => 'full',
-      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+      'field_names' => ['name', 'title', 'description', 'data_type', 'is_reserved', 'is_active', 'values.name', 'values.label', 'values.value', 'values.description', 'values.weight', 'values.is_default', 'values.is_optgroup', 'values.is_reserved', 'values.is_active', 'values.component_id', 'values.domain_id', 'values.visibility_id'],
+      'identity_fields' => ['group.name', 'values.name', 'values.value'],
+      'reference_fields' => ['values.component_id', 'values.domain_id', 'values.visibility_id'],
+      'sensitive_fields' => [],
+      'runtime_fields' => [],
+      'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared',
     ];
   }
 
@@ -282,7 +298,6 @@ class OptionGroupHandler extends AbstractHandler implements StreamingHandlerInte
     return $summary;
   }
 
-
   /**
    * Find machine-name changes which reuse an existing stable option value.
    *
@@ -426,4 +441,5 @@ class OptionGroupHandler extends AbstractHandler implements StreamingHandlerInte
   private function safeName(string $name): string {
     return preg_replace('/[^A-Za-z0-9_.-]+/', '_', $name);
   }
+
 }

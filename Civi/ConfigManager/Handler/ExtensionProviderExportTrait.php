@@ -11,12 +11,14 @@ use Civi\ConfigManager\Service\DiskRowSpool;
  */
 trait ExtensionProviderExportTrait {
 
-  /** @return array<int,array{key:string,label:string,path_prefix?:string}> */
+  /**
+   * @return array<int,array{key:string,label:string,path_prefix?:string}> */
   public function getExportUnits(): array {
     $units = [[
       'key' => '__statuses__',
       'label' => 'Extension status and settings',
-    ]];
+    ],
+    ];
     foreach ($this->discoverEntityDefinitions() as $definition) {
       $extensionKey = (string) ($definition['extension'] ?? '');
       if ($this->isGenericConfigSkippedExtension($extensionKey)
@@ -35,7 +37,7 @@ trait ExtensionProviderExportTrait {
 
   public function export(): array {
     $files = iterator_to_array($this->iterateExport(), FALSE);
-    usort($files, static function(array $a, array $b): int {
+    usort($files, static function (array $a, array $b): int {
       return strcmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? ''));
     });
     return $files;
@@ -305,4 +307,5 @@ trait ExtensionProviderExportTrait {
       $this->exportErrors[] = $message;
     }
   }
+
 }

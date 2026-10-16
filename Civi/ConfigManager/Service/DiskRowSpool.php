@@ -11,7 +11,8 @@ namespace Civi\ConfigManager\Service;
  */
 class DiskRowSpool {
   private string $path;
-  /** @var resource|null */
+  /**
+   * @var resource|null */
   private $handle;
 
   public function __construct() {
@@ -28,7 +29,8 @@ class DiskRowSpool {
     $this->handle = $handle;
   }
 
-  /** @param array<string,mixed> $row */
+  /**
+   * @param array<string,mixed> $row */
   public function append(array $row): void {
     if (!is_resource($this->handle)) {
       throw new \RuntimeException('Configuration Manager provider spool is closed.');
@@ -39,7 +41,8 @@ class DiskRowSpool {
     }
   }
 
-  /** @return \Generator<int,array<string,mixed>> */
+  /**
+   * @return \Generator<int,array<string,mixed>> */
   public function iterate(): \Generator {
     if (!is_resource($this->handle)) {
       return;
@@ -69,4 +72,5 @@ class DiskRowSpool {
   public function __destruct() {
     $this->close();
   }
+
 }

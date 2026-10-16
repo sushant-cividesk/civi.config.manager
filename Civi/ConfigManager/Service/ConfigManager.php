@@ -1,15 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Service;
 
-use Civi\ConfigManager\Handler\ScopePickerHintProviderInterface;
-use Civi\ConfigManager\Handler\ChunkedStreamingHandlerInterface;
-use Civi\ConfigManager\Handler\StreamingHandlerInterface;
-use Civi\ConfigManager\Handler\StreamingImportHandlerInterface;
-use Civi\ConfigManager\Storage\YamlFileStorage;
-use Civi\ConfigManager\Util\SimpleYaml;
-use Civi\ConfigManager\Version;
-
-
 // Include stateful concerns for direct CiviCRM/legacy bootstrap loaders too.
 require_once __DIR__ . '/ConfigManagerDiffTrait.php';
 require_once __DIR__ . '/ConfigManagerDirectExportTrait.php';
@@ -86,6 +77,14 @@ class ConfigManager {
   }
 
   public function shouldIgnorePath(string $relativePath): bool {
+    return $this->ignoreRuleEngine()->shouldIgnorePath($relativePath);
+  }
+
+  /**
+   * Preserve the original private path guard for internal orchestration.
+   * The Config Ignore engine now owns matching rules and persistence.
+   */
+  private function isIgnoredPath(string $relativePath): bool {
     return $this->ignoreRuleEngine()->shouldIgnorePath($relativePath);
   }
 

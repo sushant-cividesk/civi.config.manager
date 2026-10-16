@@ -302,4 +302,5 @@ trait HandlerStructuredDiffTrait {
     }
     return $value;
   }
+
 }

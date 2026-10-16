@@ -3,7 +3,6 @@ namespace Civi\ConfigManager\UI;
 
 use Civi\ConfigManager\Service\ConfigManager;
 
-
 // Include stateful concerns for direct CiviCRM/legacy bootstrap loaders too.
 require_once __DIR__ . '/PresenterChangeDescriptionsTrait.php';
 require_once __DIR__ . '/PresenterImportFeedbackTrait.php';
@@ -14,8 +13,6 @@ require_once __DIR__ . '/PresenterImportFeedbackTrait.php';
 class Presenter {
   use PresenterChangeDescriptionsTrait;
   use PresenterImportFeedbackTrait;
-
-
 
   public function buildTabs(string $op): array {
     $tabs = [
@@ -163,8 +160,6 @@ class Presenter {
     ];
   }
 
-
-
   public function labelsForTypes(ConfigManager $manager, array $types): array {
     if (!$types) {
       return [];
@@ -281,5 +276,5 @@ class Presenter {
     }
     return $plan;
   }
-}
 
+}

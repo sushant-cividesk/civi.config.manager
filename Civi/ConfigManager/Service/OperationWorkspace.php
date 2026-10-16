@@ -66,7 +66,8 @@ class OperationWorkspace {
     return $this->root . DIRECTORY_SEPARATOR . 'export';
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function loadState(): array {
     if (!is_file($this->statePath)) {
       return [];
@@ -82,7 +83,8 @@ class OperationWorkspace {
     return $decoded;
   }
 
-  /** @param array<string,mixed> $state */
+  /**
+   * @param array<string,mixed> $state */
   public function saveState(array $state): void {
     $this->ensureRoot();
     $state['job_id'] = $this->jobId;
@@ -128,4 +130,5 @@ class OperationWorkspace {
     }
     @rmdir($path);
   }
+
 }

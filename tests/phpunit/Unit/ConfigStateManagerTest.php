@@ -11,6 +11,7 @@ use Civi\ConfigManager\Service\StateStore;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigStateManagerTest extends TestCase {
+
   public function testDiffStateUsesAcceptedBaselineToDetectActiveDrift(): void {
     $store = new MemoryStateStore();
     $manager = new ConfigStateManager($store);
@@ -31,7 +32,8 @@ final class ConfigStateManagerTest extends TestCase {
         'type' => 'example.item',
         'item' => ['name' => 'alpha', 'label' => 'Changed in active CiviCRM'],
       ],
-    ]];
+    ],
+    ];
     $diff = $handler->diffFromExports($active, $yaml);
     $enriched = $manager->enrichDiff($handler, $active, $yaml, $diff);
 
@@ -64,7 +66,8 @@ final class ConfigStateManagerTest extends TestCase {
     $active = [[
       'filename' => 'new-name.yml',
       'data' => $new,
-    ]];
+    ],
+    ];
     $diff = $handler->diffFromExports($active, $yaml);
     $enriched = $manager->enrichDiff($handler, $active, $yaml, $diff);
 
@@ -155,7 +158,8 @@ final class ConfigStateManagerTest extends TestCase {
     $baselineActive = [[
       'filename' => 'alpha.yml',
       'data' => $baseline,
-    ]];
+    ],
+    ];
     $deletionDiff = $handler->diffFromExports($baselineActive, []);
     $deletion = $manager->enrichDiff($handler, $baselineActive, [], $deletionDiff);
     self::assertSame('YAML_CHANGE', $deletion['files'][0]['sync_state']);
@@ -166,7 +170,8 @@ final class ConfigStateManagerTest extends TestCase {
         'type' => 'example.item',
         'item' => ['name' => 'alpha', 'label' => 'Changed active'],
       ],
-    ]];
+    ],
+    ];
     $conflictDiff = $handler->diffFromExports($changedActive, []);
     $conflict = $manager->enrichDiff($handler, $changedActive, [], $conflictDiff);
     self::assertSame('BOTH_CHANGED', $conflict['files'][0]['sync_state']);
@@ -187,17 +192,20 @@ final class ConfigStateManagerTest extends TestCase {
     $canonicalizer = new Canonicalizer();
     $store->acceptBaseline($identity, $canonicalizer->canonicalize($baseline), $canonicalizer->hash($baseline), 'export');
 
-    $yaml = ['alpha.yml' => [
-      'type' => 'example.item',
-      'item' => ['name' => 'alpha', 'label' => 'Development'],
-    ]];
+    $yaml = [
+      'alpha.yml' => [
+        'type' => 'example.item',
+        'item' => ['name' => 'alpha', 'label' => 'Development'],
+      ],
+    ];
     $active = [[
       'filename' => 'alpha.yml',
       'data' => [
         'type' => 'example.item',
         'item' => ['name' => 'alpha', 'label' => 'Production'],
       ],
-    ]];
+    ],
+    ];
 
     $diff = $handler->diffFromExports($active, $yaml);
     $enriched = $manager->enrichDiff($handler, $active, $yaml, $diff);
@@ -206,9 +214,11 @@ final class ConfigStateManagerTest extends TestCase {
     self::assertSame('CONFLICT', $enriched['files'][0]['merge_state']);
     self::assertSame('item.label', $enriched['files'][0]['conflicts'][0]['path']);
   }
+
 }
 
 final class ConfigStateTestHandler extends AbstractHandler {
+
   public function getType(): string {
     return 'example';
   }
@@ -228,16 +238,20 @@ final class ConfigStateTestHandler extends AbstractHandler {
   public function export(): array {
     return [];
   }
+
 }
 
 final class MemoryStateStore extends StateStore {
-  /** @var array<string, array<string, mixed>> */
+  /**
+   * @var array<string, array<string, mixed>> */
   public array $baselines = [];
 
-  /** @var array<int, array<string, mixed>> */
+  /**
+   * @var array<int, array<string, mixed>> */
   public array $objectStates = [];
 
-  /** @var array<string, string> */
+  /**
+   * @var array<string, string> */
   public array $aliases = [];
 
   public function isAvailable(): bool {
@@ -272,4 +286,5 @@ final class MemoryStateStore extends StateStore {
       'state' => $state,
     ];
   }
+
 }

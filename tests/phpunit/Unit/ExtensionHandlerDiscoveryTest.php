@@ -8,10 +8,9 @@ use Civi\ConfigManager\Handler\ExtensionHandler;
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
-use ReflectionProperty;
 
 final class ExtensionHandlerDiscoveryTest extends TestCase {
+
   /**
    * Requirement: provider inventory may inspect metadata but must never read a
    * provider collection. Failure mode: opening Settings leaks/executes business
@@ -20,7 +19,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
   public function testProviderInventoryDoesNotExecuteDiscoveredCollection(): void {
     \Civi\Api4\CivicfgInventoryReadTrap::$getCalls = 0;
     $handler = new ExtensionHandler();
-    $definitions = new ReflectionProperty($handler, 'inventoryEntityDefinitions');
+    $definitions = new \ReflectionProperty($handler, 'inventoryEntityDefinitions');
     $definitions->setAccessible(TRUE);
     $definitions->setValue($handler, [[
       'extension' => 'example.inventory',
@@ -40,7 +39,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'can_create' => TRUE,
       'can_update' => TRUE,
       'can_delete' => TRUE,
-    ]]);
+    ],
+    ]);
 
     $registry = new class($handler) extends HandlerRegistry {
       private ExtensionHandler $extensionHandler;
@@ -53,15 +53,17 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
         return [[
           'handler' => $this->extensionHandler,
           'registration_source' => 'core_handler',
-        ]];
+        ],
+        ];
       }
 
       public function getHandlers(): array {
         return [$this->extensionHandler];
       }
+
     };
     $inventory = (new ConfigManager($registry))->getProviderInventory();
-    $rows = array_values(array_filter($inventory['providers'], static function(array $provider): bool {
+    $rows = array_values(array_filter($inventory['providers'], static function (array $provider): bool {
       return $provider['registration_source'] === 'automatic_extension_api';
     }));
 
@@ -79,7 +81,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testAfsearchReferencesAreAfformDependencies(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'dependenciesForEntityRow');
+    $method = new \ReflectionMethod($handler, 'dependenciesForEntityRow');
     $method->setAccessible(TRUE);
 
     $dependencies = $method->invoke($handler, [
@@ -109,7 +111,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApi3EntityNameSupportsTopLevelAndActionDirectoryLayouts(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'api3EntityNameFromFile');
+    $method = new \ReflectionMethod($handler, 'api3EntityNameFromFile');
     $method->setAccessible(TRUE);
 
     self::assertSame('LegacyEntity', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/LegacyEntity.php'));
@@ -119,7 +121,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApi3ActionNameUsesActionDirectoryFilesWithoutRuntimeIntrospection(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'api3ActionNameFromFile');
+    $method = new \ReflectionMethod($handler, 'api3ActionNameFromFile');
     $method->setAccessible(TRUE);
 
     self::assertSame('', $method->invoke($handler, '/tmp/ext/api/v3', '/tmp/ext/api/v3/LegacyEntity.php'));
@@ -129,7 +131,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testKnownApi3FileActionsShortCircuitBrokenGetactionsDiscovery(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'api3EntityHasAction');
+    $method = new \ReflectionMethod($handler, 'api3EntityHasAction');
     $method->setAccessible(TRUE);
 
     self::assertTrue($method->invoke($handler, 'Sqltask', 'create', ['create', 'deletetask']));
@@ -138,7 +140,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApi4ProviderClassCanLoadFromExactExtensionFile(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'loadApi4ClassFromProvider');
+    $method = new \ReflectionMethod($handler, 'loadApi4ClassFromProvider');
     $method->setAccessible(TRUE);
 
     $entity = 'CivicfgQaApi4_' . str_replace('.', '_', uniqid('', TRUE));
@@ -159,7 +161,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testReviewedApi3AdapterCanLoadClassFromProviderBasePath(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'loadApi3ReadAdapterClass');
+    $method = new \ReflectionMethod($handler, 'loadApi3ReadAdapterClass');
     $method->setAccessible(TRUE);
 
     $class = 'CivicfgQaProviderAdapter_' . str_replace('.', '_', uniqid('', TRUE));
@@ -182,7 +184,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testReviewedSqltasksProviderDefinitionIsDeclarative(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'reviewedApi3ProviderDefinitions');
+    $method = new \ReflectionMethod($handler, 'reviewedApi3ProviderDefinitions');
     $method->setAccessible(TRUE);
 
     $dir = sys_get_temp_dir() . '/civicfg-sqltasks-definition-' . bin2hex(random_bytes(6));
@@ -221,7 +223,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApi3CollectionActionCandidatesAcceptSafeGetAllVariantsOnly(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'api3CollectionActionCandidates');
+    $method = new \ReflectionMethod($handler, 'api3CollectionActionCandidates');
     $method->setAccessible(TRUE);
 
     $actions = (array) $method->invoke($handler, [
@@ -239,7 +241,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testSqltasksUsesOnlyReviewedBaoCollectionAdapterMetadata(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'api3ReadAdapterDefinition');
+    $method = new \ReflectionMethod($handler, 'api3ReadAdapterDefinition');
     $method->setAccessible(TRUE);
 
     self::assertSame([
@@ -270,7 +272,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testNormalizeApi3RowsSupportsCollectionAndSingleRecordResults(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'normalizeApi3Rows');
+    $method = new \ReflectionMethod($handler, 'normalizeApi3Rows');
     $method->setAccessible(TRUE);
 
     self::assertSame(
@@ -285,7 +287,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApi3WriteResultKeepsAssociativeProviderRow(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'firstApi3ResultRow');
+    $method = new \ReflectionMethod($handler, 'firstApi3ResultRow');
     $method->setAccessible(TRUE);
 
     self::assertSame(
@@ -301,7 +303,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
   public function testProviderSubtypeSeedsEmptyDesiredSetForLastRecordDelete(): void {
     $handler = new ExtensionHandler();
     $handler->setRuntimeTypeFilters(['extensions:de.systopia.sqltasks:api3:Sqltask']);
-    $method = new ReflectionMethod($handler, 'desiredConfigKeysForRuntimeFilter');
+    $method = new \ReflectionMethod($handler, 'desiredConfigKeysForRuntimeFilter');
     $method->setAccessible(TRUE);
 
     $desired = (array) $method->invoke($handler, [
@@ -324,7 +326,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testStripRuntimeRemovesOnlyKnownTopLevelRuntimeFields(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'stripRuntime');
+    $method = new \ReflectionMethod($handler, 'stripRuntime');
     $method->setAccessible(TRUE);
 
     $row = (array) $method->invoke($handler, [
@@ -350,9 +352,9 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testStrongIdentityIsPreferredAndWeakIdentityIsAmbiguous(): void {
     $handler = new ExtensionHandler();
-    $identityField = new ReflectionMethod($handler, 'identityField');
+    $identityField = new \ReflectionMethod($handler, 'identityField');
     $identityField->setAccessible(TRUE);
-    $confidence = new ReflectionMethod($handler, 'identityConfidence');
+    $confidence = new \ReflectionMethod($handler, 'identityConfidence');
     $confidence->setAccessible(TRUE);
 
     self::assertSame('name', $identityField->invoke($handler, [
@@ -366,11 +368,11 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testApiMatchFieldGetsVerifiedConfidenceAndDuplicateValueIsNotUnique(): void {
     $handler = new ExtensionHandler();
-    $identityField = new ReflectionMethod($handler, 'identityField');
+    $identityField = new \ReflectionMethod($handler, 'identityField');
     $identityField->setAccessible(TRUE);
-    $confidence = new ReflectionMethod($handler, 'identityConfidence');
+    $confidence = new \ReflectionMethod($handler, 'identityConfidence');
     $confidence->setAccessible(TRUE);
-    $unique = new ReflectionMethod($handler, 'identityValueIsUnique');
+    $unique = new \ReflectionMethod($handler, 'identityValueIsUnique');
     $unique->setAccessible(TRUE);
 
     $definition = ['match_fields' => ['code']];
@@ -382,7 +384,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testIdentitySafetyRequiresRowsWithUniqueStrongKeys(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'identitySafetyForRows');
+    $method = new \ReflectionMethod($handler, 'identitySafetyForRows');
     $method->setAccessible(TRUE);
 
     self::assertSame('UNVERIFIED', $method->invoke($handler, [], ['match_fields' => ['code']]));
@@ -393,7 +395,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testAmbiguousProviderIdentityIsCompatibilityInformationNotValidationWarning(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'validateExtensionConfigItem');
+    $method = new \ReflectionMethod($handler, 'validateExtensionConfigItem');
     $method->setAccessible(TRUE);
     $errors = [];
     $warnings = [];
@@ -433,7 +435,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     ];
     $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', []);
 
-    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method = new \ReflectionMethod($handler, 'runtimeIdentityConfidence');
     $method->setAccessible(TRUE);
 
     self::assertSame('DISCOVERED_UNIQUE', $method->invoke($handler, $definition, 'name', 'hii'));
@@ -447,7 +449,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'entity' => 'Sqltask',
       'match_fields' => [],
     ];
-    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method = new \ReflectionMethod($handler, 'runtimeIdentityConfidence');
     $method->setAccessible(TRUE);
 
     $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', [['name' => 'hii']]);
@@ -466,7 +468,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'match_fields' => [],
     ];
     $this->setIdentityRows($handler, 'example.ext|api4|exampleconfig', []);
-    $method = new ReflectionMethod($handler, 'runtimeIdentityConfidence');
+    $method = new \ReflectionMethod($handler, 'runtimeIdentityConfidence');
     $method->setAccessible(TRUE);
 
     self::assertSame('AMBIGUOUS', $method->invoke($handler, $definition, 'title', 'Readable title'));
@@ -484,7 +486,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     ];
     $definitions = ['de.systopia.sqltasks|api3|sqltask' => $definition];
     $this->setIdentityRows($handler, 'de.systopia.sqltasks|api3|sqltask', []);
-    $method = new ReflectionMethod($handler, 'validateExtensionConfigItem');
+    $method = new \ReflectionMethod($handler, 'validateExtensionConfigItem');
     $method->setAccessible(TRUE);
     $errors = [];
     $warnings = [];
@@ -511,7 +513,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testNormalExtensionStateChangesArePlannedWithoutWarningNoise(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'applyExtensionStatus');
+    $method = new \ReflectionMethod($handler, 'applyExtensionStatus');
     $method->setAccessible(TRUE);
 
     foreach ([
@@ -555,13 +557,14 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
             'id' => 99,
             'options' => ['abort_on_error' => TRUE, 'tags' => ['one', 'two']],
           ],
-        ]],
+        ],
+        ],
       ],
     ];
 
-    $export = new ReflectionMethod($handler, 'cleanEntityRowForExport');
+    $export = new \ReflectionMethod($handler, 'cleanEntityRowForExport');
     $export->setAccessible(TRUE);
-    $import = new ReflectionMethod($handler, 'cleanEntityRowForImport');
+    $import = new \ReflectionMethod($handler, 'cleanEntityRowForImport');
     $import->setAccessible(TRUE);
 
     $exported = (array) $export->invoke($handler, $row, $definition);
@@ -612,7 +615,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
           'type' => 'CRM_Sqltasks_Action_RunSQL',
           'enabled' => '1',
           'script' => 'show tables;',
-        ]],
+        ],
+        ],
         'version' => '2',
       ],
       'abort_on_error' => '1',
@@ -627,7 +631,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
       'short_desc' => 'Default template for new tasks',
     ];
 
-    $method = new ReflectionMethod($handler, 'cleanEntityRowForImport');
+    $method = new \ReflectionMethod($handler, 'cleanEntityRowForImport');
     $method->setAccessible(TRUE);
     $clean = (array) $method->invoke($handler, $row, $definition);
 
@@ -648,7 +652,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testDeleteSafetyRequiresPortableSourceIdentityAndDeleteCapability(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'recordSourceProviderDeleteSafety');
+    $method = new \ReflectionMethod($handler, 'recordSourceProviderDeleteSafety');
     $method->setAccessible(TRUE);
 
     // ExtensionHandler indexes provider definitions with definitionKey(),
@@ -673,7 +677,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
         'identity_confidence' => 'DISCOVERED_UNIQUE',
         'capabilities' => ['create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
       ],
-    ]]);
+    ],
+    ]);
     self::assertArrayHasKey($definitionKey, $safe);
     self::assertTrue($safe[$definitionKey]);
 
@@ -684,7 +689,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
         'identity_confidence' => 'AMBIGUOUS',
         'capabilities' => ['create' => FALSE, 'update' => FALSE, 'delete' => FALSE],
       ],
-    ]]);
+    ],
+    ]);
     self::assertArrayHasKey($definitionKey, $safe);
     self::assertTrue($safe[$definitionKey], 'One monitor-only identity must not revoke delete capability already proven for unrelated portable identities in the same provider.');
 
@@ -699,14 +705,15 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
         'identity_confidence' => 'AMBIGUOUS',
         'capabilities' => ['create' => FALSE, 'update' => FALSE, 'delete' => FALSE],
       ],
-    ]]);
+    ],
+    ]);
     self::assertArrayHasKey($definitionKey, $ambiguousOnly);
     self::assertFalse((bool) ($ambiguousOnly[$definitionKey] ?? TRUE));
   }
 
   public function testProviderDeleteSafetyFailsClosedWithoutPortableMatchMetadata(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'providerIdentitySafetyForDelete');
+    $method = new \ReflectionMethod($handler, 'providerIdentitySafetyForDelete');
     $method->setAccessible(TRUE);
 
     self::assertSame('UNVERIFIED', $method->invoke($handler, [], ['match_fields' => []]));
@@ -714,11 +721,9 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertSame('SAFE', $method->invoke($handler, [], ['match_fields' => ['name']]));
   }
 
-
-
   public function testProviderIdentityMultiplicityIsLinearAndDetectsDuplicates(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'identityMultiplicityForRows');
+    $method = new \ReflectionMethod($handler, 'identityMultiplicityForRows');
     $method->setAccessible(TRUE);
 
     $counts = (array) $method->invoke($handler, [
@@ -734,7 +739,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
   }
 
   public function testExtensionProviderReadsDoNotUseUnlimitedApi3Get(): void {
-    $source = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+    require_once dirname(__DIR__, 2) . '/ci/source-contract-reader.php';
+    $source = civicfgReadContractSource(dirname(__DIR__, 3), 'Civi/ConfigManager/Handler/ExtensionHandler.php');
 
     self::assertStringNotContainsString("'limit' => 0", $source);
     self::assertStringContainsString('fetchApi3GetRowsPaged', $source);
@@ -743,7 +749,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testGenericApi4AdmissionRejectsCrudBusinessEntityWithoutPortableMetadata(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method = new \ReflectionMethod($handler, 'genericApi4ConfigAdmission');
     $method->setAccessible(TRUE);
 
     $fields = [
@@ -762,7 +768,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testGenericApi4AdmissionRejectsBusinessEntityEvenWithNaturalMatchKey(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method = new \ReflectionMethod($handler, 'genericApi4ConfigAdmission');
     $method->setAccessible(TRUE);
 
     $fields = [
@@ -779,7 +785,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testGenericApi4AdmissionRequiresExplicitReviewForSensitiveWritableFields(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method = new \ReflectionMethod($handler, 'genericApi4ConfigAdmission');
     $method->setAccessible(TRUE);
 
     $fields = [
@@ -798,7 +804,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testGenericApi4AdmissionAcceptsPortableConfigMetadata(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'genericApi4ConfigAdmission');
+    $method = new \ReflectionMethod($handler, 'genericApi4ConfigAdmission');
     $method->setAccessible(TRUE);
 
     $fields = [
@@ -814,7 +820,7 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
 
   public function testNonAdmittedBusinessProvidersNeverBecomeExportUnits(): void {
     $handler = new ExtensionHandler();
-    $property = new ReflectionProperty($handler, 'discoveredEntityDefinitions');
+    $property = new \ReflectionProperty($handler, 'discoveredEntityDefinitions');
     $property->setAccessible(TRUE);
     $property->setValue($handler, [
       [
@@ -857,7 +863,8 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
   }
 
   public function testProviderDiscoveryDoesNotExecuteGenericCollectionActions(): void {
-    $source = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+    require_once dirname(__DIR__, 2) . '/ci/source-contract-reader.php';
+    $source = civicfgReadContractSource(dirname(__DIR__, 3), 'Civi/ConfigManager/Handler/ExtensionHandler.php');
 
     $api4Start = strpos($source, 'private function api4EntityDeclarativelyReadable');
     $api4End = strpos($source, 'private function api3EntityUsable', $api4Start === FALSE ? 0 : $api4Start);
@@ -877,14 +884,14 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
   }
 
   private function setIdentityRows(ExtensionHandler $handler, string $key, array $rows): void {
-    $property = new ReflectionProperty($handler, 'identityRowsByDefinition');
+    $property = new \ReflectionProperty($handler, 'identityRowsByDefinition');
     $property->setAccessible(TRUE);
     $property->setValue($handler, [$key => $rows]);
   }
 
   public function testExtensionTokensIncludeConservativeSingularNamespace(): void {
     $handler = new ExtensionHandler();
-    $method = new ReflectionMethod($handler, 'extensionTokens');
+    $method = new \ReflectionMethod($handler, 'extensionTokens');
     $method->setAccessible(TRUE);
 
     $tokens = (array) $method->invoke($handler, 'de.systopia.sqltasks');
@@ -892,4 +899,5 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     self::assertContains('sqltasks', $tokens);
     self::assertContains('sqltask', $tokens);
   }
+
 }

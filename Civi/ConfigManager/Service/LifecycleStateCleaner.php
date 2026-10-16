@@ -10,7 +10,8 @@ namespace Civi\ConfigManager\Service;
  */
 final class LifecycleStateCleaner {
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public static function freshInstallSettingDefaults(): array {
     return [
       'civicfg_scope_default_mode' => 'ignore',
@@ -22,7 +23,8 @@ final class LifecycleStateCleaner {
     ];
   }
 
-  /** @return string[] */
+  /**
+   * @return string[] */
   public static function transientSessionKeys(): array {
     return [
       'civicfg_last_validation_result',

@@ -24,4 +24,5 @@ class Version {
     self::$version = 'unknown';
     return self::$version;
   }
+
 }

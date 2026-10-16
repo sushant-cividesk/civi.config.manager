@@ -8,6 +8,7 @@ use Civi\ConfigManager\Handler\SettingHandler;
 use PHPUnit\Framework\TestCase;
 
 final class SettingHandlerSafetyTest extends TestCase {
+
   protected function setUp(): void {
     parent::setUp();
     \Civi::settings()->reset();
@@ -96,4 +97,5 @@ final class SettingHandlerSafetyTest extends TestCase {
     self::assertSame('riverlea', \Civi::settings()->get('theme_backend'));
     self::assertSame(['theme_backend'], \Civi::settings()->get('civicfg_settings_allowlist'));
   }
+
 }

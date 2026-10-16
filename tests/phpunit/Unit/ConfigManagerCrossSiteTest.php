@@ -6,9 +6,9 @@ namespace Civi\ConfigManager\Tests\Unit;
 
 use Civi\ConfigManager\Service\ConfigManager;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 final class ConfigManagerCrossSiteTest extends TestCase {
+
   protected function setUp(): void {
     parent::setUp();
     \Civi::settings()->reset();
@@ -70,10 +70,11 @@ final class ConfigManagerCrossSiteTest extends TestCase {
   }
 
   private function validateManifest(ConfigManager $manager, array &$result, array $manifest): void {
-    $method = new ReflectionMethod(ConfigManager::class, 'addManifestValidation');
+    $method = new \ReflectionMethod(ConfigManager::class, 'addManifestValidation');
     $method->setAccessible(TRUE);
     $method->invokeArgs($manager, [&$result, $manifest]);
   }
+
 }
 
 final class CrossSiteFixtureConfigManager extends ConfigManager {
@@ -86,4 +87,5 @@ final class CrossSiteFixtureConfigManager extends ConfigManager {
   public function getSiteIdentifier(): string {
     return $this->siteId;
   }
+
 }

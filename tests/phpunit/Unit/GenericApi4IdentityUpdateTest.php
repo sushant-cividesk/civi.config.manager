@@ -8,6 +8,7 @@ use Civi\ConfigManager\Handler\GenericApi4CollectionHandler;
 use PHPUnit\Framework\TestCase;
 
 final class GenericApi4IdentityUpdateTest extends TestCase {
+
   public function testIdlessVirtualEntityUpdatesByPortableIdentity(): void {
     $handler = new GenericApi4IdentityUpdateFixture();
 
@@ -30,6 +31,7 @@ final class GenericApi4IdentityUpdateTest extends TestCase {
     self::assertSame(1, $result['update']);
     self::assertSame([['name', '=', 'afsearchDemo']], $handler->updateWhere);
   }
+
 }
 
 final class GenericApi4IdentityUpdateFixture extends GenericApi4CollectionHandler {
@@ -61,4 +63,5 @@ final class GenericApi4IdentityUpdateFixture extends GenericApi4CollectionHandle
     $this->updateWhere = $where;
     return $values;
   }
+
 }

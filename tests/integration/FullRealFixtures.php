@@ -300,7 +300,7 @@ final class CivicfgFullRealFixtures {
         }
       }
 
-      $sqltaskProviderSummary = array_map(static function($provider): array {
+      $sqltaskProviderSummary = array_map(static function ($provider): array {
         $provider = (array) $provider;
         return [
           'api' => (string) ($provider['api'] ?? ''),
@@ -780,6 +780,7 @@ final class CivicfgFullRealFixtures {
     }
     @rmdir($path);
   }
+
 }
 
 (new CivicfgFullRealFixtures())->run();

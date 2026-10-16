@@ -110,7 +110,8 @@ class OperationStore {
     self::$schemaEnsured = FALSE;
   }
 
-  /** @param string[] $types */
+  /**
+   * @param string[] $types */
   public function createJob(string $operation, string $queueName, string $syncRootHash, string $siteIdentifier, array $types = []): int {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -133,7 +134,8 @@ class OperationStore {
     return (int) \CRM_Core_DAO::singleValueQuery('SELECT LAST_INSERT_ID()');
   }
 
-  /** @param array<string,mixed> $payload */
+  /**
+   * @param array<string,mixed> $payload */
   public function createItem(
     int $jobId,
     string $itemKey,
@@ -142,7 +144,7 @@ class OperationStore {
     ?string $action = NULL,
     array $payload = [],
     bool $retrySafe = FALSE,
-    int $sequenceNo = 0
+    int $sequenceNo = 0,
   ): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -197,7 +199,8 @@ class OperationStore {
     return $this->itemFromDao($dao);
   }
 
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   public function getItems(int $jobId): array {
     $this->ensureSchema();
     $dao = \CRM_Core_DAO::executeQuery('SELECT * FROM ' . self::ITEM_TABLE . ' WHERE job_id = %1 ORDER BY sequence_no ASC, id ASC', [1 => [$jobId, 'Integer']]);
@@ -214,11 +217,11 @@ class OperationStore {
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::JOB_TABLE . '
       SET status = %1, phase = %2, heartbeat_at = %3, updated_at = %3
       WHERE id = %4', [
-      1 => ['running', 'String'],
-      2 => [$phase, 'String'],
-      3 => [$now, 'String'],
-      4 => [$jobId, 'Integer'],
-    ]);
+        1 => ['running', 'String'],
+        2 => [$phase, 'String'],
+        3 => [$now, 'String'],
+        4 => [$jobId, 'Integer'],
+      ]);
   }
 
   public function incrementRetry(int $jobId): void {
@@ -228,7 +231,8 @@ class OperationStore {
     ]);
   }
 
-  /** @param array<string,mixed> $event */
+  /**
+   * @param array<string,mixed> $event */
   public function updateProgress(int $jobId, array $event): void {
     $this->ensureSchema();
     $completed = max(0, (int) ($event['completed'] ?? 0));
@@ -251,26 +255,27 @@ class OperationStore {
           item_completed = %9, item_total = %10, current_handler = NULLIF(%11, \'\'), current_message = NULLIF(%12, \'\'),
           memory_current = %13, memory_peak = %14, heartbeat_at = %15, updated_at = %15
       WHERE id = %16', [
-      1 => [$phase, 'String'],
-      2 => [$completed, 'Integer'],
-      3 => [$total, 'Integer'],
-      4 => [$processed, 'Integer'],
-      5 => [$percent, 'Integer'],
-      6 => [$known ? 1 : 0, 'Integer'],
-      7 => [$phaseIndex, 'Integer'],
-      8 => [$phaseTotal, 'Integer'],
-      9 => [$itemCompleted, 'Integer'],
-      10 => [$itemTotal, 'Integer'],
-      11 => [$label, 'String'],
-      12 => [$message, 'String'],
-      13 => [memory_get_usage(TRUE), 'Integer'],
-      14 => [memory_get_peak_usage(TRUE), 'Integer'],
-      15 => [$now, 'String'],
-      16 => [$jobId, 'Integer'],
-    ]);
+        1 => [$phase, 'String'],
+        2 => [$completed, 'Integer'],
+        3 => [$total, 'Integer'],
+        4 => [$processed, 'Integer'],
+        5 => [$percent, 'Integer'],
+        6 => [$known ? 1 : 0, 'Integer'],
+        7 => [$phaseIndex, 'Integer'],
+        8 => [$phaseTotal, 'Integer'],
+        9 => [$itemCompleted, 'Integer'],
+        10 => [$itemTotal, 'Integer'],
+        11 => [$label, 'String'],
+        12 => [$message, 'String'],
+        13 => [memory_get_usage(TRUE), 'Integer'],
+        14 => [memory_get_peak_usage(TRUE), 'Integer'],
+        15 => [$now, 'String'],
+        16 => [$jobId, 'Integer'],
+      ]);
   }
 
-  /** @param array<string,mixed> $result */
+  /**
+   * @param array<string,mixed> $result */
   public function completeJob(int $jobId, array $result, string $message = ''): void {
     $this->finishJob($jobId, !empty($result['ok']) || !array_key_exists('ok', $result) ? 'complete' : 'failed', $result, $message);
   }
@@ -290,7 +295,8 @@ class OperationStore {
     $this->finishJob($jobId, 'blocked', $result, $message);
   }
 
-  /** @param array<string,mixed> $result */
+  /**
+   * @param array<string,mixed> $result */
   private function finishJob(int $jobId, string $status, array $result, string $message): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -305,30 +311,31 @@ class OperationStore {
           result_json = %2, error_message = NULLIF(%3, \'\'), memory_current = %4, memory_peak = %5,
           heartbeat_at = %6, updated_at = %6, finished_at = %6
       WHERE id = %7', [
-      1 => [$status, 'String'],
-      2 => [$encoded, 'String'],
-      3 => [$message, 'String'],
-      4 => [memory_get_usage(TRUE), 'Integer'],
-      5 => [memory_get_peak_usage(TRUE), 'Integer'],
-      6 => [$now, 'String'],
-      7 => [$jobId, 'Integer'],
-    ]);
+        1 => [$status, 'String'],
+        2 => [$encoded, 'String'],
+        3 => [$message, 'String'],
+        4 => [memory_get_usage(TRUE), 'Integer'],
+        5 => [memory_get_peak_usage(TRUE), 'Integer'],
+        6 => [$now, 'String'],
+        7 => [$jobId, 'Integer'],
+      ]);
   }
 
-  /** @param array<string,mixed> $result */
+  /**
+   * @param array<string,mixed> $result */
   public function finishItem(int $jobId, string $itemKey, string $status, array $result = [], string $error = ''): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::ITEM_TABLE . '
       SET status = %1, result_json = %2, error_message = NULLIF(%3, \'\'), updated_at = %4, finished_at = %4
       WHERE job_id = %5 AND item_key = %6', [
-      1 => [$status, 'String'],
-      2 => [$this->encodeJson($result), 'String'],
-      3 => [$error, 'String'],
-      4 => [$now, 'String'],
-      5 => [$jobId, 'Integer'],
-      6 => [$itemKey, 'String'],
-    ]);
+        1 => [$status, 'String'],
+        2 => [$this->encodeJson($result), 'String'],
+        3 => [$error, 'String'],
+        4 => [$now, 'String'],
+        5 => [$jobId, 'Integer'],
+        6 => [$itemKey, 'String'],
+      ]);
   }
 
   public function markItemRunning(int $jobId, string $itemKey): void {
@@ -337,11 +344,11 @@ class OperationStore {
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::ITEM_TABLE . '
       SET status = %1, started_at = COALESCE(started_at, %2), updated_at = %2
       WHERE job_id = %3 AND item_key = %4', [
-      1 => ['running', 'String'],
-      2 => [$now, 'String'],
-      3 => [$jobId, 'Integer'],
-      4 => [$itemKey, 'String'],
-    ]);
+        1 => ['running', 'String'],
+        2 => [$now, 'String'],
+        3 => [$jobId, 'Integer'],
+        4 => [$itemKey, 'String'],
+      ]);
   }
 
   public function resetItemForRetry(int $jobId, string $itemKey): void {
@@ -350,14 +357,15 @@ class OperationStore {
     \CRM_Core_DAO::executeQuery('UPDATE ' . self::ITEM_TABLE . '
       SET status = %1, error_message = NULL, result_json = NULL, started_at = NULL, finished_at = NULL, updated_at = %2
       WHERE job_id = %3 AND item_key = %4', [
-      1 => ['queued', 'String'],
-      2 => [$now, 'String'],
-      3 => [$jobId, 'Integer'],
-      4 => [$itemKey, 'String'],
-    ]);
+        1 => ['queued', 'String'],
+        2 => [$now, 'String'],
+        3 => [$jobId, 'Integer'],
+        4 => [$itemKey, 'String'],
+      ]);
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function jobFromDao($dao): array {
     return [
       'id' => (int) $dao->id,
@@ -392,7 +400,8 @@ class OperationStore {
     ];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function itemFromDao($dao): array {
     return [
       'id' => (int) $dao->id,
@@ -448,4 +457,5 @@ class OperationStore {
     $decoded = json_decode($value, TRUE);
     return is_array($decoded) ? $decoded : $fallback;
   }
+
 }

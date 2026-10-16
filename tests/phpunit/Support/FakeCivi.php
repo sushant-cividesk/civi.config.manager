@@ -17,6 +17,7 @@ namespace Civi\ConfigManager\Tests\Support {
     public function reset(): void {
       $this->values = [];
     }
+
   }
 }
 
@@ -31,6 +32,7 @@ namespace {
         }
         return self::$settings;
       }
+
     }
   }
 }

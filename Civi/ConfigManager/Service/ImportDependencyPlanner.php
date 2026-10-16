@@ -10,7 +10,8 @@ namespace Civi\ConfigManager\Service;
  */
 final class ImportDependencyPlanner {
 
-  /** @return array<string,array<int,string>> */
+  /**
+   * @return array<string,array<int,string>> */
   public function relatedTypeMap(): array {
     return [
       'searchkit-saved-searches' => ['searchkit-displays', 'formbuilder-afforms'],
@@ -37,7 +38,7 @@ final class ImportDependencyPlanner {
     array $registeredTypes,
     array $managedTypes,
     callable $activeDependencyExists,
-    callable $ignoredDependencyHint
+    callable $ignoredDependencyHint,
   ): array {
     $edges = [];
     $blockers = [];
@@ -274,7 +275,7 @@ final class ImportDependencyPlanner {
         $seen[$type] = TRUE;
       }
       $typeMap = array_fill_keys($types, TRUE);
-      $componentBlockers = array_values(array_filter($blockers, static function(array $candidate) use ($typeMap): bool {
+      $componentBlockers = array_values(array_filter($blockers, static function (array $candidate) use ($typeMap): bool {
         return isset($typeMap[(string) ($candidate['source_type'] ?? '')])
           || isset($typeMap[(string) ($candidate['dependency_type'] ?? '')]);
       }));
@@ -284,7 +285,7 @@ final class ImportDependencyPlanner {
       // Dependency discovery order can vary by provider/runtime. Sort the
       // semantic blocker identity before hashing so equivalent graphs retain
       // the same component ID across previews.
-      usort($componentBlockers, static function(array $a, array $b): int {
+      usort($componentBlockers, static function (array $a, array $b): int {
         $left = implode('|', [
           (string) ($a['source_type'] ?? ''),
           (string) ($a['source_file'] ?? ''),
@@ -313,7 +314,7 @@ final class ImportDependencyPlanner {
       }
       $identity = [
         'types' => $types,
-        'blockers' => array_map(static function(array $candidate): array {
+        'blockers' => array_map(static function (array $candidate): array {
           return [
             'source_type' => (string) ($candidate['source_type'] ?? ''),
             'source_file' => (string) ($candidate['source_file'] ?? ''),
@@ -341,13 +342,14 @@ final class ImportDependencyPlanner {
       ];
     }
 
-    usort($components, static function(array $a, array $b): int {
+    usort($components, static function (array $a, array $b): int {
       return strcmp((string) ($a['title'] ?? ''), (string) ($b['title'] ?? ''));
     });
     return $components;
   }
 
-  /** @return string[] */
+  /**
+   * @return string[] */
   private function connectedTypes(string $seed, array $adjacency): array {
     $queue = [$seed];
     $seen = [];
@@ -368,7 +370,8 @@ final class ImportDependencyPlanner {
     return $types;
   }
 
-  /** @param array<string,mixed> $edge */
+  /**
+   * @param array<string,mixed> $edge */
   private function missingDependencyMessage(array $edge, string $ignoredHint): string {
     $ownerType = (string) ($edge['source_type'] ?? '');
     $filename = (string) ($edge['source_file'] ?? '');
@@ -396,7 +399,8 @@ final class ImportDependencyPlanner {
     return $message;
   }
 
-  /** @param array<int,array<string,mixed>> $edges @return array<int,array<string,mixed>> */
+  /**
+   * @param array<int,array<string,mixed>> $edges @return array<int,array<string,mixed>> */
   private function uniqueEdges(array $edges): array {
     $unique = [];
     foreach ($edges as $edge) {
@@ -412,7 +416,8 @@ final class ImportDependencyPlanner {
     return array_values($unique);
   }
 
-  /** @param string[] $seed @param array<string,bool> $effectiveMap @return string[] */
+  /**
+   * @param string[] $seed @param array<string,bool> $effectiveMap @return string[] */
   private function expandRelatedClosure(array $seed, array $effectiveMap): array {
     $excluded = array_fill_keys($seed, TRUE);
     $map = $this->relatedTypeMap();
@@ -448,10 +453,12 @@ final class ImportDependencyPlanner {
     return $position === FALSE ? $type : substr($type, 0, $position);
   }
 
-  /** @param string[] $values @return string[] */
+  /**
+   * @param string[] $values @return string[] */
   private function sortedStrings(array $values): array {
     $values = array_values(array_unique(array_filter(array_map('strval', $values), 'strlen')));
     sort($values, SORT_STRING);
     return $values;
   }
+
 }

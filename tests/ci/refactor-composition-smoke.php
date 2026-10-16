@@ -6,10 +6,12 @@
  * their public orchestration and safety entry points still exist. PHP
  * compatibility/static source contracts test method behavior separately.
  */
+
 declare(strict_types=1);
+
 $root = dirname(__DIR__, 2);
 
-spl_autoload_register(static function(string $class) use ($root): void {
+spl_autoload_register(static function (string $class) use ($root): void {
   $prefix = 'Civi\\ConfigManager\\';
   if (strpos($class, $prefix) !== 0) {
     return;
@@ -24,7 +26,7 @@ spl_autoload_register(static function(string $class) use ($root): void {
 require_once $root . '/Civi/ConfigManager/UI/Presenter.php';
 
 $checks = 0;
-$check = static function(bool $ok, string $message) use (&$checks): void {
+$check = static function (bool $ok, string $message) use (&$checks): void {
   $checks++;
   if (!$ok) {
     fwrite(STDERR, "Structural composition failed: {$message}\n");
@@ -34,32 +36,45 @@ $check = static function(bool $ok, string $message) use (&$checks): void {
 
 $contracts = [
   'Civi\\ConfigManager\\Service\\ConfigManager' => [
-    'export' => 'public', 'diff' => 'public', 'validate' => 'public',
-    'import' => 'public', 'createImportReviewPlan' => 'public',
+    'export' => 'public',
+    'diff' => 'public',
+    'validate' => 'public',
+    'import' => 'public',
+    'createImportReviewPlan' => 'public',
     'queuedExportVerifyAndPublish' => 'public',
-    'queuedImportDeleteMissing' => 'public', 'getHealth' => 'public',
+    'queuedImportDeleteMissing' => 'public',
+    'getHealth' => 'public',
     'shouldIgnorePath' => 'public',
   ],
   'Civi\\ConfigManager\\Handler\\ExtensionHandler' => [
     'getDiscoveredProviderInventory' => 'public',
-    'iterateExport' => 'public', 'validate' => 'public',
-    'importIterable' => 'public', 'setDeleteMissingEnabled' => 'public',
+    'iterateExport' => 'public',
+    'validate' => 'public',
+    'importIterable' => 'public',
+    'setDeleteMissingEnabled' => 'public',
     'deleteMissingBundledConfig' => 'private',
   ],
   'Civi\\ConfigManager\\Handler\\AbstractHandler' => [
-    'diffFromExports' => 'public', 'structuredChanges' => 'protected',
-    'api4Iterate' => 'protected', 'api4Delete' => 'protected',
+    'diffFromExports' => 'public',
+    'structuredChanges' => 'protected',
+    'api4Iterate' => 'protected',
+    'api4Delete' => 'protected',
   ],
   'Civi\\ConfigManager\\UI\\MainPage' => [
-    'run' => 'public', 'requireValidCsrfToken' => 'private',
-    'jsonAdvanceOperation' => 'private', 'assignTemplate' => 'private',
+    'run' => 'public',
+    'requireValidCsrfToken' => 'private',
+    'jsonAdvanceOperation' => 'private',
+    'assignTemplate' => 'private',
   ],
   'Civi\\ConfigManager\\UI\\Presenter' => [
-    'buildTypeRows' => 'public', 'statusLabel' => 'public',
-    'buildImportPlan' => 'public', 'extractImportMessages' => 'public',
+    'buildTypeRows' => 'public',
+    'statusLabel' => 'public',
+    'buildImportPlan' => 'public',
+    'extractImportMessages' => 'public',
   ],
   'Civi\\ConfigManager\\Handler\\EntityDefinitionHandler' => [
-    'iterateExport' => 'public', 'importIterable' => 'public',
+    'iterateExport' => 'public',
+    'importIterable' => 'public',
     'resolveReferencesForImport' => 'private',
   ],
 ];

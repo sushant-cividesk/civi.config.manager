@@ -130,7 +130,6 @@ trait ConfigManagerMonitoringTrait {
     return ConfigScope::MODE_SELECTED . ':watch-unmanaged:' . implode('|', $selectors);
   }
 
-
   /**
    * Return cached health without scanning handlers or calling diff().
    *
@@ -588,4 +587,5 @@ trait ConfigManagerMonitoringTrait {
     }
     return FALSE;
   }
+
 }

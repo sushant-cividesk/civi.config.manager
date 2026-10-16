@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\DiffStateClassifier;
 use PHPUnit\Framework\TestCase;
 
 final class DiffStateClassifierTest extends TestCase {
+
   public function testTwoWayStatesWithoutBaseline(): void {
     $classifier = new DiffStateClassifier();
 
@@ -64,4 +65,5 @@ final class DiffStateClassifierTest extends TestCase {
     self::assertSame('Development', $result['conflicts'][0]['yaml']);
     self::assertSame('Production', $result['conflicts'][0]['active']);
   }
+
 }

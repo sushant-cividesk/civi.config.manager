@@ -96,7 +96,7 @@ trait ConfigManagerDiffTrait {
 
         $item = $handler->diffFromExports($exported, $files);
         if (!empty($partition['unresolved_selectors'])) {
-          $item['scope_warnings'] = array_values(array_map(static function($selector) {
+          $item['scope_warnings'] = array_values(array_map(static function ($selector) {
             return 'Configured managed selector is not present in Current CiviCRM: ' . (string) $selector . '. YAML backup remains managed.';
           }, (array) $partition['unresolved_selectors']));
         }
@@ -212,7 +212,7 @@ trait ConfigManagerDiffTrait {
     }
 
     $possibleRenames = $this->compactPossibleRenameCandidates($newKeys, $missingKeys, $active, $desired);
-    usort($files, static function(array $a, array $b): int {
+    usort($files, static function (array $a, array $b): int {
       return strnatcasecmp((string) ($a['path'] ?? ''), (string) ($b['path'] ?? ''));
     });
 
@@ -416,7 +416,7 @@ trait ConfigManagerDiffTrait {
     }
 
     if (count($matches) > 1) {
-      $exact = array_values(array_filter($matches, static function(array $row) use ($filename): bool {
+      $exact = array_values(array_filter($matches, static function (array $row) use ($filename): bool {
         return (string) $row['filename'] === $filename;
       }));
       if (count($exact) === 1) {
@@ -486,4 +486,5 @@ trait ConfigManagerDiffTrait {
     }
     return $count;
   }
+
 }

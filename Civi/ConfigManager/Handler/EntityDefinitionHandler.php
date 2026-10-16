@@ -145,7 +145,7 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
 
   public function export(): array {
     $files = iterator_to_array($this->iterateExport(), FALSE);
-    usort($files, static function(array $a, array $b): int {
+    usort($files, static function (array $a, array $b): int {
       return strnatcasecmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? ''));
     });
     return $files;
@@ -569,4 +569,5 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
     $safe = trim((string) $safe, '-');
     return $safe === '' ? sha1($name) : $safe;
   }
+
 }

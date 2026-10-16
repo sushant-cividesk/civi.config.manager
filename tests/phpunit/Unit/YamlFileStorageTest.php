@@ -6,9 +6,7 @@ namespace Civi\ConfigManager\Tests\Unit;
 
 use Civi\ConfigManager\Storage\YamlFileStorage;
 use Civi\ConfigManager\Tests\Support\TemporaryDirectoryTrait;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 final class YamlFileStorageTest extends TestCase {
   use TemporaryDirectoryTrait;
@@ -44,7 +42,7 @@ final class YamlFileStorageTest extends TestCase {
     $root = $this->createTemporaryDirectory();
     $storage = new YamlFileStorage($root);
 
-    $this->expectException(InvalidArgumentException::class);
+    $this->expectException(\InvalidArgumentException::class);
     $storage->write($directory, $filename, ['safe' => TRUE]);
   }
 
@@ -61,7 +59,6 @@ final class YamlFileStorageTest extends TestCase {
       'null byte' => ['', "file.yml\0.php"],
     ];
   }
-
 
   public function testAllowsSymlinkedSyncRootButStillContainsAccess(): void {
     if (!function_exists('symlink')) {
@@ -94,7 +91,7 @@ final class YamlFileStorageTest extends TestCase {
     }
 
     $storage = new YamlFileStorage($root);
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $storage->write('linked', 'escape.yml', ['escaped' => TRUE]);
   }
 
@@ -111,7 +108,7 @@ final class YamlFileStorageTest extends TestCase {
     }
 
     $storage = new YamlFileStorage($root);
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $storage->readFile('linked/outside.yml');
   }
 
@@ -133,7 +130,7 @@ final class YamlFileStorageTest extends TestCase {
       $storage->delete('linked', 'outside.yml');
       self::fail('Deleting through a symlinked directory must be rejected.');
     }
-    catch (RuntimeException $e) {
+    catch (\RuntimeException $e) {
       self::assertFileExists($outsideFile);
     }
   }
@@ -151,7 +148,8 @@ final class YamlFileStorageTest extends TestCase {
     }
 
     $storage = new YamlFileStorage($root);
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $storage->write('', 'linked.yml', ['escaped' => TRUE]);
   }
+
 }

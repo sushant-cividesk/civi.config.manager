@@ -155,7 +155,7 @@ trait ConfigManagerExportStagingTrait {
           'delete_safe' => !empty($row['delete_capable']) && $portable > 0,
         ];
       }
-      usort($index, static function(array $a, array $b): int {
+      usort($index, static function (array $a, array $b): int {
         return strcmp((string) $a['api'] . ':' . (string) $a['entity'], (string) $b['api'] . ':' . (string) $b['entity']);
       });
       if ($index) {
@@ -242,7 +242,7 @@ trait ConfigManagerExportStagingTrait {
     YamlFileStorage $storage,
     StagedExportWorkspace $workspace,
     array $handlers,
-    array $requestedTypes
+    array $requestedTypes,
   ): array {
     $stale = [];
     $allStaged = $workspace->files();
@@ -331,7 +331,6 @@ trait ConfigManagerExportStagingTrait {
     return array_values($stale);
   }
 
-
   /**
    * Keep a compact queue index instead of duplicating every exported document
    * into additional per-type arrays. The queue itself remains the single owner
@@ -349,7 +348,6 @@ trait ConfigManagerExportStagingTrait {
     }
     return $index;
   }
-
 
   private function pruneExtensionIndexesForIgnoredOrFilteredConfig(array &$queue): void {
     $counts = [];
@@ -455,4 +453,5 @@ trait ConfigManagerExportStagingTrait {
     }
     return $unique;
   }
+
 }

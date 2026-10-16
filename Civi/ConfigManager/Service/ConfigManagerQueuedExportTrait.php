@@ -13,7 +13,6 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
  */
 trait ConfigManagerQueuedExportTrait {
 
-
   /**
    * Build the durable alpha63 web-export plan.
    *
@@ -45,7 +44,8 @@ trait ConfigManagerQueuedExportTrait {
       'label' => 'Preparing export',
       'message' => 'Getting ready. Current CiviCRM and existing Saved Configs are unchanged.',
       'retry_safe' => TRUE,
-    ]];
+    ],
+    ];
 
     foreach ($handlers as $handler) {
       $type = (string) $handler->getType();
@@ -136,7 +136,8 @@ trait ConfigManagerQueuedExportTrait {
     return $tasks;
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportPrepare(int $jobId, string $syncRootHash, array $typeFilter = []): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -183,7 +184,8 @@ trait ConfigManagerQueuedExportTrait {
     return ['ok' => TRUE, 'processed_items' => 0, 'monitor_only' => 0];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportStage(int $jobId, string $syncRootHash, string $handlerType, string $unitKey, ?callable $progress = NULL): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -209,8 +211,10 @@ trait ConfigManagerQueuedExportTrait {
     if (($policy['mode'] ?? ConfigScope::MODE_ALL) === ConfigScope::MODE_ALL
       && $handler instanceof ChunkedStreamingHandlerInterface
       && $unitKey !== '__handler__') {
-      $rows = $handler->iterateExportUnit($unitKey, function(array $event) use ($progress, $state): void {
-        if ($progress === NULL) { return; }
+      $rows = $handler->iterateExportUnit($unitKey, function (array $event) use ($progress, $state): void {
+        if ($progress === NULL) {
+          return;
+        }
         $progress([
           'processed_items' => (int) ($state['processed_items'] ?? 0) + (int) ($event['processed'] ?? 0),
           'item_completed' => (int) ($event['processed'] ?? 0),
@@ -314,7 +318,8 @@ trait ConfigManagerQueuedExportTrait {
     ];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportFinalizeMetadata(int $jobId, string $syncRootHash): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -372,7 +377,8 @@ trait ConfigManagerQueuedExportTrait {
     ];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportVerifyAndPublish(int $jobId, string $syncRootHash, ?callable $progress = NULL): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -445,7 +451,8 @@ trait ConfigManagerQueuedExportTrait {
     ];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportBaseline(int $jobId, string $syncRootHash, string $handlerType): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -477,7 +484,8 @@ trait ConfigManagerQueuedExportTrait {
     return ['ok' => TRUE, 'processed_items' => (int) ($state['processed_items'] ?? 0), 'baseline_items' => $count];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedExportComplete(int $jobId, string $syncRootHash): array {
     $stateStore = new OperationWorkspace($jobId, $syncRootHash);
     $state = $stateStore->loadState();
@@ -511,4 +519,5 @@ trait ConfigManagerQueuedExportTrait {
     }
     return $result;
   }
+
 }

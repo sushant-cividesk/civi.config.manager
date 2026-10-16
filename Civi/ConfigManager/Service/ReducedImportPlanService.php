@@ -15,7 +15,8 @@ final class ReducedImportPlanService {
     $this->planner = $planner;
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function build(ConfigManager $manager, string $componentId, array $typeFilter = []): array {
     if (!preg_match('/^[a-f0-9]{24}$/', $componentId)) {
       throw new \RuntimeException('Invalid dependency component identifier. Build and review a fresh Import preview.');
@@ -63,4 +64,5 @@ final class ReducedImportPlanService {
     $fresh['remaining_requested_types'] = $remainingTypes;
     return $fresh;
   }
+
 }

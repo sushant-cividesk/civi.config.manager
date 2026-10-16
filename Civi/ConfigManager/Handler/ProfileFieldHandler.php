@@ -18,10 +18,21 @@ class ProfileFieldHandler extends AbstractHandler implements StreamingHandlerInt
     'is_multi_summary',
   ];
 
-  public function getType(): string { return 'profile-fields'; }
-  public function getLabel(): string { return 'Profile Fields'; }
-  public function getDirectory(): string { return 'profiles/fields'; }
-  public function getWeight(): int { return 41; }
+  public function getType(): string {
+    return 'profile-fields';
+  }
+
+  public function getLabel(): string {
+    return 'Profile Fields';
+  }
+
+  public function getDirectory(): string {
+    return 'profiles/fields';
+  }
+
+  public function getWeight(): int {
+    return 41;
+  }
 
   public function getProviderMetadata(): array {
     return [
@@ -274,7 +285,8 @@ class ProfileFieldHandler extends AbstractHandler implements StreamingHandlerInt
       'type' => 'profiles',
       'name' => $this->referenceKey($row['uf_group_id'], 'UFGroup', 'name', 'uf_group_id'),
       'reason' => 'Profile Field belongs to this Profile/UF Group.',
-    ]];
+    ],
+    ];
     if (($row['location_type_id'] ?? NULL) !== NULL && ($row['location_type_id'] ?? '') !== '') {
       $dependencies[] = [
         'type' => 'location-types',
@@ -327,4 +339,5 @@ class ProfileFieldHandler extends AbstractHandler implements StreamingHandlerInt
     $safe = trim((string) preg_replace('/[^A-Za-z0-9_.-]+/', '-', $value), '-');
     return $safe === '' ? sha1($value) : $safe;
   }
+
 }

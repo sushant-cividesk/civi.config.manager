@@ -16,4 +16,5 @@ class Validate extends AbstractAction {
   public function _run(Result $result) {
     $result[] = (new ConfigManager())->validate((array) $this->type);
   }
+
 }

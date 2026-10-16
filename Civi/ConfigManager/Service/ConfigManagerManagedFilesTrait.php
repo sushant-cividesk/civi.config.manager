@@ -374,7 +374,8 @@ trait ConfigManagerManagedFilesTrait {
           'filename' => $filename,
           'relative_path' => $relative,
           'data' => $data,
-        ]], FALSE, $portableSelectorMap);
+        ],
+        ], FALSE, $portableSelectorMap);
         if (empty($partition['managed'])) {
           continue;
         }
@@ -382,4 +383,5 @@ trait ConfigManagerManagedFilesTrait {
       yield $filename => $data;
     }
   }
+
 }

@@ -27,6 +27,28 @@ this structural change. Mandatory release requirements remain unchanged.
 
 ## 2026-10-16 Bundle 1 functional checkpoint
 
+**Hotfix R0.3 (structural regression, 2026-10-16):** User-run DDEV `qa:fast`
+(HEAD `aa9b0e9`) completed source/structural checks but stopped at PHPUnit:
+319 tests, 11 errors and 16 failures. The errors had a confirmed root cause:
+R0.1/R0.2 extracted Config Ignore policy while internal callers retained
+`$this->isIgnoredPath()`; the owning `ConfigManager` method had been omitted.
+The resulting scope/staging failures also cascaded into Import-plan, reduced
+plan, dependency and preflight failures. Independent file/trait/JS inspection
+assertions had not all been relocated with the source layout.
+
+**Local hotfix evidence:** Restored the private forwarding method, updated only
+three stale PHPUnit source-inspection files, and added regression checks for
+internal ignore paths and reviewed-plan store IDs. Six representative tests
+were red against the supplied baseline and green after this hotfix using a
+lightweight local harness (not PHPUnit); all available fast PHP/Node contracts
+passed. No production DB operations or destructive imports were executed.
+**Awaiting DDEV `composer qa:fast`** for authoritative PHPUnit results. Do not
+close the regression item or progress to another functional bundle until its
+real PHPUnit result is confirmed. The separate `vendor/bin/phpcs .` output
+reported widespread formatting warnings; no whole-tree formatting was done
+in this hotfix, to avoid obscuring functional fixes. `ML-001` remains P0/open.
+
+
 **A67-07 locally implemented:** `NO_BASELINE` is distinct from accepted
 `IN_SYNC`; errors, unavailable baseline state, unresolved managed selectors,
 and type-filtered scans no longer overwrite site-wide health with a false

@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderInventory methods from ExtensionHandler.
  *
@@ -127,7 +126,7 @@ trait ExtensionProviderInventoryTrait {
       ];
     }
 
-    usort($rows, static function(array $a, array $b): int {
+    usort($rows, static function (array $a, array $b): int {
       return strcmp((string) $a['provider_key'], (string) $b['provider_key']);
     });
     return $rows;
@@ -281,4 +280,5 @@ trait ExtensionProviderInventoryTrait {
     ksort($report, SORT_NATURAL | SORT_FLAG_CASE);
     return $report;
   }
+
 }

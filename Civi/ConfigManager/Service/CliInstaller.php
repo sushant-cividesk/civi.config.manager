@@ -482,7 +482,6 @@ BASH;
     }
   }
 
-
   private function installationIdentifier(): string {
     $root = rtrim($this->manager->getProjectRoot(), DIRECTORY_SEPARATOR);
     $resolved = $root !== '' ? realpath($root) : FALSE;
@@ -508,4 +507,5 @@ BASH;
     $contents = @file_get_contents($file);
     return is_string($contents) && strpos($contents, self::MANAGED_MARKER) !== FALSE;
   }
+
 }

@@ -74,18 +74,29 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame($handler->rowId('parent_tag'), $handler->rowParentId('child_tag'));
   }
 
-  /** Requirement: cyclic Tag parent dependencies must fail closed with zero writes. */
+  /**
+   * Requirement: cyclic Tag parent dependencies must fail closed with zero writes. */
   public function testTagImportBlocksParentCycle(): void {
     $handler = new CoverageExpansionTagFixture();
     $documents = [
-      'a.yml' => ['type' => 'tags.item', 'entity' => 'Tag', 'item' => [
-        'name' => 'a', 'label' => 'A',
-        'parent_id' => ['provider' => 'api4:Tag', 'entity' => 'Tag', 'key' => ['name' => 'b']],
-      ]],
-      'b.yml' => ['type' => 'tags.item', 'entity' => 'Tag', 'item' => [
-        'name' => 'b', 'label' => 'B',
-        'parent_id' => ['provider' => 'api4:Tag', 'entity' => 'Tag', 'key' => ['name' => 'a']],
-      ]],
+      'a.yml' => [
+        'type' => 'tags.item',
+        'entity' => 'Tag',
+        'item' => [
+          'name' => 'a',
+          'label' => 'A',
+          'parent_id' => ['provider' => 'api4:Tag', 'entity' => 'Tag', 'key' => ['name' => 'b']],
+        ],
+      ],
+      'b.yml' => [
+        'type' => 'tags.item',
+        'entity' => 'Tag',
+        'item' => [
+          'name' => 'b',
+          'label' => 'B',
+          'parent_id' => ['provider' => 'api4:Tag', 'entity' => 'Tag', 'key' => ['name' => 'a']],
+        ],
+      ],
     ];
 
     $result = $handler->import($documents, FALSE);
@@ -94,7 +105,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame([], $handler->createOrder);
   }
 
-  /** Requirement: early coverage-expansion families are visible as independent configuration types. */
+  /**
+   * Requirement: early coverage-expansion families are visible as independent configuration types. */
   public function testRegistryAdvertisesCoverageExpansionFamilies(): void {
     $types = array_map(static fn($handler): string => $handler->getType(), (new HandlerRegistry())->getHandlers());
 
@@ -122,7 +134,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertArrayNotHasKey('id', $files[1]['data']['item']);
   }
 
-  /** Requirement: Profile Field import must resolve semantic profile/location references at the API boundary. */
+  /**
+   * Requirement: Profile Field import must resolve semantic profile/location references at the API boundary. */
   public function testProfileFieldImportMatchesSemanticQualifierInsteadOfFirstPhoneField(): void {
     $handler = new CoverageExpansionProfileFieldFixture();
     $files = $handler->export();
@@ -163,7 +176,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame('member_summary', $handler->lastCreateParams['name']);
   }
 
-  /** Requirement: legacy unnamed reports with a template and title must remain exportable without local IDs. */
+  /**
+   * Requirement: legacy unnamed reports with a template and title must remain exportable without local IDs. */
   public function testUnnamedReportUsesGuardedTitleFallbackIdentity(): void {
     $export = (new CoverageExpansionUnnamedReportFixture())->export();
 
@@ -174,7 +188,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertArrayNotHasKey('id', $export[0]['data']['item']);
   }
 
-  /** Requirement: title-fallback identity must update the matching unnamed report instead of creating another one. */
+  /**
+   * Requirement: title-fallback identity must update the matching unnamed report instead of creating another one. */
   public function testUnnamedReportFallbackUpdatesExistingUnnamedInstance(): void {
     $handler = new CoverageExpansionUnnamedReportFixture();
     $document = $handler->export()[0]['data'];
@@ -189,7 +204,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame('Unnamed report', $handler->lastCreateParams['title']);
   }
 
-  /** Requirement: a report with no report template/provider must still fail closed with actionable context. */
+  /**
+   * Requirement: a report with no report template/provider must still fail closed with actionable context. */
   public function testReportWithoutTemplateStillFailsClosed(): void {
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('missing report_id');
@@ -227,7 +243,8 @@ final class CoverageExpansionTest extends TestCase {
     self::assertSame('44_ab', $handler->lastUpdateValues['blocks'][0][0][0]['related_rel']);
   }
 
-  /** Requirement: unknown nested local-ID shapes must block portable Contact Layout export. */
+  /**
+   * Requirement: unknown nested local-ID shapes must block portable Contact Layout export. */
   public function testContactLayoutUnknownLocalReferenceFailsClosed(): void {
     $handler = new CoverageExpansionContactLayoutFixture();
     $handler->includeUnknownLocalReference = TRUE;
@@ -235,21 +252,28 @@ final class CoverageExpansionTest extends TestCase {
     $this->expectExceptionMessage('unresolved local numeric/reference field');
     $handler->export();
   }
+
 }
 
 final class CoverageExpansionTagFixture extends TagHandler {
-  /** @var array<string,array<string,mixed>> */
+  /**
+   * @var array<string,array<string,mixed>> */
   public array $rows = [];
-  /** @var string[] */
+  /**
+   * @var string[] */
   public array $createOrder = [];
   private int $nextId = 100;
 
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
-    if ($entity !== 'Tag') return NULL;
+    if ($entity !== 'Tag') {
+      return NULL;
+    }
     $field = (string) ($where[0][0] ?? '');
     $value = $where[0][2] ?? NULL;
     foreach ($this->rows as $row) {
-      if (($row[$field] ?? NULL) === $value) return $row;
+      if (($row[$field] ?? NULL) === $value) {
+        return $row;
+      }
     }
     return NULL;
   }
@@ -281,6 +305,7 @@ final class CoverageExpansionTagFixture extends TagHandler {
     }
     return [];
   }
+
 }
 
 final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
@@ -294,19 +319,29 @@ final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
   }
 
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
-    if ($entity !== 'UFField') return [];
+    if ($entity !== 'UFField') {
+      return [];
+    }
     return $this->profileRows();
   }
 
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
     $value = $where[0][2] ?? NULL;
     if ($entity === 'UFGroup') {
-      if (($where[0][0] ?? '') === 'id' && (int) $value === 11) return ['id' => 11, 'name' => 'summary_overlay'];
-      if (($where[0][0] ?? '') === 'name' && $value === 'summary_overlay') return ['id' => 11, 'name' => 'summary_overlay'];
+      if (($where[0][0] ?? '') === 'id' && (int) $value === 11) {
+        return ['id' => 11, 'name' => 'summary_overlay'];
+      }
+      if (($where[0][0] ?? '') === 'name' && $value === 'summary_overlay') {
+        return ['id' => 11, 'name' => 'summary_overlay'];
+      }
     }
     if ($entity === 'LocationType') {
-      if ((string) $value === '8' || $value === 'Home') return ['id' => 8, 'name' => 'Home'];
-      if ((string) $value === '9' || $value === 'Work') return ['id' => 9, 'name' => 'Work'];
+      if ((string) $value === '8' || $value === 'Home') {
+        return ['id' => 8, 'name' => 'Home'];
+      }
+      if ((string) $value === '9' || $value === 'Work') {
+        return ['id' => 9, 'name' => 'Work'];
+      }
     }
     return NULL;
   }
@@ -321,19 +356,33 @@ final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
     return $values;
   }
 
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   private function profileRows(): array {
     return [
       [
-        'id' => 201, 'uf_group_id' => 11, 'field_name' => 'phone', 'label' => 'Home phone',
-        'field_type' => 'Contact', 'location_type_id' => 8, 'weight' => 1, 'is_active' => 1,
+        'id' => 201,
+        'uf_group_id' => 11,
+        'field_name' => 'phone',
+        'label' => 'Home phone',
+        'field_type' => 'Contact',
+        'location_type_id' => 8,
+        'weight' => 1,
+        'is_active' => 1,
       ],
       [
-        'id' => 202, 'uf_group_id' => 11, 'field_name' => 'phone', 'label' => 'Work phone',
-        'field_type' => 'Contact', 'location_type_id' => 9, 'weight' => 2, 'is_active' => 1,
+        'id' => 202,
+        'uf_group_id' => 11,
+        'field_name' => 'phone',
+        'label' => 'Work phone',
+        'field_type' => 'Contact',
+        'location_type_id' => 9,
+        'weight' => 2,
+        'is_active' => 1,
       ],
     ];
   }
+
 }
 
 final class CoverageExpansionReportFixture extends ReportInstanceHandler {
@@ -344,33 +393,39 @@ final class CoverageExpansionReportFixture extends ReportInstanceHandler {
       return ['values' => ['get' => [], 'create' => []]];
     }
     if ($action === 'get' && isset($params['name'])) {
-      return ['values' => [[
-        'id' => 81,
-        'name' => 'member_summary',
-        'title' => 'Member Summary',
-        'report_id' => 'contact/summary',
-        'description' => '',
-        'permission' => 'access CiviReport',
-        'grouprole' => '',
-        'is_active' => 1,
-        'is_reserved' => 0,
-        'form_values' => ['fields' => ['display_name' => 1]],
-      ]]];
+      return [
+        'values' => [[
+          'id' => 81,
+          'name' => 'member_summary',
+          'title' => 'Member Summary',
+          'report_id' => 'contact/summary',
+          'description' => '',
+          'permission' => 'access CiviReport',
+          'grouprole' => '',
+          'is_active' => 1,
+          'is_reserved' => 0,
+          'form_values' => ['fields' => ['display_name' => 1]],
+        ],
+        ],
+      ];
     }
     if ($action === 'get') {
-      return ['values' => [[
-        'id' => 81,
-        'navigation_id' => 199,
-        'name' => 'member_summary',
-        'title' => 'Member Summary',
-        'report_id' => 'contact/summary',
-        'description' => '',
-        'permission' => 'access CiviReport',
-        'grouprole' => '',
-        'is_active' => 1,
-        'is_reserved' => 0,
-        'form_values' => ['fields' => ['display_name' => 1]],
-      ]]];
+      return [
+        'values' => [[
+          'id' => 81,
+          'navigation_id' => 199,
+          'name' => 'member_summary',
+          'title' => 'Member Summary',
+          'report_id' => 'contact/summary',
+          'description' => '',
+          'permission' => 'access CiviReport',
+          'grouprole' => '',
+          'is_active' => 1,
+          'is_reserved' => 0,
+          'form_values' => ['fields' => ['display_name' => 1]],
+        ],
+        ],
+      ];
     }
     if ($action === 'create') {
       $this->lastCreateParams = $params;
@@ -378,6 +433,7 @@ final class CoverageExpansionReportFixture extends ReportInstanceHandler {
     }
     return ['values' => []];
   }
+
 }
 
 final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler {
@@ -385,18 +441,21 @@ final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler 
 
   protected function api3(string $entity, string $action, array $params): array {
     if ($action === 'get') {
-      return ['values' => [[
-        'id' => 82,
-        'name' => '',
-        'title' => 'Unnamed report',
-        'report_id' => 'contact/summary',
-        'description' => '',
-        'permission' => 'access CiviReport',
-        'grouprole' => '',
-        'is_active' => 1,
-        'is_reserved' => 0,
-        'form_values' => [],
-      ]]];
+      return [
+        'values' => [[
+          'id' => 82,
+          'name' => '',
+          'title' => 'Unnamed report',
+          'report_id' => 'contact/summary',
+          'description' => '',
+          'permission' => 'access CiviReport',
+          'grouprole' => '',
+          'is_active' => 1,
+          'is_reserved' => 0,
+          'form_values' => [],
+        ],
+        ],
+      ];
     }
     if ($action === 'create') {
       $this->lastCreateParams = $params;
@@ -404,18 +463,31 @@ final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler 
     }
     return ['values' => ['get' => [], 'create' => []]];
   }
+
 }
 
 final class CoverageExpansionTemplateLessReportFixture extends ReportInstanceHandler {
+
   protected function api3(string $entity, string $action, array $params): array {
     if ($action === 'get') {
-      return ['values' => [[
-        'id' => 83, 'name' => 'broken_report', 'title' => 'Broken report', 'report_id' => '',
-        'permission' => 'access CiviReport', 'grouprole' => '', 'is_active' => 1, 'is_reserved' => 0, 'form_values' => [],
-      ]]];
+      return [
+        'values' => [[
+          'id' => 83,
+          'name' => 'broken_report',
+          'title' => 'Broken report',
+          'report_id' => '',
+          'permission' => 'access CiviReport',
+          'grouprole' => '',
+          'is_active' => 1,
+          'is_reserved' => 0,
+          'form_values' => [],
+        ],
+        ],
+      ];
     }
     return ['values' => ['get' => [], 'create' => []]];
   }
+
 }
 
 final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
@@ -435,10 +507,18 @@ final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
 
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
     $id = $where[0][2] ?? NULL;
-    if ($entity === 'Group') return ['id' => 17, 'name' => 'board_members'];
-    if ($entity === 'UFGroup') return ['id' => 23, 'name' => 'member_profile'];
-    if ($entity === 'CustomGroup') return ['id' => 31, 'name' => 'member_fields'];
-    if ($entity === 'RelationshipType') return ['id' => 44, 'name_a_b' => 'Employer of'];
+    if ($entity === 'Group') {
+      return ['id' => 17, 'name' => 'board_members'];
+    }
+    if ($entity === 'UFGroup') {
+      return ['id' => 23, 'name' => 'member_profile'];
+    }
+    if ($entity === 'CustomGroup') {
+      return ['id' => 31, 'name' => 'member_fields'];
+    }
+    if ($entity === 'RelationshipType') {
+      return ['id' => 44, 'name_a_b' => 'Employer of'];
+    }
     return NULL;
   }
 
@@ -464,7 +544,10 @@ final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
         'profile_id' => 23,
         'custom_group_id' => 31,
         'related_rel' => '44_ab',
-      ]]]],
+      ],
+      ],
+      ],
+      ],
       'tabs' => [['id' => 'activity', 'is_active' => TRUE]],
       'settings' => [],
     ];
@@ -473,4 +556,5 @@ final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
     }
     return $row;
   }
+
 }

@@ -10,19 +10,36 @@ class SiteTokenHandler extends AbstractHandler {
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
-  public function getType(): string { return 'site-tokens'; }
-  public function getLabel(): string { return 'Site Tokens'; }
-  public function getDirectory(): string { return 'site-tokens'; }
-  public function getWeight(): int { return 85; }
+  public function getType(): string {
+    return 'site-tokens';
+  }
+
+  public function getLabel(): string {
+    return 'Site Tokens';
+  }
+
+  public function getDirectory(): string {
+    return 'site-tokens';
+  }
+
+  public function getWeight(): int {
+    return 85;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'SiteToken',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'api4',
+      'entity' => 'SiteToken',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
-      'field_names' => ['name','token_name','label','provider_owned_fields'],
-      'identity_fields' => ['name','token_name','label'], 'reference_fields' => ['provider_declared_only'],
-      'sensitive_fields' => ['provider_declared_only'], 'runtime_fields' => ['provider_declared_only'], 'management_capability' => 'full',
-      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared_dynamic_provider',
+      'field_names' => ['name', 'token_name', 'label', 'provider_owned_fields'],
+      'identity_fields' => ['name', 'token_name', 'label'],
+      'reference_fields' => ['provider_declared_only'],
+      'sensitive_fields' => ['provider_declared_only'],
+      'runtime_fields' => ['provider_declared_only'],
+      'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared_dynamic_provider',
     ];
   }
 
@@ -30,8 +47,15 @@ class SiteTokenHandler extends AbstractHandler {
     return $this->api4ManagementAvailability('SiteToken', ['get', 'create', 'update', 'delete']);
   }
 
-  public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }
-  public function setDeleteMissingEnabled(bool $enabled): self { $this->deleteMissingEnabled = $enabled; return $this; }
+  public function setImportWriteEnabled(bool $enabled): self {
+    $this->importWritesEnabled = $enabled;
+    return $this;
+  }
+
+  public function setDeleteMissingEnabled(bool $enabled): self {
+    $this->deleteMissingEnabled = $enabled;
+    return $this;
+  }
 
   public function export(): array {
     if (!$this->isAvailable()) {
@@ -162,4 +186,5 @@ class SiteTokenHandler extends AbstractHandler {
     $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name);
     return trim((string) $safe, '-') ?: sha1($name);
   }
+
 }

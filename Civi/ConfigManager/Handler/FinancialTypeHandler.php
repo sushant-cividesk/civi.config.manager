@@ -2,18 +2,37 @@
 namespace Civi\ConfigManager\Handler;
 
 class FinancialTypeHandler extends AbstractHandler {
-  public function getType(): string { return 'financial-types'; }
-  public function getLabel(): string { return 'Financial Types'; }
-  public function getDirectory(): string { return 'financial'; }
-  public function getWeight(): int { return 40; }
+
+  public function getType(): string {
+    return 'financial-types';
+  }
+
+  public function getLabel(): string {
+    return 'Financial Types';
+  }
+
+  public function getDirectory(): string {
+    return 'financial';
+  }
+
+  public function getWeight(): int {
+    return 40;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'FinancialType',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'api4',
+      'entity' => 'FinancialType',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => FALSE],
-      'field_names' => ['name','label','description','is_deductible','is_reserved','is_active'],
-      'identity_fields' => ['name'], 'reference_fields' => [], 'sensitive_fields' => [], 'runtime_fields' => [],
-      'management_capability' => 'managed_no_delete', 'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+      'field_names' => ['name', 'label', 'description', 'is_deductible', 'is_reserved', 'is_active'],
+      'identity_fields' => ['name'],
+      'reference_fields' => [],
+      'sensitive_fields' => [],
+      'runtime_fields' => [],
+      'management_capability' => 'managed_no_delete',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared',
     ];
   }
 
@@ -109,4 +128,5 @@ class FinancialTypeHandler extends AbstractHandler {
     $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name);
     return trim((string) $safe, '-') ?: sha1($name);
   }
+
 }

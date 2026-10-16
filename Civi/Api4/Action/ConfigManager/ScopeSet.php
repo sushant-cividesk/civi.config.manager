@@ -6,16 +6,20 @@ use Civi\Api4\Generic\Result;
 use Civi\ConfigManager\Service\ConfigManager;
 
 class ScopeSet extends AbstractAction {
-  /** @var string */
+  /**
+   * @var string */
   protected $type = '';
 
-  /** @var string */
+  /**
+   * @var string */
   protected $mode = '';
 
-  /** @var array */
+  /**
+   * @var array */
   protected $selectors = [];
 
-  /** @var bool */
+  /**
+   * @var bool */
   protected $watchUnmanaged = FALSE;
 
   public function _run(Result $result) {
@@ -26,4 +30,5 @@ class ScopeSet extends AbstractAction {
       (bool) $this->watchUnmanaged
     );
   }
+
 }

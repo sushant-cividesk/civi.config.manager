@@ -3,8 +3,6 @@ namespace Civi\ConfigManager\Handler;
 
 use Civi\ConfigManager\Service\Canonicalizer;
 use Civi\ConfigManager\Service\ConfigIdentity;
-use Civi\ConfigManager\Util\SimpleYaml;
-
 
 // Include stateful concerns for direct CiviCRM/legacy bootstrap loaders too.
 require_once __DIR__ . '/HandlerApi4TransportTrait.php';

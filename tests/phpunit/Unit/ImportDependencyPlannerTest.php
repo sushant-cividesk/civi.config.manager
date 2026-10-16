@@ -37,11 +37,11 @@ final class ImportDependencyPlannerTest extends TestCase {
       static fn(string $type, string $name): string => ''
     );
 
-    self::assertCount(2, $analysis['dependency_edges']);
-    self::assertCount(1, $analysis['dependency_blockers']);
-    self::assertCount(1, $analysis['dependency_components']);
-    self::assertSame(['contact-types', 'custom-data', 'option-groups'], $analysis['dependency_components'][0]['types']);
-    self::assertSame(['custom-data/groups/example.yml'], $analysis['dependency_components'][0]['files']);
+      self::assertCount(2, $analysis['dependency_edges']);
+      self::assertCount(1, $analysis['dependency_blockers']);
+      self::assertCount(1, $analysis['dependency_components']);
+      self::assertSame(['contact-types', 'custom-data', 'option-groups'], $analysis['dependency_components'][0]['types']);
+      self::assertSame(['custom-data/groups/example.yml'], $analysis['dependency_components'][0]['files']);
   }
 
   public function testSafeExclusionExpandsCanonicalRelatedTypeClosure(): void {
@@ -53,7 +53,8 @@ final class ImportDependencyPlannerTest extends TestCase {
       'files' => ['custom-data/groups/example.yml'],
       'blockers' => [],
       'blocker_count' => 1,
-    ]];
+    ],
+    ];
 
     $safe = $planner->addExclusionSafety(
       $components,
@@ -80,7 +81,8 @@ final class ImportDependencyPlannerTest extends TestCase {
       'files' => ['custom-data/groups/example.yml'],
       'blockers' => [],
       'blocker_count' => 1,
-    ]];
+    ],
+    ];
 
     $safe = $planner->addExclusionSafety(
       $components,
@@ -102,7 +104,8 @@ final class ImportDependencyPlannerTest extends TestCase {
       'files' => ['custom-data/groups/example.yml'],
       'blockers' => [],
       'blocker_count' => 1,
-    ]];
+    ],
+    ];
 
     $withActions = $planner->addActionSummaries($components, [
       ['type' => 'custom-data', 'groups' => ['create' => 1, 'update' => 2], 'delete' => 0],
@@ -145,4 +148,5 @@ final class ImportDependencyPlannerTest extends TestCase {
     self::assertSame($first['dependency_components'][0]['blockers'], $second['dependency_components'][0]['blockers']);
     self::assertMatchesRegularExpression('/^[a-f0-9]{24}$/', $first['dependency_components'][0]['id']);
   }
+
 }

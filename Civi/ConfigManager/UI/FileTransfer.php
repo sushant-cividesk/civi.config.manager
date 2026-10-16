@@ -3,12 +3,6 @@ namespace Civi\ConfigManager\UI;
 
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Util\SimpleYaml;
-use RuntimeException;
-use Throwable;
-use ZipArchive;
-use RecursiveIteratorIterator;
-use RecursiveDirectoryIterator;
-use FilesystemIterator;
 
 /**
  * Handles import/export file transfers and single-file preview/downloads.
@@ -17,8 +11,6 @@ class FileTransfer {
   private const MAX_UPLOAD_FILES = 10000;
   private const MAX_YAML_FILE_BYTES = 5242880;
   private const MAX_ARCHIVE_BYTES = 52428800;
-
-
 
   /**
    * Build the single-file chooser from an export preview already performed in
@@ -44,7 +36,7 @@ class FileTransfer {
         'path' => $path,
       ];
     }
-    usort($items, static function($a, $b) {
+    usort($items, static function ($a, $b) {
       return strcmp((string) $a['path'], (string) $b['path']);
     });
     return $items;
@@ -81,7 +73,7 @@ class FileTransfer {
         // Keep the export page available even if one handler has an error.
       }
     }
-    usort($items, function($a, $b) {
+    usort($items, function ($a, $b) {
       return strcmp($a['path'], $b['path']);
     });
     return $items;
@@ -107,7 +99,7 @@ class FileTransfer {
     try {
       $key = isset($_REQUEST['export_item']) ? trim((string) $_REQUEST['export_item']) : '';
       if ($key === '') {
-        throw new RuntimeException('Choose a configuration item to preview.');
+        throw new \RuntimeException('Choose a configuration item to preview.');
       }
       $item = $this->loadSingleExport($manager, $key);
       $payload = [
@@ -121,7 +113,7 @@ class FileTransfer {
         'download_url' => $item['download_url'],
       ];
     }
-    catch (Throwable $e) {
+    catch (\Throwable $e) {
       $payload = [
         'ok' => FALSE,
         'error' => $e->getMessage(),
@@ -145,7 +137,7 @@ class FileTransfer {
   public function downloadSingleExport(ConfigManager $manager): void {
     $key = isset($_REQUEST['export_item']) ? trim((string) $_REQUEST['export_item']) : '';
     if ($key === '') {
-      throw new RuntimeException('Choose a configuration item before downloading a single YAML file.');
+      throw new \RuntimeException('Choose a configuration item before downloading a single YAML file.');
     }
     $item = $this->loadSingleExport($manager, $key);
     \CRM_Utils_System::setHttpHeader('Content-Type', 'text/yaml; charset=utf-8');
@@ -158,33 +150,33 @@ class FileTransfer {
     $type = trim((string) ($_POST['single_type'] ?? ''));
     $filename = trim((string) ($_POST['single_filename'] ?? ''));
     if ($type === '') {
-      throw new RuntimeException('Choose a configuration type before uploading a YAML file.');
+      throw new \RuntimeException('Choose a configuration type before uploading a YAML file.');
     }
     if (empty($_FILES['single_yaml']['tmp_name']) || !is_uploaded_file($_FILES['single_yaml']['tmp_name'])) {
-      throw new RuntimeException('Choose a YAML file to upload.');
+      throw new \RuntimeException('Choose a YAML file to upload.');
     }
     if ($filename === '') {
       $filename = basename((string) ($_FILES['single_yaml']['name'] ?? ''));
     }
     if (!$this->isSafeRelativeYamlPath($filename)) {
-      throw new RuntimeException('The YAML filename must be a relative .yml or .yaml path without .. segments.');
+      throw new \RuntimeException('The YAML filename must be a relative .yml or .yaml path without .. segments.');
     }
     $handler = $this->getHandlerByType($manager, $type);
     if (!$handler) {
-      throw new RuntimeException('Unknown configuration type: ' . $type);
+      throw new \RuntimeException('Unknown configuration type: ' . $type);
     }
     $uploadSize = (int) ($_FILES['single_yaml']['size'] ?? 0);
     if ($uploadSize > self::MAX_YAML_FILE_BYTES) {
-      throw new RuntimeException('The uploaded YAML file is too large.');
+      throw new \RuntimeException('The uploaded YAML file is too large.');
     }
     $parsed = SimpleYaml::parseFile($_FILES['single_yaml']['tmp_name']);
     if (!is_array($parsed) || !$parsed) {
-      throw new RuntimeException('The uploaded YAML file could not be parsed.');
+      throw new \RuntimeException('The uploaded YAML file could not be parsed.');
     }
     $targetRoot = rtrim($manager->getSyncDir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . trim($handler->getDirectory(), DIRECTORY_SEPARATOR);
     $relativeTarget = trim($handler->getDirectory(), '/') . '/' . ltrim($filename, '/');
     if (!$manager->ownsManagedYamlPath($relativeTarget)) {
-      throw new RuntimeException('The YAML upload path is not owned by a registered Configuration Manager handler.');
+      throw new \RuntimeException('The YAML upload path is not owned by a registered Configuration Manager handler.');
     }
     $target = $targetRoot . DIRECTORY_SEPARATOR . $filename;
     $this->safeWriteUploadedFile($_FILES['single_yaml']['tmp_name'], $target, $manager->getSyncDir());
@@ -193,22 +185,22 @@ class FileTransfer {
 
   public function uploadZipArchive(ConfigManager $manager): string {
     if (!class_exists('ZipArchive')) {
-      throw new RuntimeException('ZipArchive is not available in PHP.');
+      throw new \RuntimeException('ZipArchive is not available in PHP.');
     }
     if (empty($_FILES['zip_archive']['tmp_name']) || !is_uploaded_file($_FILES['zip_archive']['tmp_name'])) {
-      throw new RuntimeException('Choose a ZIP archive to upload.');
+      throw new \RuntimeException('Choose a ZIP archive to upload.');
     }
     $uploadSize = (int) ($_FILES['zip_archive']['size'] ?? 0);
     if ($uploadSize > self::MAX_ARCHIVE_BYTES) {
-      throw new RuntimeException('The uploaded ZIP archive is too large.');
+      throw new \RuntimeException('The uploaded ZIP archive is too large.');
     }
-    $zip = new ZipArchive();
+    $zip = new \ZipArchive();
     if ($zip->open($_FILES['zip_archive']['tmp_name']) !== TRUE) {
-      throw new RuntimeException('Could not open the uploaded ZIP archive.');
+      throw new \RuntimeException('Could not open the uploaded ZIP archive.');
     }
     if ($zip->numFiles > self::MAX_UPLOAD_FILES) {
       $zip->close();
-      throw new RuntimeException('The ZIP archive contains too many files.');
+      throw new \RuntimeException('The ZIP archive contains too many files.');
     }
 
     $syncRoot = rtrim($manager->getSyncDir(), DIRECTORY_SEPARATOR);
@@ -263,7 +255,7 @@ class FileTransfer {
           if (is_string($tmp)) {
             @unlink($tmp);
           }
-          throw new RuntimeException('Could not create a temporary YAML file for archive validation.');
+          throw new \RuntimeException('Could not create a temporary YAML file for archive validation.');
         }
         try {
           $parsed = SimpleYaml::parseFile($tmp);
@@ -275,7 +267,7 @@ class FileTransfer {
           $this->safeWriteContents($contents, $target, $syncRoot);
           $written++;
         }
-        catch (Throwable $e) {
+        catch (\Throwable $e) {
           $skipped++;
         }
         finally {
@@ -287,14 +279,14 @@ class FileTransfer {
       $zip->close();
     }
     if ($written === 0) {
-      throw new RuntimeException('No Saved Config files were imported from the ZIP archive.');
+      throw new \RuntimeException('No Saved Config files were imported from the ZIP archive.');
     }
     return ts('Archive uploaded. %1 Saved Config file(s) staged; %2 file(s) skipped. Review Synchronize before importing.', [1 => $written, 2 => $skipped]);
   }
 
   public function downloadArchive(ConfigManager $manager): void {
     if (!class_exists('ZipArchive')) {
-      throw new RuntimeException('ZipArchive is not available in PHP.');
+      throw new \RuntimeException('ZipArchive is not available in PHP.');
     }
 
     // Build the archive from the *effective managed YAML set*, not by blindly
@@ -303,13 +295,13 @@ class FileTransfer {
     // giant PHP array before ZipArchive starts writing.
     $temporary = tempnam(sys_get_temp_dir(), 'civicfg-');
     if ($temporary === FALSE) {
-      throw new RuntimeException('Could not create a temporary archive path.');
+      throw new \RuntimeException('Could not create a temporary archive path.');
     }
     @unlink($temporary);
     $zipPath = $temporary . '.zip';
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
-      throw new RuntimeException('Could not create archive.');
+    $zip = new \ZipArchive();
+    if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== TRUE) {
+      throw new \RuntimeException('Could not create archive.');
     }
     $added = 0;
     try {
@@ -331,7 +323,7 @@ class FileTransfer {
     }
     if ($added === 0 || !is_file($zipPath)) {
       @unlink($zipPath);
-      throw new RuntimeException('No valid Saved Config files are available for download.');
+      throw new \RuntimeException('No valid Saved Config files are available for download.');
     }
 
     \CRM_Utils_System::setHttpHeader('Content-Type', 'application/zip');
@@ -345,10 +337,10 @@ class FileTransfer {
   private function splitExportKey(string $key): array {
     $parts = explode('::', $key, 2);
     if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
-      throw new RuntimeException('Invalid export item selection.');
+      throw new \RuntimeException('Invalid export item selection.');
     }
     if (!preg_match('/^[A-Za-z0-9_.-]+$/', $parts[0]) || !$this->isSafeRelativeYamlPath($parts[1])) {
-      throw new RuntimeException('Invalid export item path.');
+      throw new \RuntimeException('Invalid export item path.');
     }
     return $parts;
   }
@@ -382,10 +374,10 @@ class FileTransfer {
   private function safeWriteUploadedFile(string $tmp, string $target, string $root): void {
     $contents = file_get_contents($tmp);
     if ($contents === FALSE) {
-      throw new RuntimeException('Could not read the uploaded YAML file.');
+      throw new \RuntimeException('Could not read the uploaded YAML file.');
     }
     if (strlen($contents) > self::MAX_YAML_FILE_BYTES) {
-      throw new RuntimeException('The uploaded YAML file is too large.');
+      throw new \RuntimeException('The uploaded YAML file is too large.');
     }
     $this->safeWriteContents($contents, $target, $root);
   }
@@ -393,39 +385,39 @@ class FileTransfer {
   private function safeWriteContents(string $contents, string $target, string $root): void {
     $root = rtrim($root, DIRECTORY_SEPARATOR);
     if ($root === '') {
-      throw new RuntimeException('The sync directory is not a safe filesystem root.');
+      throw new \RuntimeException('The sync directory is not a safe filesystem root.');
     }
     if (!is_dir($root) && !mkdir($root, 0775, TRUE) && !is_dir($root)) {
-      throw new RuntimeException('Could not create the sync directory.');
+      throw new \RuntimeException('Could not create the sync directory.');
     }
     $realRoot = realpath($root);
     if ($realRoot === FALSE || !is_dir($realRoot)) {
-      throw new RuntimeException('Could not resolve the sync directory.');
+      throw new \RuntimeException('Could not resolve the sync directory.');
     }
 
     $dir = dirname($target);
     if (!is_dir($dir) && !mkdir($dir, 0775, TRUE) && !is_dir($dir)) {
-      throw new RuntimeException('Could not create the target YAML directory.');
+      throw new \RuntimeException('Could not create the target YAML directory.');
     }
     $realDir = realpath($dir);
     if ($realDir === FALSE || !$this->pathIsWithinRoot($realDir, $realRoot)) {
-      throw new RuntimeException('Refusing to write outside the sync directory.');
+      throw new \RuntimeException('Refusing to write outside the sync directory.');
     }
     if (is_link($target)) {
-      throw new RuntimeException('Refusing to overwrite a symbolic link.');
+      throw new \RuntimeException('Refusing to overwrite a symbolic link.');
     }
 
     $temporary = tempnam($realDir, '.civicfg-upload-');
     if ($temporary === FALSE) {
-      throw new RuntimeException('Could not create a temporary upload file.');
+      throw new \RuntimeException('Could not create a temporary upload file.');
     }
     try {
       if (file_put_contents($temporary, $contents, LOCK_EX) === FALSE) {
-        throw new RuntimeException('Could not stage the uploaded YAML file.');
+        throw new \RuntimeException('Could not stage the uploaded YAML file.');
       }
       @chmod($temporary, 0664);
       if (!@rename($temporary, $target)) {
-        throw new RuntimeException('Could not atomically save the uploaded YAML file.');
+        throw new \RuntimeException('Could not atomically save the uploaded YAML file.');
       }
     }
     finally {
@@ -441,13 +433,13 @@ class FileTransfer {
     return $path === $root || strpos($path, $root . DIRECTORY_SEPARATOR) === 0;
   }
 
-  private function zipEntryIsSymlink(ZipArchive $zip, int $index): bool {
+  private function zipEntryIsSymlink(\ZipArchive $zip, int $index): bool {
     $operations = 0;
     $attributes = 0;
     if (!$zip->getExternalAttributesIndex($index, $operations, $attributes)) {
       return FALSE;
     }
-    if ($operations !== ZipArchive::OPSYS_UNIX) {
+    if ($operations !== \ZipArchive::OPSYS_UNIX) {
       return FALSE;
     }
     $mode = ($attributes >> 16) & 0170000;

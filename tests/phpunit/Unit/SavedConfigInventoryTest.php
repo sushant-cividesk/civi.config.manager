@@ -9,7 +9,8 @@ use PHPUnit\Framework\TestCase;
 
 final class SavedConfigInventoryTest extends TestCase {
 
-  /** Requirement: Saved Config totals count every YAML path, while per-type counts use the most specific managed directory. */
+  /**
+   * Requirement: Saved Config totals count every YAML path, while per-type counts use the most specific managed directory. */
   public function testCountsTotalAndPerTypeWithoutDoubleCountingNestedDirectories(): void {
     $result = (new SavedConfigInventory())->count([
       'manifest.yml',
@@ -32,4 +33,5 @@ final class SavedConfigInventoryTest extends TestCase {
       'extensions' => 1,
     ], $result['by_type']);
   }
+
 }

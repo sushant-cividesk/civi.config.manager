@@ -10,10 +10,21 @@ namespace Civi\ConfigManager\Handler;
  */
 class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
 
-  public function getType(): string { return 'contact-layouts'; }
-  public function getLabel(): string { return 'Contact Layouts'; }
-  public function getDirectory(): string { return 'contact-layouts'; }
-  public function getWeight(): int { return 145; }
+  public function getType(): string {
+    return 'contact-layouts';
+  }
+
+  public function getLabel(): string {
+    return 'Contact Layouts';
+  }
+
+  public function getDirectory(): string {
+    return 'contact-layouts';
+  }
+
+  public function getWeight(): int {
+    return 145;
+  }
 
   public function getProviderMetadata(): array {
     return [
@@ -177,7 +188,8 @@ class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerIn
     return $data;
   }
 
-  /** @param array<int,array<string,string>> $dependencies */
+  /**
+   * @param array<int,array<string,string>> $dependencies */
   private function toPortable(array $row, array &$dependencies): array {
     unset($row['id']);
     $row['groups'] = $this->exportGroupReferences((array) ($row['groups'] ?? []), $dependencies);
@@ -348,4 +360,5 @@ class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerIn
     $safe = trim((string) preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name), '-');
     return $safe === '' ? sha1($name) : $safe;
   }
+
 }

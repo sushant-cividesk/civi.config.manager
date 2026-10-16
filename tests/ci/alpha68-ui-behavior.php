@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 if (!function_exists('ts')) {
+
   function ts(string $text, array $params = []): string {
     foreach ($params as $key => $value) {
       $text = str_replace('%' . (string) $key, (string) $value, $text);
     }
     return $text;
   }
+
 }
 
 require_once __DIR__ . '/../../Civi/ConfigManager/Service/ImportResultAccounting.php';
@@ -32,7 +34,7 @@ use Civi\ConfigManager\UI\OperationResultPresenter;
 use Civi\ConfigManager\UI\Presenter;
 
 $checks = 0;
-$assert = static function(bool $condition, string $message) use (&$checks): void {
+$assert = static function (bool $condition, string $message) use (&$checks): void {
   $checks++;
   if (!$condition) {
     fwrite(STDERR, "alpha68 UI behavior failed: {$message}\n");
@@ -106,7 +108,8 @@ $import = $presenter->importSummary([
     'delete' => 1,
     'skip' => 4,
     'values' => ['create' => 2, 'update' => 1, 'delete' => 0, 'skip' => 1],
-  ]],
+  ],
+  ],
 ], ['status' => 'complete']);
 $assert($import['created'] === 3, 'import created count must include nested handler groups');
 $assert($import['updated'] === 3, 'import updated count must include nested handler groups');
@@ -135,6 +138,7 @@ $manager = $managerReflection->newInstanceWithoutConstructor();
 $capabilityMethod = $managerReflection->getMethod('scopeCapabilityForHandler');
 $capabilityMethod->setAccessible(TRUE);
 $managedNoDeleteHandler = new class {
+
   public function getRuntimeAvailability(): array {
     return [
       'available' => TRUE,
@@ -142,12 +146,15 @@ $managedNoDeleteHandler = new class {
       'reason' => 'Create/update is reviewed; automatic removal is disabled.',
     ];
   }
+
   public function getProviderMetadata(): array {
     return ['management_capability' => 'managed_no_delete'];
   }
+
   public function import(array $items, bool $dryRun = TRUE): array {
     return [];
   }
+
 };
 $managedNoDeleteCapability = $capabilityMethod->invoke($manager, $managedNoDeleteHandler);
 $assert($managedNoDeleteCapability['key'] === 'managed_no_delete', 'managed-no-delete provider must retain its conservative capability key');
@@ -155,12 +162,15 @@ $assert($managedNoDeleteCapability['label'] === 'Create + update', 'managed-no-d
 $assert(strpos((string) $managedNoDeleteCapability['help'], 'removal') !== FALSE, 'managed-no-delete help must make the removal limitation visible');
 
 $fullHandler = new class {
+
   public function getProviderMetadata(): array {
     return ['management_capability' => 'full'];
   }
+
   public function import(array $items, bool $dryRun = TRUE): array {
     return [];
   }
+
 };
 $fullCapability = $capabilityMethod->invoke($manager, $fullHandler);
 $assert($fullCapability['key'] === 'full', 'fully managed provider must retain the full capability key');
@@ -172,12 +182,23 @@ $assert($fullCapability['label'] === 'Managed', 'fully managed provider must use
  * downgrade, leaving the Settings group inconsistent with its capability.
  */
 $runtimeLimitedHandler = new class {
-  public function getType(): string { return 'runtime-limited'; }
-  public function getLabel(): string { return 'Runtime Limited'; }
-  public function getWeight(): int { return 20; }
+
+  public function getType(): string {
+    return 'runtime-limited';
+  }
+
+  public function getLabel(): string {
+    return 'Runtime Limited';
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
   public function getProviderMetadata(): array {
     return ['owner' => 'example.test', 'management_capability' => 'full'];
   }
+
   public function getRuntimeAvailability(): array {
     return [
       'available' => TRUE,
@@ -185,15 +206,27 @@ $runtimeLimitedHandler = new class {
       'reason' => 'Provider is readable but a required write action is unavailable.',
     ];
   }
-  public function import(array $items, bool $dryRun = TRUE): array { return []; }
+
+  public function import(array $items, bool $dryRun = TRUE): array {
+    return [];
+  }
+
 };
 $runtimeLimitedRegistry = new class($runtimeLimitedHandler) extends HandlerRegistry {
   private $handler;
-  public function __construct($handler) { $this->handler = $handler; }
+
+  public function __construct($handler) {
+    $this->handler = $handler;
+  }
+
   public function getHandlerRegistrations(): array {
     return [['handler' => $this->handler, 'registration_source' => 'config_types_hook']];
   }
-  public function getRegistrationDiagnostics(): array { return []; }
+
+  public function getRegistrationDiagnostics(): array {
+    return [];
+  }
+
 };
 $inventoryManager = new ConfigManager($runtimeLimitedRegistry, new ConfigScope(new ConfigIdentity()));
 $providerInventory = $inventoryManager->getProviderInventory();
@@ -208,18 +241,22 @@ $assert(($inventoryProvider['capability_reason_code'] ?? '') === 'handler_export
  * Failure mode: the user sees --<hash> in normal UI and duplicate status text.
  */
 $uiPresenter = new Presenter();
-$profileDiff = $uiPresenter->extractDiffFiles(['items' => [[
-  'type' => 'profile-fields',
-  'label' => 'Profile Fields',
-  'files' => [[
-    'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-    'file' => 'summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-    'status' => 'new_in_db',
-    'config_key' => 'profile-fields:api4:UFField|key=profile=summary_overlay%7Cfield=phone%7Cfield_type=Phone%7Clocation=Home%7Clabel=Home Phone',
-    'change_count' => 0,
-    'changes' => [],
-  ]],
-]]]);
+$profileDiff = $uiPresenter->extractDiffFiles([
+  'items' => [[
+    'type' => 'profile-fields',
+    'label' => 'Profile Fields',
+    'files' => [[
+      'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+      'file' => 'summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+      'status' => 'new_in_db',
+      'config_key' => 'profile-fields:api4:UFField|key=profile=summary_overlay%7Cfield=phone%7Cfield_type=Phone%7Clocation=Home%7Clabel=Home Phone',
+      'change_count' => 0,
+      'changes' => [],
+    ],
+    ],
+  ],
+  ],
+]);
 $profileFile = $profileDiff[0] ?? [];
 $assert(($profileFile['display_title'] ?? '') === 'Profile Field "Home Phone" in "Summary Overlay"', 'Profile Field title must come from semantic identity instead of the hashed filename');
 $assert(strpos((string) ($profileFile['display_title'] ?? ''), '7a8859f54f') === FALSE, 'Profile Field normal title must hide the identity hash');
@@ -230,15 +267,19 @@ $profileImportPlan = $uiPresenter->buildImportPlan($profileDiff);
 $assert(($profileImportPlan[0]['display_title'] ?? '') === 'Profile Field "Home Phone" in "Summary Overlay"', 'Import preview must keep the semantic Profile Field title');
 $assert(($profileImportPlan[0]['show_inline_path'] ?? TRUE) === FALSE, 'Import preview must keep the Profile Field technical path behind progressive disclosure');
 
-$legacyProfileDiff = $uiPresenter->extractDiffFiles(['items' => [[
-  'type' => 'profile-fields',
-  'label' => 'Profile Fields',
-  'files' => [[
-    'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-    'status' => 'changed',
-    'changes' => [],
-  ]],
-]]]);
+$legacyProfileDiff = $uiPresenter->extractDiffFiles([
+  'items' => [[
+    'type' => 'profile-fields',
+    'label' => 'Profile Fields',
+    'files' => [[
+      'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+      'status' => 'changed',
+      'changes' => [],
+    ],
+    ],
+  ],
+  ],
+]);
 $legacyProfileFile = $legacyProfileDiff[0] ?? [];
 $assert(($legacyProfileFile['display_title'] ?? '') === 'Profile Field "Home Phone" in "Summary Overlay"', 'Profile Field filename fallback must derive a semantic title without a config key');
 $assert(strpos((string) ($legacyProfileFile['display_title'] ?? ''), '7a8859f54f') === FALSE, 'Profile Field filename fallback must strip the technical collision hash');

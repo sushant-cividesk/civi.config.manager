@@ -9,7 +9,8 @@ use PHPUnit\Framework\TestCase;
 
 final class ImportResultAccountingTest extends TestCase {
 
-  /** Requirement: every public Import surface reports the same compact outcome categories. */
+  /**
+   * Requirement: every public Import surface reports the same compact outcome categories. */
   public function testAttachBuildsCanonicalOutcomeAccounting(): void {
     $accounting = new ImportResultAccounting();
     $result = $accounting->attach([
@@ -21,17 +22,20 @@ final class ImportResultAccountingTest extends TestCase {
         'delete' => 1,
         'skip' => 3,
         'values' => ['create' => 2, 'update' => 1, 'delete' => 0, 'skip' => 4],
-      ]],
+      ],
+      ],
     ], [[
       'types' => ['blocked-source'],
       'files' => ['blocked-source/a.yml', 'blocked-source/b.yml'],
-    ]], [
+    ],
+    ], [
       'ok' => TRUE,
       'items' => [[
         'changed' => ['one.yml'],
         'new_in_db' => ['two.yml'],
         'missing_in_db' => [],
-      ]],
+      ],
+      ],
     ]);
 
     self::assertSame(7, $result['result_accounting']['applied']);
@@ -45,7 +49,8 @@ final class ImportResultAccountingTest extends TestCase {
     self::assertSame(7, $result['result_accounting']['unchanged']);
   }
 
-  /** Requirement: blocked previews must never be presented as applied work. */
+  /**
+   * Requirement: blocked previews must never be presented as applied work. */
   public function testBlockedDryRunReportsZeroAppliedAndSemanticBlockers(): void {
     $result = (new ImportResultAccounting())->attach([
       'ok' => FALSE,
@@ -57,7 +62,8 @@ final class ImportResultAccountingTest extends TestCase {
       'items' => [[
         'create' => 4,
         'update' => 2,
-      ]],
+      ],
+      ],
     ]);
 
     self::assertSame(0, $result['result_accounting']['applied']);
@@ -66,7 +72,8 @@ final class ImportResultAccountingTest extends TestCase {
     self::assertFalse($result['result_accounting']['remaining_difference_known']);
   }
 
-  /** Requirement: exclusion accounting uses unique Saved Config files rather than component count. */
+  /**
+   * Requirement: exclusion accounting uses unique Saved Config files rather than component count. */
   public function testExcludedFilesAreDeduplicated(): void {
     $service = new ImportResultAccounting();
     self::assertSame(3, $service->countExcluded([
@@ -74,4 +81,5 @@ final class ImportResultAccountingTest extends TestCase {
       ['files' => ['b.yml', 'c.yml'], 'types' => ['b']],
     ]));
   }
+
 }

@@ -12,7 +12,8 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
  */
 trait ConfigManagerSnapshotTrait {
 
-  /** @return object|null */
+  /**
+   * @return object|null */
   private function handlerByType(string $type) {
     foreach ($this->getHandlers() as $handler) {
       if ((string) $handler->getType() === $type) {
@@ -22,7 +23,8 @@ trait ConfigManagerSnapshotTrait {
     return NULL;
   }
 
-  /** @return object[] */
+  /**
+   * @return object[] */
   private function handlersForTypes(array $effectiveTypes, array $requestedTypes): array {
     $effectiveTypes = array_values(array_map('strval', $effectiveTypes));
     $requestedTypes = array_values(array_map('strval', $requestedTypes));
@@ -282,4 +284,5 @@ trait ConfigManagerSnapshotTrait {
       }
     }
   }
+
 }

@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace Civi\Api4 {
   final class CivicfgCrudComplete {
+
     public static function get($checkPermissions = TRUE) {}
+
     public static function create($checkPermissions = TRUE) {}
+
     public static function update($checkPermissions = TRUE) {}
+
     public static function delete($checkPermissions = TRUE) {}
+
   }
 
   final class CivicfgCrudReadOnly {
+
     public static function get($checkPermissions = TRUE) {}
+
   }
 }
 
@@ -22,6 +29,7 @@ namespace Civi\ConfigManager\Tests\Unit {
   use PHPUnit\Framework\TestCase;
 
   final class Api4RuntimeCapabilityTest extends TestCase {
+
     public function testCompleteCrudSurfaceIsFullManagement(): void {
       $availability = (new Api4RuntimeCapabilityFixture())->check('CivicfgCrudComplete');
 
@@ -65,17 +73,34 @@ namespace Civi\ConfigManager\Tests\Unit {
       self::assertSame('export_only', $availability['management_capability']);
       self::assertSame(['create', 'update', 'delete'], $availability['missing_actions']);
     }
+
   }
 
   final class Api4RuntimeCapabilityFixture extends AbstractHandler {
-    public function getType(): string { return 'qa-api4-capability'; }
-    public function getLabel(): string { return 'QA API4 Capability'; }
-    public function getDirectory(): string { return 'qa-api4-capability'; }
-    public function getWeight(): int { return 1; }
-    public function export(): array { return []; }
+
+    public function getType(): string {
+      return 'qa-api4-capability';
+    }
+
+    public function getLabel(): string {
+      return 'QA API4 Capability';
+    }
+
+    public function getDirectory(): string {
+      return 'qa-api4-capability';
+    }
+
+    public function getWeight(): int {
+      return 1;
+    }
+
+    public function export(): array {
+      return [];
+    }
 
     public function check(string $entity): array {
       return $this->api4ManagementAvailability($entity, ['get', 'create', 'update', 'delete']);
     }
+
   }
 }

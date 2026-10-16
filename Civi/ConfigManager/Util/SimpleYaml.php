@@ -23,7 +23,7 @@ class SimpleYaml {
 
     if (function_exists('yaml_emit')) {
       try {
-        $yaml = self::callWithoutPhpWarning(static function() use ($data) {
+        $yaml = self::callWithoutPhpWarning(static function () use ($data) {
           return yaml_emit($data);
         }, 'YAML serialization failed');
       }
@@ -128,7 +128,7 @@ class SimpleYaml {
 
     if (function_exists('yaml_parse_file')) {
       try {
-        $data = self::callWithoutPhpWarning(static function() use ($file) {
+        $data = self::callWithoutPhpWarning(static function () use ($file) {
           return yaml_parse_file($file);
         }, 'YAML parsing failed');
       }
@@ -173,7 +173,7 @@ class SimpleYaml {
    * @return mixed
    */
   private static function callWithoutPhpWarning(callable $callback, string $fallbackMessage) {
-    set_error_handler(static function(int $severity, string $message, string $file = '', int $line = 0): bool {
+    set_error_handler(static function (int $severity, string $message, string $file = '', int $line = 0): bool {
       if (!(error_reporting() & $severity)) {
         return FALSE;
       }
@@ -193,4 +193,5 @@ class SimpleYaml {
       restore_error_handler();
     }
   }
+
 }

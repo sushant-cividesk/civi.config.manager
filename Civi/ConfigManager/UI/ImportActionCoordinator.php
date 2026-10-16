@@ -17,7 +17,8 @@ final class ImportActionCoordinator {
     $this->reviewCoordinator = new ImportReviewPlanCoordinator($manager);
   }
 
-  /** @return array{notice:string,type:string,result:array<string,mixed>} */
+  /**
+   * @return array{notice:string,type:string,result:array<string,mixed>} */
   public function apply(string $planId): array {
     $result = $this->manager->applyImportReviewPlan($planId);
     $session = \CRM_Core_Session::singleton();
@@ -43,7 +44,8 @@ final class ImportActionCoordinator {
     ];
   }
 
-  /** @return array{notice:string,type:string,remaining_types:array<int,string>,result:array<string,mixed>} */
+  /**
+   * @return array{notice:string,type:string,remaining_types:array<int,string>,result:array<string,mixed>} */
   public function excludeDependencyComponent(string $componentId, array $types): array {
     // Any prior apply-capable plan is invalid once the administrator chooses a
     // reduced scope. Never mutate an approved plan in place.
@@ -62,4 +64,5 @@ final class ImportActionCoordinator {
       'result' => $result,
     ];
   }
+
 }

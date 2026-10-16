@@ -32,7 +32,6 @@ trait ConfigManagerEnvironmentTrait {
     return 'civicrm-config';
   }
 
-
   public function getSiteIdentifier(): string {
     $siteId = trim((string) \Civi::settings()->get('civicfg_site_id'));
     if ($this->isValidSiteIdentifier($siteId)) {
@@ -243,4 +242,5 @@ trait ConfigManagerEnvironmentTrait {
     }
     return $manifest;
   }
+
 }

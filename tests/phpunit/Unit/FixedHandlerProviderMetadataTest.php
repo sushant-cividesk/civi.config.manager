@@ -15,6 +15,7 @@ use Civi\ConfigManager\Handler\SiteTokenHandler;
 use PHPUnit\Framework\TestCase;
 
 final class FixedHandlerProviderMetadataTest extends TestCase {
+
   /**
    * Requirement: fixed handlers must describe their provider contract
    * explicitly; inventory must not disguise unknown metadata as complete.
@@ -41,6 +42,7 @@ final class FixedHandlerProviderMetadataTest extends TestCase {
       self::assertArrayHasKey('runtime_fields', $metadata, $handler->getType());
     }
   }
+
   /**
    * Requirement: provider metadata must not advertise write authority that
    * the concrete handler does not actually implement.

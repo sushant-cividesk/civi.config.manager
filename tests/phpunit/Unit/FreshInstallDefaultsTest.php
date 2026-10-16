@@ -7,6 +7,7 @@ namespace Civi\ConfigManager\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class FreshInstallDefaultsTest extends TestCase {
+
   protected function setUp(): void {
     \Civi::settings()->reset();
     if (!defined('CIVICRM_UF')) {
@@ -32,6 +33,7 @@ final class FreshInstallDefaultsTest extends TestCase {
 
     self::assertSame('ignore', \Civi::settings()->get('civicfg_scope_default_mode'));
   }
+
   private function initializeFreshInstallDefaults(): void {
     $function = '_configmanager_initialize_fresh_install_defaults';
     self::assertTrue(function_exists($function));

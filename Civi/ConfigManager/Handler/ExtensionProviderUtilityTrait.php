@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderUtility methods from ExtensionHandler.
  *
@@ -104,4 +103,5 @@ trait ExtensionProviderUtilityTrait {
     $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name);
     return trim((string) $safe, '-') ?: sha1($name);
   }
+
 }

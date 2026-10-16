@@ -7,7 +7,7 @@ declare(strict_types=1);
 // workspace/recovery primitives under the same 256 MiB ceiling.
 $root = dirname(__DIR__, 2);
 
-spl_autoload_register(static function(string $class) use ($root): void {
+spl_autoload_register(static function (string $class) use ($root): void {
   $prefix = 'Civi\\ConfigManager\\';
   if (strpos($class, $prefix) !== 0) {
     return;
@@ -28,6 +28,7 @@ function alpha63_assert(bool $condition, string $message): void {
     throw new RuntimeException($message);
   }
 }
+
 function alpha63_remove_tree(string $path): void {
   if (!is_dir($path)) {
     return;

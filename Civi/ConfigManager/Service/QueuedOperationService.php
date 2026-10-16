@@ -171,7 +171,8 @@ class QueuedOperationService {
     }
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function status(int $jobId): array {
     $job = $this->requireJob($jobId);
     $this->assertJobOwner($job, TRUE);
@@ -280,7 +281,7 @@ class QueuedOperationService {
     ];
     $store->updateProgress($jobId, $baseEvent);
 
-    $progress = static function(array $event) use ($store, $jobId, $baseEvent, $logger): void {
+    $progress = static function (array $event) use ($store, $jobId, $baseEvent, $logger): void {
       $merged = array_merge($baseEvent, $event);
       // Internal callbacks normally do not know overall queue completion; keep
       // the durable task counts from the base event unless explicitly supplied.
@@ -316,37 +317,48 @@ class QueuedOperationService {
         case 'export_prepare':
           $result = $manager->queuedExportPrepare($jobId, $syncRootHash, $types);
           break;
+
         case 'export_stage':
           $result = $manager->queuedExportStage($jobId, $syncRootHash, $handlerType, $unitKey, $progress);
           break;
+
         case 'export_metadata':
           $result = $manager->queuedExportFinalizeMetadata($jobId, $syncRootHash);
           break;
+
         case 'export_verify_publish':
           $result = $manager->queuedExportVerifyAndPublish($jobId, $syncRootHash, $progress);
           break;
+
         case 'export_baseline':
           $result = $manager->queuedExportBaseline($jobId, $syncRootHash, $handlerType);
           break;
+
         case 'export_complete':
           $result = $manager->queuedExportComplete($jobId, $syncRootHash);
           break;
+
         case 'import_preflight':
           $reviewPlanId = trim((string) ($payload['review_plan_id'] ?? ''));
           $result = $manager->queuedImportPreflight($jobId, $syncRootHash, $reviewPlanId, $types, $progress);
           break;
+
         case 'import_create_update':
           $result = $manager->queuedImportCreateUpdate($jobId, $syncRootHash, $handlerType);
           break;
+
         case 'import_delete_missing':
           $result = $manager->queuedImportDeleteMissing($jobId, $syncRootHash, $handlerType);
           break;
+
         case 'import_baseline':
           $result = $manager->queuedImportBaseline($jobId, $syncRootHash, $handlerType);
           break;
+
         case 'import_complete':
           $result = $manager->queuedImportComplete($jobId, $syncRootHash);
           break;
+
         default:
           throw new \RuntimeException('Unknown Configuration Manager queue work-unit action: ' . $action);
       }
@@ -429,7 +441,8 @@ class QueuedOperationService {
     }
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function requireJob(int $jobId): array {
     if ($jobId <= 0) {
       throw new \RuntimeException('Invalid Configuration Manager operation job ID.');
@@ -483,4 +496,5 @@ class QueuedOperationService {
       return substr(hash('sha256', uniqid('', TRUE) . microtime(TRUE)), 0, 12);
     }
   }
+
 }

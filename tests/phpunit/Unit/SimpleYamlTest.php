@@ -91,4 +91,5 @@ final class SimpleYamlTest extends TestCase {
 
     self::assertSame([], SimpleYaml::parseFile($file));
   }
+
 }

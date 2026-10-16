@@ -262,5 +262,5 @@ class TagHandler extends EntityDefinitionHandler {
   private function tagExists(string $name): bool {
     return $this->api4GetFirst('Tag', [['name', '=', $name]], ['id']) !== NULL;
   }
-}
 
+}

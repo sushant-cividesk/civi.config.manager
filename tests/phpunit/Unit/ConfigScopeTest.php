@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\ConfigScope;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigScopeTest extends TestCase {
+
   protected function setUp(): void {
     \Civi::settings()->reset();
     $GLOBALS['civicrm_setting'] = [];
@@ -295,7 +296,8 @@ final class ConfigScopeTest extends TestCase {
         'identity_confidence' => 'API_VERIFIED',
         'template' => ['workflow_name' => 'receipt', 'is_default' => FALSE],
       ],
-    ]]);
+    ],
+    ]);
 
     self::assertSame([], $partition['managed']);
     self::assertCount(1, $partition['watched']);
@@ -347,4 +349,5 @@ final class ConfigScopeTest extends TestCase {
       ],
     ];
   }
+
 }

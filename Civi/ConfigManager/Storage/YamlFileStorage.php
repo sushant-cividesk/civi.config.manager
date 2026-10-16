@@ -339,4 +339,5 @@ class YamlFileStorage {
   private function normalise(string $yaml): string {
     return rtrim(str_replace(["\r\n", "\r"], "\n", $yaml)) . "\n";
   }
+
 }

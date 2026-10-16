@@ -15,10 +15,21 @@ final class ImportReviewPlanGuard {
     $this->scope = $scope;
   }
 
-  public function create(array $plan): array { return $this->store->create($plan); }
-  public function load(string $planId): array { return $this->store->load($planId); }
-  public function discard(string $planId): void { $this->store->delete($planId); }
-  public function fingerprint($value): string { return $this->store->fingerprint($value); }
+  public function create(array $plan): array {
+    return $this->store->create($plan);
+  }
+
+  public function load(string $planId): array {
+    return $this->store->load($planId);
+  }
+
+  public function discard(string $planId): void {
+    $this->store->delete($planId);
+  }
+
+  public function fingerprint($value): string {
+    return $this->store->fingerprint($value);
+  }
 
   public function scopeFingerprint(array $handlers, array $ignoreRules): string {
     $policies = [];
@@ -122,4 +133,5 @@ final class ImportReviewPlanGuard {
     sort($values, SORT_STRING);
     return $values;
   }
+
 }

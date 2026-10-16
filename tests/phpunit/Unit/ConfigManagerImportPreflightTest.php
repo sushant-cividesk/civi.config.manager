@@ -97,6 +97,7 @@ final class ConfigManagerImportPreflightTest extends TestCase {
   private function writeYaml(string $path, array $data): void {
     file_put_contents($path, SimpleYaml::dump($data));
   }
+
 }
 
 final class ImportPreflightFixtureManager extends ConfigManager {
@@ -110,6 +111,7 @@ final class ImportPreflightFixtureManager extends ConfigManager {
   public function getSiteIdentifier(): string {
     return $this->siteId;
   }
+
 }
 
 final class ImportPreflightFixtureRegistry extends HandlerRegistry {
@@ -122,6 +124,7 @@ final class ImportPreflightFixtureRegistry extends HandlerRegistry {
   public function getHandlers(): array {
     return $this->handlers;
   }
+
 }
 
 final class ImportPreflightFixtureHandler extends AbstractHandler {
@@ -137,10 +140,21 @@ final class ImportPreflightFixtureHandler extends AbstractHandler {
     $this->failCreateUpdate = $failCreateUpdate;
   }
 
-  public function getType(): string { return 'preflight-test'; }
-  public function getLabel(): string { return 'Preflight Test'; }
-  public function getDirectory(): string { return 'preflight-test'; }
-  public function getWeight(): int { return 10; }
+  public function getType(): string {
+    return 'preflight-test';
+  }
+
+  public function getLabel(): string {
+    return 'Preflight Test';
+  }
+
+  public function getDirectory(): string {
+    return 'preflight-test';
+  }
+
+  public function getWeight(): int {
+    return 10;
+  }
 
   public function export(): array {
     return [[
@@ -151,7 +165,8 @@ final class ImportPreflightFixtureHandler extends AbstractHandler {
         'name' => 'item',
         'item' => ['name' => 'item'],
       ],
-    ]];
+    ],
+    ];
   }
 
   public function validate(array $items): array {
@@ -224,4 +239,5 @@ final class ImportPreflightFixtureHandler extends AbstractHandler {
       'ok' => TRUE,
     ];
   }
+
 }

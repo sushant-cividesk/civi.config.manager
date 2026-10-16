@@ -45,4 +45,5 @@ trait TemporaryDirectoryTrait {
     }
     @rmdir($path);
   }
+
 }

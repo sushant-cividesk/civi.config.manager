@@ -9,13 +9,16 @@ use Civi\ConfigManager\Service\ConfigManager;
  * Confirm a reviewed machine-identity rename.
  */
 class ConfirmIdentityAlias extends AbstractAction {
-  /** @var string */
+  /**
+   * @var string */
   protected $providerKey = '';
 
-  /** @var string */
+  /**
+   * @var string */
   protected $oldConfigKey = '';
 
-  /** @var string */
+  /**
+   * @var string */
   protected $newConfigKey = '';
 
   public function _run(Result $result) {
@@ -25,4 +28,5 @@ class ConfirmIdentityAlias extends AbstractAction {
       (string) $this->newConfigKey
     );
   }
+
 }

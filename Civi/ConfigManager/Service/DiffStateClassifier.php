@@ -5,6 +5,7 @@ namespace Civi\ConfigManager\Service;
  * Classifies two-way and baseline-aware three-way configuration state.
  */
 class DiffStateClassifier {
+
   public function classify(?string $baselineHash, ?string $yamlHash, ?string $activeHash): string {
     if ($yamlHash === NULL && $activeHash === NULL) {
       return 'UNKNOWN';
@@ -102,4 +103,5 @@ class DiffStateClassifier {
     }
     return $a['value'] === $b['value'];
   }
+
 }

@@ -44,7 +44,7 @@ class ConfigScope {
     // SettingsBag implementation to have already folded the override in. This
     // keeps CLI, web, tests, and older supported CiviCRM runtimes consistent.
     $override = $this->getPolicyOverride();
-    $raw = $override !== NULL ? $override : \Civi::settings()->get('civicfg_scope');
+    $raw = $override ?? \Civi::settings()->get('civicfg_scope');
     $raw = is_array($raw) ? $raw : [];
     $policies = [];
     foreach ($raw as $type => $policy) {
@@ -78,7 +78,7 @@ class ConfigScope {
         continue;
       }
       $wanted = array_fill_keys((array) ($policy['selectors'] ?? []), TRUE);
-      $resolved[$type] = array_filter((array) $resolved[$type], static function($configKey, $selector) use ($wanted) {
+      $resolved[$type] = array_filter((array) $resolved[$type], static function ($configKey, $selector) use ($wanted) {
         return isset($wanted[(string) $selector]) && is_scalar($configKey) && trim((string) $configKey) !== '';
       }, ARRAY_FILTER_USE_BOTH);
       if (!$resolved[$type]) {
@@ -366,7 +366,7 @@ class ConfigScope {
     if (is_string($selectors)) {
       $selectors = preg_split('/[\r\n,]+/', $selectors) ?: [];
     }
-    $selectors = array_values(array_unique(array_filter(array_map(function($value) {
+    $selectors = array_values(array_unique(array_filter(array_map(function ($value) {
       return trim((string) $value);
     }, is_array($selectors) ? $selectors : []), 'strlen')));
 
@@ -425,7 +425,7 @@ class ConfigScope {
 
   private function selectorAliases(array $file, array $identity): array {
     $aliases = [];
-    $add = static function($value, string $prefix = '') use (&$aliases): void {
+    $add = static function ($value, string $prefix = '') use (&$aliases): void {
       if (!is_scalar($value)) {
         return;
       }
@@ -462,4 +462,5 @@ class ConfigScope {
     }
     return $aliases;
   }
+
 }

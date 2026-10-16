@@ -464,7 +464,6 @@ final class CivicfgStandaloneRoundTrip {
     $this->record('secret_redaction', ['blocked_setting' => 'smtpPassword', 'status' => 'passed']);
   }
 
-
   private function testReservedOptionValueDeletionSafety(): void {
     $groupId = (int) ($this->created['option_group'] ?? 0);
     $normalValueId = (int) ($this->created['option_value'] ?? 0);
@@ -589,7 +588,6 @@ final class CivicfgStandaloneRoundTrip {
     return (string) ($row['title'] ?? '');
   }
 
-
   private function countOptionValue(int $id): int {
     return OptionValue::get(FALSE)
       ->addWhere('id', '=', $id)
@@ -632,7 +630,6 @@ final class CivicfgStandaloneRoundTrip {
       $this->copyDirectory($this->syncDir, $snapshot);
     }
   }
-
 
   private function writeSummaryArtifact(): void {
     $this->ensureDirectory($this->artifactDir);
@@ -790,6 +787,7 @@ final class CivicfgStandaloneRoundTrip {
     }
     @rmdir($path);
   }
+
 }
 
 (new CivicfgStandaloneRoundTrip())->run();

@@ -156,7 +156,8 @@ final class ConfigManagerImportPlanTest extends TestCase {
     }
   }
 
-  /** @return array{0:ImportPlanFixtureManager,1:ImportPlanFixtureHandler,2:string} */
+  /**
+   * @return array{0:ImportPlanFixtureManager,1:ImportPlanFixtureHandler,2:string} */
   private function fixture(): array {
     $root = $this->createTemporaryDirectory();
     $planRoot = $this->createTemporaryDirectory();
@@ -191,6 +192,7 @@ final class ConfigManagerImportPlanTest extends TestCase {
   private function writeYaml(string $path, array $data): void {
     file_put_contents($path, SimpleYaml::dump($data));
   }
+
 }
 
 final class ImportPlanFixtureManager extends ConfigManager {
@@ -204,6 +206,7 @@ final class ImportPlanFixtureManager extends ConfigManager {
   public function getSiteIdentifier(): string {
     return $this->siteId;
   }
+
 }
 
 final class ImportPlanFixtureRegistry extends HandlerRegistry {
@@ -216,6 +219,7 @@ final class ImportPlanFixtureRegistry extends HandlerRegistry {
   public function getHandlers(): array {
     return $this->handlers;
   }
+
 }
 
 final class ImportPlanFixtureHandler extends AbstractHandler {
@@ -223,10 +227,21 @@ final class ImportPlanFixtureHandler extends AbstractHandler {
   public int $realApplyCalls = 0;
   private bool $writeEnabled = TRUE;
 
-  public function getType(): string { return 'review-plan-test'; }
-  public function getLabel(): string { return 'Review Plan Test'; }
-  public function getDirectory(): string { return 'review-plan-test'; }
-  public function getWeight(): int { return 10; }
+  public function getType(): string {
+    return 'review-plan-test';
+  }
+
+  public function getLabel(): string {
+    return 'Review Plan Test';
+  }
+
+  public function getDirectory(): string {
+    return 'review-plan-test';
+  }
+
+  public function getWeight(): int {
+    return 10;
+  }
 
   public function export(): array {
     return [[
@@ -237,7 +252,8 @@ final class ImportPlanFixtureHandler extends AbstractHandler {
         'name' => 'item',
         'item' => ['name' => 'item', 'label' => $this->activeLabel],
       ],
-    ]];
+    ],
+    ];
   }
 
   public function validate(array $items): array {
@@ -272,4 +288,5 @@ final class ImportPlanFixtureHandler extends AbstractHandler {
       'ok' => TRUE,
     ];
   }
+
 }

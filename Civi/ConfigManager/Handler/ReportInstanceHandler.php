@@ -16,10 +16,21 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     'is_active', 'is_reserved', 'form_values',
   ];
 
-  public function getType(): string { return 'report-instances'; }
-  public function getLabel(): string { return 'Reports'; }
-  public function getDirectory(): string { return 'reports/instances'; }
-  public function getWeight(): int { return 150; }
+  public function getType(): string {
+    return 'report-instances';
+  }
+
+  public function getLabel(): string {
+    return 'Reports';
+  }
+
+  public function getDirectory(): string {
+    return 'reports/instances';
+  }
+
+  public function getWeight(): int {
+    return 150;
+  }
 
   public function getProviderMetadata(): array {
     return [
@@ -173,8 +184,8 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     return $summary;
   }
 
-
-  /** @return \Generator<int,array<string,mixed>> */
+  /**
+   * @return \Generator<int,array<string,mixed>> */
   private function iterateApi3Rows(): \Generator {
     $limit = 200;
     $offset = 0;
@@ -207,7 +218,8 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     return (array) civicrm_api3($entity, $action, $params);
   }
 
-  /** @param array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} $identity */
+  /**
+   * @param array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} $identity */
   private function findByIdentity(array $identity): array {
     $params = [
       'sequential' => 1,
@@ -224,7 +236,7 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     $result = $this->api3('ReportInstance', 'get', $params);
     $rows = array_values((array) ($result['values'] ?? []));
     if ($identity['mode'] === 'legacy-title') {
-      $rows = array_values(array_filter($rows, static function($row): bool {
+      $rows = array_values(array_filter($rows, static function ($row): bool {
         return trim((string) ((array) $row)['name'] ?? '') === '';
       }));
     }
@@ -234,7 +246,8 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     return isset($rows[0]) ? (array) $rows[0] : [];
   }
 
-  /** @return array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} */
+  /**
+   * @return array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} */
   private function portableIdentity(array $row, ?int $sourceId): array {
     $reportId = trim((string) ($row['report_id'] ?? ''));
     $name = trim((string) ($row['name'] ?? ''));
@@ -276,4 +289,5 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     $safe = trim((string) preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name), '-');
     return $safe === '' ? sha1($name) : $safe;
   }
+
 }

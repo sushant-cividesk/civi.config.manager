@@ -9,8 +9,6 @@ use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Tests\Support\TemporaryDirectoryTrait;
 use Civi\ConfigManager\UI\FileTransfer;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
-use RuntimeException;
 
 final class FileTransferSecurityTest extends TestCase {
   use TemporaryDirectoryTrait;
@@ -33,7 +31,7 @@ final class FileTransferSecurityTest extends TestCase {
    */
   public function testAcceptsOnlySafeRelativeYamlPaths(string $path, bool $expected): void {
     $transfer = new FileTransfer();
-    $method = new ReflectionMethod($transfer, 'isSafeRelativeYamlPath');
+    $method = new \ReflectionMethod($transfer, 'isSafeRelativeYamlPath');
     $method->setAccessible(TRUE);
 
     self::assertSame($expected, $method->invoke($transfer, $path));
@@ -62,7 +60,7 @@ final class FileTransferSecurityTest extends TestCase {
     $root = $this->createTemporaryDirectory();
     $target = $root . '/nested/example.yml';
     $transfer = new FileTransfer();
-    $method = new ReflectionMethod($transfer, 'safeWriteContents');
+    $method = new \ReflectionMethod($transfer, 'safeWriteContents');
     $method->setAccessible(TRUE);
 
     $method->invoke($transfer, "type: example\n", $target, $root);
@@ -70,7 +68,6 @@ final class FileTransferSecurityTest extends TestCase {
     self::assertSame("type: example\n", file_get_contents($target));
     self::assertSame([], glob($root . '/nested/.civicfg-upload-*') ?: []);
   }
-
 
   public function testSafeWriteAllowsSymlinkedSyncRoot(): void {
     if (!function_exists('symlink')) {
@@ -85,7 +82,7 @@ final class FileTransferSecurityTest extends TestCase {
     }
 
     $transfer = new FileTransfer();
-    $method = new ReflectionMethod($transfer, 'safeWriteContents');
+    $method = new \ReflectionMethod($transfer, 'safeWriteContents');
     $method->setAccessible(TRUE);
 
     $method->invoke($transfer, "safe: true\n", $linkRoot . '/from-upload.yml', $linkRoot);
@@ -101,10 +98,10 @@ final class FileTransferSecurityTest extends TestCase {
     mkdir($outside);
 
     $transfer = new FileTransfer();
-    $method = new ReflectionMethod($transfer, 'safeWriteContents');
+    $method = new \ReflectionMethod($transfer, 'safeWriteContents');
     $method->setAccessible(TRUE);
 
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $method->invoke($transfer, "outside: true\n", $outside . '/outside.yml', $root);
   }
 
@@ -128,7 +125,7 @@ final class FileTransferSecurityTest extends TestCase {
     $managed = $manager->getManagedActiveExportFile('scheduled-jobs', 'job_one.yml');
     self::assertSame('scheduled-jobs/job_one.yml', $managed['relative']);
 
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('outside the current managed scope');
     $manager->getManagedActiveExportFile('scheduled-jobs', 'job_two.yml');
   }
@@ -195,12 +192,13 @@ final class FileTransferSecurityTest extends TestCase {
     }
 
     $transfer = new FileTransfer();
-    $method = new ReflectionMethod($transfer, 'safeWriteContents');
+    $method = new \ReflectionMethod($transfer, 'safeWriteContents');
     $method->setAccessible(TRUE);
 
-    $this->expectException(RuntimeException::class);
+    $this->expectException(\RuntimeException::class);
     $method->invoke($transfer, "outside: true\n", $root . '/linked/outside.yml', $root);
   }
+
 }
 
 final class FileTransferScopeFixtureManager extends ConfigManager {
@@ -220,6 +218,7 @@ final class FileTransferScopeFixtureManager extends ConfigManager {
   public function getHandlers(): array {
     return $this->fixtureHandlers;
   }
+
 }
 
 final class FileTransferScopeFixtureHandler extends AbstractHandler {
@@ -248,4 +247,5 @@ final class FileTransferScopeFixtureHandler extends AbstractHandler {
   public function export(): array {
     return $this->files;
   }
+
 }

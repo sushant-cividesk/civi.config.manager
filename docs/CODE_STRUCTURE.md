@@ -76,6 +76,16 @@ Every facade explicitly includes its same-directory traits via literal `require_
 
 ## Change safety and evidence
 
+**R0.3 compatibility correction:** The facade must retain `private
+isIgnoredPath(string $relativePath): bool` because `Scope`, `Snapshot`,
+`ManagedFiles`, export-staging and Import paths still call it. This method
+forwards to `ConfigIgnoreRules::shouldIgnorePath()`; do not reimplement matching
+logic in traits or delete the bridge without updating every original internal
+call site and its tests. PHPUnit source contracts should use
+`tests/ci/source-contract-reader.php` for split PHP facades and the actual
+`js/configmanager-scope.js` for Settings-only browser assertions.
+
+
 - **Method preservation:** The 440 methods in the six source classes retain byte-identical definition and body text from commit `b8463ca` (SHA-256 verified before/after). Reflection confirms all 440 names, visibilities, static flags, parameter counts and return types unchanged.
 - **Basic behavior tests:** `php tests/ci/refactor-boundaries-smoke.php` (26), `php tests/ci/refactor-composition-smoke.php` (72), Alpha62/63/64 contracts, Alpha68 UI/lifecycle state/behavior, browser-workflow contract, PHP lint, and available Node behavioral checks. `node tests/ci/configmanager-scope-composition-test.js` checks script ordering,
   Settings initialization, existing forms, and nonfatal missing-module behavior.

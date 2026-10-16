@@ -10,6 +10,7 @@ use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class HandlerRegistryTest extends TestCase {
+
   protected function tearDown(): void {
     \CRM_Utils_Hook::resetCallbacks();
   }
@@ -56,6 +57,7 @@ final class HandlerRegistryTest extends TestCase {
   public function testAdvancedConfigTypesHookRegistersCustomHandler(): void {
     \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
       $handlers[] = new class extends AbstractHandler {
+
         public function getType(): string {
           return 'custom_private_config';
         }
@@ -75,6 +77,7 @@ final class HandlerRegistryTest extends TestCase {
         public function export(): array {
           return [];
         }
+
       };
     });
 
@@ -95,11 +98,27 @@ final class HandlerRegistryTest extends TestCase {
     });
     \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
       $handlers[] = new class extends AbstractHandler {
-        public function getType(): string { return 'custom_inventory_handler'; }
-        public function getLabel(): string { return 'Custom inventory handler'; }
-        public function getDirectory(): string { return 'extensions/custom-inventory'; }
-        public function getWeight(): int { return 517; }
-        public function export(): array { return []; }
+
+        public function getType(): string {
+          return 'custom_inventory_handler';
+        }
+
+        public function getLabel(): string {
+          return 'Custom inventory handler';
+        }
+
+        public function getDirectory(): string {
+          return 'extensions/custom-inventory';
+        }
+
+        public function getWeight(): int {
+          return 517;
+        }
+
+        public function export(): array {
+          return [];
+        }
+
       };
     });
 
@@ -131,7 +150,7 @@ final class HandlerRegistryTest extends TestCase {
 
     $registry = new HandlerRegistry();
     $registrations = $registry->getHandlerRegistrations();
-    $matches = array_values(array_filter($registrations, static function(array $registration): bool {
+    $matches = array_values(array_filter($registrations, static function (array $registration): bool {
       return $registration['handler']->getType() === 'option-groups';
     }));
 
@@ -147,7 +166,8 @@ final class HandlerRegistryTest extends TestCase {
     ], $diagnostics[0]);
   }
 
-  /** Requirement: malformed advanced-hook values cannot break unrelated providers. */
+  /**
+   * Requirement: malformed advanced-hook values cannot break unrelated providers. */
   public function testInvalidAdvancedHookRegistrationIsRejectedWithoutBreakingRegistry(): void {
     \CRM_Utils_Hook::setCallback('civicfg_configTypes', static function (array &$handlers): void {
       $handlers[] = 'not-a-handler';
@@ -161,7 +181,8 @@ final class HandlerRegistryTest extends TestCase {
     self::assertSame('invalid_handler_registration', $registry->getRegistrationDiagnostics()[0]['reason_code']);
   }
 
-  /** Requirement: malformed metadata-hook definitions are visible and do not break core providers. */
+  /**
+   * Requirement: malformed metadata-hook definitions are visible and do not break core providers. */
   public function testMalformedEntityDefinitionIsRejectedWithDiagnostic(): void {
     \CRM_Utils_Hook::setCallback('civicfg_entityDefinitions', static function (array &$definitions): void {
       $definitions['broken_definition'] = 'not-an-array';
@@ -182,4 +203,5 @@ final class HandlerRegistryTest extends TestCase {
       'reason' => 'A civicfg_entityDefinitions hook must register a non-empty string type with an array definition.',
     ], $diagnostics[0]);
   }
+
 }

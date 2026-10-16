@@ -70,7 +70,6 @@ class StateStore {
       KEY civicfg_alias_target (provider_key, new_identity_hash)
     ) ENGINE=InnoDB');
 
-
     \CRM_Core_DAO::executeQuery('CREATE TABLE IF NOT EXISTS ' . self::WATCH_TABLE . ' (
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,
       handler_type VARCHAR(191) NOT NULL,
@@ -245,7 +244,6 @@ class StateStore {
     ]);
   }
 
-
   public function clearWatchStatesByType(string $handlerType): void {
     if (!$this->isAvailable()) {
       return;
@@ -398,4 +396,5 @@ class StateStore {
     }
     return NULL;
   }
+
 }

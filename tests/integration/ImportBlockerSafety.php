@@ -338,6 +338,7 @@ final class CivicfgImportBlockerSafety {
     }
     @rmdir($path);
   }
+
 }
 
 (new CivicfgImportBlockerSafety())->run();

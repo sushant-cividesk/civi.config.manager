@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderDiscovery methods from ExtensionHandler.
  *
@@ -60,7 +59,7 @@ trait ExtensionProviderDiscoveryTrait {
         $definitions[$this->definitionKey($definition['extension'], $definition['api'], $definition['entity'])] = $definition;
       }
     }
-    uasort($definitions, function($a, $b) {
+    uasort($definitions, function ($a, $b) {
       return strcmp($a['extension'] . ':' . $a['api'] . ':' . $a['entity'], $b['extension'] . ':' . $b['api'] . ':' . $b['entity']);
     });
     return array_values($definitions);
@@ -163,7 +162,7 @@ trait ExtensionProviderDiscoveryTrait {
       }
       $info = $this->api4Info($entity);
       $fields = $this->api4Fields($entity);
-      $matchFields = array_values(array_filter((array) ($info['match_fields'] ?? []), static function($field) {
+      $matchFields = array_values(array_filter((array) ($info['match_fields'] ?? []), static function ($field) {
         $field = trim((string) $field);
         return $field !== '' && strtolower($field) !== 'id';
       }));
@@ -208,7 +207,7 @@ trait ExtensionProviderDiscoveryTrait {
       return FALSE;
     }
 
-    $probe = $this->quietDiscoveryProbe(static function() use ($file) {
+    $probe = $this->quietDiscoveryProbe(static function () use ($file) {
       require_once $file;
       return TRUE;
     });
@@ -348,7 +347,8 @@ trait ExtensionProviderDiscoveryTrait {
       'can_update' => TRUE,
       'delete_action' => $deleteAction,
       'can_delete' => $deleteAction !== NULL,
-    ]];
+    ],
+    ];
   }
 
   /**
@@ -367,4 +367,5 @@ trait ExtensionProviderDiscoveryTrait {
     }
     return $parts ? basename((string) $parts[0], '.php') : '';
   }
+
 }

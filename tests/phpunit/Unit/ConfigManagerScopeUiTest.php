@@ -42,7 +42,6 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('export_only', $rows[1]['capability']);
   }
 
-
   /**
    * Requirement: one Settings request must not repeat runtime capability
    * discovery simply because status and scope presentation both need it.
@@ -98,7 +97,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
     ]));
 
     $warnings = $manager->getScopeDependencyWarnings();
-    $messages = implode("\n", array_map(static function($warning) {
+    $messages = implode("\n", array_map(static function ($warning) {
       return (string) ($warning['message'] ?? '');
     }, $warnings));
 
@@ -195,7 +194,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
 
     $rows = $manager->getScopeTypeOptions();
     $inventory = $manager->getProviderInventory();
-    $provider = array_values(array_filter($inventory['providers'], static function(array $row): bool {
+    $provider = array_values(array_filter($inventory['providers'], static function (array $row): bool {
       return ($row['type'] ?? '') === 'partial-api4';
     }))[0];
 
@@ -205,7 +204,6 @@ final class ConfigManagerScopeUiTest extends TestCase {
     self::assertSame('handler_export_only', $provider['capability_reason_code']);
     self::assertSame(0, $handler->exportCalls);
   }
-
 
   public function testUnavailableProviderSettingsKeepOnlyIgnoreActionable(): void {
     $template = (string) file_get_contents(dirname(__DIR__, 3) . '/templates/CRM/Configmanager/Page/Partials/Settings.tpl');
@@ -366,7 +364,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
           'is_default' => TRUE,
         ],
       ],
-    ]]);
+    ],
+    ]);
 
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([$templates]));
     $result = $manager->getScopePickerItems('message-templates');
@@ -420,7 +419,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
         'type' => 'option-groups',
         'name' => 'example_choices',
         'reason' => 'Custom field uses this option group for choices.',
-      ]],
+      ],
+      ],
       'item' => ['name' => 'example'],
     ]);
     $this->writeYaml($root, 'option-groups/example_choices.yml', [
@@ -454,7 +454,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
         'type' => 'option-groups',
         'name' => 'example_choices',
         'reason' => 'Custom field uses this option group for choices.',
-      ]],
+      ],
+      ],
       'item' => ['name' => 'example'],
     ]);
 
@@ -480,7 +481,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
         'type' => 'option-groups',
         'name' => 'missing_choices',
         'reason' => 'Custom field uses this option group for choices.',
-      ]],
+      ],
+      ],
       'item' => ['name' => 'example'],
     ]);
 
@@ -603,7 +605,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
         'key' => 'example.extension',
         'extension' => ['key' => 'example.extension', 'status' => 'installed'],
       ],
-    ]]);
+    ],
+    ]);
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
 
     $result = $manager->export(FALSE);
@@ -644,7 +647,8 @@ final class ConfigManagerScopeUiTest extends TestCase {
         'key' => 'safe-extension',
         'extension' => ['key' => 'safe-extension', 'status' => 'installed'],
       ],
-    ]], ['One contributed provider could not be read.']);
+    ],
+    ], ['One contributed provider could not be read.']);
     $manager = new ConfigManager(new ScopeUiFixtureRegistry([$handler]));
 
     $result = $manager->export(FALSE);
@@ -751,6 +755,7 @@ final class ConfigManagerScopeUiTest extends TestCase {
       ],
     ];
   }
+
 }
 
 final class ScopeUiFixtureRegistry extends HandlerRegistry {
@@ -765,7 +770,7 @@ final class ScopeUiFixtureRegistry extends HandlerRegistry {
   }
 
   public function getHandlerRegistrations(): array {
-    return array_values(array_map(static function($handler): array {
+    return array_values(array_map(static function ($handler): array {
       return ['handler' => $handler, 'registration_source' => 'core_handler'];
     }, $this->handlers));
   }
@@ -773,6 +778,7 @@ final class ScopeUiFixtureRegistry extends HandlerRegistry {
   public function getRegistrationDiagnostics(): array {
     return [];
   }
+
 }
 
 final class ScopeUiFixtureHandler extends AbstractHandler {
@@ -789,10 +795,21 @@ final class ScopeUiFixtureHandler extends AbstractHandler {
     $this->files = $files;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return $this->type === 'full-type' ? 10 : 20; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return $this->type === 'full-type' ? 10 : 20;
+  }
 
   public function export(): array {
     $this->exportCalls++;
@@ -815,6 +832,7 @@ final class ScopeUiFixtureHandler extends AbstractHandler {
       'errors' => [],
     ];
   }
+
 }
 
 final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
@@ -830,17 +848,32 @@ final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
     $this->errors = $errors;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return 20; }
-  public function export(): array { return $this->files; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
+  public function export(): array {
+    return $this->files;
+  }
 
   public function consumeExportErrors(): array {
     $errors = $this->errors;
     $this->errors = [];
     return $errors;
   }
+
 }
 
 final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
@@ -854,15 +887,32 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
     $this->label = $label;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return 20; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
   public function getRuntimeAvailability(): array {
     $this->availabilityCalls++;
     return ['available' => FALSE, 'reason' => 'Optional API4 provider is not available.'];
   }
-  public function export(): array { $this->exportCalls++; return []; }
+
+  public function export(): array {
+    $this->exportCalls++;
+    return [];
+  }
+
 }
 
 final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
@@ -875,13 +925,26 @@ final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
     $this->label = $label;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return 20; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
   public function getProviderMetadata(): array {
     return ['management_capability' => 'managed_no_delete'];
   }
+
   public function getRuntimeAvailability(): array {
     return [
       'available' => TRUE,
@@ -889,8 +952,16 @@ final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
       'reason' => 'Create/update is reviewed; automatic removal is disabled.',
     ];
   }
-  public function export(): array { $this->exportCalls++; return []; }
-  public function import(array $items, bool $dryRun = TRUE): array { return $this->baseImportSummary($dryRun); }
+
+  public function export(): array {
+    $this->exportCalls++;
+    return [];
+  }
+
+  public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->baseImportSummary($dryRun);
+  }
+
 }
 
 final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
@@ -903,16 +974,29 @@ final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
     $this->label = $label;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return 20; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
   public function getProviderMetadata(): array {
     return [
       'owner' => 'civi.config.manager',
       'management_capability' => 'full',
     ];
   }
+
   public function getRuntimeAvailability(): array {
     return [
       'available' => TRUE,
@@ -920,8 +1004,16 @@ final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
       'reason' => 'Provider is readable but delete is unavailable.',
     ];
   }
-  public function export(): array { $this->exportCalls++; return []; }
-  public function import(array $items, bool $dryRun = TRUE): array { return $this->baseImportSummary($dryRun); }
+
+  public function export(): array {
+    $this->exportCalls++;
+    return [];
+  }
+
+  public function import(array $items, bool $dryRun = TRUE): array {
+    return $this->baseImportSummary($dryRun);
+  }
+
 }
 
 final class ScopeUiReadOnlyFixtureHandler extends AbstractHandler {
@@ -934,9 +1026,25 @@ final class ScopeUiReadOnlyFixtureHandler extends AbstractHandler {
     $this->label = $label;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->type; }
-  public function getWeight(): int { return 20; }
-  public function export(): array { $this->exportCalls++; return []; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->type;
+  }
+
+  public function getWeight(): int {
+    return 20;
+  }
+
+  public function export(): array {
+    $this->exportCalls++;
+    return [];
+  }
+
 }

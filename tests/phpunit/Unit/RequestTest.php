@@ -56,4 +56,5 @@ final class RequestTest extends TestCase {
     $this->expectExceptionMessage('requires the reviewed Import plan');
     $request->requireImportPlanId();
   }
+
 }

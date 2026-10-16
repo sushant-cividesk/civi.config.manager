@@ -1,8 +1,6 @@
 <?php
 namespace Civi\ConfigManager\UI;
 
-use RuntimeException;
-
 /**
  * MainPageSettings methods from MainPage.
  *
@@ -91,10 +89,10 @@ trait MainPageSettingsTrait {
     if ($this->getCodeDefinedSyncDir() === NULL) {
       $syncDir = trim((string) ($_POST['sync_dir'] ?? ''));
       if ($syncDir === '') {
-        throw new RuntimeException('Sync Directory Is Required.');
+        throw new \RuntimeException('Sync Directory Is Required.');
       }
       if (preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $syncDir)) {
-        throw new RuntimeException('Sync Directory Must Be A Server File Path, Not A URL.');
+        throw new \RuntimeException('Sync Directory Must Be A Server File Path, Not A URL.');
       }
       \Civi::settings()->set('civicfg_sync_dir', $syncDir);
     }
@@ -158,4 +156,5 @@ trait MainPageSettingsTrait {
   private function getSyncDirLockMessage(): string {
     return ts('This value is set in civicrm.settings.php and cannot be edited from the UI.');
   }
+
 }

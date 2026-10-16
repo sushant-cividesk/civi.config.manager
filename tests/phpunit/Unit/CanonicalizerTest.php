@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\Canonicalizer;
 use PHPUnit\Framework\TestCase;
 
 final class CanonicalizerTest extends TestCase {
+
   public function testHashIsDeterministicForAssociativeKeyOrder(): void {
     $canonicalizer = new Canonicalizer();
 

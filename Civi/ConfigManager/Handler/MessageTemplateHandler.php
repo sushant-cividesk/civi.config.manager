@@ -5,18 +5,36 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
   private bool $importWritesEnabled = TRUE;
   private bool $deleteMissingEnabled = TRUE;
 
-  public function getType(): string { return 'message-templates'; }
-  public function getLabel(): string { return 'Message Templates'; }
-  public function getDirectory(): string { return 'message-templates'; }
-  public function getWeight(): int { return 90; }
+  public function getType(): string {
+    return 'message-templates';
+  }
+
+  public function getLabel(): string {
+    return 'Message Templates';
+  }
+
+  public function getDirectory(): string {
+    return 'message-templates';
+  }
+
+  public function getWeight(): int {
+    return 90;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'api4', 'entity' => 'MessageTemplate',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'api4',
+      'entity' => 'MessageTemplate',
       'actions' => ['read' => TRUE, 'create' => TRUE, 'update' => TRUE, 'delete' => TRUE],
-      'field_names' => ['msg_title','msg_subject','msg_text','msg_html','workflow_name','is_default','is_reserved','is_active'],
-      'identity_fields' => ['workflow_name','msg_title'], 'reference_fields' => [], 'sensitive_fields' => [], 'runtime_fields' => [],
-      'management_capability' => 'full', 'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+      'field_names' => ['msg_title', 'msg_subject', 'msg_text', 'msg_html', 'workflow_name', 'is_default', 'is_reserved', 'is_active'],
+      'identity_fields' => ['workflow_name', 'msg_title'],
+      'reference_fields' => [],
+      'sensitive_fields' => [],
+      'runtime_fields' => [],
+      'management_capability' => 'full',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared',
     ];
   }
 
@@ -296,7 +314,7 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
       return NULL;
     }
     $matches = $this->api4Get('MessageTemplate', [['msg_title', '=', $title]], $select, ['id' => 'ASC']);
-    $matches = array_values(array_filter($matches, static function($row) {
+    $matches = array_values(array_filter($matches, static function ($row) {
       $row = (array) $row;
       return empty($row['workflow_name']);
     }));
@@ -356,4 +374,5 @@ class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintP
     $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '_', strtolower($name));
     return trim($safe, '_') ?: 'message_template';
   }
+
 }

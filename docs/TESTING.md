@@ -1,5 +1,46 @@
 # Testing
 
+## R0.3 refactor regression hotfix (2026-10-16)
+
+The DDEV `composer run qa:fast` output at `aa9b0e9` reached PHPUnit but
+reported 11 errors and 16 failures (319 tests). The primary runtime error was
+an undefined `ConfigManager::isIgnoredPath()` following the Config Ignore
+extraction. Other failures included stale test source assertions against
+`ConfigManager.php`, `ExtensionHandler.php` and `js/configmanager.js` instead
+of their required traits / Settings module. R0.3 preserves the private path
+bridge, read-only source contract assertions and reviewed-plan safety checks.
+
+Basic checks available in a source-only PHP container:
+
+```sh
+php tests/ci/refactor-boundaries-smoke.php
+php tests/ci/sync-state-health-smoke.php
+php tests/ci/refactor-composition-smoke.php
+php tests/ci/alpha62-contract.php
+php tests/ci/alpha63-contract.php
+php tests/ci/alpha64-contract.php
+node tests/ci/configmanager-scope-composition-test.js
+```
+
+The boundary smoke covers built-in/wildcard ignore paths and reviewed-plan
+storage (48-character opaque IDs, persistence, rejection of invalid IDs,
+non-reuse after deletion). An independent local mini-runner was used to show
+six relevant tests failing before and passing after the patch. It is **not**
+a substitute for a full PHPUnit run with Composer/YAML dependencies.
+
+Run `composer run qa:fast` in DDEV and verify that the original PHPUnit errors
+and failures are gone. The source-only environment lacks Composer, PHPUnit and
+Symfony YAML, so it cannot establish that result. If PHPUnit fails, retain
+its exact new output for root-cause isolation rather than loosening plan-ID
+validation or unit assertions.
+
+`vendor/bin/phpcs .` is not part of `qa:fast`; the user's full-repository
+PHPCS report contains many existing-style formatting complaints across
+production, test and trait files. It is **not** declared clean or suppressed.
+A separate, reviewed formatting change may be needed. Avoid unreviewed mass
+`phpcbf` edits within an Import safety hotfix.
+
+
 ## Structural R0.2 basic verification (2026-10-16)
 
 After splitting the six largest production source files into explicit

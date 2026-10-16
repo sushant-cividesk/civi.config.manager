@@ -9,7 +9,7 @@ $entry = file_get_contents($root . '/configmanager.php');
 $cleaner = file_get_contents($root . '/Civi/ConfigManager/Service/LifecycleStateCleaner.php');
 
 $checks = 0;
-$assert = static function(bool $condition, string $message) use (&$checks): void {
+$assert = static function (bool $condition, string $message) use (&$checks): void {
   $checks++;
   if (!$condition) {
     fwrite(STDERR, "alpha68 lifecycle state contract failed: {$message}\n");

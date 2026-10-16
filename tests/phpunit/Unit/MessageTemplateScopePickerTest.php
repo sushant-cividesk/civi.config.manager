@@ -62,7 +62,8 @@ final class MessageTemplateScopePickerTest extends TestCase {
   }
 
   public function testPickerJavascriptOnlyAutoSelectsRecommendationsBeforeSelectedPolicyIsSaved(): void {
-    $javascript = (string) file_get_contents(dirname(__DIR__, 3) . '/js/configmanager.js');
+    // Scope picker logic moved into the separately registered Settings script.
+    $javascript = (string) file_get_contents(dirname(__DIR__, 3) . '/js/configmanager-scope.js');
 
     self::assertStringContainsString("String(savedPolicy.mode || '') !== 'selected'", $javascript);
     self::assertStringContainsString('autoSelectRecommended && !!item.recommended', $javascript);
@@ -127,6 +128,7 @@ final class MessageTemplateScopePickerTest extends TestCase {
       ],
     ];
   }
+
 }
 
 final class MessageTemplateScopePickerFixture extends MessageTemplateHandler {
@@ -147,6 +149,7 @@ final class MessageTemplateScopePickerFixture extends MessageTemplateHandler {
       'reason' => '',
     ];
   }
+
 }
 
 final class MessageTemplateScopePickerRegistry extends HandlerRegistry {
@@ -159,4 +162,5 @@ final class MessageTemplateScopePickerRegistry extends HandlerRegistry {
   public function getHandlers(): array {
     return $this->handlers;
   }
+
 }

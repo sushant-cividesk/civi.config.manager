@@ -19,7 +19,8 @@ final class ImportPlanStore {
     $this->ensureRoot();
   }
 
-  /** @param array<string,mixed> $plan */
+  /**
+   * @param array<string,mixed> $plan */
   public function create(array $plan): array {
     $this->cleanupExpired();
     $now = time();
@@ -33,7 +34,8 @@ final class ImportPlanStore {
     return $plan;
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function load(string $planId): array {
     $path = $this->path($planId);
     if (!is_file($path) || is_link($path)) {
@@ -100,7 +102,8 @@ final class ImportPlanStore {
     }
   }
 
-  /** @param mixed $value */
+  /**
+   * @param mixed $value */
   public function fingerprint($value): string {
     $normalized = $this->normalize($value);
     $json = json_encode($normalized, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
@@ -110,7 +113,8 @@ final class ImportPlanStore {
     return hash('sha256', $json);
   }
 
-  /** @param array<string,mixed> $plan */
+  /**
+   * @param array<string,mixed> $plan */
   private function write(array $plan): void {
     $this->ensureRoot();
     $path = $this->path((string) $plan['plan_id']);
@@ -168,7 +172,8 @@ final class ImportPlanStore {
     return bin2hex(random_bytes(24));
   }
 
-  /** @param mixed $value @return mixed */
+  /**
+   * @param mixed $value @return mixed */
   private function normalize($value) {
     if (is_object($value)) {
       $value = (array) $value;
@@ -186,4 +191,5 @@ final class ImportPlanStore {
     }
     return $value;
   }
+
 }

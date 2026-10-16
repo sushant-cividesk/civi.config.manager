@@ -8,9 +8,11 @@ namespace Civi\ConfigManager\Handler;
  * may retain compact identity sets, but must not retain the full document set.
  */
 interface StreamingImportHandlerInterface {
+
   /**
    * @param iterable<string,array<string,mixed>> $items
    * @return array<string,mixed>
    */
   public function importIterable(iterable $items, bool $dryRun = TRUE): array;
+
 }

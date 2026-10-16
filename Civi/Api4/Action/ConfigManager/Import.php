@@ -62,4 +62,5 @@ class Import extends AbstractAction {
     }
     $result[] = $manager->applyImportReviewPlan($planId, NULL, (array) $this->type);
   }
+
 }

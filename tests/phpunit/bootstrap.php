@@ -10,6 +10,7 @@ require __DIR__ . '/Support/FakeCivi.php';
 // run outside a bootstrapped CiviCRM container, so provide the smallest
 // compatible fallback needed to exercise translatable UI wording.
 if (!function_exists('ts')) {
+
   function ts($text, array $params = []) {
     $translated = (string) $text;
     foreach ($params as $key => $value) {
@@ -17,4 +18,5 @@ if (!function_exists('ts')) {
     }
     return $translated;
   }
+
 }

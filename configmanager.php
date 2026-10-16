@@ -36,7 +36,6 @@ spl_autoload_register(function ($class) {
   }
 });
 
-
 /**
  * Runtime/install helper for local state schema and managed CLI launchers.
  */
@@ -116,8 +115,6 @@ function configmanager_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
   $metaDataFolders[] = __DIR__ . '/settings';
 }
 
-
-
 /**
  * Implements hook_civicrm_permission().
  */
@@ -148,7 +145,6 @@ function configmanager_civicrm_navigationMenu(&$menu) {
     'active' => 1,
   ]);
 }
-
 
 /**
  * Implements hook_civicrm_check().

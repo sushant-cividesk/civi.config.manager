@@ -28,10 +28,21 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
     'rule-actions' => ['entity' => 'CiviRulesRuleAction', 'identity' => 'id', 'order' => ['id' => 'ASC'], 'portable' => FALSE],
   ];
 
-  public function getType(): string { return 'civirules'; }
-  public function getLabel(): string { return 'CiviRules'; }
-  public function getDirectory(): string { return 'civirules'; }
-  public function getWeight(): int { return 150; }
+  public function getType(): string {
+    return 'civirules';
+  }
+
+  public function getLabel(): string {
+    return 'CiviRules';
+  }
+
+  public function getDirectory(): string {
+    return 'civirules';
+  }
+
+  public function getWeight(): int {
+    return 150;
+  }
 
   public function getRuntimeAvailability(): array {
     $checks = [];
@@ -55,10 +66,18 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
     return $availability;
   }
 
-  public function setImportWriteEnabled(bool $enabled): self { $this->importWritesEnabled = $enabled; return $this; }
-  public function setDeleteMissingEnabled(bool $enabled): self { $this->deleteMissingEnabled = $enabled; return $this; }
+  public function setImportWriteEnabled(bool $enabled): self {
+    $this->importWritesEnabled = $enabled;
+    return $this;
+  }
 
-  /** @return array<int,array{key:string,label:string,path_prefix:string}> */
+  public function setDeleteMissingEnabled(bool $enabled): self {
+    $this->deleteMissingEnabled = $enabled;
+    return $this;
+  }
+
+  /**
+   * @return array<int,array{key:string,label:string,path_prefix:string}> */
   public function getExportUnits(): array {
     $units = [];
     foreach ($this->entities as $bucket => $def) {
@@ -73,7 +92,7 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
 
   public function export(): array {
     $files = iterator_to_array($this->iterateExport(), FALSE);
-    usort($files, static function(array $a, array $b): int {
+    usort($files, static function (array $a, array $b): int {
       return strnatcasecmp((string) ($a['filename'] ?? ''), (string) ($b['filename'] ?? ''));
     });
     return $files;
@@ -441,7 +460,8 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
     return NULL;
   }
 
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   private function portableTargetMatches(string $entity, string $field, string $identity): array {
     $matches = [];
     foreach ($this->api4Iterate($entity, [[$field, '=', $identity]], ['*'], ['id' => 'ASC']) as $row) {
@@ -513,4 +533,5 @@ class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterf
     $safe = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $name);
     return trim((string) $safe, '-') ?: sha1($name);
   }
+
 }

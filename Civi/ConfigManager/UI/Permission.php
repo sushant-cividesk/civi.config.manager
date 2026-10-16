@@ -59,4 +59,5 @@ class Permission {
       self::require(self::ADMINISTER);
     }
   }
+
 }

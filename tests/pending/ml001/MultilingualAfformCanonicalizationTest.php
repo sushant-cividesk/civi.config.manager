@@ -16,6 +16,7 @@ use PHPUnit\Framework\TestCase;
  * represent the language-dependent payloads observed in the La Cause report.
  */
 final class MultilingualAfformCanonicalizationTest extends TestCase {
+
   public function testLocaleOnlyChangeMustNotCauseFalseAfformDrift(): void {
     $canonicalizer = new Canonicalizer();
     $english = $this->afform('Household Name');
@@ -54,4 +55,5 @@ final class MultilingualAfformCanonicalizationTest extends TestCase {
       ],
     ];
   }
+
 }

@@ -77,7 +77,8 @@ class ConfigStateManager {
             'baseline' => (array) ($baseline['baseline_data'] ?? []),
             'yaml' => $yamlRow ? (array) $yamlRow['canonical'] : NULL,
             'active' => $activeRow ? (array) $activeRow['canonical'] : NULL,
-          ]];
+          ],
+          ];
           $details['yaml_changed_paths'] = $yamlRow ? [] : ['__object__'];
           $details['active_changed_paths'] = $activeRow ? [] : ['__object__'];
         }
@@ -313,4 +314,5 @@ class ConfigStateManager {
       'hash' => $this->canonicalizer->hashCanonical($canonical),
     ];
   }
+
 }

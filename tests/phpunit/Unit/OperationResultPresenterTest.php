@@ -9,7 +9,8 @@ use PHPUnit\Framework\TestCase;
 
 final class OperationResultPresenterTest extends TestCase {
 
-  /** Requirement: the persistent export summary stays compact and reports durable created/updated counts. */
+  /**
+   * Requirement: the persistent export summary stays compact and reports durable created/updated counts. */
   public function testExportSummaryUsesDurableCounts(): void {
     $presenter = new OperationResultPresenter();
     $summary = $presenter->exportSummary([
@@ -49,7 +50,8 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertStringNotContainsString('7 Saved Config file(s) updated', $message);
   }
 
-  /** Requirement: the DEV first-export toast must agree with Last Export created/updated accounting. */
+  /**
+   * Requirement: the DEV first-export toast must agree with Last Export created/updated accounting. */
   public function testExportMessageDoesNotCollapseCreatedFilesIntoUpdated(): void {
     $presenter = new OperationResultPresenter();
     $summary = $presenter->exportSummary([
@@ -77,7 +79,8 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertCount(2, $summary['review_only_items']);
   }
 
-  /** Requirement: a failed queued export must never render as a successful Last Export. */
+  /**
+   * Requirement: a failed queued export must never render as a successful Last Export. */
   public function testFailedExportJobIsShownAsError(): void {
     $summary = (new OperationResultPresenter())->exportSummary([], ['saved_config_count' => 20], [
       'status' => 'failed',
@@ -89,7 +92,8 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame('Provider scan failed safely.', $summary['problem']);
   }
 
-  /** Requirement: Last Import must summarize nested handler activity without retaining record/path payloads. */
+  /**
+   * Requirement: Last Import must summarize nested handler activity without retaining record/path payloads. */
   public function testImportSummaryCountsNestedActivity(): void {
     $summary = (new OperationResultPresenter())->importSummary([
       'ok' => TRUE,
@@ -102,7 +106,8 @@ final class OperationResultPresenterTest extends TestCase {
         'settings' => ['update' => 2, 'skip' => 1],
         'warnings' => [['message' => 'review']],
         'errors' => [],
-      ]],
+      ],
+      ],
     ], [
       'status' => 'complete',
       'finished_at' => '2026-09-04 15:30:00',
@@ -123,17 +128,20 @@ final class OperationResultPresenterTest extends TestCase {
     self::assertSame('2026-09-04 15:30:00', $summary['completed_at']);
   }
 
-  /** Requirement: a failed import must show the first actionable problem rather than a green summary. */
+  /**
+   * Requirement: a failed import must show the first actionable problem rather than a green summary. */
   public function testFailedImportShowsProblem(): void {
     $summary = (new OperationResultPresenter())->importSummary([
       'ok' => FALSE,
       'items' => [[
         'errors' => [['message' => 'Tag is still assigned to contacts and cannot be removed safely.']],
-      ]],
+      ],
+      ],
     ]);
 
     self::assertFalse($summary['ok']);
     self::assertSame(1, $summary['errors']);
     self::assertSame('Tag is still assigned to contacts and cannot be removed safely.', $summary['problem']);
   }
+
 }

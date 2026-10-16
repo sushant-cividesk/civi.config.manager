@@ -16,6 +16,15 @@ initialization and missing-module behavior without a browser.
 
 ## Source archive permissions (QA-003)
 
+**R0.3 DDEV follow-up:** The 2026-10-16 `qa:fast` run reached PHPUnit and
+failed with 11 errors/16 failures. The missing `isIgnoredPath()` method
+caused an exception cascade, while static test assertions still searched
+original large files after refactoring. The hotfix repairs those without
+relaxing import reviewed-plan ID rules or disabling any tests. Local focused
+checks are green; **DDEV PHPUnit must be rerun before claiming QA restored**.
+The separate `composer standards`/PHPCS backlog is not fixed by this hotfix.
+
+
 The first `composer qa:fast` step is now `@test:source-hygiene`, which fails
 if executable permission bits are missing from `bin/civicfg` or any shipped
 `*.sh` file under `scripts/` or `tests/ci/`. A previous source ZIP converted

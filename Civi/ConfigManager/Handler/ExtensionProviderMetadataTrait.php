@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderMetadata methods from ExtensionHandler.
  *
@@ -283,13 +282,12 @@ trait ExtensionProviderMetadataTrait {
     return NULL;
   }
 
-
   private function api4Info(string $entity): array {
     $class = 'Civi\\Api4\\' . $entity;
     if (!class_exists($class) || !method_exists($class, 'getInfo')) {
       return [];
     }
-    $probe = $this->quietDiscoveryProbe(static function() use ($class) {
+    $probe = $this->quietDiscoveryProbe(static function () use ($class) {
       return $class::getInfo();
     });
     if (empty($probe['ok']) || !empty($probe['warnings']) || trim((string) ($probe['output'] ?? '')) !== '') {
@@ -304,7 +302,7 @@ trait ExtensionProviderMetadataTrait {
     if (!class_exists($class) || !method_exists($class, 'getFields')) {
       return [];
     }
-    $probe = $this->quietDiscoveryProbe(static function() use ($class) {
+    $probe = $this->quietDiscoveryProbe(static function () use ($class) {
       return (array) $class::getFields(FALSE)->execute();
     });
     if (empty($probe['ok']) || !empty($probe['warnings']) || trim((string) ($probe['output'] ?? '')) !== '') {
@@ -331,7 +329,7 @@ trait ExtensionProviderMetadataTrait {
     $warnings = [];
     $startLevel = ob_get_level();
     ob_start();
-    set_error_handler(static function($severity, $message, $file = '', $line = 0) use (&$warnings): bool {
+    set_error_handler(static function ($severity, $message, $file = '', $line = 0) use (&$warnings): bool {
       $warnings[] = trim((string) $message) . ($file !== '' ? ' at ' . (string) $file . ':' . (int) $line : '');
       return TRUE;
     });
@@ -372,4 +370,5 @@ trait ExtensionProviderMetadataTrait {
       ];
     }
   }
+
 }

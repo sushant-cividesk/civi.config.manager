@@ -44,9 +44,11 @@ final class ConfigManagerPerformanceTest extends TestCase {
     ]);
 
     $registry = new class extends HandlerRegistry {
+
       public function getHandlers(): array {
         throw new \RuntimeException('Health must not discover configuration handlers.');
       }
+
     };
 
     $health = (new ConfigManager($registry))->getHealth();
@@ -65,9 +67,11 @@ final class ConfigManagerPerformanceTest extends TestCase {
     ]);
 
     $registry = new class extends HandlerRegistry {
+
       public function getHandlers(): array {
         throw new \RuntimeException('Health must not discover configuration handlers.');
       }
+
     };
 
     $health = (new ConfigManager($registry))->getHealth();
@@ -77,14 +81,15 @@ final class ConfigManagerPerformanceTest extends TestCase {
   }
 
   public function testLargeSiteHotPathsStayBoundedByContract(): void {
-    $managerSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Service/ConfigManager.php');
-    $extensionSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/ExtensionHandler.php');
+    require_once dirname(__DIR__, 2) . '/ci/source-contract-reader.php';
+    $managerSource = civicfgReadContractSource(dirname(__DIR__, 3), 'Civi/ConfigManager/Service/ConfigManager.php');
+    $extensionSource = civicfgReadContractSource(dirname(__DIR__, 3), 'Civi/ConfigManager/Handler/ExtensionHandler.php');
     $transferSource = (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/UI/FileTransfer.php');
 
     self::assertStringContainsString('pruneExtensionIndexesForIgnoredOrFilteredConfig(array &$queue): void', $managerSource);
     self::assertStringContainsString('addReverseDependencyMetadataToExportQueue(array &$queue): void', $managerSource);
     self::assertStringContainsString('iterateManagedYamlArchiveFiles(): \Generator', $managerSource);
-    self::assertStringContainsString('renameStructuralSignature', (string) file_get_contents(dirname(__DIR__, 3) . '/Civi/ConfigManager/Handler/AbstractHandler.php'));
+    self::assertStringContainsString('renameStructuralSignature', civicfgReadContractSource(dirname(__DIR__, 3), 'Civi/ConfigManager/Handler/AbstractHandler.php'));
     self::assertStringNotContainsString("'limit' => 0", $extensionSource);
     self::assertStringContainsString('iterateManagedYamlArchiveFiles()', $transferSource);
   }
@@ -114,11 +119,26 @@ final class ConfigManagerPerformanceTest extends TestCase {
 
 
 final class PerformancePagingFixtureHandler extends AbstractHandler {
-  public function getType(): string { return 'performance-paging'; }
-  public function getLabel(): string { return 'Performance Paging'; }
-  public function getDirectory(): string { return 'performance-paging'; }
-  public function getWeight(): int { return 999; }
-  public function export(): array { return []; }
+
+  public function getType(): string {
+    return 'performance-paging';
+  }
+
+  public function getLabel(): string {
+    return 'Performance Paging';
+  }
+
+  public function getDirectory(): string {
+    return 'performance-paging';
+  }
+
+  public function getWeight(): int {
+    return 999;
+  }
+
+  public function export(): array {
+    return [];
+  }
 
   public function readAll(): array {
     return $this->api4Get('CivicfgPagingTestEntity', [], ['id', 'name'], ['id' => 'ASC']);
@@ -127,4 +147,5 @@ final class PerformancePagingFixtureHandler extends AbstractHandler {
   public function readFirst(): array {
     return (array) $this->api4GetFirst('CivicfgPagingTestEntity', [], ['id', 'name']);
   }
+
 }

@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderImportSafety methods from ExtensionHandler.
  *
@@ -138,7 +137,7 @@ trait ExtensionProviderImportSafetyTrait {
     if ($rows) {
       return $this->identitySafetyForRows($rows, $definition);
     }
-    $matchFields = array_values(array_filter(array_map('strval', (array) ($definition['match_fields'] ?? [])), static function($field) {
+    $matchFields = array_values(array_filter(array_map('strval', (array) ($definition['match_fields'] ?? [])), static function ($field) {
       return $field !== '' && strtolower($field) !== 'id';
     }));
     // An explicitly declared provider match key can safely represent an empty
@@ -146,4 +145,5 @@ trait ExtensionProviderImportSafetyTrait {
     // target rows would be matched and therefore cannot authorize deletion.
     return $matchFields ? 'SAFE' : 'UNVERIFIED';
   }
+
 }

@@ -3,7 +3,8 @@
 declare(strict_types=1);
 
 final class CivicfgLifecycleFakeSettings {
-  /** @var array<string,mixed> */
+  /**
+   * @var array<string,mixed> */
   private array $values = [];
 
   public function get(string $name) {
@@ -13,6 +14,7 @@ final class CivicfgLifecycleFakeSettings {
   public function set(string $name, $value): void {
     $this->values[$name] = $value;
   }
+
 }
 
 final class Civi {
@@ -24,11 +26,13 @@ final class Civi {
     }
     return self::$settings;
   }
+
 }
 
 final class CRM_Core_Session {
   private static ?self $instance = NULL;
-  /** @var array<string,mixed> */
+  /**
+   * @var array<string,mixed> */
   private array $values = [];
 
   public static function singleton(): self {
@@ -45,6 +49,7 @@ final class CRM_Core_Session {
   public function set(string $name, $value): void {
     $this->values[$name] = $value;
   }
+
 }
 
 require_once dirname(__DIR__, 2) . '/Civi/ConfigManager/Service/LifecycleStateCleaner.php';
@@ -52,7 +57,7 @@ require_once dirname(__DIR__, 2) . '/Civi/ConfigManager/Service/LifecycleStateCl
 use Civi\ConfigManager\Service\LifecycleStateCleaner;
 
 $checks = 0;
-$assert = static function(bool $condition, string $message) use (&$checks): void {
+$assert = static function (bool $condition, string $message) use (&$checks): void {
   $checks++;
   if (!$condition) {
     fwrite(STDERR, "lifecycle state behavior failed: {$message}\n");

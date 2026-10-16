@@ -18,7 +18,8 @@ final class ImportReviewPlanCoordinator {
     $this->manager = $manager;
   }
 
-  /** @return array{result:array<string,mixed>,plan_id:string,reconnected:bool} */
+  /**
+   * @return array{result:array<string,mixed>,plan_id:string,reconnected:bool} */
   public function loadOrCreate(array $types): array {
     $this->clearReducedStateWhenScopeChanged($types);
     $session = \CRM_Core_Session::singleton();
@@ -42,7 +43,8 @@ final class ImportReviewPlanCoordinator {
     return ['result' => $result, 'plan_id' => $planId, 'reconnected' => FALSE];
   }
 
-  /** @param array<string,mixed> $result */
+  /**
+   * @param array<string,mixed> $result */
   public function adoptResult(array $result, array $remainingTypes): void {
     $session = \CRM_Core_Session::singleton();
     $planId = trim((string) ($result['plan_id'] ?? ''));
@@ -80,13 +82,15 @@ final class ImportReviewPlanCoordinator {
     \CRM_Core_Session::singleton()->set(self::REDUCED_STATE_KEY, NULL);
   }
 
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   public function getExcludedComponents(array $types): array {
     $this->clearReducedStateWhenScopeChanged($types);
     return array_values((array) ($this->getReducedState()['components'] ?? []));
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function getReducedState(): array {
     $state = \CRM_Core_Session::singleton()->get(self::REDUCED_STATE_KEY);
     return is_array($state) ? $state : [];
@@ -102,10 +106,12 @@ final class ImportReviewPlanCoordinator {
     }
   }
 
-  /** @return string[] */
+  /**
+   * @return string[] */
   private function sortedTypes(array $types): array {
     $types = array_values(array_unique(array_filter(array_map('strval', $types), 'strlen')));
     sort($types, SORT_STRING);
     return $types;
   }
+
 }

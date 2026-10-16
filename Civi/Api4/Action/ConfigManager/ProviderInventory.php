@@ -9,7 +9,9 @@ use Civi\ConfigManager\Service\ConfigManager;
  * Admin-only read boundary for registered provider metadata.
  */
 class ProviderInventory extends AbstractAction {
+
   public function _run(Result $result) {
     $result[] = (new ConfigManager())->getProviderInventory();
   }
+
 }

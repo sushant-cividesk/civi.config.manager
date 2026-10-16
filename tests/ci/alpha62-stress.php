@@ -6,7 +6,7 @@ declare(strict_types=1);
 // extension's bounded primitives under a low PHP memory ceiling.
 $root = dirname(__DIR__, 2);
 
-spl_autoload_register(static function(string $class) use ($root): void {
+spl_autoload_register(static function (string $class) use ($root): void {
   $prefix = 'Civi\\ConfigManager\\';
   if (strpos($class, $prefix) !== 0) {
     return;
@@ -21,6 +21,7 @@ spl_autoload_register(static function(string $class) use ($root): void {
 require_once $root . '/tests/phpunit/Support/CiviApi4Stubs.php';
 
 if (!function_exists('yaml_parse_file')) {
+
   function yaml_parse_file(string $file) {
     return [
       'schema_version' => 1,
@@ -29,15 +30,18 @@ if (!function_exists('yaml_parse_file')) {
       'item' => ['name' => pathinfo($file, PATHINFO_FILENAME)],
     ];
   }
+
 }
 
 // Staging exercises YAML writes without Composer. The production helper now
 // requires a real dumper, so this isolated dependency-free stress gate supplies
 // a tiny test-only ext-yaml emitter stand-in. JSON is valid YAML 1.2.
 if (!function_exists('yaml_emit')) {
+
   function yaml_emit($data) {
     return "---\n" . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n...\n";
   }
+
 }
 
 use Civi\ConfigManager\Handler\AbstractHandler;
@@ -45,14 +49,31 @@ use Civi\ConfigManager\Service\StagedExportWorkspace;
 use Civi\ConfigManager\Storage\YamlFileStorage;
 
 final class Alpha62StressHandler extends AbstractHandler {
-  public function getType(): string { return 'alpha62-stress'; }
-  public function getLabel(): string { return 'Alpha62 Stress'; }
-  public function getDirectory(): string { return 'alpha62-stress'; }
-  public function getWeight(): int { return 999; }
-  public function export(): array { return []; }
+
+  public function getType(): string {
+    return 'alpha62-stress';
+  }
+
+  public function getLabel(): string {
+    return 'Alpha62 Stress';
+  }
+
+  public function getDirectory(): string {
+    return 'alpha62-stress';
+  }
+
+  public function getWeight(): int {
+    return 999;
+  }
+
+  public function export(): array {
+    return [];
+  }
+
   public function iterateRows(): iterable {
     return $this->api4Iterate('CivicfgPagingTestEntity', [], ['id', 'name', 'payload'], ['id' => 'ASC']);
   }
+
 }
 
 final class Alpha62FailOnceStorage extends YamlFileStorage {
@@ -73,6 +94,7 @@ final class Alpha62FailOnceStorage extends YamlFileStorage {
     }
     return parent::writeRaw($directory, $filename, $contents);
   }
+
 }
 
 function alpha62_assert(bool $condition, string $message): void {

@@ -6,6 +6,7 @@ use Civi\Api4\Generic\Result;
 use Civi\ConfigManager\Service\ConfigManager;
 
 class ListTypes extends AbstractAction {
+
   public function _run(Result $result) {
     $items = [];
     foreach ((new ConfigManager())->getManagedTypeOptions() as $row) {
@@ -20,4 +21,5 @@ class ListTypes extends AbstractAction {
     }
     $result[] = ['ok' => TRUE, 'types' => $items];
   }
+
 }

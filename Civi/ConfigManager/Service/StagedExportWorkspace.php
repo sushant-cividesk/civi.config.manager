@@ -18,7 +18,8 @@ class StagedExportWorkspace {
   private string $indexPath;
   private string $publishStatePath;
   private bool $cleanupOnDestruct;
-  /** @var array<string,array<string,mixed>> */
+  /**
+   * @var array<string,array<string,mixed>> */
   private array $files = [];
 
   public function __construct(YamlFileStorage $live, ?string $root = NULL, bool $cleanupOnDestruct = TRUE) {
@@ -79,7 +80,8 @@ class StagedExportWorkspace {
     return $relative;
   }
 
-  /** Persist compact workspace metadata after a queue work unit completes. */
+  /**
+   * Persist compact workspace metadata after a queue work unit completes. */
   public function persistIndex(): void {
     $dir = dirname($this->indexPath);
     if (!is_dir($dir) && !mkdir($dir, 0700, TRUE) && !is_dir($dir)) {
@@ -97,7 +99,8 @@ class StagedExportWorkspace {
     @chmod($this->indexPath, 0600);
   }
 
-  /** Remove every staged document recorded for one durable queue unit. */
+  /**
+   * Remove every staged document recorded for one durable queue unit. */
   public function removeUnit(string $type, string $unitKey): void {
     foreach (array_keys($this->files) as $relative) {
       $file = (array) $this->files[$relative];
@@ -152,12 +155,14 @@ class StagedExportWorkspace {
     }
   }
 
-  /** @return array<string,array<string,mixed>> */
+  /**
+   * @return array<string,array<string,mixed>> */
   public function files(): array {
     return $this->files;
   }
 
-  /** @return array<string,bool> */
+  /**
+   * @return array<string,bool> */
   public function pathSetForType(string $type): array {
     $paths = [];
     foreach ($this->files as $relative => $file) {
@@ -343,7 +348,8 @@ class StagedExportWorkspace {
     $result['written'][] = $this->live->writeRaw($directory, $filename, $desired);
   }
 
-  /** @param array<string,bool> $journal */
+  /**
+   * @param array<string,bool> $journal */
   private function backup(string $relative, string $contents, array &$journal): void {
     if (isset($journal[$relative])) {
       return;
@@ -385,7 +391,8 @@ class StagedExportWorkspace {
     return $errors;
   }
 
-  /** @param array<string,bool> $journal @param array<string,bool> $newPaths */
+  /**
+   * @param array<string,bool> $journal @param array<string,bool> $newPaths */
   private function persistPublishState(array $journal, array $newPaths): void {
     $state = [
       'status' => 'publishing',
@@ -431,7 +438,8 @@ class StagedExportWorkspace {
     return $directory === '' ? $filename : $directory . '/' . $filename;
   }
 
-  /** @return array{0:string,1:string} */
+  /**
+   * @return array{0:string,1:string} */
   private function splitRelative(string $relative): array {
     $relative = trim(str_replace('\\', '/', $relative), '/');
     $pos = strrpos($relative, '/');
@@ -472,4 +480,5 @@ class StagedExportWorkspace {
     }
     @rmdir($path);
   }
+
 }

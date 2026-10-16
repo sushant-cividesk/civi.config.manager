@@ -23,4 +23,5 @@ class Export extends AbstractAction {
   public function _run(Result $result) {
     $result[] = (new ConfigManager())->export((bool) $this->dryRun, (array) $this->type);
   }
+
 }

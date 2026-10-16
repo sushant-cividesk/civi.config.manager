@@ -21,7 +21,7 @@ class HandlerRegistry {
   private array $registrationDiagnostics = [];
 
   public function getHandlers(): array {
-    return array_values(array_map(static function(array $registration) {
+    return array_values(array_map(static function (array $registration) {
       return $registration['handler'];
     }, $this->getHandlerRegistrations()));
   }
@@ -132,7 +132,7 @@ class HandlerRegistry {
       ];
     }
 
-    usort($registrations, static function(array $a, array $b): int {
+    usort($registrations, static function (array $a, array $b): int {
       return $a['handler']->getWeight() <=> $b['handler']->getWeight();
     });
     return array_values($registrations);
@@ -194,4 +194,5 @@ class HandlerRegistry {
     }
     return $handlers;
   }
+
 }

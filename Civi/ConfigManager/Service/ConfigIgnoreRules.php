@@ -32,8 +32,9 @@ final class ConfigIgnoreRules {
   private const BUILT_IN_IGNORE_FILE_RULES = [
     'extensions/civi.config.manager.yml',
   ];
+
   public function getIgnorePatterns(): array {
-    return array_values(array_filter($this->getIgnoreRules(), static function(string $rule): bool {
+    return array_values(array_filter($this->getIgnoreRules(), static function (string $rule): bool {
       return strpos($rule, ':') === FALSE;
     }));
   }
@@ -102,7 +103,6 @@ final class ConfigIgnoreRules {
     }
     return FALSE;
   }
-
 
   /**
    * Return universal runtime-only ignore rules owned by the extension.
@@ -191,7 +191,7 @@ final class ConfigIgnoreRules {
    * @return string[]
    */
   public function getConfiguredIgnoreValueRules(): array {
-    return array_values(array_filter($this->getConfiguredIgnoreRules(), static function(string $rule): bool {
+    return array_values(array_filter($this->getConfiguredIgnoreRules(), static function (string $rule): bool {
       return strpos($rule, ':') !== FALSE;
     }));
   }
@@ -327,4 +327,5 @@ final class ConfigIgnoreRules {
     $regex = '/^' . str_replace('\\*', '.*', preg_quote($pattern, '/')) . '$/';
     return (bool) preg_match($regex, $relativePath);
   }
+
 }

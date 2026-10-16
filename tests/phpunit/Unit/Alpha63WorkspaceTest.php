@@ -35,7 +35,8 @@ final class Alpha63WorkspaceTest extends TestCase {
     $spool->close();
   }
 
-  /** Requirement: preview is the canonical create/update accounting boundary for exports. */
+  /**
+   * Requirement: preview is the canonical create/update accounting boundary for exports. */
   public function testPreviewClassifiesCreateUpdateAndSkip(): void {
     $live = new YamlFileStorage($this->root . '/live');
     $live->write('', 'existing.yml', ['value' => 'before']);
@@ -70,7 +71,8 @@ final class Alpha63WorkspaceTest extends TestCase {
     self::assertTrue($second->files()['civirules/actions/one.yml']['monitor_only']);
   }
 
-  /** Requirement: duplicate-path failures must identify both colliding objects without changing live YAML. */
+  /**
+   * Requirement: duplicate-path failures must identify both colliding objects without changing live YAML. */
   public function testDuplicatePathDiagnosticIncludesIdentitiesAndSourceIds(): void {
     $live = new YamlFileStorage($this->root . '/live');
     $workspace = new StagedExportWorkspace($live, $this->root . '/job/export', FALSE);
@@ -95,7 +97,7 @@ final class Alpha63WorkspaceTest extends TestCase {
       self::assertStringContainsString('No live YAML was changed', $e->getMessage());
     }
 
-    self::assertSame([], iterator_to_array($live->iterateYamlPaths(), false));
+    self::assertSame([], iterator_to_array($live->iterateYamlPaths(), FALSE));
   }
 
   public function testDurablePublishJournalRestoresHardInterruptedSnapshot(): void {
@@ -138,4 +140,5 @@ final class Alpha63WorkspaceTest extends TestCase {
     }
     @rmdir($path);
   }
+
 }

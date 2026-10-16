@@ -71,7 +71,7 @@ final class CliCommandTest extends TestCase {
     self::assertContains('type=message-templates', $lines);
     self::assertContains('mode=selected', $lines);
     self::assertContains('watchUnmanaged=1', $lines);
-    self::assertTrue((bool) array_filter($lines, static function(string $line): bool {
+    self::assertTrue((bool) array_filter($lines, static function (string $line): bool {
       return strpos($line, 'selectors=[') === 0
         && strpos($line, 'workflow_name=receipt') !== FALSE
         && strpos($line, 'Custom Notice') !== FALSE;
@@ -201,4 +201,5 @@ final class CliCommandTest extends TestCase {
     exec(implode(' ', $parts) . ' 2>&1', $output, $exit);
     return [$exit, array_values(array_map('strval', $output))];
   }
+
 }

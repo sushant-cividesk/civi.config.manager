@@ -7,14 +7,14 @@ require_once __DIR__ . '/source-contract-reader.php';
 $failures = [];
 $checks = 0;
 
-$assert = static function(bool $condition, string $message) use (&$failures, &$checks): void {
+$assert = static function (bool $condition, string $message) use (&$failures, &$checks): void {
   $checks++;
   if (!$condition) {
     $failures[] = $message;
   }
 };
 
-$read = static function(string $relative) use ($root): string {
+$read = static function (string $relative) use ($root): string {
   return civicfgReadContractSource($root, $relative);
 };
 

@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderFilters methods from ExtensionHandler.
  *
@@ -78,7 +77,6 @@ trait ExtensionProviderFiltersTrait {
     }
     return $rows;
   }
-
 
   private function hasRuntimeSubtypeFilter(): bool {
     foreach ($this->runtimeTypeFilters as $filter) {
@@ -160,4 +158,5 @@ trait ExtensionProviderFiltersTrait {
     }
     return FALSE;
   }
+
 }

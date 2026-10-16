@@ -6,10 +6,12 @@ use Civi\Api4\Generic\Result;
 use Civi\ConfigManager\Service\ConfigManager;
 
 class CrossSiteSet extends AbstractAction {
-  /** @var bool */
+  /**
+   * @var bool */
   protected $allowed = FALSE;
 
   public function _run(Result $result) {
     $result[] = (new ConfigManager())->setCrossSiteImportAllowed((bool) $this->allowed);
   }
+
 }

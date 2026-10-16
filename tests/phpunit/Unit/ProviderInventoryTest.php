@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\ConfigManager;
 use PHPUnit\Framework\TestCase;
 
 final class ProviderInventoryTest extends TestCase {
+
   protected function tearDown(): void {
     \CRM_Utils_Hook::resetCallbacks();
   }
@@ -34,7 +35,7 @@ final class ProviderInventoryTest extends TestCase {
     });
 
     $inventory = (new ConfigManager())->getProviderInventory();
-    $matches = array_values(array_filter($inventory['providers'], static function(array $provider): bool {
+    $matches = array_values(array_filter($inventory['providers'], static function (array $provider): bool {
       return $provider['type'] === 'custom_inventory_item';
     }));
 
@@ -69,7 +70,7 @@ final class ProviderInventoryTest extends TestCase {
     });
 
     $inventory = (new \Civi\ConfigManager\Service\ConfigManager())->getProviderInventory();
-    $matches = array_values(array_filter($inventory['providers'], static function(array $provider): bool {
+    $matches = array_values(array_filter($inventory['providers'], static function (array $provider): bool {
       return ($provider['capability_reason_code'] ?? '') === 'registry_duplicate_handler_type';
     }));
 
@@ -78,4 +79,5 @@ final class ProviderInventoryTest extends TestCase {
     self::assertSame('unavailable', $matches[0]['capability']);
     self::assertSame(1, $inventory['summary']['rejected_registration_count']);
   }
+
 }

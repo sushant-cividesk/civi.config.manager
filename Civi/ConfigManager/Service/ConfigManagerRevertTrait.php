@@ -11,7 +11,6 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
  */
 trait ConfigManagerRevertTrait {
 
-
   public function revertCiviFromYaml(string $relativePath): array {
     $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
     if ($relativePath === '' || strpos($relativePath, '..') !== FALSE || $this->isIgnoredPath($relativePath)) {
@@ -132,7 +131,7 @@ trait ConfigManagerRevertTrait {
 
   private function collectRevertDependencyPaths(YamlFileStorage $storage, array $seedPaths): array {
     $index = $this->buildYamlDependencyIndex($storage);
-    $queue = array_values(array_unique(array_filter(array_map(function($path) {
+    $queue = array_values(array_unique(array_filter(array_map(function ($path) {
       return trim(str_replace('\\', '/', (string) $path), '/');
     }, $seedPaths))));
     $seen = [];
@@ -258,4 +257,5 @@ trait ConfigManagerRevertTrait {
     }
     return $this->setConfiguredIgnoreRules($rules);
   }
+
 }

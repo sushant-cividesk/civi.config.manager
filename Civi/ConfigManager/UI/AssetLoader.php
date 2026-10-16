@@ -1,5 +1,6 @@
 <?php
 namespace Civi\ConfigManager\UI;
+
 use Civi\ConfigManager\Version;
 
 /**
@@ -45,4 +46,5 @@ class AssetLoader {
       $resources->addStyleFile(Version::EXTENSION_KEY, $file);
     }
   }
+
 }

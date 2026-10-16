@@ -26,10 +26,21 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
     $this->splitFiles = $splitFiles;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->directory; }
-  public function getWeight(): int { return $this->weight; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->directory;
+  }
+
+  public function getWeight(): int {
+    return $this->weight;
+  }
 
   public function getProviderMetadata(): array {
     $identityFields = array_values(array_intersect(['name', 'name_a_b', 'title'], $this->select));
@@ -286,7 +297,6 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
     return $summary;
   }
 
-
   private function deleteRecordsMissingFromYaml(array $desiredKeys, array $identityFields, bool $dryRun, array &$summary): void {
     if (!$identityFields) {
       $identityFields = array_values(array_intersect(['name', 'name_a_b', 'title'], $this->select));
@@ -464,7 +474,6 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
     return $row;
   }
 
-
   protected function normaliseDataForDiff(array $data): array {
     unset($data['required_by']);
     if (isset($data['item']) && is_array($data['item'])) {
@@ -605,4 +614,5 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
     }
     return $unique;
   }
+
 }

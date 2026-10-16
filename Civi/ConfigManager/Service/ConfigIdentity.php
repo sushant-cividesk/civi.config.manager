@@ -168,4 +168,5 @@ class ConfigIdentity {
   private function escapeIdentity(string $identity): string {
     return str_replace(['%', '|'], ['%25', '%7C'], $identity);
   }
+
 }

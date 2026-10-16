@@ -9,7 +9,8 @@ namespace Civi\ConfigManager\Service;
  */
 final class ImportResultAccounting {
 
-  /** @return array<string,int> */
+  /**
+   * @return array<string,int> */
   public function activityTotals(array $items): array {
     $totals = [
       'created' => 0,
@@ -46,7 +47,8 @@ final class ImportResultAccounting {
     return $totals['created'] + $totals['updated'] + $totals['removed'] + $totals['unchanged'];
   }
 
-  /** @param array<int,array<string,mixed>> $components */
+  /**
+   * @param array<int,array<string,mixed>> $components */
   public function countExcluded(array $components): int {
     $files = [];
     $types = [];
@@ -160,7 +162,8 @@ final class ImportResultAccounting {
     return $result;
   }
 
-  /** @param array<string,mixed> $accounting */
+  /**
+   * @param array<string,mixed> $accounting */
   public function summaryMessage(array $accounting): string {
     $remaining = !empty($accounting['remaining_difference_known'])
       ? (string) (int) ($accounting['remaining_difference'] ?? 0)
@@ -180,11 +183,13 @@ final class ImportResultAccounting {
     );
   }
 
-  /** @param mixed $error */
+  /**
+   * @param mixed $error */
   private function errorMessage($error): string {
     if (is_array($error)) {
       return trim((string) ($error['message'] ?? ''));
     }
     return is_string($error) ? trim($error) : '';
   }
+
 }

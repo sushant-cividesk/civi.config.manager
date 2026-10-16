@@ -24,6 +24,19 @@ ML-001 multilingual Afform drift is **still open**: comparing localized strings
 without authoritative translation identity would hide genuine changes. See the
 [development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
 
+**R0.3 regression hotfix (2026-10-16):** After the R0.2 decomposition, the
+full DDEV PHPUnit run reported 11 errors and 16 failures. An omitted internal
+`isIgnoredPath()` bridge caused scope, export, import-preview and file-transfer
+exceptions; some PHPUnit contracts still read the pre-split files. The hotfix
+restores the bridge without changing Config Ignore rules or reviewed-plan
+validation, updates those contracts to read actual split code, and adds a
+review-plan/ignored-path smoke. Focused PHP and Node checks pass locally;
+**the full DDEV test suite is not yet confirmed green.** CiviCRM coding-standard
+violations (`composer standards`) remain a separate style-maintenance task;
+do not automatically reformat the whole project as part of this hotfix.
+See [Testing](docs/TESTING.md) and [Project Status](docs/PROJECT_STATUS.md).
+
+
 
 **Structural R0.2 checkpoint (2026-10-16):** The six largest production
 classes have been divided into focused named concerns while keeping the

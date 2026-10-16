@@ -1,11 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-use Civi\ConfigManager\Version;
-use Civi\ConfigManager\Service\DiskRowSpool;
-use Civi\ConfigManager\Service\ProviderAdmissionPolicy;
-
-
 // Include stateful concerns for direct CiviCRM/legacy bootstrap loaders too.
 require_once __DIR__ . '/ExtensionProviderCollectionTrait.php';
 require_once __DIR__ . '/ExtensionProviderDiscoveryTrait.php';
@@ -53,19 +48,36 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     return $this->providerIdentityRules;
   }
 
-  public function getType(): string { return 'extensions'; }
-  public function getLabel(): string { return 'Extensions'; }
-  public function getDirectory(): string { return 'extensions'; }
-  public function getWeight(): int { return 10; }
+  public function getType(): string {
+    return 'extensions';
+  }
+
+  public function getLabel(): string {
+    return 'Extensions';
+  }
+
+  public function getDirectory(): string {
+    return 'extensions';
+  }
+
+  public function getWeight(): int {
+    return 10;
+  }
 
   public function getProviderMetadata(): array {
     return [
-      'owner' => 'civi.config.manager', 'api_version' => 'handler', 'entity' => 'ExtensionStatusAndSettings',
+      'owner' => 'civi.config.manager',
+      'api_version' => 'handler',
+      'entity' => 'ExtensionStatusAndSettings',
       'actions' => ['read' => TRUE, 'create' => FALSE, 'update' => TRUE, 'delete' => FALSE],
-      'field_names' => ['extension', 'status', 'settings'], 'identity_fields' => ['extension'],
-      'reference_fields' => [], 'sensitive_fields' => ['settings.*secret', 'settings.*token', 'settings.*key'],
-      'runtime_fields' => [], 'management_capability' => 'mixed',
-      'identity_evidence' => 'handler_policy', 'metadata_completeness' => 'declared',
+      'field_names' => ['extension', 'status', 'settings'],
+      'identity_fields' => ['extension'],
+      'reference_fields' => [],
+      'sensitive_fields' => ['settings.*secret', 'settings.*token', 'settings.*key'],
+      'runtime_fields' => [],
+      'management_capability' => 'mixed',
+      'identity_evidence' => 'handler_policy',
+      'metadata_completeness' => 'declared',
     ];
   }
 
@@ -83,4 +95,5 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
     $this->runtimeTypeFilters = array_values(array_unique(array_filter(array_map('strval', $filters))));
     return $this;
   }
+
 }

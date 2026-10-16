@@ -1,10 +1,7 @@
 <?php
 namespace Civi\ConfigManager\UI;
+
 use Civi\ConfigManager\Service\ConfigManager;
-use Civi\ConfigManager\Service\LifecycleStateCleaner;
-use Civi\ConfigManager\Service\QueuedOperationService;
-use Exception;
-use RuntimeException;
 
 // Include stateful concerns for direct CiviCRM/legacy bootstrap loaders too.
 require_once __DIR__ . '/MainPageOperationEndpointsTrait.php';
@@ -29,6 +26,7 @@ class MainPage {
   private ImportActionCoordinator $importActions;
   private FileTransfer $files;
   private Permission $permission;
+
   public function __construct(\CRM_Core_Page $page, ?ConfigManager $manager = NULL) {
     $this->page = $page;
     $this->manager = $manager ?: new ConfigManager();
@@ -39,6 +37,7 @@ class MainPage {
     $this->files = new FileTransfer();
     $this->permission = new Permission();
   }
+
   public function run(): void {
     \CRM_Utils_System::setTitle(ts('Configuration Manager'));
     $op = $this->request->getOperation();
@@ -139,7 +138,7 @@ class MainPage {
               \CRM_Core_Session::setStatus($warning, ts('Configuration Manager'), 'warning');
             }
           }
-          catch (Exception $e) {
+          catch (\Exception $e) {
             \CRM_Core_Session::setStatus(ts('Config Ignore was saved, but dependency warnings could not be checked: %1', [1 => $e->getMessage()]), ts('Configuration Manager'), 'warning');
           }
         }
@@ -149,12 +148,12 @@ class MainPage {
         $watchResult = $this->manager->scanWatched($types);
         $notice = !empty($watchResult['ok'])
           ? ts('Watch scan complete. %1 watched item(s), %2 baseline, %3 new, %4 changed, %5 missing.', [
-              1 => (int) ($watchResult['watched'] ?? 0),
-              2 => (int) ($watchResult['baseline'] ?? 0),
-              3 => (int) ($watchResult['new'] ?? 0),
-              4 => (int) ($watchResult['changed'] ?? 0),
-              5 => (int) ($watchResult['missing'] ?? 0),
-            ])
+            1 => (int) ($watchResult['watched'] ?? 0),
+            2 => (int) ($watchResult['baseline'] ?? 0),
+            3 => (int) ($watchResult['new'] ?? 0),
+            4 => (int) ($watchResult['changed'] ?? 0),
+            5 => (int) ($watchResult['missing'] ?? 0),
+          ])
           : ts('Watch scan completed with errors. Review the Configuration Manager watch summary.');
         $this->redirectWithNotice($notice, 'sync', !empty($watchResult['ok']) ? 'success' : 'error', 'watch=1', 'civicfg-watch-panel');
       }
@@ -173,7 +172,7 @@ class MainPage {
         if ($scope === 'fields') {
           $fields = $_POST['value_path'] ?? [];
           if (!is_array($fields) || !$fields) {
-            throw new RuntimeException('Select at least one field to ignore, or choose whole file.');
+            throw new \RuntimeException('Select at least one field to ignore, or choose whole file.');
           }
           $this->manager->addIgnoreValueRules($path, array_map('strval', $fields));
           $this->redirectWithNotice(ts('Field-level ignore rule(s) saved for %1.', [1 => $path]), 'sync', 'warning');
@@ -246,7 +245,7 @@ class MainPage {
         $result = $this->manager->diff($types);
       }
     }
-    catch (Exception $e) {
+    catch (\Exception $e) {
       $result = [
         'ok' => FALSE,
         'error' => $e->getMessage(),
@@ -254,6 +253,7 @@ class MainPage {
     }
     $this->assignTemplate($op, $types, $result, $notice, $validationResult, $importResult, $exportResult, $importSummary);
   }
+
   private function redirectWithNotice(string $message, string $op = 'sync', string $type = 'success', string $extraQuery = '', string $fragment = ''): void {
     \CRM_Core_Session::setStatus($message, ts('Configuration Manager'), $type);
     $query = 'reset=1&op=' . $op;
@@ -266,10 +266,12 @@ class MainPage {
     }
     \CRM_Utils_System::redirect($url);
   }
+
   private function requireValidCsrfToken(): void {
     $token = isset($_POST['civicfg_csrf']) ? (string) $_POST['civicfg_csrf'] : '';
     if ($token === '' || !\CRM_Core_Key::validate($token, 'civicfg_config_manager')) {
-      throw new RuntimeException('Invalid or expired Configuration Manager form token. Reload the page and try again.');
+      throw new \RuntimeException('Invalid or expired Configuration Manager form token. Reload the page and try again.');
     }
   }
+
 }

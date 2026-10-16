@@ -19,4 +19,5 @@ interface ChunkedStreamingHandlerInterface extends StreamingHandlerInterface {
    * @return iterable<int,array{filename:string,data:array,source_id?:int|null}>
    */
   public function iterateExportUnit(string $unitKey, ?callable $progress = NULL): iterable;
+
 }

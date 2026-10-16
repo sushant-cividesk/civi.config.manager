@@ -2,8 +2,6 @@
 namespace Civi\ConfigManager\UI;
 
 use Civi\ConfigManager\Service\LifecycleStateCleaner;
-use Exception;
-use RuntimeException;
 
 /**
  * MainPageResponse methods from MainPage.
@@ -17,7 +15,7 @@ trait MainPageResponseTrait {
     try {
       $path = isset($_REQUEST['path']) ? trim((string) $_REQUEST['path']) : '';
       if ($path === '') {
-        throw new RuntimeException('Choose a managed Saved Config path.');
+        throw new \RuntimeException('Choose a managed Saved Config path.');
       }
       $payload = $this->manager->getDiffDetail($path);
     }
@@ -53,7 +51,7 @@ trait MainPageResponseTrait {
     try {
       $type = isset($_REQUEST['scope_type']) ? trim((string) $_REQUEST['scope_type']) : '';
       if ($type === '') {
-        throw new RuntimeException('Choose a configuration type.');
+        throw new \RuntimeException('Choose a configuration type.');
       }
       $payload = ['ok' => TRUE] + $this->manager->getScopePickerItems($type);
     }
@@ -133,7 +131,7 @@ trait MainPageResponseTrait {
         $importResult = $review['result'];
         $importPlanId = $review['plan_id'];
       }
-      catch (Exception $e) {
+      catch (\Exception $e) {
         $importResult = [
           'ok' => FALSE,
           'error' => $e->getMessage(),
@@ -174,7 +172,7 @@ trait MainPageResponseTrait {
         $singleExport = $this->files->loadSingleExport($this->manager, $selectedExportItem);
         $singleExport['has_value'] = TRUE;
       }
-      catch (Exception $e) {
+      catch (\Exception $e) {
         $singleExport = ['error' => $e->getMessage(), 'has_value' => FALSE];
       }
     }
@@ -374,4 +372,5 @@ trait MainPageResponseTrait {
     $this->page->assign('canImport', Permission::has(Permission::IMPORT));
     $this->page->assign('canAdminister', Permission::has(Permission::ADMINISTER));
   }
+
 }

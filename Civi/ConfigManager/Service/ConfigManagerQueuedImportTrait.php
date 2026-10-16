@@ -11,8 +11,8 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
  */
 trait ConfigManagerQueuedImportTrait {
 
-
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   public function buildQueuedImportPlan(array $typeFilter = [], string $reviewPlanId = ''): array {
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
@@ -40,7 +40,8 @@ trait ConfigManagerQueuedImportTrait {
       'label' => 'Checking import safety',
       'message' => 'Checking Saved Configs and required related configuration before making any CiviCRM changes.',
       'retry_safe' => TRUE,
-    ]];
+    ],
+    ];
     foreach ($handlers as $handler) {
       $tasks[] = [
         'key' => 'import:write:' . (string) $handler->getType(),
@@ -97,7 +98,8 @@ trait ConfigManagerQueuedImportTrait {
     return $tasks;
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedImportPreflight(int $jobId, string $syncRootHash, string $reviewPlanId, array $typeFilter = [], ?callable $progress = NULL): array {
     if ($reviewPlanId === '') {
       throw new \RuntimeException('Import apply requires a reviewed Import plan. Build and review a fresh preview first.');
@@ -135,7 +137,7 @@ trait ConfigManagerQueuedImportTrait {
     }
     $validation = $this->validate($validationTypes);
     $processed = 0;
-    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function(array $event) use (&$processed, $progress) {
+    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function (array $event) use (&$processed, $progress) {
       $processed += (int) ($event['processed_items'] ?? 0);
       if ($progress !== NULL) {
         $progress([
@@ -156,7 +158,9 @@ trait ConfigManagerQueuedImportTrait {
       'review_plan' => $reviewPlan,
       'requested_types' => $requestedTypes,
       'effective_types' => $effectiveTypes,
-      'apply_types' => array_values(array_map(static function($handler): string { return (string) $handler->getType(); }, $handlers)),
+      'apply_types' => array_values(array_map(static function ($handler): string {
+        return (string) $handler->getType();
+      }, $handlers)),
       'planned_dependency_names' => $plannedDependencyNames,
       'preflight_fingerprints' => (array) ($preflight['_active_fingerprints'] ?? []),
       'post_write_fingerprints' => [],
@@ -185,7 +189,8 @@ trait ConfigManagerQueuedImportTrait {
     ], (array) ($reviewPlan['excluded_components'] ?? []));
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedImportCreateUpdate(int $jobId, string $syncRootHash, string $handlerType): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -234,7 +239,8 @@ trait ConfigManagerQueuedImportTrait {
     return $this->importResultAccounting->attach($result, (array) ($state['excluded_components'] ?? []));
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedImportDeleteMissing(int $jobId, string $syncRootHash, string $handlerType): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -282,7 +288,8 @@ trait ConfigManagerQueuedImportTrait {
     return $this->importResultAccounting->attach($result, (array) ($state['excluded_components'] ?? []));
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedImportBaseline(int $jobId, string $syncRootHash, string $handlerType): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $operationLock = OperationLock::acquire($storage->getRoot(), $jobId);
@@ -311,7 +318,8 @@ trait ConfigManagerQueuedImportTrait {
     return ['ok' => TRUE, 'baseline_items' => $count, 'processed_items' => (int) ($state['processed_items'] ?? 0)];
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function queuedImportComplete(int $jobId, string $syncRootHash): array {
     $stateStore = new OperationWorkspace($jobId, $syncRootHash);
     $state = $stateStore->loadState();
@@ -346,4 +354,5 @@ trait ConfigManagerQueuedImportTrait {
     }
     return $result;
   }
+
 }

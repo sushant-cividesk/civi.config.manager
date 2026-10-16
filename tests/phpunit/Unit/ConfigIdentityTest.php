@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\ConfigIdentity;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigIdentityTest extends TestCase {
+
   public function testDeclaredCompositeKeyIsStableAcrossDatabaseIdsAndFilenames(): void {
     $service = new ConfigIdentity();
     $first = $service->identify('myext_templates', [
@@ -97,4 +98,5 @@ final class ConfigIdentityTest extends TestCase {
     self::assertFalse($identity['write_safe']);
     self::assertStringContainsString('one.yml', $identity['config_key']);
   }
+
 }

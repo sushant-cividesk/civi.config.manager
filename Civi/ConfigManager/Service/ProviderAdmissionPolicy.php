@@ -131,7 +131,8 @@ final class ProviderAdmissionPolicy {
     );
   }
 
-  /** @return string[] */
+  /**
+   * @return string[] */
   private function writableFields(array $fields): array {
     $result = [];
     foreach ($fields as $name => $metadata) {
@@ -149,7 +150,8 @@ final class ProviderAdmissionPolicy {
     return array_values(array_unique($result));
   }
 
-  /** @return string[] */
+  /**
+   * @return string[] */
   private function referenceFields(array $fields): array {
     $result = [];
     foreach ($this->writableFields($fields) as $name) {
@@ -201,4 +203,5 @@ final class ProviderAdmissionPolicy {
       'reference_fields' => $references,
     ];
   }
+
 }

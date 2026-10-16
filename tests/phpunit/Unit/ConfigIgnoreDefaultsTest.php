@@ -8,6 +8,7 @@ use Civi\ConfigManager\Service\ConfigManager;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigIgnoreDefaultsTest extends TestCase {
+
   protected function setUp(): void {
     parent::setUp();
     \Civi::settings()->reset();
@@ -147,4 +148,5 @@ final class ConfigIgnoreDefaultsTest extends TestCase {
     self::assertStringNotContainsString('Built-in runtime value ignores', $template);
     self::assertStringNotContainsString('Additional Config Ignore Values', $template);
   }
+
 }

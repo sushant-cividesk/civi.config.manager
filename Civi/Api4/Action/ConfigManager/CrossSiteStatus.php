@@ -6,7 +6,9 @@ use Civi\Api4\Generic\Result;
 use Civi\ConfigManager\Service\ConfigManager;
 
 class CrossSiteStatus extends AbstractAction {
+
   public function _run(Result $result) {
     $result[] = (new ConfigManager())->getCrossSiteImportPolicy();
   }
+
 }

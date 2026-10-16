@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\UI;
 
-
 /**
  * PresenterImportFeedback methods from Presenter.
  *
@@ -24,7 +23,7 @@ trait PresenterImportFeedbackTrait {
     // those subtype selectors through preview/apply so a SQLTasks-only import
     // does not expand back to every extension-owned provider at submit time.
     if (in_array('extensions', $types, TRUE) && !in_array('extensions', $selectedTypes, TRUE)) {
-      $providerTypes = array_values(array_unique(array_filter(array_map('strval', $selectedTypes), static function($type) {
+      $providerTypes = array_values(array_unique(array_filter(array_map('strval', $selectedTypes), static function ($type) {
         return strpos($type, 'extensions:') === 0;
       })));
       if ($providerTypes) {
@@ -45,7 +44,6 @@ trait PresenterImportFeedbackTrait {
     }
     return $count;
   }
-
 
   public function firstImportProblem(?array $importResult): string {
     if (!$importResult) {
@@ -159,4 +157,5 @@ trait PresenterImportFeedbackTrait {
     }
     return array_values($unique);
   }
+
 }

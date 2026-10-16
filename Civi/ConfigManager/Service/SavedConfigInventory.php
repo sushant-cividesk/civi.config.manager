@@ -13,7 +13,7 @@ final class SavedConfigInventory {
    */
   public function count(iterable $paths, array $typeDirectories): array {
     $byType = array_fill_keys(array_keys($typeDirectories), 0);
-    uasort($typeDirectories, static function(string $a, string $b): int {
+    uasort($typeDirectories, static function (string $a, string $b): int {
       return strlen(trim($b, '/')) <=> strlen(trim($a, '/'));
     });
 
@@ -38,4 +38,5 @@ final class SavedConfigInventory {
 
     return ['total' => $total, 'by_type' => $byType];
   }
+
 }

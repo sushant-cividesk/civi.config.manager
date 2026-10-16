@@ -10,6 +10,7 @@ use Civi\ConfigManager\Handler\OptionGroupHandler;
 use PHPUnit\Framework\TestCase;
 
 final class ImportSafetyRegressionTest extends TestCase {
+
   public function testDryRunAcceptsOptionGroupPlannedEarlierInSameImport(): void {
     $handler = new ImportSafetyCustomGroupHandler();
     $handler->setPlannedDependencyNames([
@@ -28,7 +29,8 @@ final class ImportSafetyRegressionTest extends TestCase {
           'data_type' => 'String',
           'html_type' => 'Select',
           'option_group_name' => 'pronouns_20230621235627',
-        ]],
+        ],
+        ],
       ],
     ], TRUE);
 
@@ -50,7 +52,8 @@ final class ImportSafetyRegressionTest extends TestCase {
           'name' => 'Pronouns',
           'label' => 'Pronouns',
           'option_group_name' => 'pronouns_20230621235627',
-        ]],
+        ],
+        ],
       ],
     ], TRUE);
 
@@ -72,7 +75,8 @@ final class ImportSafetyRegressionTest extends TestCase {
           'label' => 'Mary Ellis Bowler',
           'value' => '3',
           'is_active' => TRUE,
-        ]],
+        ],
+        ],
       ],
     ], TRUE);
 
@@ -81,7 +85,7 @@ final class ImportSafetyRegressionTest extends TestCase {
     self::assertStringContainsString('Possible OptionValue identity rename detected', $result['errors'][0]['message']);
     self::assertSame(0, $result['values']['delete']);
     self::assertSame(1, $result['values']['skip']);
-    self::assertSame([], array_values(array_filter($result['warnings'], static function(array $warning): bool {
+    self::assertSame([], array_values(array_filter($result['warnings'], static function (array $warning): bool {
       return strpos((string) ($warning['message'] ?? ''), 'IntakeMgt@anvarlington.org') !== FALSE
         && strpos((string) ($warning['message'] ?? ''), 'will be deleted') !== FALSE;
     })));
@@ -100,7 +104,8 @@ final class ImportSafetyRegressionTest extends TestCase {
           'name' => '"Mary Ellis Bowler" <maryellisbowler@anvarlington.org>',
           'label' => 'Mary Ellis Bowler',
           'value' => '3',
-        ]],
+        ],
+        ],
       ],
     ], FALSE);
 
@@ -137,16 +142,18 @@ final class ImportSafetyRegressionTest extends TestCase {
     self::assertSame(0, $result['update']);
     self::assertSame(0, $result['delete']);
     self::assertSame(2, $result['skip']);
-    $messages = implode("\n", array_map(static function(array $row): string {
+    $messages = implode("\n", array_map(static function (array $row): string {
       return (string) ($row['message'] ?? '');
     }, $result['compatibility']));
     self::assertStringContainsString('intentional monitor-only snapshot', $messages);
     self::assertStringContainsString('does not expose a portable identity', $messages);
     self::assertStringContainsString('delete-missing is disabled', $messages);
   }
+
 }
 
 final class ImportSafetyCustomGroupHandler extends CustomGroupHandler {
+
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
     return [];
   }
@@ -154,6 +161,7 @@ final class ImportSafetyCustomGroupHandler extends CustomGroupHandler {
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
     return NULL;
   }
+
 }
 
 final class ImportSafetyOptionGroupHandler extends OptionGroupHandler {
@@ -168,7 +176,8 @@ final class ImportSafetyOptionGroupHandler extends OptionGroupHandler {
         'label' => 'Mary Ellis Bowler',
         'value' => '3',
         'is_reserved' => FALSE,
-      ]];
+      ],
+      ];
     }
     return [];
   }
@@ -231,4 +240,5 @@ final class ImportSafetyOptionGroupHandler extends OptionGroupHandler {
     }
     return NULL;
   }
+
 }

@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace Civi\Api4 {
   final class CivicfgHookFixture {
-    /** @var array<int, array<string, mixed>> */
+    /**
+     * @var array<int, array<string, mixed>> */
     public static array $rows = [];
 
-    /** @var array<int, array<string, mixed>> */
+    /**
+     * @var array<int, array<string, mixed>> */
     public static array $created = [];
 
-    /** @var array<int, array{where: array<int, array<int, mixed>>, values: array<string, mixed>}> */
+    /**
+     * @var array<int, array{where: array<int, array<int, mixed>>, values: array<string, mixed>}> */
     public static array $updated = [];
 
-    /** @var array<int, array<int, array<int, mixed>>> */
+    /**
+     * @var array<int, array<int, array<int, mixed>>> */
     public static array $deleted = [];
 
-    /** @var array<int, CivicfgHookFixtureAction> */
+    /**
+     * @var array<int, CivicfgHookFixtureAction> */
     public static array $actions = [];
 
     public static function get(bool $checkPermissions = FALSE): CivicfgHookFixtureAction {
@@ -39,22 +44,27 @@ namespace Civi\Api4 {
       self::$actions[] = $action;
       return $action;
     }
+
   }
 
   final class CivicfgReferenceFixture {
-    /** @var array<int, array<string, mixed>> */
+    /**
+     * @var array<int, array<string, mixed>> */
     public static array $rows = [];
 
     public static function get(bool $checkPermissions = FALSE): CivicfgReferenceFixtureAction {
       return new CivicfgReferenceFixtureAction();
     }
+
   }
 
   final class CivicfgReferenceFixtureAction {
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string> */
     private array $select = [];
 
-    /** @var array<int, array<int, mixed>> */
+    /**
+     * @var array<int, array<int, mixed>> */
     private array $where = [];
 
     public function addSelect(string ...$fields): self {
@@ -62,7 +72,8 @@ namespace Civi\Api4 {
       return $this;
     }
 
-    /** @param mixed $value */
+    /**
+     * @param mixed $value */
     public function addWhere(string $field, string $operator, $value): self {
       $this->where[] = [$field, $operator, $value];
       return $this;
@@ -72,7 +83,8 @@ namespace Civi\Api4 {
       return $this;
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * @return array<int, array<string, mixed>> */
     public function execute(): array {
       $rows = array_values(array_filter(self::rows(), function (array $row): bool {
         foreach ($this->where as $condition) {
@@ -93,25 +105,31 @@ namespace Civi\Api4 {
       return $rows;
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * @return array<int, array<string, mixed>> */
     private static function rows(): array {
       return CivicfgReferenceFixture::$rows;
     }
+
   }
 
   final class CivicfgHookFixtureAction {
     private string $op;
 
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string> */
     public array $select = [];
 
-    /** @var array<int, array<int, mixed>> */
+    /**
+     * @var array<int, array<int, mixed>> */
     public array $where = [];
 
-    /** @var array<string, string> */
+    /**
+     * @var array<string, string> */
     public array $orderBy = [];
 
-    /** @var array<string, mixed> */
+    /**
+     * @var array<string, mixed> */
     public array $values = [];
 
     public function __construct(string $op) {
@@ -123,7 +141,8 @@ namespace Civi\Api4 {
       return $this;
     }
 
-    /** @param mixed $value */
+    /**
+     * @param mixed $value */
     public function addWhere(string $field, string $operator, $value): self {
       $this->where[] = [$field, $operator, $value];
       return $this;
@@ -134,13 +153,15 @@ namespace Civi\Api4 {
       return $this;
     }
 
-    /** @param mixed $value */
+    /**
+     * @param mixed $value */
     public function addValue(string $field, $value): self {
       $this->values[$field] = $value;
       return $this;
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * @return array<int, array<string, mixed>> */
     public function execute(): array {
       if ($this->op === 'create') {
         $nextId = 1;
@@ -196,7 +217,8 @@ namespace Civi\Api4 {
       return $rows;
     }
 
-    /** @param array<string, mixed> $row */
+    /**
+     * @param array<string, mixed> $row */
     private function matchesWhere(array $row): bool {
       foreach ($this->where as $condition) {
         [$field, $operator, $value] = $condition;
@@ -209,6 +231,7 @@ namespace Civi\Api4 {
       }
       return TRUE;
     }
+
   }
 }
 
@@ -219,6 +242,7 @@ namespace Civi\ConfigManager\Tests\Unit {
   use PHPUnit\Framework\TestCase;
 
   final class EntityDefinitionHandlerTest extends TestCase {
+
     protected function setUp(): void {
       CivicfgHookFixture::$rows = [[
         'id' => 1,
@@ -233,12 +257,14 @@ namespace Civi\ConfigManager\Tests\Unit {
           'format' => 'pdf',
           'secret' => 'nested-secret',
         ],
-      ]];
+      ],
+      ];
       CivicfgReferenceFixture::$rows = [[
         'id' => 91,
         'name' => 'parent_alpha',
         'label' => 'Parent Alpha',
-      ]];
+      ],
+      ];
       CivicfgHookFixture::$created = [];
       CivicfgHookFixture::$updated = [];
       CivicfgHookFixture::$deleted = [];
@@ -319,7 +345,8 @@ namespace Civi\ConfigManager\Tests\Unit {
         'parent_id.name' => 'parent_alpha',
         'name' => 'child_template',
         'label' => 'Child Template',
-      ]];
+      ],
+      ];
 
       $handler = $this->buildHandler([
         'key_fields' => ['parent_id.name', 'name'],
@@ -490,7 +517,8 @@ namespace Civi\ConfigManager\Tests\Unit {
           'items' => [[
             'name' => 'alpha_template',
             'api_key' => 'must-not-be-here',
-          ]],
+          ],
+          ],
         ],
       ]);
 
@@ -687,7 +715,8 @@ namespace Civi\ConfigManager\Tests\Unit {
       self::assertStringContainsString('Only APIv4', $result['errors'][0]['message']);
     }
 
-    /** @param array<string, mixed> $overrides */
+    /**
+     * @param array<string, mixed> $overrides */
     private function buildHandler(array $overrides = []): EntityDefinitionHandler {
       return new EntityDefinitionHandler('myext_templates', array_merge([
         'label' => 'My Extension Templates',
@@ -701,5 +730,6 @@ namespace Civi\ConfigManager\Tests\Unit {
         'dependencies' => ['extension' => ['myext']],
       ], $overrides));
     }
+
   }
 }

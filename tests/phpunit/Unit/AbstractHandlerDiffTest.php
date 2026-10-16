@@ -8,6 +8,7 @@ use Civi\ConfigManager\Handler\AbstractHandler;
 use PHPUnit\Framework\TestCase;
 
 final class AbstractHandlerDiffTest extends TestCase {
+
   public function testDiffIgnoresReverseDependencyMetadata(): void {
     $handler = new TestHandler();
     $yaml = [
@@ -23,7 +24,8 @@ final class AbstractHandlerDiffTest extends TestCase {
         'type' => 'example.item',
         'item' => ['name' => 'alpha', 'label' => 'Alpha'],
       ],
-    ]];
+    ],
+    ];
 
     $diff = $handler->diffFromExports($database, $yaml);
 
@@ -49,7 +51,8 @@ final class AbstractHandlerDiffTest extends TestCase {
           ['name' => 'two', 'label' => 'Two changed'],
         ],
       ],
-    ]];
+    ],
+    ];
 
     $diff = $handler->diffFromExports($database, $yaml);
 
@@ -72,7 +75,8 @@ final class AbstractHandlerDiffTest extends TestCase {
         'type' => 'example.item',
         'item' => ['name' => 'alpha', 'label' => 'Alpha'],
       ],
-    ]];
+    ],
+    ];
 
     $diff = $handler->diffFromExports($database, $yaml);
 
@@ -204,9 +208,11 @@ final class AbstractHandlerDiffTest extends TestCase {
     self::assertStringContainsString('NEW-MARKER', $rendered);
     self::assertLessThan(strlen($old) + strlen($new), strlen($rendered));
   }
+
 }
 
 final class TestHandler extends AbstractHandler {
+
   public function getType(): string {
     return 'example';
   }
@@ -233,4 +239,5 @@ final class TestHandler extends AbstractHandler {
   public function readApi4EntityForTest(string $entity): array {
     return $this->api4Get($entity);
   }
+
 }

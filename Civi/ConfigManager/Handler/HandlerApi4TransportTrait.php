@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * HandlerApi4Transport methods from AbstractHandler.
  *
@@ -283,4 +282,5 @@ trait HandlerApi4TransportTrait {
     }
     return (array) $action->execute();
   }
+
 }

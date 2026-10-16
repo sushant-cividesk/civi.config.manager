@@ -164,7 +164,8 @@ final class CivicfgUiFixture {
         'entity' => 'OptionGroup',
         'name' => $missingDependencyName,
         'reason' => 'QA browser fixture requires a deliberately missing option group.',
-      ]],
+      ],
+      ],
       'group' => [
         'name' => $blockedGroupName,
         'title' => 'QA blocked Custom Data fixture',
@@ -188,7 +189,8 @@ final class CivicfgUiFixture {
         'is_searchable' => FALSE,
         'weight' => 1,
         'is_active' => TRUE,
-      ]],
+      ],
+      ],
     ]), LOCK_EX);
 
     $state = [
@@ -275,6 +277,7 @@ final class CivicfgUiFixture {
     }
     @rmdir($path);
   }
+
 }
 
 (new CivicfgUiFixture($argv))->run();

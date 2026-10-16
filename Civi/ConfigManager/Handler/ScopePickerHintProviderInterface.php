@@ -13,4 +13,5 @@ interface ScopePickerHintProviderInterface {
    *   Picker-only metadata. Nothing returned here is written to YAML.
    */
   public function getScopePickerHints(array $exported): array;
+
 }

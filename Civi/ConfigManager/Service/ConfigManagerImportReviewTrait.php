@@ -49,7 +49,7 @@ trait ConfigManagerImportReviewTrait {
       'requested_types' => $context['requested_types'],
       'effective_types' => $context['effective_types'],
       'validation_types' => $context['validation_types'],
-      'apply_types' => array_values(array_map(static function($handler): string {
+      'apply_types' => array_values(array_map(static function ($handler): string {
         return (string) $handler->getType();
       }, $context['handlers'])),
       'scope_fingerprint' => $this->importPlanGuard->scopeFingerprint($context['handlers'], $this->getIgnoreRules()),
@@ -70,7 +70,8 @@ trait ConfigManagerImportReviewTrait {
     return $this->importResultAccounting->attach($preview, $preview['excluded_components']);
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function createReducedImportReviewPlan(string $componentId, array $typeFilter = []): array {
     return (new ReducedImportPlanService($this->importDependencyPlanner))->build($this, $componentId, $typeFilter);
   }
@@ -107,7 +108,7 @@ trait ConfigManagerImportReviewTrait {
     }
 
     $context = $this->buildImportReviewContext($planTypes);
-    $actualApplyTypes = array_values(array_map(static function($handler): string {
+    $actualApplyTypes = array_values(array_map(static function ($handler): string {
       return (string) $handler->getType();
     }, $context['handlers']));
     foreach (['requested_types', 'effective_types', 'validation_types'] as $key) {
@@ -150,7 +151,8 @@ trait ConfigManagerImportReviewTrait {
     return $plan;
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function applyImportReviewPlan(string $planId, ?callable $progress = NULL, array $submittedTypes = []): array {
     try {
       $plan = $this->validateImportReviewPlan($planId, $submittedTypes, TRUE);
@@ -174,7 +176,8 @@ trait ConfigManagerImportReviewTrait {
     }
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   public function resumeImportReviewPlan(string $planId, array $submittedTypes = []): array {
     $plan = $this->validateImportReviewPlan($planId, $submittedTypes, TRUE);
     $preview = $this->import(TRUE, FALSE, (array) $plan['requested_types'], NULL, TRUE);
@@ -192,7 +195,8 @@ trait ConfigManagerImportReviewTrait {
     $this->importPlanGuard->discard($planId);
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function buildImportReviewContext(array $typeFilter): array {
     $requestedTypes = $this->normaliseTypeFilter($typeFilter);
     $effectiveTypes = $this->getEffectiveExportTypeFilter($requestedTypes);
@@ -258,7 +262,8 @@ trait ConfigManagerImportReviewTrait {
     }
   }
 
-  /** @return array<string,mixed> */
+  /**
+   * @return array<string,mixed> */
   private function validateQueuedReviewPlan(array $state): array {
     $planId = trim((string) ($state['review_plan_id'] ?? ''));
     $storedPlan = (array) ($state['review_plan'] ?? []);
@@ -275,4 +280,5 @@ trait ConfigManagerImportReviewTrait {
     }
     return $plan;
   }
+
 }

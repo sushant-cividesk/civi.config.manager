@@ -3,10 +3,12 @@
  * Dependency-free A67-07 regression: do not report an unverified scan as In Sync.
  * Uses in-memory FakeCivi settings; never boots or changes a CiviCRM database.
  */
+
 declare(strict_types=1);
+
 $root = dirname(__DIR__, 2);
 require_once $root . '/tests/phpunit/Support/FakeCivi.php';
-spl_autoload_register(static function(string $class) use ($root): void {
+spl_autoload_register(static function (string $class) use ($root): void {
   $prefix = 'Civi\\ConfigManager\\';
   if (strpos($class, $prefix) !== 0) {
     return;
@@ -21,7 +23,7 @@ use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Service\DiffStateClassifier;
 
 $checks = 0;
-$assert = static function(bool $valid, string $label) use (&$checks): void {
+$assert = static function (bool $valid, string $label) use (&$checks): void {
   $checks++;
   if (!$valid) {
     fwrite(STDERR, "Sync status regression FAILED: {$label}\n");
@@ -31,7 +33,7 @@ $assert = static function(bool $valid, string $label) use (&$checks): void {
 $manager = new ConfigManager();
 $cache = new ReflectionMethod($manager, 'cacheHealthFromDiff');
 $cache->setAccessible(TRUE);
-$health = static function(array $diff) use ($cache, $manager): array {
+$health = static function (array $diff) use ($cache, $manager): array {
   Civi::settings()->reset();
   $cache->invoke($manager, ['sync_dir' => '/tmp/sync-fixture'] + $diff);
   return (array) Civi::settings()->get('civicfg_last_health');
@@ -72,18 +74,29 @@ $initial = $health(['initial_export_required' => TRUE]);
 $assert($initial['title'] === 'Configuration Manager: Initial export required', 'initial export still requires setup');
 
 
-// Exercise the real state-enrichment services without touching a database.
+/**
+ * Exercise the real state-enrichment services without touching a database.
+ */
 class SyncStateFixtureStore extends \Civi\ConfigManager\Service\StateStore {
   public array $baselines = [];
   public array $states = [];
-  public function isAvailable(): bool { return TRUE; }
+
+  public function isAvailable(): bool {
+    return TRUE;
+  }
+
   public function getBaseline(string $providerKey, string $identityHash): ?array {
     return $this->baselines[$providerKey . '|' . $identityHash] ?? NULL;
   }
-  public function previousIdentityHash(string $providerKey, string $newIdentityHash): ?string { return NULL; }
+
+  public function previousIdentityHash(string $providerKey, string $newIdentityHash): ?string {
+    return NULL;
+  }
+
   public function upsertObjectState(array $identity, ?string $yamlHash, ?string $activeHash, string $state): void {
     $this->states[] = $state;
   }
+
   public function acceptBaseline(array $identity, array $canonicalData, string $hash, string $source): void {
     $this->baselines[$identity['provider_key'] . '|' . $identity['identity_hash']] = [
       'baseline_hash' => $hash,
@@ -91,13 +104,30 @@ class SyncStateFixtureStore extends \Civi\ConfigManager\Service\StateStore {
       'canonical_version' => \Civi\ConfigManager\Service\Canonicalizer::VERSION,
     ];
   }
+
 }
 class SyncStateFixtureHandler extends \Civi\ConfigManager\Handler\AbstractHandler {
-  public function getType(): string { return 'example'; }
-  public function getLabel(): string { return 'Example'; }
-  public function getDirectory(): string { return 'example'; }
-  public function getWeight(): int { return 10; }
-  public function export(): array { return []; }
+
+  public function getType(): string {
+    return 'example';
+  }
+
+  public function getLabel(): string {
+    return 'Example';
+  }
+
+  public function getDirectory(): string {
+    return 'example';
+  }
+
+  public function getWeight(): int {
+    return 10;
+  }
+
+  public function export(): array {
+    return [];
+  }
+
 }
 $store = new SyncStateFixtureStore();
 $stateManager = new \Civi\ConfigManager\Service\ConfigStateManager($store);

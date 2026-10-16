@@ -71,7 +71,8 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
     $manager->createReducedImportReviewPlan($componentId, ['blocked-source', 'independent-test']);
   }
 
-  /** @return array{0:ReducedPlanFixtureManager,1:ReducedPlanFixtureHandler,2:ReducedPlanFixtureHandler,3:ReducedPlanFixtureHandler,4:string} */
+  /**
+   * @return array{0:ReducedPlanFixtureManager,1:ReducedPlanFixtureHandler,2:ReducedPlanFixtureHandler,3:ReducedPlanFixtureHandler,4:string} */
   private function fixture(): array {
     $root = $this->createTemporaryDirectory();
     $planRoot = $this->createTemporaryDirectory();
@@ -93,7 +94,8 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
         'type' => 'dependency-target',
         'name' => 'target',
         'reason' => 'The source requires this target.',
-      ]],
+      ],
+      ],
       'item' => ['name' => 'source', 'label' => 'Saved Source'],
     ]);
     $this->writeYaml($root . '/independent-test/item.yml', $this->document('independent-test.item', 'item'));
@@ -124,6 +126,7 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
     @mkdir(dirname($path), 0775, TRUE);
     file_put_contents($path, SimpleYaml::dump($data));
   }
+
 }
 
 final class ReducedPlanFixtureManager extends ConfigManager {
@@ -137,6 +140,7 @@ final class ReducedPlanFixtureManager extends ConfigManager {
   public function getSiteIdentifier(): string {
     return $this->siteId;
   }
+
 }
 
 final class ReducedPlanFixtureRegistry extends HandlerRegistry {
@@ -149,6 +153,7 @@ final class ReducedPlanFixtureRegistry extends HandlerRegistry {
   public function getHandlers(): array {
     return $this->handlers;
   }
+
 }
 
 final class ReducedPlanFixtureHandler extends AbstractHandler {
@@ -168,10 +173,21 @@ final class ReducedPlanFixtureHandler extends AbstractHandler {
     $this->active = $active;
   }
 
-  public function getType(): string { return $this->type; }
-  public function getLabel(): string { return $this->label; }
-  public function getDirectory(): string { return $this->directory; }
-  public function getWeight(): int { return 10; }
+  public function getType(): string {
+    return $this->type;
+  }
+
+  public function getLabel(): string {
+    return $this->label;
+  }
+
+  public function getDirectory(): string {
+    return $this->directory;
+  }
+
+  public function getWeight(): int {
+    return 10;
+  }
 
   public function export(): array {
     if (!$this->active) {
@@ -185,7 +201,8 @@ final class ReducedPlanFixtureHandler extends AbstractHandler {
         'name' => $this->name,
         'item' => ['name' => $this->name, 'label' => ucfirst($this->name)],
       ],
-    ]];
+    ],
+    ];
   }
 
   public function validate(array $items): array {
@@ -225,4 +242,5 @@ final class ReducedPlanFixtureHandler extends AbstractHandler {
       'ok' => TRUE,
     ];
   }
+
 }

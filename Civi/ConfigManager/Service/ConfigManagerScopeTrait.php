@@ -45,7 +45,7 @@ trait ConfigManagerScopeTrait {
         'capability_help' => $capability['help'],
       ];
     }
-    usort($rows, static function($a, $b) {
+    usort($rows, static function ($a, $b) {
       $cmp = ((int) $a['weight']) <=> ((int) $b['weight']);
       return $cmp !== 0 ? $cmp : strcmp((string) $a['label'], (string) $b['label']);
     });
@@ -86,7 +86,7 @@ trait ConfigManagerScopeTrait {
         ];
       }
       $row['scope_dependencies'] = $dependencies;
-      $row['scope_dependency_types'] = implode(',', array_map(static function($dependency) {
+      $row['scope_dependency_types'] = implode(',', array_map(static function ($dependency) {
         return (string) $dependency['type'];
       }, $dependencies));
       $row['scope_dependents'] = array_values((array) ($dependents[$type] ?? []));
@@ -343,7 +343,7 @@ trait ConfigManagerScopeTrait {
       ];
     }
 
-    usort($items, static function($a, $b) {
+    usort($items, static function ($a, $b) {
       $recommendedCmp = ((int) !empty($b['recommended'])) <=> ((int) !empty($a['recommended']));
       if ($recommendedCmp !== 0) {
         return $recommendedCmp;
@@ -445,7 +445,7 @@ trait ConfigManagerScopeTrait {
       throw new \RuntimeException('Invalid Configuration Scope mode: ' . $mode);
     }
 
-    $selectors = array_values(array_unique(array_filter(array_map(static function($selector) {
+    $selectors = array_values(array_unique(array_filter(array_map(static function ($selector) {
       return trim((string) $selector);
     }, $selectors), 'strlen')));
     if ($mode !== ConfigScope::MODE_SELECTED) {
@@ -571,4 +571,5 @@ trait ConfigManagerScopeTrait {
       'help' => "Supports Saved Config export/compare plus the handler's reviewed restore/import behavior.",
     ];
   }
+
 }

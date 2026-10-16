@@ -15,4 +15,5 @@ interface StreamingHandlerInterface {
    * @return iterable<int,array{filename:string,data:array,source_id?:int|null}>
    */
   public function iterateExport(): iterable;
+
 }

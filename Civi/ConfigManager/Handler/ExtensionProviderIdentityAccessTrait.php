@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderIdentityAccess methods from ExtensionHandler.
  *
@@ -240,7 +239,8 @@ trait ExtensionProviderIdentityAccessTrait {
       'entity' => 'Extension',
       'name' => (string) $definition['extension'],
       'reason' => 'This bundled configuration is provided by this extension API entity.',
-    ]];
+    ],
+    ];
     $json = json_encode($row);
     if ($json) {
       preg_match_all('/afsearch[A-Za-z0-9_:-]+/', $json, $matches);
@@ -255,4 +255,5 @@ trait ExtensionProviderIdentityAccessTrait {
     }
     return $this->uniqueDependencies($dependencies);
   }
+
 }

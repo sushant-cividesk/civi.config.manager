@@ -52,6 +52,17 @@ freeze, without waiving its requirements.
 
 ## Feature bundle 1: Synchronization correctness (in progress — 2026-10-16)
 
+**Regressions must be cleared before resuming this bundle:** The R0.2 class
+split inadvertently dropped the private ConfigManager `isIgnoredPath()` entry
+point, although internal scope/export/import code still called it. R0.3 adds a
+small compatibility bridge to the centralized ignore engine, repairs stale
+PHPUnit source checks, and extends no-runtime smoke coverage. This hotfix is
+**locally verified but DDEV PHPUnit confirmation is pending**; do not interpret
+it as an ML-001 fix. Complete the functional regression checkpoint before
+new provider work. Coding-standard cleanup is a separate bounded maintenance
+change rather than an automatic whole-repo reformat.
+
+
 **A67-07 implementation:** `DiffStateClassifier` distinguishes `NO_BASELINE`
 from baseline-verified `IN_SYNC`. Both compact streaming and detailed diff
 paths report the count of matching-but-unbaselined objects, even if no changed

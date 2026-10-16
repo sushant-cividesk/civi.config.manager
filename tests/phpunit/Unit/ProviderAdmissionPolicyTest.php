@@ -31,7 +31,8 @@ final class ProviderAdmissionPolicyTest extends TestCase {
     self::assertFalse($result['stages']['capability']['passed']);
   }
 
-  /** Requirement: local numeric IDs are never portable identity evidence. */
+  /**
+   * Requirement: local numeric IDs are never portable identity evidence. */
   public function testIdOnlyIdentityFailsClosed(): void {
     $result = $this->policy->assess(['id'], ['id' => ['name' => 'id']]);
     self::assertFalse($result['admitted']);
@@ -39,7 +40,8 @@ final class ProviderAdmissionPolicyTest extends TestCase {
     self::assertFalse($result['stages']['portable_identity']['passed']);
   }
 
-  /** Requirement: secrets cannot enter a generic writable projection. */
+  /**
+   * Requirement: secrets cannot enter a generic writable projection. */
   public function testSensitiveWritableProjectionFailsClosed(): void {
     $result = $this->policy->assess(['name'], [
       'name' => ['name' => 'name'],
@@ -66,7 +68,8 @@ final class ProviderAdmissionPolicyTest extends TestCase {
     self::assertFalse($result['stages']['reference_mapping']['passed']);
   }
 
-  /** Requirement: explicit semantic reference metadata can complete admission. */
+  /**
+   * Requirement: explicit semantic reference metadata can complete admission. */
   public function testPortableReferenceMappingAllowsFinalCapabilityAssignment(): void {
     $result = $this->policy->assess(['name'], [
       'name' => ['name' => 'name'],
@@ -85,4 +88,5 @@ final class ProviderAdmissionPolicyTest extends TestCase {
     self::assertTrue($result['stages']['reference_mapping']['passed']);
     self::assertTrue($result['stages']['capability']['passed']);
   }
+
 }

@@ -9,7 +9,8 @@ namespace Civi\ConfigManager\Service;
  * job is queued/running; a queue work unit may pass its own job ID.
  */
 class OperationLock {
-  /** @var object|null */
+  /**
+   * @var object|null */
   private $lock;
 
   private function __construct($lock) {
@@ -60,4 +61,5 @@ class OperationLock {
   public function __destruct() {
     $this->release();
   }
+
 }

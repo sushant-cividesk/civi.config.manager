@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Service;
 
-
 /**
  * ConfigManagerProviderCatalog methods from ConfigManager.
  *
@@ -11,7 +10,7 @@ namespace Civi\ConfigManager\Service;
 trait ConfigManagerProviderCatalogTrait {
 
   public function getHandlers(): array {
-    return array_values(array_filter($this->getAllHandlers(), function($handler) {
+    return array_values(array_filter($this->getAllHandlers(), function ($handler) {
       return $this->scope->isManagedType((string) $handler->getType());
     }));
   }
@@ -109,7 +108,7 @@ trait ConfigManagerProviderCatalogTrait {
       ];
     }
 
-    usort($providers, static function(array $a, array $b): int {
+    usort($providers, static function (array $a, array $b): int {
       return strcmp((string) $a['provider_key'], (string) $b['provider_key']);
     });
 
@@ -126,7 +125,7 @@ trait ConfigManagerProviderCatalogTrait {
       'providers' => $providers,
       'summary' => [
         'provider_count' => count($providers),
-        'admitted_count' => count(array_filter($providers, static function(array $provider): bool {
+        'admitted_count' => count(array_filter($providers, static function (array $provider): bool {
           return !empty($provider['admitted']);
         })),
         'rejected_registration_count' => count($this->registry->getRegistrationDiagnostics()),
@@ -182,7 +181,7 @@ trait ConfigManagerProviderCatalogTrait {
         }
       }
     }
-    usort($rows, function($a, $b) {
+    usort($rows, function ($a, $b) {
       $cmp = ((int) ($a['weight'] ?? 0)) <=> ((int) ($b['weight'] ?? 0));
       if ($cmp !== 0) {
         return $cmp;
@@ -275,4 +274,5 @@ trait ConfigManagerProviderCatalogTrait {
       }
     }
   }
+
 }

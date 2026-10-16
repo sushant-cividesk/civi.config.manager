@@ -1,7 +1,6 @@
 <?php
 namespace Civi\ConfigManager\Handler;
 
-
 /**
  * ExtensionProviderCollection methods from ExtensionHandler.
  *
@@ -361,4 +360,5 @@ trait ExtensionProviderCollectionTrait {
     sort($names, SORT_NATURAL | SORT_FLAG_CASE);
     return $names;
   }
+
 }

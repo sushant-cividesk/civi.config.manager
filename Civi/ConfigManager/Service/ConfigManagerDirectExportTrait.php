@@ -279,4 +279,5 @@ trait ConfigManagerDirectExportTrait {
     }
     return $summary;
   }
+
 }

@@ -57,7 +57,7 @@ trait ConfigManagerImportExecutionTrait {
     $validation = $this->validate($validationTypes);
     $completedSteps++;
     $this->reportProgress($progress, $completedSteps, $totalSteps, 'YAML validation complete', 'Checking rename safety and handler dry-runs.', $processedItems);
-    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function(array $event) use (&$completedSteps, $totalSteps, &$processedItems, $progress) {
+    $preflight = $this->buildImportPreflight($handlers, $storage, $validation, function (array $event) use (&$completedSteps, $totalSteps, &$processedItems, $progress) {
       $completedSteps++;
       $processedItems += (int) ($event['processed_items'] ?? 0);
       $this->reportProgress(
@@ -69,7 +69,7 @@ trait ConfigManagerImportExecutionTrait {
         $processedItems
       );
     }, $willApply || $captureFingerprints || $reviewPlan !== NULL);
-    $exclusionEffectiveTypes = $effectiveTypes ?: array_values(array_map(static function($handler): string {
+    $exclusionEffectiveTypes = $effectiveTypes ?: array_values(array_map(static function ($handler): string {
       return (string) $handler->getType();
     }, $handlers));
     $preflight['dependency_components'] = $this->importDependencyPlanner->addExclusionSafety(
@@ -247,7 +247,7 @@ trait ConfigManagerImportExecutionTrait {
     ];
 
     try {
-      $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage, function($handler) use ($stepProgress) {
+      $possibleRenames = $this->findPossibleRenameCandidates($handlers, $storage, function ($handler) use ($stepProgress) {
         if ($stepProgress !== NULL) {
           $stepProgress([
             'label' => 'Checked ' . $handler->getLabel() . ' identities',
@@ -263,8 +263,8 @@ trait ConfigManagerImportExecutionTrait {
           $result['errors'][] = [
             'type' => (string) ($candidate['type'] ?? 'import'),
             'message' => 'Possible configuration identity rename requires review before import: '
-              . (string) ($candidate['old_config_key'] ?? '[old identity]') . ' -> '
-              . (string) ($candidate['new_config_key'] ?? '[new identity]') . '.',
+            . (string) ($candidate['old_config_key'] ?? '[old identity]') . ' -> '
+            . (string) ($candidate['new_config_key'] ?? '[new identity]') . '.',
           ];
         }
       }
@@ -388,7 +388,8 @@ trait ConfigManagerImportExecutionTrait {
     return (string) ($accounted['summary_message'] ?? '');
   }
 
-  /** @return array<string,mixed>|null */
+  /**
+   * @return array<string,mixed>|null */
   private function verifiedPostImportDiff(): ?array {
     try {
       $diff = $this->diff();
@@ -399,7 +400,8 @@ trait ConfigManagerImportExecutionTrait {
     }
   }
 
-  /** @return array<int,array<string,mixed>> */
+  /**
+   * @return array<int,array<string,mixed>> */
   private function sanitizeExcludedComponents(array $components): array {
     $sanitized = [];
     foreach ($components as $component) {
@@ -428,4 +430,5 @@ trait ConfigManagerImportExecutionTrait {
       $handler->setDeleteMissingEnabled($deleteEnabled && $this->scope->allowsDeleteMissing((string) $handler->getType()));
     }
   }
+
 }

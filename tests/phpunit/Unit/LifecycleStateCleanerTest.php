@@ -6,7 +6,8 @@ namespace {
   if (!class_exists('CRM_Core_Session')) {
     final class CRM_Core_Session {
       private static ?self $instance = NULL;
-      /** @var array<string,mixed> */
+      /**
+       * @var array<string,mixed> */
       private array $values = [];
 
       public static function singleton(): self {
@@ -27,6 +28,7 @@ namespace {
       public function resetForTest(): void {
         $this->values = [];
       }
+
     }
   }
 }

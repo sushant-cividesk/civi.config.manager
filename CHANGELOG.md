@@ -2,6 +2,26 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **R0.3 hotfix / structural regression repair:** Restored `ConfigManager`'s
+  private `isIgnoredPath()` compatibility bridge after Config Ignore extraction.
+  Internal scope picker, staged export, managed archive and reviewed Import
+  preflight paths continued calling it; its absence produced cascading failures.
+  The bridge forwards to the existing `ConfigIgnoreRules` policy rather than
+  duplicating matching rules. `ImportPlanStore` plan-ID validation and import
+  write restrictions are unchanged.
+- Repaired PHPUnit source-inspection tests following trait and JavaScript
+  decomposition: performance/provider contracts now read explicitly included
+  trait code; the scope-picker assertion checks its registered Settings script.
+  The original fail-closed and pagination assertions remain intact.
+- Added focused smoke assertions for internal ignored paths and the reviewed
+  plan store (opaque IDs, integrity-preserving reads and single use). A local
+  **non-PHPUnit** fixture runner reproduced six representative failures in the
+  supplied R0.2/Bundle1 tree and their passing behavior after the hotfix.
+  Existing PHP/Node contracts pass. Full DDEV `composer qa:fast` still needs a
+  rerun. Whole-repository PHPCS formatting findings are tracked separately;
+  they are not resolved by this functional hotfix.
+
+
 - **Bundle 1 / A67-07:** Corrected Synchronize health classification. Matching
   Saved Config/Current CiviCRM values without an accepted baseline now report
   `NO_BASELINE`, not a confirmed `IN_SYNC`. Failed/incomplete provider scans,

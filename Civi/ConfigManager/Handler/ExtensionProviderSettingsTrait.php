@@ -12,7 +12,6 @@ use Civi\ConfigManager\Service\ProviderAdmissionPolicy;
  */
 trait ExtensionProviderSettingsTrait {
 
-
   private function dependenciesForExtension(string $key): array {
     return [];
   }
@@ -182,7 +181,6 @@ trait ExtensionProviderSettingsTrait {
     }
     return TRUE;
   }
-
 
   private function discoverConfigByExtension(): array {
     $groups = [];
@@ -407,4 +405,5 @@ trait ExtensionProviderSettingsTrait {
       'org.civicoop.civirules',
     ], TRUE);
   }
+
 }

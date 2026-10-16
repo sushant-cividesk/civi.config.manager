@@ -9,6 +9,7 @@ use Civi\Api4\Generic\BasicGetFieldsAction;
 use PHPUnit\Framework\TestCase;
 
 final class Api4FacadeTest extends TestCase {
+
   public function testGetFieldsReturnsApi4ActionObject(): void {
     require_once dirname(__DIR__, 3) . '/Civi/ConfigManager/UI/Permission.php';
     require_once dirname(__DIR__, 3) . '/Civi/Api4/ConfigManager.php';
@@ -37,4 +38,5 @@ final class Api4FacadeTest extends TestCase {
     self::assertSame($permissions['watch'], $permissions['providerInventory']);
     self::assertSame($permissions['default'], $permissions['getFields']);
   }
+
 }

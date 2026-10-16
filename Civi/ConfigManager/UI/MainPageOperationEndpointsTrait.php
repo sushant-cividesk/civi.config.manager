@@ -2,7 +2,6 @@
 namespace Civi\ConfigManager\UI;
 
 use Civi\ConfigManager\Service\QueuedOperationService;
-use RuntimeException;
 
 /**
  * MainPageOperationEndpoints methods from MainPage.
@@ -11,6 +10,7 @@ use RuntimeException;
  * access modifiers. Do not instantiate this trait separately.
  */
 trait MainPageOperationEndpointsTrait {
+
   /**
    * Stream truthful server-side progress as newline-delimited JSON.
    * Export/import remain normal synchronous PHP operations, but the browser can
@@ -18,7 +18,7 @@ trait MainPageOperationEndpointsTrait {
    */
   private function streamOperation(string $postAction, array $types): void {
     if (!in_array($postAction, ['export_write', 'import_apply'], TRUE)) {
-      throw new RuntimeException('Unsupported Configuration Manager streamed operation.');
+      throw new \RuntimeException('Unsupported Configuration Manager streamed operation.');
     }
     while (ob_get_level() > 0) {
       @ob_end_flush();
@@ -28,11 +28,11 @@ trait MainPageOperationEndpointsTrait {
     header('Content-Type: application/x-ndjson; charset=UTF-8');
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Accel-Buffering: no');
-    $emit = static function(array $event): void {
+    $emit = static function (array $event): void {
       echo json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
       @flush();
     };
-    $progress = static function(array $event) use ($emit): void {
+    $progress = static function (array $event) use ($emit): void {
       $event['event'] = 'progress';
       $emit($event);
     };
@@ -97,6 +97,7 @@ trait MainPageOperationEndpointsTrait {
     }
     exit;
   }
+
   /**
    * Start a persistent CiviCRM Queue job. The form action itself is used for
    * permission/CSRF checks, but the queue stores only operation metadata.
@@ -112,7 +113,7 @@ trait MainPageOperationEndpointsTrait {
         $operation = 'import';
       }
       else {
-        throw new RuntimeException('Unsupported Configuration Manager queued operation.');
+        throw new \RuntimeException('Unsupported Configuration Manager queued operation.');
       }
       $reviewPlanId = $operation === 'import' ? $this->request->getImportPlanId() : '';
       $job = (new QueuedOperationService())->start($operation, $types, $reviewPlanId);
@@ -123,7 +124,9 @@ trait MainPageOperationEndpointsTrait {
     }
     $this->emitJsonAndExit($payload);
   }
-  /** Advance at most one persistent queue item. */
+
+  /**
+   * Advance at most one persistent queue item. */
   private function jsonAdvanceOperation(): void {
     try {
       $jobId = isset($_REQUEST['job_id']) ? (int) $_REQUEST['job_id'] : 0;
@@ -138,7 +141,9 @@ trait MainPageOperationEndpointsTrait {
     }
     $this->emitJsonAndExit($payload);
   }
-  /** Read-only reconnect/status endpoint for a running queue job. */
+
+  /**
+   * Read-only reconnect/status endpoint for a running queue job. */
   private function jsonOperationStatus(): void {
     try {
       $jobId = isset($_REQUEST['job_id']) ? (int) $_REQUEST['job_id'] : 0;
@@ -167,6 +172,7 @@ trait MainPageOperationEndpointsTrait {
     }
     $this->emitJsonAndExit($payload);
   }
+
   private function requireOperationPermission(string $operation): void {
     if ($operation === 'export') {
       Permission::require(Permission::EXPORT);
@@ -176,10 +182,11 @@ trait MainPageOperationEndpointsTrait {
       Permission::require(Permission::IMPORT);
       return;
     }
-    throw new RuntimeException('Unknown Configuration Manager operation type.');
+    throw new \RuntimeException('Unknown Configuration Manager operation type.');
   }
 
-  /** @return array{status_url:string,step_url:string,redirect_url:string} */
+  /**
+   * @return array{status_url:string,step_url:string,redirect_url:string} */
   private function operationLinks(int $jobId): array {
     return [
       'status_url' => \CRM_Utils_System::url('civicrm/admin/config-manager', 'reset=1&op=operation-status-json&job_id=' . $jobId, FALSE, NULL, FALSE),
@@ -188,7 +195,8 @@ trait MainPageOperationEndpointsTrait {
     ];
   }
 
-  /** @return array{0:string,1:string} */
+  /**
+   * @return array{0:string,1:string} */
   private function operationTerminalMessage(array $job): array {
     $operation = (string) ($job['operation'] ?? 'operation');
     $result = (array) ($job['result'] ?? []);
@@ -207,7 +215,8 @@ trait MainPageOperationEndpointsTrait {
     return [trim(ts('Import complete. Synchronize will verify the resulting configuration state.') . ' ' . $summary), 'success'];
   }
 
-  /** @param array<string,mixed> $payload */
+  /**
+   * @param array<string,mixed> $payload */
   private function emitJsonAndExit(array $payload): void {
     // WordPress/contributed extensions can emit notices or buffered markup
     // during bootstrap. A JSON endpoint must never append its payload to that
@@ -229,4 +238,5 @@ trait MainPageOperationEndpointsTrait {
     echo $json;
     \CRM_Utils_System::civiExit();
   }
+
 }

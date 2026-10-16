@@ -6,9 +6,9 @@ namespace Civi\ConfigManager\Tests\Unit;
 
 use Civi\ConfigManager\UI\Presenter;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 final class PresenterTest extends TestCase {
+
   public function testImportMessagesAreDeduplicated(): void {
     $presenter = new Presenter();
     $result = [
@@ -20,7 +20,8 @@ final class PresenterTest extends TestCase {
             ['message' => 'Provider is backup/monitor-only.'],
           ],
           'errors' => [],
-        ]],
+        ],
+        ],
       ],
     ];
 
@@ -46,7 +47,7 @@ final class PresenterTest extends TestCase {
       'items' => [],
     ]);
 
-    $text = implode("\n", array_map(static function(array $message): string {
+    $text = implode("\n", array_map(static function (array $message): string {
       return (string) $message['message'];
     }, $messages));
 
@@ -57,7 +58,7 @@ final class PresenterTest extends TestCase {
 
   public function testExtensionStatusChangeUsesPlainLanguageAndBothSides(): void {
     $presenter = new Presenter();
-    $method = new ReflectionMethod($presenter, 'describeFieldChange');
+    $method = new \ReflectionMethod($presenter, 'describeFieldChange');
     $method->setAccessible(TRUE);
 
     $sentence = (string) $method->invoke(
@@ -82,14 +83,14 @@ final class PresenterTest extends TestCase {
       'status' => 'missing_in_db',
       'path' => 'extensions/org.wikimedia.geocoder/api4/Geocoder/Addok.yml',
       'write_safe' => FALSE,
-    ]]);
+    ],
+    ]);
 
     self::assertCount(1, $plan);
     self::assertFalse($plan[0]['importable']);
     self::assertSame('Saved copy only', $plan[0]['action']);
     self::assertStringContainsString('Automatic restore is disabled', $plan[0]['note']);
   }
-
 
   public function testUnsafeRemovalUsesExportActionInsteadOfRemoveLanguage(): void {
     $presenter = new Presenter();
@@ -100,7 +101,8 @@ final class PresenterTest extends TestCase {
       'path' => 'extensions/example.yml',
       'write_safe' => TRUE,
       'delete_allowed' => FALSE,
-    ]]);
+    ],
+    ]);
 
     self::assertFalse($plan[0]['importable']);
     self::assertSame('Export to Saved Config', $plan[0]['action']);
@@ -116,7 +118,8 @@ final class PresenterTest extends TestCase {
       'status' => 'missing_in_db',
       'path' => 'extensions/de.systopia.sqltasks/api3/Sqltask/hii.yml',
       'write_safe' => TRUE,
-    ]]);
+    ],
+    ]);
 
     self::assertTrue($plan[0]['importable']);
     self::assertSame('Restore to Current CiviCRM', $plan[0]['action']);
@@ -127,7 +130,8 @@ final class PresenterTest extends TestCase {
     $plan = [[
       'type' => 'extensions',
       'importable' => TRUE,
-    ]];
+    ],
+    ];
 
     $types = $presenter->getImportApplyTypes($plan, [
       'extensions:de.systopia.sqltasks:api3:Sqltask',
@@ -143,7 +147,8 @@ final class PresenterTest extends TestCase {
     $plan = [[
       'type' => 'extensions',
       'importable' => TRUE,
-    ]];
+    ],
+    ];
 
     $types = $presenter->getImportApplyTypes($plan, [
       'extensions',
@@ -164,12 +169,15 @@ final class PresenterTest extends TestCase {
           ['message' => 'Provider is backup/monitor-only.'],
         ],
         'errors' => [],
-      ]],
+      ],
+      ],
     ]);
 
     self::assertSame([], $messages);
   }
-  /** Requirement: one-sided sync states use client language that describes the next action clearly. */
+
+  /**
+   * Requirement: one-sided sync states use client language that describes the next action clearly. */
   public function testClientFriendlyDifferenceLabels(): void {
     $presenter = new Presenter();
 
@@ -183,15 +191,19 @@ final class PresenterTest extends TestCase {
    */
   public function testNotYetSavedSummaryExplainsNextAction(): void {
     $presenter = new Presenter();
-    $files = $presenter->extractDiffFiles(['items' => [[
-      'type' => 'tags',
-      'label' => 'Tags',
-      'files' => [[
-        'path' => 'tags/community.yml',
-        'status' => 'new_in_db',
-        'changes' => [],
-      ]],
-    ]]]);
+    $files = $presenter->extractDiffFiles([
+      'items' => [[
+        'type' => 'tags',
+        'label' => 'Tags',
+        'files' => [[
+          'path' => 'tags/community.yml',
+          'status' => 'new_in_db',
+          'changes' => [],
+        ],
+        ],
+      ],
+      ],
+    ]);
 
     self::assertSame('Not Yet Saved', $files[0]['status_label']);
     self::assertSame('Export this item to add it to Saved Configs.', $files[0]['summary_sentence']);
@@ -204,17 +216,21 @@ final class PresenterTest extends TestCase {
    */
   public function testProfileFieldUsesSemanticDisplayTitleAndHidesInlinePath(): void {
     $presenter = new Presenter();
-    $files = $presenter->extractDiffFiles(['items' => [[
-      'type' => 'profile-fields',
-      'label' => 'Profile Fields',
-      'files' => [[
-        'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-        'file' => 'summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-        'status' => 'changed',
-        'config_key' => 'profile-fields:api4:UFField|key=profile=summary_overlay%7Cfield=phone%7Cfield_type=Phone%7Clocation=Home%7Clabel=Home Phone',
-        'changes' => [['path' => 'item.label', 'type' => 'changed', 'old' => 'Home Phone', 'new' => 'Primary Phone']],
-      ]],
-    ]]]);
+    $files = $presenter->extractDiffFiles([
+      'items' => [[
+        'type' => 'profile-fields',
+        'label' => 'Profile Fields',
+        'files' => [[
+          'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+          'file' => 'summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+          'status' => 'changed',
+          'config_key' => 'profile-fields:api4:UFField|key=profile=summary_overlay%7Cfield=phone%7Cfield_type=Phone%7Clocation=Home%7Clabel=Home Phone',
+          'changes' => [['path' => 'item.label', 'type' => 'changed', 'old' => 'Home Phone', 'new' => 'Primary Phone']],
+        ],
+        ],
+      ],
+      ],
+    ]);
 
     self::assertSame('Profile Field "Home Phone" in "Summary Overlay"', $files[0]['display_title']);
     self::assertFalse($files[0]['show_inline_path']);
@@ -231,22 +247,27 @@ final class PresenterTest extends TestCase {
    */
   public function testProfileFieldFilenameFallbackStripsCollisionHash(): void {
     $presenter = new Presenter();
-    $files = $presenter->extractDiffFiles(['items' => [[
-      'type' => 'profile-fields',
-      'label' => 'Profile Fields',
-      'files' => [[
-        'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
-        'status' => 'changed',
-        'changes' => [],
-      ]],
-    ]]]);
+    $files = $presenter->extractDiffFiles([
+      'items' => [[
+        'type' => 'profile-fields',
+        'label' => 'Profile Fields',
+        'files' => [[
+          'path' => 'profiles/fields/summary_overlay__phone__Home-Phone--7a8859f54f.yml',
+          'status' => 'changed',
+          'changes' => [],
+        ],
+        ],
+      ],
+      ],
+    ]);
 
     self::assertSame('Profile Field "Home Phone" in "Summary Overlay"', $files[0]['display_title']);
     self::assertFalse($files[0]['show_inline_path']);
     self::assertStringNotContainsString('7a8859f54f', $files[0]['display_title']);
   }
 
-  /** Requirement: the summary exposes the Saved Config inventory count without changing difference totals. */
+  /**
+   * Requirement: the summary exposes the Saved Config inventory count without changing difference totals. */
   public function testSummaryIncludesSavedConfigCount(): void {
     $presenter = new Presenter();
     $summary = $presenter->buildSummary(
@@ -258,6 +279,5 @@ final class PresenterTest extends TestCase {
     self::assertSame(1107, $summary['saved_config_count']);
     self::assertSame(0, $summary['total_changes']);
   }
-
 
 }

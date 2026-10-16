@@ -230,7 +230,6 @@ trait ConfigManagerValidationTrait {
     return $dependencies;
   }
 
-
   private function extractRequiredByFromYamlFile(array $file): array {
     $requiredBy = [];
     foreach (($file['required_by'] ?? []) as $row) {
@@ -307,7 +306,6 @@ trait ConfigManagerValidationTrait {
     }
   }
 
-
   public function getIgnoredDependencyWarnings(): array {
     $storage = new YamlFileStorage($this->getSyncDir());
     $warnings = [];
@@ -351,4 +349,5 @@ trait ConfigManagerValidationTrait {
     }
     return array_values(array_unique($warnings));
   }
+
 }

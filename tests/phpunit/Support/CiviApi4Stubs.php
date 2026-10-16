@@ -23,6 +23,7 @@ namespace Civi\Api4\Generic {
       public function getCheckPermissions(): bool {
         return $this->checkPermissions;
       }
+
     }
   }
 }
@@ -30,30 +31,61 @@ namespace Civi\Api4\Generic {
 namespace Civi\Api4 {
   if (!class_exists(CivicfgEmptyGetAction::class)) {
     class CivicfgEmptyGetAction {
-      public function addSelect(...$fields): self { return $this; }
-      public function addWhere(...$condition): self { return $this; }
-      public function addOrderBy(string $field, string $direction): self { return $this; }
-      public function setLimit(int $limit): self { return $this; }
-      public function setOffset(int $offset): self { return $this; }
-      public function execute(): array { return []; }
+
+      public function addSelect(...$fields): self {
+        return $this;
+      }
+
+      public function addWhere(...$condition): self {
+        return $this;
+      }
+
+      public function addOrderBy(string $field, string $direction): self {
+        return $this;
+      }
+
+      public function setLimit(int $limit): self {
+        return $this;
+      }
+
+      public function setOffset(int $offset): self {
+        return $this;
+      }
+
+      public function execute(): array {
+        return [];
+      }
+
     }
   }
 
   if (!class_exists(CiviRulesRuleCondition::class)) {
     class CiviRulesRuleCondition {
-      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
+
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        return new CivicfgEmptyGetAction();
+      }
+
     }
   }
 
   if (!class_exists(CiviRulesRuleAction::class)) {
     class CiviRulesRuleAction {
-      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
+
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        return new CivicfgEmptyGetAction();
+      }
+
     }
   }
 
   if (!class_exists(CiviRulesAction::class)) {
     class CiviRulesAction {
-      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction { return new CivicfgEmptyGetAction(); }
+
+      public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
+        return new CivicfgEmptyGetAction();
+      }
+
     }
   }
 
@@ -65,6 +97,7 @@ namespace Civi\Api4 {
       public static function get(bool $checkPermissions = TRUE): CivicfgPagingGetAction {
         return new CivicfgPagingGetAction();
       }
+
     }
   }
 
@@ -87,6 +120,7 @@ namespace Civi\Api4 {
       public static function update(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
         return new CivicfgEmptyGetAction();
       }
+
     }
   }
 
@@ -125,7 +159,7 @@ namespace Civi\Api4 {
         foreach ($this->where as $condition) {
           if (($condition[0] ?? NULL) === 'id' && ($condition[1] ?? NULL) === '>') {
             $afterId = (int) ($condition[2] ?? 0);
-            $rows = array_values(array_filter($rows, static function(array $row) use ($afterId): bool {
+            $rows = array_values(array_filter($rows, static function (array $row) use ($afterId): bool {
               return (int) ($row['id'] ?? 0) > $afterId;
             }));
           }
@@ -135,6 +169,7 @@ namespace Civi\Api4 {
         }
         return array_slice($rows, $this->offset, $this->limit);
       }
+
     }
   }
 }
@@ -142,7 +177,8 @@ namespace Civi\Api4 {
 namespace {
   if (!class_exists('CRM_Utils_Hook')) {
     class CRM_Utils_Hook {
-      /** @var array<string, callable> */
+      /**
+       * @var array<string, callable> */
       private static array $callbacks = [];
 
       public static function singleton(): self {
@@ -162,6 +198,7 @@ namespace {
           self::$callbacks[$hook]($arg1, $arg2, $arg3, $arg4, $arg5, $arg6);
         }
       }
+
     }
   }
 }

@@ -46,7 +46,8 @@ class OperationResultPresenter {
     ];
   }
 
-  /** @param array<string,mixed> $summary */
+  /**
+   * @param array<string,mixed> $summary */
   public function exportMessage(array $summary): string {
     if (empty($summary['ok'])) {
       $errors = max(1, (int) ($summary['errors'] ?? 0));
@@ -129,7 +130,8 @@ class OperationResultPresenter {
     ];
   }
 
-  /** @param array<string,mixed> $result */
+  /**
+   * @param array<string,mixed> $result */
   private function firstProblem(array $result): string {
     foreach ((array) ($result['errors'] ?? []) as $error) {
       if (is_array($error) && trim((string) ($error['message'] ?? '')) !== '') {
@@ -152,4 +154,5 @@ class OperationResultPresenter {
     }
     return trim((string) ($result['message'] ?? ''));
   }
+
 }

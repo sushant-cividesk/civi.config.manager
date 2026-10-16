@@ -5,6 +5,7 @@ namespace Civi\ConfigManager\UI;
  * Small request helper. Keeps filtering/normalisation in one place.
  */
 class Request {
+
   public function getOperation(): string {
     $op = isset($_REQUEST['op']) ? (string) $_REQUEST['op'] : 'sync';
     if (in_array($op, ['status', 'diff', 'validate'], TRUE)) {
@@ -67,4 +68,5 @@ class Request {
   public function shouldOpenWatchPanel(): bool {
     return isset($_REQUEST['watch']) && (string) $_REQUEST['watch'] === '1';
   }
+
 }
