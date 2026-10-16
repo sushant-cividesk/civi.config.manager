@@ -52,7 +52,9 @@
         "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
         "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
         "standards": "phpcs --standard=phpcs.xml.dist",
-        "compatibility": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
+        "compatibility7.4": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
+        "compatibility8.1": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.1 .",
+        "compatibility8.3": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.3 .",
         "qa:fast": [
             "@test:source-hygiene",
             "@test:source-hygiene-behavior",
@@ -80,7 +82,9 @@
             "@test:provider-browser",
             "@test:mutation-provider-browser",
             "@analyse",
-            "@compatibility"
+            "@compatibility7.4",
+            "@compatibility8.0",
+            "@compatibility8.3"
         ],
         "qa:real-runtime": "RUN_UI_TESTS=false bash tests/ci/run-standalone.sh",
         "qa:real-runtime-ui": "bash tests/ci/run-local-ui.sh",

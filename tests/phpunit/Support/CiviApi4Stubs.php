@@ -217,7 +217,8 @@ namespace {
 
       public function invoke(array $names, &$arg1, &$arg2, &$arg3, &$arg4, &$arg5, &$arg6, string $hook): void {
         if (isset(self::$callbacks[$hook])) {
-          self::$callbacks[$hook]($arg1, $arg2, $arg3, $arg4, $arg5, $arg6);
+          $callback = self::$callbacks[$hook];
+          $callback($arg1, $arg2, $arg3, $arg4, $arg5, $arg6);
         }
       }
 
