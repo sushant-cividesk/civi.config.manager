@@ -3,7 +3,8 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-$main = file_get_contents($root . '/Civi/ConfigManager/UI/MainPage.php');
+require_once __DIR__ . '/source-contract-reader.php';
+$main = civicfgReadContractSource($root, 'Civi/ConfigManager/UI/MainPage.php');
 $entry = file_get_contents($root . '/configmanager.php');
 $cleaner = file_get_contents($root . '/Civi/ConfigManager/Service/LifecycleStateCleaner.php');
 

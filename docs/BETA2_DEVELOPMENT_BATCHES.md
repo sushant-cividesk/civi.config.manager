@@ -6,30 +6,49 @@
 Authoritative original release priorities: [BETA2_PRIORITIES.md](BETA2_PRIORITIES.md).
 Detailed pending items and historical decisions: [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
-## Phase 0: structural groundwork (active; not a feature release)
+## Phase 0: structural groundwork (source-layout checkpoint complete)
 
-The user-supplied ZIP on 2026-10-16 has two oversized source files:
+**R0.1 (2026-10-16):** Extracted real collaborators `ConfigIgnoreRules` and
+`ExtensionProviderIdentity` with a 26-check boundary smoke. This work was
+committed at `b8463cafd011e52a10e8c0f1d5e20f0ae95a1a26`.
 
-| Source file | Original size | Refactor-first concern |
-|---|---:|---|
-| `Civi/ConfigManager/Service/ConfigManager.php` | 5,887 lines | Mixes scope/ignore policy, export, diff, review plans, import, queues, and status |
-| `Civi/ConfigManager/Handler/ExtensionHandler.php` | 3,311 lines | Mixes discovery, API3/API4 transport, provider identity, and import/delete handling |
+**R0.2 (2026-10-16, awaiting maintainer commit):** Split the remaining
+stateful orchestration and long provider/UI helper methods into 34 narrowly
+named concern traits across the six largest production classes. This keeps
+existing constructors, private state, public APIs and import/queue safeguards
+on the same objects, with **440/440 method bodies byte-for-byte preserved**.
 
-**Checkpoint R0.1 — extracted pure/cohesive rules, implemented 2026-10-16:**
+| Production source | R0.1 lines | R0.2 lines |
+|---|---:|---:|
+| `Service/ConfigManager.php` | 5,632 | 114 |
+| `Handler/ExtensionHandler.php` | 3,248 | 72 |
+| `Handler/AbstractHandler.php` | 979 | 418 |
+| `UI/MainPage.php` | 992 | 269 |
+| `UI/Presenter.php` | 934 | 280 |
+| `Handler/EntityDefinitionHandler.php` | 760 | 572 |
 
-- `Service/ConfigIgnoreRules.php` owns built-in and configured ignore rules, legacy setting migration, whole-file matching, field-value filtering, and ignored-only diff filtering.
-- `Handler/ExtensionProviderIdentity.php` owns *pure* portable identity selection, confidence, uniqueness, and multiplicity analysis. It performs **no API queries, writes, or caching**.
-- `ConfigManager` and `ExtensionHandler` retain their existing public and reflection-tested method entry points. The collaborators are lazily initialized, so existing subclasses that intentionally skip parent constructors keep their existing behavior.
-- Runtime provider duplicate queries, row caches, create/update/delete decisions, synchronization behavior, and CiviCRM settings contracts are **unchanged**. There is no ML-001 functional fix in this batch.
-- Added `tests/ci/refactor-boundaries-smoke.php`, runnable via `composer test:refactor-boundaries` and early in `composer qa:fast`. It requires only PHP and in-memory FakeCivi settings. The same checks were run against pre-change Git HEAD to establish a baseline.
-- No database mutation, changes to generated YAML, new permission, provider-capability expansion, or version bump.
+The largest production PHP file is now 608 lines; no test suite or fixture was
+split without a functional reason. The 1,247-line frontend controller
+was also divided into a 729-line main UI script and a 531-line Settings/scope
+module. Node basic initialization behavior and AssetLoader order were checked
+before/after, without adding a JS build process. The 34 traits are **organizational units
+sharing their owning object's state**, not independent/isolated business
+services. This avoids changing override semantics, safe import phases,
+transaction/lock ownership, cache behavior and API query boundaries during a
+large structural migration. Follow [CODE_STRUCTURE.md](CODE_STRUCTURE.md) to
+find the new owner of each method and to avoid future spaghetti growth.
 
-**Not complete:** The two original coordinator files are **still oversized**. R0.1 reduces coupling in focused rule layers, but does not certify their remaining 5k+/3k+ lines as maintainable. **Continue structural decomposition before layering new logic into these classes.** Prioritize the following seams, one behavior-preserving extraction at a time, with existing callers/tests preserved:
+**Verified locally:** Reflection signatures 440/440 unchanged, method body
+SHA-256 text equality 440/440, 26-check prior smoke, new 72-check composition
+smoke, PHP syntax, Alpha62/63/64/68 and available frontend contracts.
+**Not verified:** Full DDEV/Composer PHPUnit and real CiviCRM browser/API4
+flows. This is not a Beta2 feature, provider capability expansion, schema
+migration, or ML-001 functional fix. Do not classify as release-ready.
 
-1. `ConfigManager`: separate scope/picker presentation from stateful export/import orchestration; evaluate project/path resolution as its own service without breaking subclass overrides or CMS-root fallback behavior.
-2. `ConfigManager`: separate queued export staging and compact snapshot mechanics from import/review-plan orchestration; keep atomic publish/rollback and current public API stable.
-3. `ExtensionHandler`: isolate metadata-only API3/API4 provider discovery from collection reads and mutation operations; preserve fail-closed admission and cache invalidation. Do not move data-write operations together with diagnostic discovery.
-4. Decompose only where dependency analysis shows a cohesive boundary. **No broad traits, rename churn, auto-generated thin wrappers, or speculative caching just to reduce line counts.**
+**Development next:** start Feature Bundle 1 (ML-001 then A67-07) and edit only
+the relevant, now smaller source concerns. Keep basic functional tests for
+each change and defer the documented advanced release matrix until feature
+freeze, without waiving its requirements.
 
 ## Feature bundles (on hold until structural boundaries are suitable)
 

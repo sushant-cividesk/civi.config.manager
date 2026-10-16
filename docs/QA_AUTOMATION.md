@@ -4,6 +4,16 @@ Configuration Manager uses a fast GitHub Actions workflow plus a required isolat
 
 The frozen requirement and evidence checklist is maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
+**Structural R0.2:** `composer qa:fast` includes `test:refactor-composition`
+(72 checks) in addition to the existing 26-check boundary smoke. The static
+Alpha62/63/64 and Alpha68 lifecycle contracts read the class file plus only
+literal same-directory `*Trait.php` requirements, and fail when a required
+source file is missing. No safety assertion has been disabled. This does not
+replace the real-runtime release checks. The JS Settings
+scope split is covered by `test:js-scope-composition`, checking script order,
+initialization and missing-module behavior without a browser.
+
+
 ## Source archive permissions (QA-003)
 
 The first `composer qa:fast` step is now `@test:source-hygiene`, which fails

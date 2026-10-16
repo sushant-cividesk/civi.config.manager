@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
+require_once __DIR__ . '/source-contract-reader.php';
 $failures = [];
 $checks = 0;
 
@@ -14,12 +15,7 @@ $assert = static function(bool $condition, string $message) use (&$failures, &$c
 };
 
 $read = static function(string $relative) use ($root): string {
-  $path = $root . '/' . $relative;
-  $contents = @file_get_contents($path);
-  if ($contents === FALSE) {
-    throw new RuntimeException('Could not read ' . $relative);
-  }
-  return $contents;
+  return civicfgReadContractSource($root, $relative);
 };
 
 $manager = $read('Civi/ConfigManager/Service/ConfigManager.php');

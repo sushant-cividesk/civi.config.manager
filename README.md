@@ -16,13 +16,18 @@ excludes an intentionally red, explicitly runnable ML-001 reproduction; see
 [user-confirmed Beta2 priorities](docs/BETA2_PRIORITIES.md) and
 [ML-001 runtime evidence](docs/ML-001-RUNTIME-EVIDENCE.md).
 
-**Development-first checkpoint (2026-10-16):** Initial behavior-preserving
-refactoring moved Config Ignore rules and contributed-provider portable-identity
-rules into separate classes. The large export/import coordinator and extension
-provider discovery logic remain for further decomposition before adding new
-features. See [Beta2 development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
-Use `composer test:refactor-boundaries` for a fast PHP-only smoke check. This
-checkpoint does not fix ML-001 or waive final release testing.
+**Structural R0.2 checkpoint (2026-10-16):** The six largest production
+classes have been divided into focused named concerns while keeping the
+existing PHP entry points and method bodies unchanged. `ConfigManager.php` is
+now 114 lines and `ExtensionHandler.php` is 72 lines; the largest production
+PHP file is 608 lines. The concerns retain shared state intentionally, so
+this layout refactor is not an ML-001 fix or full runtime validation. See
+[code structure](docs/CODE_STRUCTURE.md) and [Beta2 development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
+Run `composer test:refactor-boundaries` and `composer test:refactor-composition`
+for fast PHP-only checks. Mandatory Beta2 release gates remain intact. The 1,247-line
+browser script was also split into the main UI (729 lines) and Settings/scope
+picker (531 lines), with no frontend build tooling. Use
+`composer test:js-scope-composition` for the basic Node behavior smoke.
 
 **Source archive note:** Developer source ZIPs must preserve executable modes
 for `bin/civicfg`, `scripts/*.sh`, and `tests/ci/*.sh`. On Linux/macOS use a

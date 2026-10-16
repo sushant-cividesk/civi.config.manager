@@ -2,6 +2,24 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **R0.2:** Decomposed all six production PHP files above 750 lines into 34
+  cohesive state-preserving concern traits. The largest resulting production
+  PHP file is 608 lines; 440 existing method bodies and public/private method
+  signatures remain byte-identical to commit `b8463ca`. Retained explicit
+  direct-loader includes for CiviCRM and legacy PHP bootstraps.
+- Updated Alpha62–64 and Alpha68 lifecycle source contracts to inspect the
+  explicitly included trait files without weakening any existing assertions.
+  Added a 72-check direct-load/API composition smoke to `qa:fast`.
+- Documented responsibility ownership and import/provider safety invariants in
+  `docs/CODE_STRUCTURE.md`. This is a source-layout and maintainability change,
+  not an ML-001 fix; CiviCRM/DDEV runtime and full Composer QA remain deferred.
+- Split the 1,247-line browser entry point into `js/configmanager.js` (729
+  lines) and `js/configmanager-scope.js` (531 lines), keeping Settings controls
+  separately initialized using the same URL/JSON helpers. `AssetLoader` loads
+  the Settings module first. Added a Node initialization/fallback regression;
+  the original and split versions produced identical DOM-ready selector and
+  document event registration sequences in a controlled no-provider fixture.
+
 - Split Config Ignore rule ownership out of the oversized `ConfigManager`
   into `ConfigIgnoreRules` while retaining existing entry points, built-in
   patterns, CiviCRM settings migration, and ignore-only diff behavior.

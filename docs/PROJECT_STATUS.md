@@ -11,17 +11,19 @@ commitment to add new features before Beta2**. No order change waives a release 
 
 ## 2026-10-16 development-first structural checkpoint
 
-At the user's request, **pause new Beta2 feature work until the oversized
-coordinator/handler files are decomposed by responsibility**. Structural
-checkpoint R0.1 extracted `ConfigIgnoreRules` and `ExtensionProviderIdentity`
-without altering active configuration behavior, provider admissions, import
-side effects, or public service entry points. Basic independent smoke/contract
-checks passed; full DDEV/runtime verification remains deferred, not complete.
-The original source files remain oversized and require further targeted splits
-before adding functionality to those paths. See
-[BETA2_DEVELOPMENT_BATCHES.md](BETA2_DEVELOPMENT_BATCHES.md) for the actionable
-six-bundle development plan and outstanding structural milestones. This
-scheduling choice does **not** cancel mandatory Beta2 release requirements.
+R0.1 extracted `ConfigIgnoreRules` and `ExtensionProviderIdentity` in commit
+`b8463cafd011e52a10e8c0f1d5e20f0ae95a1a26`. R0.2 has now reorganized
+the six oversized production classes into 34 cohesive stateful concern files;
+the largest production PHP file is 608 lines. All **440** original method
+bodies and reflection method interfaces remain unchanged. The frontend JS was
+also split into 729/531-line main/Settings modules with no build tool. The 26-check
+boundary and 72-check direct-load composition smokes pass, along with basic
+architecture/UI contracts. This is **source-layout completion, not real
+CiviCRM functional certification**. Advanced DDEV/runtime QA is deferred.
+See [code structure](CODE_STRUCTURE.md) and
+[development bundles](BETA2_DEVELOPMENT_BATCHES.md). The next development
+bundle is ML-001/A67-07; no Beta2 functional bug has yet been resolved by
+this structural change. Mandatory release requirements remain unchanged.
 
 ## Authoritative state
 

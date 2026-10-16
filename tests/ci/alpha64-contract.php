@@ -3,15 +3,12 @@
  * Dependency-free alpha64 release/runtime hardening contract.
  */
 $root = dirname(__DIR__, 2);
+require_once __DIR__ . '/source-contract-reader.php';
 $checks = 0;
 $failures = [];
 
 $read = static function(string $relative) use ($root): string {
-  $path = $root . '/' . $relative;
-  if (!is_file($path)) {
-    throw new RuntimeException('Missing contract source file: ' . $relative);
-  }
-  return (string) file_get_contents($path);
+  return civicfgReadContractSource($root, $relative);
 };
 
 $assert = static function(bool $condition, string $message) use (&$checks, &$failures): void {

@@ -1,5 +1,25 @@
 # Testing
 
+## Structural R0.2 basic verification (2026-10-16)
+
+After splitting the six largest production source files into explicit
+same-directory traits, run `composer test:refactor-boundaries` (26 checks) and
+`composer test:refactor-composition` (72 checks). The latter verifies direct
+PHP loading and retained API entry points; the former checks Config Ignore
+and provider-identity behavior without CiviCRM. Alpha62–64 safety contracts
+and Alpha68 lifecycle source tests now use `tests/ci/source-contract-reader.php`
+for literal, explicitly required same-directory traits, so splitting a method
+does not silently remove it from the original fail-closed test coverage.
+All original assertions remain. The authoring environment also compared all
+440 method-body SHA-256 hashes and method signatures with HEAD `b8463ca`.
+These checks do **not** prove live CiviCRM import or browser behavior. The
+separate `composer test:js-scope-composition` checks vanilla JS module load
+order, initialization, and missing-module fallback. A controlled comparison
+with the original also matched 27 DOM-ready selector queries and two document
+event handler registrations. This is not real browser/CiviCRM QA.
+See [CODE_STRUCTURE.md](CODE_STRUCTURE.md) for concern ownership and warnings.
+
+
 ## Beta2 priority and ML-001 pending reproducer (2026-10-08)
 
 **QA-003 source package integrity:** The 2026-10-08 `Permission denied` at

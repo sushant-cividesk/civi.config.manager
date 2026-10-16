@@ -2,11 +2,11 @@
 
 This document records current implementation decisions and remaining work. Version history is maintained in `../CHANGELOG.md`.
 
-**Current development execution plan (2026-10-16):** Implement structural
-checkpoint R0 and subsequent six coherent feature bundles in
-[BETA2_DEVELOPMENT_BATCHES.md](BETA2_DEVELOPMENT_BATCHES.md). The user deferred
-advanced QA to final feature freeze but did not waive any mandatory release
-gate; keep basic functional and import-safety regression checks for each edit.
+**Current development execution plan (2026-10-16):** Structural R0.2
+source-layout decomposition is complete (see [code structure](CODE_STRUCTURE.md)
+and [Beta2 development bundles](BETA2_DEVELOPMENT_BATCHES.md)). Begin Bundle 1
+ML-001 and A67-07 next. Advanced QA remains deferred to feature freeze, not
+waived; preserve basic functional and data-safety checks for every edit.
 
 The authoritative cross-release checklist and evidence ledger is [`PROJECT_STATUS.md`](PROJECT_STATUS.md). Update it with every implementation/evidence change.
 
