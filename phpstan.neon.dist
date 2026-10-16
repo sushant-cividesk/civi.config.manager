@@ -5,6 +5,11 @@ parameters:
   level: 5
   bootstrapFiles:
     - tests/phpunit/bootstrap.php
+  # Source-contract helper is loaded inside PHPUnit test methods, which
+  # PHPStan cannot follow statically. Discover its global function without
+  # executing this test-only helper during analysis.
+  scanFiles:
+    - tests/ci/source-contract-reader.php
   paths:
     - Civi/ConfigManager/Util
     - Civi/ConfigManager/Storage

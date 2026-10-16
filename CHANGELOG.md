@@ -2,6 +2,13 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **R0.5 PHPStan test-helper discovery:** Register the existing PHPUnit
+  source-contract reader in PHPStan `scanFiles`, so its global function is
+  known to static analysis even though tests load it at runtime from method
+  bodies. Fixes five `function.notFound` findings in the performance and
+  extension-discovery tests without changing production code, contract
+  assertions, or runtime behavior.
+
 - **R0.4 QA/styling repair:** Fixed two stale mutation-test targets after
   R0.2 concern extraction: provider-inventory mutation now exercises
   `ExtensionProviderInventoryTrait`, and the immutable Import-plan mutation

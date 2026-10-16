@@ -1,5 +1,17 @@
 # Automated QA
 
+## R0.5 PHPStan source-contract helper registration
+
+`ConfigManagerPerformanceTest` and `ExtensionHandlerDiscoveryTest` call
+`civicfgReadContractSource()` from `tests/ci/source-contract-reader.php`.
+The tests load this helper with `require_once` inside their methods, which
+works in PHPUnit but does not give PHPStan a statically discoverable symbol.
+`phpstan.neon.dist` now declares the helper under `parameters.scanFiles`.
+Keep this registration if the source contracts are reorganized; do not add
+PHPStan ignores, remove the assertions, or modify import behavior to silence
+`function.notFound`. `composer analyse` remains part of `composer qa:fast`.
+
+
 ## R0.4 mutation and coding-standard follow-up
 
 R0.3 DDEV PHPUnit passed (319 tests/2,304 assertions), while `qa:fast`
