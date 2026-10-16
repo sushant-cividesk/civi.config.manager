@@ -2,8 +2,17 @@
 namespace Civi\ConfigManager\Handler;
 
 class CustomGroupHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
+  /**
+   * @var array
+   */
   private array $plannedDependencyNames = [];
 
   public function setImportWriteEnabled(bool $enabled): self {

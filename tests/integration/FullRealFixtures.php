@@ -6,14 +6,39 @@ use Civi\ConfigManager\Handler\ExtensionHandler;
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Util\SimpleYaml;
 
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class CivicfgFullRealFixtures {
+  /**
+   * @var string
+   */
   private string $runId;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $syncDir;
+  /**
+   * @var string
+   */
   private string $artifactDir;
+  /**
+   * @var array
+   */
   private array $created = [];
+  /**
+   * @var array
+   */
   private array $settingsBackup = [];
+  /**
+   * @var array
+   */
   private array $results = [];
+  /**
+   * @var bool
+   */
   private bool $allowMissingExtensions;
 
   public function __construct() {

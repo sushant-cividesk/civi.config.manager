@@ -12,6 +12,9 @@ use Civi\ConfigManager\Service\ConfigManager;
 final class ImportReviewPlanCoordinator {
   private const SESSION_KEY = 'civicfg_import_review_plan_id';
   private const REDUCED_STATE_KEY = 'civicfg_import_reduced_state';
+  /**
+   * @var \Civi\ConfigManager\Service\ConfigManager
+   */
   private ConfigManager $manager;
 
   public function __construct(ConfigManager $manager) {
@@ -44,7 +47,9 @@ final class ImportReviewPlanCoordinator {
   }
 
   /**
-   * @param array<string,mixed> $result */
+   * @param array<string,mixed> $result
+   * @param array $remainingTypes
+   */
   public function adoptResult(array $result, array $remainingTypes): void {
     $session = \CRM_Core_Session::singleton();
     $planId = trim((string) ($result['plan_id'] ?? ''));

@@ -196,6 +196,9 @@ final class ConfigManagerImportPlanTest extends TestCase {
 }
 
 final class ImportPlanFixtureManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $siteId;
 
   public function __construct(string $siteId, HandlerRegistry $registry, ImportPlanStore $store) {
@@ -210,6 +213,9 @@ final class ImportPlanFixtureManager extends ConfigManager {
 }
 
 final class ImportPlanFixtureRegistry extends HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $handlers;
 
   public function __construct(array $handlers) {
@@ -223,8 +229,17 @@ final class ImportPlanFixtureRegistry extends HandlerRegistry {
 }
 
 final class ImportPlanFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   public string $activeLabel = 'original';
+  /**
+   * @var int
+   */
   public int $realApplyCalls = 0;
+  /**
+   * @var bool
+   */
   private bool $writeEnabled = TRUE;
 
   public function getType(): string {

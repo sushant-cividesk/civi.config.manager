@@ -11,6 +11,7 @@ interface StreamingImportHandlerInterface {
 
   /**
    * @param iterable<string,array<string,mixed>> $items
+   * @param bool $dryRun
    * @return array<string,mixed>
    */
   public function importIterable(iterable $items, bool $dryRun = TRUE): array;

@@ -10,6 +10,9 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
 use PHPUnit\Framework\TestCase;
 
 final class Alpha63WorkspaceTest extends TestCase {
+  /**
+   * @var string
+   */
   private string $root;
 
   protected function setUp(): void {

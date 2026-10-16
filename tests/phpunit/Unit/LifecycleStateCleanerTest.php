@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace {
   if (!class_exists('CRM_Core_Session')) {
+    // phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
     final class CRM_Core_Session {
+      /**
+       * @var self|null
+       */
       private static ?self $instance = NULL;
       /**
        * @var array<string,mixed> */

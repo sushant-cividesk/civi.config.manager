@@ -35,6 +35,9 @@ final class GenericApi4IdentityUpdateTest extends TestCase {
 }
 
 final class GenericApi4IdentityUpdateFixture extends GenericApi4CollectionHandler {
+  /**
+   * @var array
+   */
   public array $updateWhere = [];
 
   public function __construct() {

@@ -10,7 +10,13 @@ namespace Civi\ConfigManager\Service;
  */
 final class ImportPlanStore {
   private const DEFAULT_TTL = 86400;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var int
+   */
   private int $ttl;
 
   public function __construct(?string $root = NULL, int $ttl = self::DEFAULT_TTL) {

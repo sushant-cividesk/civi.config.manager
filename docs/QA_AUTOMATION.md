@@ -1,5 +1,23 @@
 # Automated QA
 
+## R0.4 mutation and coding-standard follow-up
+
+R0.3 DDEV PHPUnit passed (319 tests/2,304 assertions), while `qa:fast`
+stopped before the provider-inventory mutation proof. Both provider-inventory
+and immutable reviewed-plan mutation scripts used obsolete class paths after
+the trait split. R0.4 retargets the **same** intentional mutations and adds
+`test:mutation-targets` to detect source moves and prove restoration before
+running PHPUnit. The original red/green assertions remain blocking.
+
+User-supplied PHPCBF output fixed 2,079 violations; its subsequent PHPCS
+report listed 309 issues. R0.4 addresses those reported property/parameter
+comments and the few justified suppression cases without disabling the
+CiviCRM standard, and retains three narrow, explained PHPCS exceptions for PHP 7.4-safe
+parameter declarations instead of requiring PHP 8-only trailing commas. The available source-only smokes pass;
+**fresh `composer qa:fast` and `composer standards` have not been executed**
+with real Composer dependencies after these edits. Do not close QA-003 or
+resume feature bundles on static checks alone.
+
 Configuration Manager uses a fast GitHub Actions workflow plus a required isolated CiviCRM/browser workflow. The full workflow runs for pull requests and can also be started manually. Tagged packaging cannot start until both fast-matrix and real-runtime jobs pass.
 
 The frozen requirement and evidence checklist is maintained in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).

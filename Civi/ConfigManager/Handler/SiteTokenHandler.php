@@ -7,7 +7,13 @@ namespace Civi\ConfigManager\Handler;
  * will explain that the dependency is missing instead of fataling.
  */
 class SiteTokenHandler extends AbstractHandler {
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
 
   public function getType(): string {

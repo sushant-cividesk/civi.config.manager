@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Civi\ConfigManager\Tests\Support;
 
 trait TemporaryDirectoryTrait {
+  /**
+   * @var array
+   */
   private array $temporaryDirectories = [];
 
   protected function createTemporaryDirectory(string $prefix = 'civicfg-test-'): string {

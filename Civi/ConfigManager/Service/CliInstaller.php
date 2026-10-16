@@ -13,6 +13,9 @@ use Civi\ConfigManager\Version;
 class CliInstaller {
   private const MANAGED_MARKER = 'Managed by Configuration Manager extension';
 
+  /**
+   * @var ConfigManager
+   */
   private ConfigManager $manager;
 
   public function __construct(?ConfigManager $manager = NULL) {

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Civi\Api4\Generic {
   if (!class_exists(AbstractEntity::class)) {
+    // phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
     abstract class AbstractEntity {
     }
   }
 
   if (!class_exists(BasicGetFieldsAction::class)) {
     class BasicGetFieldsAction {
+      /**
+       * @var bool
+       */
       private bool $checkPermissions = TRUE;
 
       public function __construct(string $entity, string $action, callable $callback) {
@@ -91,7 +95,13 @@ namespace Civi\Api4 {
 
   if (!class_exists(CivicfgPagingTestEntity::class)) {
     class CivicfgPagingTestEntity {
+      /**
+       * @var array
+       */
       public static array $rows = [];
+      /**
+       * @var int
+       */
       public static int $executeCalls = 0;
 
       public static function get(bool $checkPermissions = TRUE): CivicfgPagingGetAction {
@@ -106,6 +116,9 @@ namespace Civi\Api4 {
    */
   if (!class_exists(CivicfgInventoryReadTrap::class)) {
     class CivicfgInventoryReadTrap {
+      /**
+       * @var int
+       */
       public static int $getCalls = 0;
 
       public static function get(bool $checkPermissions = TRUE): CivicfgEmptyGetAction {
@@ -126,8 +139,17 @@ namespace Civi\Api4 {
 
   if (!class_exists(CivicfgPagingGetAction::class)) {
     class CivicfgPagingGetAction {
+      /**
+       * @var int
+       */
       private int $limit = 0;
+      /**
+       * @var int
+       */
       private int $offset = 0;
+      /**
+       * @var array
+       */
       private array $where = [];
 
       public function addSelect(...$fields): self {

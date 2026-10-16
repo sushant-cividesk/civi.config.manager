@@ -1,5 +1,44 @@
 # Testing
 
+## R0.4 QA mutation/standards checkpoint (2026-10-16)
+
+The user's latest DDEV `composer qa:fast` at commit `85049f9` passed the
+**319-test, 2,304-assertion PHPUnit suite**. The next step failed with
+`Could not apply exactly one provider-inventory mutation`, before PHPunit
+was invoked for the mutation. The issue was a stale path after R0.2 split;
+`mutation-provider-inventory.sh` now edits
+`Handler/ExtensionProviderInventoryTrait.php` and
+`mutation-import-plan.sh` edits `Service/ConfigManagerImportReviewTrait.php`.
+The deliberate forbidden provider read and Import stale-guard bypass have
+**not** been weakened. Both scripts accept `--check-target`, which applies
+exactly the expected mutation(s), checks PHP syntax and restores the original
+file; `test:mutation-targets` runs both before the dependent PHPUnit tests.
+The default mutation tests still execute their original deliberate red/green
+PHPUnit assertions.
+
+PHPCS's post-PHPCBF run recorded **309 remaining errors across 70 files**
+(231 property comments; 59 missing parameter annotations; 4 false-positive
+Generator early returns; 14 intentional legacy/fixture class-name mismatches;
+1 extra blank line). These were addressed at the reported sites with explicit
+PHPDoc and narrow explanatory PHPCS exceptions, not a disabled standard or a
+whole-tree blind refactor. **This has not yet been rechecked by CiviCRM PHPCS.**
+The formatter also inserted 3 PHP 8-only trailing function-parameter commas,
+which were removed with narrowly justified PHPCS exceptions on those declarations. `test:php74-signatures` checks every production and test
+PHP file for this specific PHP 7.4 compatibility regression.
+
+In DDEV, run the blocking commands before resuming new features:
+
+```sh
+composer run qa:fast
+composer run standards
+```
+
+A passing check-target preflight is not a substitute for the subsequent
+mutation-red/green PHPUnit proof. Source-only containers without `vendor/`
+cannot run PHPUnit, Symfony YAML or the CiviCRM PHPCS rules. Preserve any
+reported new errors verbatim and fix the actual code or rule boundary, not by
+removing tests or relaxing Import/provider safety.
+
 ## R0.3 refactor regression hotfix (2026-10-16)
 
 The DDEV `composer run qa:fast` output at `aa9b0e9` reached PHPUnit but

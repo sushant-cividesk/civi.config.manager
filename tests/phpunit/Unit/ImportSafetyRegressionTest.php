@@ -165,6 +165,9 @@ final class ImportSafetyCustomGroupHandler extends CustomGroupHandler {
 }
 
 final class ImportSafetyOptionGroupHandler extends OptionGroupHandler {
+  /**
+   * @var int
+   */
   public int $writeCalls = 0;
 
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {

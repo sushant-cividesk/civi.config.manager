@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Civi\Api4 {
+  // phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
   final class CivicfgHookFixture {
     /**
      * @var array<int, array<string, mixed>> */
@@ -73,7 +74,10 @@ namespace Civi\Api4 {
     }
 
     /**
-     * @param mixed $value */
+     * @param string $field
+     * @param string $operator
+     * @param mixed $value
+     */
     public function addWhere(string $field, string $operator, $value): self {
       $this->where[] = [$field, $operator, $value];
       return $this;
@@ -114,6 +118,9 @@ namespace Civi\Api4 {
   }
 
   final class CivicfgHookFixtureAction {
+    /**
+     * @var string
+     */
     private string $op;
 
     /**
@@ -142,7 +149,10 @@ namespace Civi\Api4 {
     }
 
     /**
-     * @param mixed $value */
+     * @param string $field
+     * @param string $operator
+     * @param mixed $value
+     */
     public function addWhere(string $field, string $operator, $value): self {
       $this->where[] = [$field, $operator, $value];
       return $this;
@@ -154,7 +164,9 @@ namespace Civi\Api4 {
     }
 
     /**
-     * @param mixed $value */
+     * @param string $field
+     * @param mixed $value
+     */
     public function addValue(string $field, $value): self {
       $this->values[$field] = $value;
       return $this;

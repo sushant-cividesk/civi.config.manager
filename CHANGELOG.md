@@ -2,6 +2,28 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **R0.4 QA/styling repair:** Fixed two stale mutation-test targets after
+  R0.2 concern extraction: provider-inventory mutation now exercises
+  `ExtensionProviderInventoryTrait`, and the immutable Import-plan mutation
+  exercises `ConfigManagerImportReviewTrait`. The original deliberate
+  safety violations, exactly-one/two mutation requirements, PHPUnit negative
+  oracles, and restoration safeguards are retained. Added a dependency-free
+  target/revert preflight in `qa:fast` so future source moves fail early.
+- The DDEV follow-up at committed R0.3 (`85049f9`) passed **319 PHPUnit tests,
+  2,304 assertions** but stopped at the stale provider mutation source path.
+  PHPCBF fixed 2,079 formatting findings; its subsequent PHPCS output still
+  reported 309, now addressed at their original sites (231 property docs,
+  59 parameter docs, four generator return false-positives, 14 justified
+  legacy/fixture filename exceptions, and one excess blank line). A fresh
+  Composer PHPCS pass is required before claiming clean standards.
+- Reverted three formatter-introduced trailing commas in PHP method parameter
+  declarations (PHP 8-only syntax, incompatible with the project's PHP 7.4
+  minimum). Added a dependency-free PHP 7.4 signature guard to `qa:fast` and three narrow PHPCS exceptions for the otherwise incompatible PHP-8-only trailing-comma formatting requirement.
+  Focused source contracts and PHP lint passed; red/green PHPUnit mutation
+  proofs and full `composer qa:fast` remain unverified in the source-only
+  authoring environment. No Import execution/policy or provider data logic
+  was changed. ML-001 remains open.
+
 - **R0.3 hotfix / structural regression repair:** Restored `ConfigManager`'s
   private `isIgnoredPath()` compatibility bridge after Config Ignore extraction.
   Internal scope picker, staged export, managed archive and reviewed Import

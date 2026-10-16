@@ -2,7 +2,13 @@
 namespace Civi\ConfigManager\Handler;
 
 class OptionGroupHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
 
   public function setImportWriteEnabled(bool $enabled): self {

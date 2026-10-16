@@ -189,7 +189,9 @@ class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerIn
   }
 
   /**
-   * @param array<int,array<string,string>> $dependencies */
+   * @param array $row
+   * @param array<int,array<string,string>> $dependencies
+   */
   private function toPortable(array $row, array &$dependencies): array {
     unset($row['id']);
     $row['groups'] = $this->exportGroupReferences((array) ($row['groups'] ?? []), $dependencies);

@@ -4,6 +4,9 @@ namespace Civi\ConfigManager\Storage;
 use Civi\ConfigManager\Util\SimpleYaml;
 
 class YamlFileStorage {
+  /**
+   * @var string
+   */
   private string $root;
 
   public function __construct(string $root) {
@@ -55,6 +58,8 @@ class YamlFileStorage {
   }
 
   /**
+   * @param string $directory
+   * @param string $filename
    * @param array<string, mixed> $data
    */
   public function isSame(string $directory, string $filename, array $data): bool {
@@ -75,6 +80,8 @@ class YamlFileStorage {
   }
 
   /**
+   * @param string $directory
+   * @param string $filename
    * @param array<string, mixed> $data
    */
   public function write(string $directory, string $filename, array $data): string {
@@ -194,6 +201,7 @@ class YamlFileStorage {
       ? $this->root
       : $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
     if (!is_dir($path)) {
+      // phpcs:ignore -- Early return ends this Generator without yielding a value.
       return;
     }
 
@@ -235,6 +243,7 @@ class YamlFileStorage {
       ? $this->root
       : $this->root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
     if (!is_dir($path)) {
+      // phpcs:ignore -- Early return ends this Generator without yielding a value.
       return;
     }
     $root = realpath($this->root);

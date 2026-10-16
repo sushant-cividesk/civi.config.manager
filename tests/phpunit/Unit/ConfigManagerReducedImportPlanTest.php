@@ -130,6 +130,9 @@ final class ConfigManagerReducedImportPlanTest extends TestCase {
 }
 
 final class ReducedPlanFixtureManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $siteId;
 
   public function __construct(string $siteId, HandlerRegistry $registry, ImportPlanStore $store) {
@@ -144,6 +147,9 @@ final class ReducedPlanFixtureManager extends ConfigManager {
 }
 
 final class ReducedPlanFixtureRegistry extends HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $handlers;
 
   public function __construct(array $handlers) {
@@ -157,12 +163,33 @@ final class ReducedPlanFixtureRegistry extends HandlerRegistry {
 }
 
 final class ReducedPlanFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var string
+   */
   private string $directory;
+  /**
+   * @var string
+   */
   private string $name;
+  /**
+   * @var bool
+   */
   private bool $active;
+  /**
+   * @var bool
+   */
   private bool $writeEnabled = TRUE;
+  /**
+   * @var int
+   */
   public int $realApplyCalls = 0;
 
   public function __construct(string $type, string $label, string $directory, string $name, bool $active = TRUE) {

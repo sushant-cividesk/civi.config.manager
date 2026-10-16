@@ -9,6 +9,9 @@ namespace Civi\ConfigManager\Service;
  * completely fresh preview for the remaining scope.
  */
 final class ReducedImportPlanService {
+  /**
+   * @var ImportDependencyPlanner
+   */
   private ImportDependencyPlanner $planner;
 
   public function __construct(ImportDependencyPlanner $planner) {

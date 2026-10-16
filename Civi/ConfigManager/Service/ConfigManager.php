@@ -38,15 +38,45 @@ class ConfigManager {
 
   private const WATCH_HISTORY_LIMIT = 200;
 
+  /**
+   * @var ConfigIgnoreRules|null
+   */
   private ?ConfigIgnoreRules $ignoreRuleEngine = NULL;
+  /**
+   * @var HandlerRegistry
+   */
   private HandlerRegistry $registry;
+  /**
+   * @var ConfigScope
+   */
   private ConfigScope $scope;
+  /**
+   * @var ImportReviewPlanGuard
+   */
   private ImportReviewPlanGuard $importPlanGuard;
+  /**
+   * @var ImportDependencyPlanner
+   */
   private ImportDependencyPlanner $importDependencyPlanner;
+  /**
+   * @var ImportResultAccounting
+   */
   private ImportResultAccounting $importResultAccounting;
+  /**
+   * @var array|null
+   */
   private ?array $allHandlersCache = NULL;
+  /**
+   * @var array|null
+   */
   private ?array $managedTypeOptionsCache = NULL;
+  /**
+   * @var array|null
+   */
   private ?array $scopeTypeOptionsCache = NULL;
+  /**
+   * @var array
+   */
   private array $activeDependencyNamesCache = [];
 
   public function __construct(?HandlerRegistry $registry = NULL, ?ConfigScope $scope = NULL, ?ImportPlanStore $importPlanStore = NULL, ?ImportDependencyPlanner $importDependencyPlanner = NULL) {

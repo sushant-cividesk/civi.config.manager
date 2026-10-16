@@ -117,6 +117,8 @@ final class ImportResultAccounting {
   /**
    * Attach the canonical accounting payload to a result.
    *
+   *
+   * @param array $result
    * @param array<int,array<string,mixed>> $excludedComponents
    * @param array<string,mixed>|null $verifiedDiff
    * @return array<string,mixed>

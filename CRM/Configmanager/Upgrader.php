@@ -6,6 +6,7 @@
  * Keep release changes idempotent because this extension is now tested across
  * multiple development sites and should not assume a fresh install.
  */
+// phpcs:ignore -- The legacy CiviCRM class name is fixed by CiviCRM autoloading.
 class CRM_Configmanager_Upgrader extends CRM_Extension_Upgrader_Base {
 
   public function install() {

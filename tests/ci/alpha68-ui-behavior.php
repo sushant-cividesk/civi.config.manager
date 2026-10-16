@@ -213,6 +213,9 @@ $runtimeLimitedHandler = new class {
 
 };
 $runtimeLimitedRegistry = new class($runtimeLimitedHandler) extends HandlerRegistry {
+  /**
+   * @var mixed
+   */
   private $handler;
 
   public function __construct($handler) {

@@ -3,6 +3,9 @@ namespace Civi\ConfigManager;
 
 class Version {
   public const EXTENSION_KEY = 'civi.config.manager';
+  /**
+   * @var string|null
+   */
   private static ?string $version = NULL;
 
   public static function get(): string {

@@ -8,6 +8,9 @@ use Civi\ConfigManager\Service\ProviderAdmissionPolicy;
 use PHPUnit\Framework\TestCase;
 
 final class ProviderAdmissionPolicyTest extends TestCase {
+  /**
+   * @var \Civi\ConfigManager\Service\ProviderAdmissionPolicy
+   */
   private ProviderAdmissionPolicy $policy;
 
   protected function setUp(): void {

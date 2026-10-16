@@ -9,9 +9,21 @@ use Civi\ConfigManager\Service\ConfigManager;
 use PHPUnit\Framework\TestCase;
 
 final class CliInstallerTest extends TestCase {
+  /**
+   * @var string
+   */
   private string $sandbox;
+  /**
+   * @var string
+   */
   private string $projectRoot;
+  /**
+   * @var string
+   */
   private string $globalBin;
+  /**
+   * @var string
+   */
   private string $registryDir;
 
   /**
@@ -249,7 +261,13 @@ final class CliInstallerTest extends TestCase {
 }
 
 final class CliInstallerTestConfigManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $projectRoot;
+  /**
+   * @var string
+   */
   private string $siteId;
 
   public function __construct(string $projectRoot, string $siteId) {

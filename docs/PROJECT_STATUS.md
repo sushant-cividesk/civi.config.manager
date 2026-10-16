@@ -25,6 +25,33 @@ See [code structure](CODE_STRUCTURE.md) and
 bundle is ML-001/A67-07; no Beta2 functional bug has yet been resolved by
 this structural change. Mandatory release requirements remain unchanged.
 
+## 2026-10-16 R0.4 focused QA/standards repair
+
+**Latest supplied DDEV evidence:** R0.3 at `85049f9` passed PHPUnit
+(319 tests, 2,304 assertions) and the earlier structural/behavior contracts.
+The remaining `qa:fast` failure was the provider-inventory mutation harness:
+it still edited `ExtensionHandler.php` after its inventory body moved to
+`ExtensionProviderInventoryTrait.php`. The immutable reviewed-Import-plan
+mutation harness had the same pre-split source-path defect, discovered before
+that later step could run. Both original red/green oracles are retained and
+both target scripts now verify their mutations and source restoration before
+external PHPUnit execution. They have **not** been proven red/green in this
+source-only environment, which has no Composer/vendor.
+
+**Standards/compatibility:** The user's PHPCBF pass fixed 2,079 findings.
+The next PHPCS output still had 309 errors across 70 files, primarily missing
+property/parameter documentation; the mapped 309 sites have been corrected
+without changing application behavior. 14 intentional CiviCRM legacy/fixture
+filename warnings and four legal Generator early returns have narrowly scoped
+`phpcs:ignore` comments. In addition, three formatter-introduced PHP 8-only
+parameter-list trailing commas have been removed to preserve the PHP 7.4
+minimum; a dependency-free signature check now runs early in `qa:fast`.
+PHP syntax and available source-only checks pass; **fresh DDEV PHPCS,
+PHPCompatibility and both PHPUnit mutation red/green tests remain required**
+before considering the QA regression/standards checkpoint closed. The current
+work must not change provider authorization, Import YAML or deletion safety.
+ML-001 remains P0/open; no new feature bundle has started.
+
 ## 2026-10-16 Bundle 1 functional checkpoint
 
 **Hotfix R0.3 (structural regression, 2026-10-16):** User-run DDEV `qa:fast`
@@ -42,11 +69,10 @@ internal ignore paths and reviewed-plan store IDs. Six representative tests
 were red against the supplied baseline and green after this hotfix using a
 lightweight local harness (not PHPUnit); all available fast PHP/Node contracts
 passed. No production DB operations or destructive imports were executed.
-**Awaiting DDEV `composer qa:fast`** for authoritative PHPUnit results. Do not
-close the regression item or progress to another functional bundle until its
-real PHPUnit result is confirmed. The separate `vendor/bin/phpcs .` output
-reported widespread formatting warnings; no whole-tree formatting was done
-in this hotfix, to avoid obscuring functional fixes. `ML-001` remains P0/open.
+**Later DDEV evidence confirms 319/319 PHPUnit tests passed** at R0.3,
+but the following mutation step could not find its old source target.
+R0.4 addresses this and the post-PHPCBF style findings as described above.
+`ML-001` remains P0/open.
 
 
 **A67-07 locally implemented:** `NO_BASELINE` is distinct from accepted

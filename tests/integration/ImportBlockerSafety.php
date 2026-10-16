@@ -20,13 +20,35 @@ use Civi\ConfigManager\Util\SimpleYaml;
  * the handler's resolver, classifier, canonicalizer, or returned ok value as
  * the final-state oracle.
  */
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class CivicfgImportBlockerSafety {
+  /**
+   * @var string
+   */
   private string $runId;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $syncDir;
+  /**
+   * @var string
+   */
   private string $artifactDir;
+  /**
+   * @var array
+   */
   private array $created = [];
+  /**
+   * @var array
+   */
   private array $settingsBackup = [];
+  /**
+   * @var array
+   */
   private array $evidence = [];
 
   public function __construct() {

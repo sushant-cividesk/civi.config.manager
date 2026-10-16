@@ -7,8 +7,17 @@ namespace Civi\ConfigManager\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 final class CliCommandTest extends TestCase {
+  /**
+   * @var string
+   */
   private string $sandbox;
+  /**
+   * @var string
+   */
   private string $fakeCv;
+  /**
+   * @var string
+   */
   private string $cli;
 
   protected function setUp(): void {

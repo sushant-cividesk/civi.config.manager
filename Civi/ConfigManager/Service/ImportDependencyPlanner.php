@@ -30,6 +30,8 @@ final class ImportDependencyPlanner {
    * @param array<string,array<string,bool>> $available
    * @param array<string,string> $registeredTypes
    * @param array<string,string> $managedTypes
+   * @param callable $activeDependencyExists
+   * @param callable $ignoredDependencyHint
    * @return array<string,mixed>
    */
   public function analyze(
@@ -38,7 +40,8 @@ final class ImportDependencyPlanner {
     array $registeredTypes,
     array $managedTypes,
     callable $activeDependencyExists,
-    callable $ignoredDependencyHint,
+    // phpcs:ignore -- PHP 7.4 does not allow declaration trailing commas.
+    callable $ignoredDependencyHint
   ): array {
     $edges = [];
     $blockers = [];
@@ -230,6 +233,7 @@ final class ImportDependencyPlanner {
 
   /**
    * @param array<int,array<string,mixed>> $components
+   * @param string $componentId
    * @return array<string,mixed>|null
    */
   public function findComponent(array $components, string $componentId): ?array {
@@ -371,7 +375,9 @@ final class ImportDependencyPlanner {
   }
 
   /**
-   * @param array<string,mixed> $edge */
+   * @param array<string,mixed> $edge
+   * @param string $ignoredHint
+   */
   private function missingDependencyMessage(array $edge, string $ignoredHint): string {
     $ownerType = (string) ($edge['source_type'] ?? '');
     $filename = (string) ($edge['source_file'] ?? '');
@@ -417,7 +423,10 @@ final class ImportDependencyPlanner {
   }
 
   /**
-   * @param string[] $seed @param array<string,bool> $effectiveMap @return string[] */
+   * @param string[] $seed
+   * @param array<string,bool> $effectiveMap
+   * @return string[]
+   */
   private function expandRelatedClosure(array $seed, array $effectiveMap): array {
     $excluded = array_fill_keys($seed, TRUE);
     $map = $this->relatedTypeMap();

@@ -7,7 +7,13 @@ use Civi\ConfigManager\Version;
  * Stable persistence/fingerprint policy for reviewed Import plans.
  */
 final class ImportReviewPlanGuard {
+  /**
+   * @var ImportPlanStore
+   */
   private ImportPlanStore $store;
+  /**
+   * @var ConfigScope
+   */
   private ConfigScope $scope;
 
   public function __construct(ImportPlanStore $store, ConfigScope $scope) {

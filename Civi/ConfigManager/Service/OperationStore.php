@@ -11,6 +11,9 @@ class OperationStore {
   public const JOB_TABLE = 'civicrm_civicfg_job';
   public const ITEM_TABLE = 'civicrm_civicfg_job_item';
 
+  /**
+   * @var bool
+   */
   private static bool $schemaEnsured = FALSE;
 
   public function isAvailable(): bool {
@@ -111,7 +114,12 @@ class OperationStore {
   }
 
   /**
-   * @param string[] $types */
+   * @param string $operation
+   * @param string $queueName
+   * @param string $syncRootHash
+   * @param string $siteIdentifier
+   * @param string[] $types
+   */
   public function createJob(string $operation, string $queueName, string $syncRootHash, string $siteIdentifier, array $types = []): int {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -135,7 +143,15 @@ class OperationStore {
   }
 
   /**
-   * @param array<string,mixed> $payload */
+   * @param int $jobId
+   * @param string $itemKey
+   * @param string $phase
+   * @param string|null $handlerType
+   * @param string|null $action
+   * @param array<string,mixed> $payload
+   * @param bool $retrySafe
+   * @param int $sequenceNo
+   */
   public function createItem(
     int $jobId,
     string $itemKey,
@@ -144,7 +160,8 @@ class OperationStore {
     ?string $action = NULL,
     array $payload = [],
     bool $retrySafe = FALSE,
-    int $sequenceNo = 0,
+    // phpcs:ignore -- PHP 7.4 does not allow declaration trailing commas.
+    int $sequenceNo = 0
   ): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -232,7 +249,9 @@ class OperationStore {
   }
 
   /**
-   * @param array<string,mixed> $event */
+   * @param int $jobId
+   * @param array<string,mixed> $event
+   */
   public function updateProgress(int $jobId, array $event): void {
     $this->ensureSchema();
     $completed = max(0, (int) ($event['completed'] ?? 0));
@@ -275,7 +294,10 @@ class OperationStore {
   }
 
   /**
-   * @param array<string,mixed> $result */
+   * @param int $jobId
+   * @param array<string,mixed> $result
+   * @param string $message
+   */
   public function completeJob(int $jobId, array $result, string $message = ''): void {
     $this->finishJob($jobId, !empty($result['ok']) || !array_key_exists('ok', $result) ? 'complete' : 'failed', $result, $message);
   }
@@ -296,7 +318,11 @@ class OperationStore {
   }
 
   /**
-   * @param array<string,mixed> $result */
+   * @param int $jobId
+   * @param string $status
+   * @param array<string,mixed> $result
+   * @param string $message
+   */
   private function finishJob(int $jobId, string $status, array $result, string $message): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');
@@ -322,7 +348,12 @@ class OperationStore {
   }
 
   /**
-   * @param array<string,mixed> $result */
+   * @param int $jobId
+   * @param string $itemKey
+   * @param string $status
+   * @param array<string,mixed> $result
+   * @param string $error
+   */
   public function finishItem(int $jobId, string $itemKey, string $status, array $result = [], string $error = ''): void {
     $this->ensureSchema();
     $now = date('Y-m-d H:i:s');

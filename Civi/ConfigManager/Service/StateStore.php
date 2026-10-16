@@ -13,6 +13,9 @@ class StateStore {
   public const ALIAS_TABLE = 'civicrm_civicfg_identity_alias';
   public const WATCH_TABLE = 'civicrm_civicfg_watch_state';
 
+  /**
+   * @var bool
+   */
   private static bool $schemaEnsured = FALSE;
 
   public function isAvailable(): bool {

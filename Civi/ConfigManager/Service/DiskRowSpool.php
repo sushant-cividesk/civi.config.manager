@@ -10,6 +10,9 @@ namespace Civi\ConfigManager\Service;
  * retaining complete configuration collections in PHP memory.
  */
 class DiskRowSpool {
+  /**
+   * @var string
+   */
   private string $path;
   /**
    * @var resource|null */
@@ -45,6 +48,7 @@ class DiskRowSpool {
    * @return \Generator<int,array<string,mixed>> */
   public function iterate(): \Generator {
     if (!is_resource($this->handle)) {
+      // phpcs:ignore -- Early return ends this Generator without yielding a value.
       return;
     }
     fflush($this->handle);

@@ -18,6 +18,9 @@ use Civi\ConfigManager\Handler\TagHandler;
 use Civi\ConfigManager\Handler\ProfileFieldHandler;
 
 class HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $registrationDiagnostics = [];
 
   public function getHandlers(): array {

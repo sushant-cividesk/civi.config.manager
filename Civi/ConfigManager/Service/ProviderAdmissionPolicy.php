@@ -26,6 +26,7 @@ final class ProviderAdmissionPolicy {
   /**
    * @param string[] $matchFields
    * @param array<string,array<string,mixed>> $fields
+   * @param bool $reviewedProvider
    * @return array<string,mixed>
    */
   public function assess(array $matchFields, array $fields, bool $reviewedProvider = FALSE): array {

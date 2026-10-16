@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class CivicfgLifecycleFakeSettings {
   /**
    * @var array<string,mixed> */
@@ -18,6 +19,9 @@ final class CivicfgLifecycleFakeSettings {
 }
 
 final class Civi {
+  /**
+   * @var CivicfgLifecycleFakeSettings|null
+   */
   private static ?CivicfgLifecycleFakeSettings $settings = NULL;
 
   public static function settings(): CivicfgLifecycleFakeSettings {
@@ -30,6 +34,9 @@ final class Civi {
 }
 
 final class CRM_Core_Session {
+  /**
+   * @var self|null
+   */
   private static ?self $instance = NULL;
   /**
    * @var array<string,mixed> */

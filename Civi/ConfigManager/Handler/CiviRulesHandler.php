@@ -12,9 +12,18 @@ use Civi\ConfigManager\Service\DiskRowSpool;
  * proven unique portable identity.
  */
 class CiviRulesHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface, ChunkedStreamingHandlerInterface {
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
 
+  /**
+   * @var array
+   */
   private array $entities = [
     'rules' => ['entity' => 'CiviRulesRule', 'identity' => 'name', 'order' => ['name' => 'ASC', 'id' => 'ASC']],
     'triggers' => ['entity' => 'CiviRulesTrigger', 'identity' => 'name', 'order' => ['name' => 'ASC', 'id' => 'ASC']],

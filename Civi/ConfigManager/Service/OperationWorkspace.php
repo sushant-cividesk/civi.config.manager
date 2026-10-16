@@ -9,9 +9,21 @@ namespace Civi\ConfigManager\Service;
  * indexes) which should not bloat queue payloads or PHP sessions.
  */
 class OperationWorkspace {
+  /**
+   * @var int
+   */
   private int $jobId;
+  /**
+   * @var string
+   */
   private string $syncRootHash;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $statePath;
 
   public function __construct(int $jobId, string $syncRootHash) {

@@ -15,28 +15,97 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
   use EntityReferenceMappingTrait;
 
 
+  /**
+   * @var array
+   */
   private array $definition;
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var string
+   */
   private string $entity;
+  /**
+   * @var string
+   */
   private string $directory;
+  /**
+   * @var array
+   */
   private array $keyFields;
+  /**
+   * @var array
+   */
   private array $exportFields;
+  /**
+   * @var array
+   */
   private array $ignoreFields;
+  /**
+   * @var array
+   */
   private array $runtimeFields;
+  /**
+   * @var array
+   */
   private array $sensitiveFields;
+  /**
+   * @var array
+   */
   private array $referenceFields;
+  /**
+   * @var array
+   */
   private array $orderedPaths;
+  /**
+   * @var array
+   */
   private array $unorderedPaths;
+  /**
+   * @var array
+   */
   private array $orderBy;
+  /**
+   * @var array
+   */
   private array $where;
+  /**
+   * @var array
+   */
   private array $dependencies;
+  /**
+   * @var int
+   */
   private int $weight;
+  /**
+   * @var bool
+   */
   private bool $splitFiles;
+  /**
+   * @var bool
+   */
   private bool $deleteMissing;
+  /**
+   * @var bool
+   */
   private bool $importable;
+  /**
+   * @var bool
+   */
   private bool $canCreate;
+  /**
+   * @var bool
+   */
   private bool $canUpdate;
+  /**
+   * @var bool
+   */
   private bool $canDelete;
 
   public function __construct(string $type, array $definition) {

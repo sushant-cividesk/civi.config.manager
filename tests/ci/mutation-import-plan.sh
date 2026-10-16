@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source_file="${repo_root}/Civi/ConfigManager/Service/ConfigManager.php"
+source_file="${repo_root}/Civi/ConfigManager/Service/ConfigManagerImportReviewTrait.php"
 phpunit_bin="${repo_root}/vendor/bin/phpunit"
 backup_file="$(mktemp)"
 failure_log="$(mktemp)"
@@ -32,6 +32,13 @@ file_put_contents($path, $source);
 ' "${source_file}"
 
 php -l "${source_file}" >/dev/null
+
+# Prove the two review-plan guards still have exactly one mutation target
+# before running PHPUnit. The EXIT trap restores the original concern.
+if [[ "${1:-}" == '--check-target' ]]; then
+  echo 'Reviewed import-plan mutation targets OK (two mutations; PHP syntax valid).'
+  exit 0
+fi
 
 if "${phpunit_bin}" --configuration "${repo_root}/phpunit.xml.dist" \
   --filter testSavedConfigChangeMakesReviewedPlanStaleBeforeWrite \

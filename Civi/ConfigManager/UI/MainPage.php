@@ -18,13 +18,37 @@ class MainPage {
   use MainPageSettingsTrait;
 
 
+  /**
+   * @var \CRM_Core_Page
+   */
   private \CRM_Core_Page $page;
+  /**
+   * @var \Civi\ConfigManager\Service\ConfigManager
+   */
   private ConfigManager $manager;
+  /**
+   * @var Request
+   */
   private Request $request;
+  /**
+   * @var Presenter
+   */
   private Presenter $presenter;
+  /**
+   * @var OperationResultPresenter
+   */
   private OperationResultPresenter $operationResultPresenter;
+  /**
+   * @var ImportActionCoordinator
+   */
   private ImportActionCoordinator $importActions;
+  /**
+   * @var FileTransfer
+   */
   private FileTransfer $files;
+  /**
+   * @var Permission
+   */
   private Permission $permission;
 
   public function __construct(\CRM_Core_Page $page, ?ConfigManager $manager = NULL) {

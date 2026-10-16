@@ -11,6 +11,9 @@ namespace Civi\ConfigManager\Util;
  * an export look successful while writing data which cannot be parsed back.
  */
 class SimpleYaml {
+  /**
+   * @var bool
+   */
   private static bool $runtimeAutoloadAttempted = FALSE;
 
   /**

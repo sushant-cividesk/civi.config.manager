@@ -262,6 +262,9 @@ final class CoverageExpansionTagFixture extends TagHandler {
   /**
    * @var string[] */
   public array $createOrder = [];
+  /**
+   * @var int
+   */
   private int $nextId = 100;
 
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
@@ -309,7 +312,13 @@ final class CoverageExpansionTagFixture extends TagHandler {
 }
 
 final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
+  /**
+   * @var int|null
+   */
   public ?int $lastUpdatedId = NULL;
+  /**
+   * @var array
+   */
   public array $lastUpdateValues = [];
 
   protected function api4Iterate(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): \Generator {
@@ -386,6 +395,9 @@ final class CoverageExpansionProfileFieldFixture extends ProfileFieldHandler {
 }
 
 final class CoverageExpansionReportFixture extends ReportInstanceHandler {
+  /**
+   * @var array
+   */
   public array $lastCreateParams = [];
 
   protected function api3(string $entity, string $action, array $params): array {
@@ -437,6 +449,9 @@ final class CoverageExpansionReportFixture extends ReportInstanceHandler {
 }
 
 final class CoverageExpansionUnnamedReportFixture extends ReportInstanceHandler {
+  /**
+   * @var array
+   */
   public array $lastCreateParams = [];
 
   protected function api3(string $entity, string $action, array $params): array {
@@ -491,7 +506,13 @@ final class CoverageExpansionTemplateLessReportFixture extends ReportInstanceHan
 }
 
 final class CoverageExpansionContactLayoutFixture extends ContactLayoutHandler {
+  /**
+   * @var array
+   */
   public array $lastUpdateValues = [];
+  /**
+   * @var bool
+   */
   public bool $includeUnknownLocalReference = FALSE;
 
   protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {

@@ -8,11 +8,27 @@ use Civi\Api4\RelationshipType;
 use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Util\SimpleYaml;
 
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class CivicfgUiFixture {
+  /**
+   * @var string
+   */
   private string $action;
+  /**
+   * @var string
+   */
   private string $runId;
+  /**
+   * @var string
+   */
   private string $name;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $stateFile;
 
   public function __construct(array $argv) {

@@ -2,16 +2,49 @@
 namespace Civi\ConfigManager\Handler;
 
 class GenericApi4CollectionHandler extends AbstractHandler implements StreamingHandlerInterface, StreamingImportHandlerInterface {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var string
+   */
   private string $directory;
+  /**
+   * @var string
+   */
   private string $entity;
+  /**
+   * @var array
+   */
   private array $select;
+  /**
+   * @var array
+   */
   private array $orderBy;
+  /**
+   * @var int
+   */
   private int $weight;
+  /**
+   * @var string
+   */
   private string $fileName;
+  /**
+   * @var bool
+   */
   private bool $splitFiles;
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
 
   public function __construct(string $type, string $label, string $directory, string $entity, array $select, array $orderBy, int $weight, string $fileName, bool $splitFiles = FALSE) {

@@ -342,6 +342,7 @@ trait ConfigManagerManagedFilesTrait {
     $policy = $this->scope->getPolicy((string) $handler->getType());
     $mode = (string) ($policy['mode'] ?? ConfigScope::MODE_ALL);
     if (!in_array($mode, [ConfigScope::MODE_ALL, ConfigScope::MODE_SELECTED], TRUE)) {
+      // phpcs:ignore -- Early return ends this Generator without yielding a value.
       return;
     }
 

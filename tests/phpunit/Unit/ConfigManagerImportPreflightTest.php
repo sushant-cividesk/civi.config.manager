@@ -101,6 +101,9 @@ final class ConfigManagerImportPreflightTest extends TestCase {
 }
 
 final class ImportPreflightFixtureManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $siteId;
 
   public function __construct(string $siteId, HandlerRegistry $registry) {
@@ -115,6 +118,9 @@ final class ImportPreflightFixtureManager extends ConfigManager {
 }
 
 final class ImportPreflightFixtureRegistry extends HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $handlers;
 
   public function __construct(array $handlers) {
@@ -128,11 +134,29 @@ final class ImportPreflightFixtureRegistry extends HandlerRegistry {
 }
 
 final class ImportPreflightFixtureHandler extends AbstractHandler {
+  /**
+   * @var bool
+   */
   private bool $preflightBlocker;
+  /**
+   * @var bool
+   */
   private bool $failCreateUpdate;
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
+  /**
+   * @var int
+   */
   public int $realApplyCalls = 0;
+  /**
+   * @var int
+   */
   public int $deletePhaseCalls = 0;
 
   public function __construct(bool $preflightBlocker, bool $failCreateUpdate = FALSE) {

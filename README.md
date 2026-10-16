@@ -24,6 +24,18 @@ ML-001 multilingual Afform drift is **still open**: comparing localized strings
 without authoritative translation identity would hide genuine changes. See the
 [development bundles](docs/BETA2_DEVELOPMENT_BATCHES.md).
 
+**R0.4 QA and coding-standard maintenance (2026-10-16):** The committed
+R0.3 source (`85049f9`) passed the DDEV unit suite (319 tests/2,304 assertions)
+but stopped at a mutation harness that still targeted a pre-split class.
+Both stale mutation targets have been corrected, with an early restoration
+smoke. The user's post-PHPCBF report identified 309 remaining PHPCS
+findings; this source update addresses those findings at their original
+sites. Three PHP-8-only function-declaration trailing commas from the
+formatter were removed to preserve PHP 7.4 support, and a guard prevents
+recurrence. The full mutation red/green suite and fresh PHPCS output still
+require DDEV verification before the regression gate can be signed off.
+See [Testing](docs/TESTING.md).
+
 **R0.3 regression hotfix (2026-10-16):** After the R0.2 decomposition, the
 full DDEV PHPUnit run reported 11 errors and 16 failures. An omitted internal
 `isIgnoredPath()` bridge caused scope, export, import-preview and file-transfer
@@ -31,9 +43,9 @@ exceptions; some PHPUnit contracts still read the pre-split files. The hotfix
 restores the bridge without changing Config Ignore rules or reviewed-plan
 validation, updates those contracts to read actual split code, and adds a
 review-plan/ignored-path smoke. Focused PHP and Node checks pass locally;
-**the full DDEV test suite is not yet confirmed green.** CiviCRM coding-standard
-violations (`composer standards`) remain a separate style-maintenance task;
-do not automatically reformat the whole project as part of this hotfix.
+**DDEV subsequently confirmed 319 PHPUnit tests passed**, but the separate
+mutation target prevented `qa:fast` from completing. The R0.4 maintenance
+above addresses that follow-up.
 See [Testing](docs/TESTING.md) and [Project Status](docs/PROJECT_STATUS.md).
 
 

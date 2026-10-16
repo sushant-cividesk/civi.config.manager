@@ -48,6 +48,7 @@ use Civi\ConfigManager\Handler\AbstractHandler;
 use Civi\ConfigManager\Service\StagedExportWorkspace;
 use Civi\ConfigManager\Storage\YamlFileStorage;
 
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class Alpha62StressHandler extends AbstractHandler {
 
   public function getType(): string {
@@ -77,7 +78,13 @@ final class Alpha62StressHandler extends AbstractHandler {
 }
 
 final class Alpha62FailOnceStorage extends YamlFileStorage {
+  /**
+   * @var string
+   */
   private string $failRelative;
+  /**
+   * @var bool
+   */
   private bool $failed = FALSE;
 
   public function __construct(string $root, string $failRelative) {

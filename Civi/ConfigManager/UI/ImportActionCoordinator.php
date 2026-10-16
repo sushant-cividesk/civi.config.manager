@@ -7,8 +7,17 @@ use Civi\ConfigManager\Service\ConfigManager;
  * Owns Import action side effects so MainPage remains orchestration-only.
  */
 final class ImportActionCoordinator {
+  /**
+   * @var \Civi\ConfigManager\Service\ConfigManager
+   */
   private ConfigManager $manager;
+  /**
+   * @var OperationResultPresenter
+   */
   private OperationResultPresenter $presenter;
+  /**
+   * @var ImportReviewPlanCoordinator
+   */
   private ImportReviewPlanCoordinator $reviewCoordinator;
 
   public function __construct(ConfigManager $manager, OperationResultPresenter $presenter) {

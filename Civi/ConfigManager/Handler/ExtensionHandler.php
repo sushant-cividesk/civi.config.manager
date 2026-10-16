@@ -28,17 +28,53 @@ class ExtensionHandler extends AbstractHandler implements StreamingHandlerInterf
   use ExtensionProviderUtilityTrait;
 
 
+  /**
+   * @var ExtensionProviderIdentity|null
+   */
   private ?ExtensionProviderIdentity $providerIdentityRules = NULL;
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
+  /**
+   * @var array|null
+   */
   private ?array $discoveredEntityDefinitions = NULL;
+  /**
+   * @var array|null
+   */
   private ?array $inventoryEntityDefinitions = NULL;
+  /**
+   * @var array
+   */
   private array $runtimeTypeFilters = [];
+  /**
+   * @var array
+   */
   private array $identityRowsByDefinition = [];
+  /**
+   * @var array
+   */
   private static array $api3ActionsByEntity = [];
+  /**
+   * @var array
+   */
   private static array $api3ListActionByEntity = [];
+  /**
+   * @var array
+   */
   private static array $api3WritableFieldsByEntity = [];
+  /**
+   * @var array
+   */
   private static array $api3DeleteActionByEntity = [];
+  /**
+   * @var array
+   */
   private array $exportErrors = [];
 
   private function providerIdentityRules(): ExtensionProviderIdentity {

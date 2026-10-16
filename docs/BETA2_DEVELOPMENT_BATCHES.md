@@ -12,7 +12,7 @@ Detailed pending items and historical decisions: [PROJECT_STATUS.md](PROJECT_STA
 `ExtensionProviderIdentity` with a 26-check boundary smoke. This work was
 committed at `b8463cafd011e52a10e8c0f1d5e20f0ae95a1a26`.
 
-**R0.2 (2026-10-16, awaiting maintainer commit):** Split the remaining
+**R0.2 (2026-10-16, committed at `57869a9`):** Split the remaining
 stateful orchestration and long provider/UI helper methods into 34 narrowly
 named concern traits across the six largest production classes. This keeps
 existing constructors, private state, public APIs and import/queue safeguards
@@ -51,6 +51,15 @@ each change and defer the documented advanced release matrix until feature
 freeze, without waiving its requirements.
 
 ## Feature bundle 1: Synchronization correctness (in progress — 2026-10-16)
+
+**R0.4 regression gate:** The R0.3 DDEV follow-up passed 319 PHPUnit tests,
+but `qa:fast` then stopped at a pre-refactor provider mutation target.
+Both mutation scripts have been retargeted to their relevant source traits;
+a target and restoration smoke was added. Remaining post-PHPCBF coding-standard
+violations were addressed at their recorded sites, and 3 PHP 8-only parameter
+trailing commas were removed for PHP 7.4. All source-only checks pass but full
+PHPUnit mutation red/green and fresh PHPCS remain unverified. **Do not start
+Bundle 2 until these are confirmed.** ML-001 remains separately open.
 
 **Regressions must be cleared before resuming this bundle:** The R0.2 class
 split inadvertently dropped the private ConfigManager `isIgnoredPath()` entry

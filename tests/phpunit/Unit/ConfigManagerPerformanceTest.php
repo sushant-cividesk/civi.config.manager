@@ -10,6 +10,9 @@ use Civi\ConfigManager\Service\HandlerRegistry;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigManagerPerformanceTest extends TestCase {
+  /**
+   * @var string
+   */
   private string $dir;
 
   protected function setUp(): void {

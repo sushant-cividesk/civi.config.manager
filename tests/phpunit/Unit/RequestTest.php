@@ -8,6 +8,9 @@ use Civi\ConfigManager\UI\Request;
 use PHPUnit\Framework\TestCase;
 
 final class RequestTest extends TestCase {
+  /**
+   * @var array
+   */
   private array $originalRequest = [];
 
   protected function setUp(): void {

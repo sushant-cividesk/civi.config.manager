@@ -234,6 +234,9 @@ trait ConfigManagerExportStagingTrait {
    * Find stale files by path after a complete successful handler stage.
    * Selected/provider-subset exports never authorize delete-missing.
    *
+   *
+   * @param \Civi\ConfigManager\Storage\YamlFileStorage $storage
+   * @param StagedExportWorkspace $workspace
    * @param object[] $handlers
    * @param string[] $requestedTypes
    * @return string[]
@@ -242,7 +245,8 @@ trait ConfigManagerExportStagingTrait {
     YamlFileStorage $storage,
     StagedExportWorkspace $workspace,
     array $handlers,
-    array $requestedTypes,
+    // phpcs:ignore -- PHP 7.4 does not allow declaration trailing commas.
+    array $requestedTypes
   ): array {
     $stale = [];
     $allStaged = $workspace->files();

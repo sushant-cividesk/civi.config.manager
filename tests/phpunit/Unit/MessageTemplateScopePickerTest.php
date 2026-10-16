@@ -132,6 +132,9 @@ final class MessageTemplateScopePickerTest extends TestCase {
 }
 
 final class MessageTemplateScopePickerFixture extends MessageTemplateHandler {
+  /**
+   * @var array
+   */
   private array $files;
 
   public function __construct(array $files) {
@@ -153,6 +156,9 @@ final class MessageTemplateScopePickerFixture extends MessageTemplateHandler {
 }
 
 final class MessageTemplateScopePickerRegistry extends HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $handlers;
 
   public function __construct(array $handlers) {

@@ -338,6 +338,7 @@ trait ExtensionProviderSettingsTrait {
    *
    * @param string[] $matchFields
    * @param array<string,array<string,mixed>> $fields
+   * @param bool $reviewedProvider
    * @return array{admitted:bool,reason:string,reason_code:string,stages:array,writable_fields:array,reference_fields:array}
    */
   private function genericApi4ConfigAdmission(array $matchFields, array $fields, bool $reviewedProvider = FALSE): array {

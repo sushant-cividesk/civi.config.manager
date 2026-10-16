@@ -5,9 +5,21 @@ namespace Civi\ConfigManager\Service;
  * Connects semantic identities/fingerprints with local baseline state.
  */
 class ConfigStateManager {
+  /**
+   * @var ConfigIdentity
+   */
   private ConfigIdentity $identity;
+  /**
+   * @var Canonicalizer
+   */
   private Canonicalizer $canonicalizer;
+  /**
+   * @var DiffStateClassifier
+   */
   private DiffStateClassifier $classifier;
+  /**
+   * @var StateStore
+   */
   private StateStore $store;
 
   public function __construct(?StateStore $store = NULL) {
@@ -112,8 +124,11 @@ class ConfigStateManager {
    * changed, the summary marks the item for detailed review; the single-item
    * detail endpoint performs the full three-way field analysis on demand.
    *
+   *
+   * @param mixed $handler
    * @param array<string,array{identity:array,hash:string|null}> $active
    * @param array<string,array{identity:array,hash:string|null}> $desired
+   * @param array $diff
    */
   public function enrichCompactDiff($handler, array $active, array $desired, array $diff): array {
     if (!$this->store->isAvailable()) {

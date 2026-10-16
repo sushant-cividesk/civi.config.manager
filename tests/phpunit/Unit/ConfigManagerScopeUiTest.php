@@ -759,6 +759,9 @@ final class ConfigManagerScopeUiTest extends TestCase {
 }
 
 final class ScopeUiFixtureRegistry extends HandlerRegistry {
+  /**
+   * @var array
+   */
   private array $handlers;
 
   public function __construct(array $handlers) {
@@ -782,10 +785,25 @@ final class ScopeUiFixtureRegistry extends HandlerRegistry {
 }
 
 final class ScopeUiFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var bool
+   */
   private bool $fullImport;
+  /**
+   * @var array
+   */
   private array $files;
+  /**
+   * @var int
+   */
   public int $exportCalls = 0;
 
   public function __construct(string $type, string $label, bool $fullImport, array $files = []) {
@@ -836,9 +854,21 @@ final class ScopeUiFixtureHandler extends AbstractHandler {
 }
 
 final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var array
+   */
   private array $files;
+  /**
+   * @var array
+   */
   private array $errors;
 
   public function __construct(string $type, string $label, array $files, array $errors) {
@@ -877,9 +907,21 @@ final class ScopeUiPartialErrorFixtureHandler extends AbstractHandler {
 }
 
 final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var int
+   */
   public int $exportCalls = 0;
+  /**
+   * @var int
+   */
   public int $availabilityCalls = 0;
 
   public function __construct(string $type, string $label) {
@@ -916,8 +958,17 @@ final class ScopeUiUnavailableFixtureHandler extends AbstractHandler {
 }
 
 final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var int
+   */
   public int $exportCalls = 0;
 
   public function __construct(string $type, string $label) {
@@ -965,8 +1016,17 @@ final class ScopeUiManagedNoDeleteFixtureHandler extends AbstractHandler {
 }
 
 final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var int
+   */
   public int $exportCalls = 0;
 
   public function __construct(string $type, string $label) {
@@ -1017,8 +1077,17 @@ final class ScopeUiRuntimeExportOnlyFixtureHandler extends AbstractHandler {
 }
 
 final class ScopeUiReadOnlyFixtureHandler extends AbstractHandler {
+  /**
+   * @var string
+   */
   private string $type;
+  /**
+   * @var string
+   */
   private string $label;
+  /**
+   * @var int
+   */
   public int $exportCalls = 0;
 
   public function __construct(string $type, string $label) {

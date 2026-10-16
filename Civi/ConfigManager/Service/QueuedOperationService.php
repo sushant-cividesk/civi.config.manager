@@ -9,7 +9,13 @@ namespace Civi\ConfigManager\Service;
  * a dead worker; indeterminate live-mutating units fail closed.
  */
 class QueuedOperationService {
+  /**
+   * @var OperationStore
+   */
   private OperationStore $store;
+  /**
+   * @var ConfigManager
+   */
   private ConfigManager $manager;
 
   public function __construct(?OperationStore $store = NULL, ?ConfigManager $manager = NULL) {
@@ -18,7 +24,9 @@ class QueuedOperationService {
   }
 
   /**
+   * @param string $operation
    * @param string[] $types
+   * @param string $reviewPlanId
    * @return array<string,mixed>
    */
   public function start(string $operation, array $types = [], string $reviewPlanId = ''): array {

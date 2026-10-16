@@ -78,6 +78,9 @@ final class ConfigManagerCrossSiteTest extends TestCase {
 }
 
 final class CrossSiteFixtureConfigManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $siteId;
 
   public function __construct(string $siteId) {

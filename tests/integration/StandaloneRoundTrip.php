@@ -10,13 +10,35 @@ use Civi\ConfigManager\Service\ConfigManager;
 use Civi\ConfigManager\Storage\YamlFileStorage;
 use Civi\ConfigManager\Util\SimpleYaml;
 
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 final class CivicfgStandaloneRoundTrip {
+  /**
+   * @var string
+   */
   private string $runId;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $syncDir;
+  /**
+   * @var string
+   */
   private string $artifactDir;
+  /**
+   * @var array
+   */
   private array $created = [];
+  /**
+   * @var array
+   */
   private array $settingsBackup = [];
+  /**
+   * @var array
+   */
   private array $results = [];
 
   public function __construct() {

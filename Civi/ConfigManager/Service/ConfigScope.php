@@ -15,6 +15,9 @@ class ConfigScope {
   public const MODE_WATCH = 'watch';
   public const MODE_IGNORE = 'ignore';
 
+  /**
+   * @var ConfigIdentity
+   */
   private ConfigIdentity $identity;
 
   public function __construct(?ConfigIdentity $identity = NULL) {
@@ -128,9 +131,12 @@ class ConfigScope {
   /**
    * Partition active export files into managed, watched and ignored sets.
    *
+   * to semantic keys by the last real export.
+   *
+   * @param string $type
    * @param array<int,array<string,mixed>> $files
+   * @param bool $forExport
    * @param array<string,string> $portableSelectorMap Current selectors mapped
-   *   to semantic keys by the last real export.
    */
   public function partition(string $type, array $files, bool $forExport = FALSE, array $portableSelectorMap = []): array {
     $policy = $this->getPolicy($type);
@@ -251,6 +257,8 @@ class ConfigScope {
   /**
    * Keep only YAML documents that belong to the effective selected scope.
    *
+   *
+   * @param string $type
    * @param array<string,array<string,mixed>> $files
    * @param array<int,string> $managedKeys
    * @return array<string,array<string,mixed>>

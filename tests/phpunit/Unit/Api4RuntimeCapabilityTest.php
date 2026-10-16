@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Civi\Api4 {
+  // phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
   final class CivicfgCrudComplete {
 
     public static function get($checkPermissions = TRUE) {}

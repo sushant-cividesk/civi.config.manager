@@ -2,7 +2,13 @@
 namespace Civi\ConfigManager\Handler;
 
 class MessageTemplateHandler extends AbstractHandler implements ScopePickerHintProviderInterface, StreamingHandlerInterface, StreamingImportHandlerInterface {
+  /**
+   * @var bool
+   */
   private bool $importWritesEnabled = TRUE;
+  /**
+   * @var bool
+   */
   private bool $deleteMissingEnabled = TRUE;
 
   public function getType(): string {

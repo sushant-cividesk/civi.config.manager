@@ -11,12 +11,33 @@ use Civi\ConfigManager\Storage\YamlFileStorage;
  * retained in PHP. The persistent index is outside the managed YAML tree.
  */
 class StagedExportWorkspace {
+  /**
+   * @var \Civi\ConfigManager\Storage\YamlFileStorage
+   */
   private YamlFileStorage $live;
+  /**
+   * @var \Civi\ConfigManager\Storage\YamlFileStorage
+   */
   private YamlFileStorage $stage;
+  /**
+   * @var \Civi\ConfigManager\Storage\YamlFileStorage
+   */
   private YamlFileStorage $rollback;
+  /**
+   * @var string
+   */
   private string $root;
+  /**
+   * @var string
+   */
   private string $indexPath;
+  /**
+   * @var string
+   */
   private string $publishStatePath;
+  /**
+   * @var bool
+   */
   private bool $cleanupOnDestruct;
   /**
    * @var array<string,array<string,mixed>> */
@@ -48,6 +69,9 @@ class StagedExportWorkspace {
   }
 
   /**
+   * @param string $type
+   * @param string $directory
+   * @param string $filename
    * @param array<string,mixed> $data
    * @param array<string,mixed> $metadata
    */
@@ -141,6 +165,8 @@ class StagedExportWorkspace {
   /**
    * Rewrite a staged document after dependency/index enrichment.
    *
+   *
+   * @param string $relative
    * @param array<string,mixed> $data
    * @param array<string,mixed>|null $metadata
    */
@@ -320,6 +346,7 @@ class StagedExportWorkspace {
   }
 
   /**
+   * @param string $relative
    * @param array<string,bool> $journal
    * @param array<string,bool> $newPaths
    * @param array{written:string[],deleted:string[],skipped:string[]} $result
@@ -349,7 +376,10 @@ class StagedExportWorkspace {
   }
 
   /**
-   * @param array<string,bool> $journal */
+   * @param string $relative
+   * @param string $contents
+   * @param array<string,bool> $journal
+   */
   private function backup(string $relative, string $contents, array &$journal): void {
     if (isset($journal[$relative])) {
       return;
@@ -392,7 +422,9 @@ class StagedExportWorkspace {
   }
 
   /**
-   * @param array<string,bool> $journal @param array<string,bool> $newPaths */
+   * @param array<string,bool> $journal
+   * @param array<string,bool> $newPaths
+   */
   private function persistPublishState(array $journal, array $newPaths): void {
     $state = [
       'status' => 'publishing',

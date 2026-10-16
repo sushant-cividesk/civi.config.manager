@@ -43,6 +43,9 @@ final class ExtensionHandlerDiscoveryTest extends TestCase {
     ]);
 
     $registry = new class($handler) extends HandlerRegistry {
+      /**
+       * @var \Civi\ConfigManager\Handler\ExtensionHandler
+       */
       private ExtensionHandler $extensionHandler;
 
       public function __construct(ExtensionHandler $extensionHandler) {

@@ -77,8 +77,15 @@ $assert($initial['title'] === 'Configuration Manager: Initial export required', 
 /**
  * Exercise the real state-enrichment services without touching a database.
  */
+// phpcs:ignore -- Fixture/bootstrap class must retain its runtime test identity.
 class SyncStateFixtureStore extends \Civi\ConfigManager\Service\StateStore {
+  /**
+   * @var array
+   */
   public array $baselines = [];
+  /**
+   * @var array
+   */
   public array $states = [];
 
   public function isAvailable(): bool {

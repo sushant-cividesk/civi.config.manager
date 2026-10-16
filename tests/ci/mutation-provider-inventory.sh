@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source_file="${repo_root}/Civi/ConfigManager/Handler/ExtensionHandler.php"
+source_file="${repo_root}/Civi/ConfigManager/Handler/ExtensionProviderInventoryTrait.php"
 phpunit_bin="${repo_root}/vendor/bin/phpunit"
 backup_file="$(mktemp)"
 failure_log="$(mktemp)"
@@ -41,6 +41,13 @@ file_put_contents($path, $mutated);
 ' "${source_file}" "${needle}" "${replacement}"
 
 php -l "${source_file}" >/dev/null
+
+# Source moves are checked before the PHPUnit mutation suite. In check-only
+# mode, the EXIT trap still restores the original file byte-for-byte.
+if [[ "${1:-}" == '--check-target' ]]; then
+  echo 'Provider inventory mutation target OK (one mutation; PHP syntax valid).'
+  exit 0
+fi
 
 if "${phpunit_bin}" --configuration "${repo_root}/phpunit.xml.dist" \
   --filter testProviderInventoryDoesNotExecuteDiscoveredCollection >"${failure_log}" 2>&1; then

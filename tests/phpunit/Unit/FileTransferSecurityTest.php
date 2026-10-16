@@ -202,7 +202,13 @@ final class FileTransferSecurityTest extends TestCase {
 }
 
 final class FileTransferScopeFixtureManager extends ConfigManager {
+  /**
+   * @var string
+   */
   private string $fixtureSyncDir;
+  /**
+   * @var array
+   */
   private array $fixtureHandlers;
 
   public function __construct(string $syncDir, array $handlers) {
@@ -222,6 +228,9 @@ final class FileTransferScopeFixtureManager extends ConfigManager {
 }
 
 final class FileTransferScopeFixtureHandler extends AbstractHandler {
+  /**
+   * @var array
+   */
   private array $files;
 
   public function __construct(array $files) {

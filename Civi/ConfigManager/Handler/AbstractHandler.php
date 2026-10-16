@@ -13,7 +13,6 @@ abstract class AbstractHandler implements HandlerInterface {
   use HandlerStructuredDiffTrait;
 
 
-
   /**
    * Guard for the legacy api4Get() override bridge used by api4Iterate().
    *
@@ -261,6 +260,7 @@ abstract class AbstractHandler implements HandlerInterface {
 
   /**
    * @param array $items Export rows or filename => YAML rows.
+   * @param bool $exportRows
    * @return array<string, array{filename:string,data:array,identity:array}>
    */
   private function indexDiffItems(array $items, bool $exportRows): array {
