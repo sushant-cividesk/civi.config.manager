@@ -22,63 +22,89 @@ use Civi\ConfigManager\Handler\ProfileFieldHandler;
 use Civi\ConfigManager\Handler\TagHandler;
 
 /**
- * Fake database boundary: no CiviCRM bootstrapping or live writes. */
-class Bundle2TagFixture extends TagHandler {
-  public bool $failWrite = FALSE;
-  public ?array $existing = NULL;
+ * Make a Tag handler with in-memory API4 responses and no database writes.
+ */
+$newTagFixture = static function (): TagHandler {
+  return new class extends TagHandler {
+    /**
+     * Simulate an API4 write failure.
+     *
+     * @var bool
+     */
+    public bool $failWrite = FALSE;
+    /**
+     * Existing Tag data, if any.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $existing = NULL;
 
-  protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
-    return $entity === 'Tag' ? $this->existing : NULL;
-  }
-
-  protected function api4Create(string $entity, array $values): array {
-    if ($this->failWrite) {
-      throw new \RuntimeException('Simulated Tag create failure.');
+    protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
+      return $entity === 'Tag' ? $this->existing : NULL;
     }
-    return ['id' => 17] + $values;
-  }
 
-  protected function api4Update(string $entity, array $where, array $values): array {
-    if ($this->failWrite) {
-      throw new \RuntimeException('Simulated Tag update failure.');
+    protected function api4Create(string $entity, array $values): array {
+      if ($this->failWrite) {
+        throw new \RuntimeException('Simulated Tag create failure.');
+      }
+      return ['id' => 17] + $values;
     }
-    return ['id' => 17] + $values;
-  }
 
-}
+    protected function api4Update(string $entity, array $where, array $values): array {
+      if ($this->failWrite) {
+        throw new \RuntimeException('Simulated Tag update failure.');
+      }
+      return ['id' => 17] + $values;
+    }
+
+  };
+};
 
 /**
- * Fake API4 UFGroup/UFField identities and writes, with no database access. */
-class Bundle2ProfileFieldFixture extends ProfileFieldHandler {
-  public bool $failWrite = FALSE;
-  public ?array $existing = NULL;
+ * Make a UFField handler with in-memory API4 responses and no database writes.
+ */
+$newProfileFieldFixture = static function (): ProfileFieldHandler {
+  return new class extends ProfileFieldHandler {
+    /**
+     * Simulate an API4 write failure.
+     *
+     * @var bool
+     */
+    public bool $failWrite = FALSE;
+    /**
+     * Existing UFField data, if any.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $existing = NULL;
 
-  protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
-    if ($entity === 'UFGroup') {
-      return ['id' => 41, 'name' => 'test_profile'];
+    protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
+      if ($entity === 'UFGroup') {
+        return ['id' => 41, 'name' => 'test_profile'];
+      }
+      return NULL;
     }
-    return NULL;
-  }
 
-  protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
-    return $entity === 'UFField' && $this->existing ? [$this->existing] : [];
-  }
-
-  protected function api4Create(string $entity, array $values): array {
-    if ($this->failWrite) {
-      throw new \RuntimeException('Simulated UFField create failure.');
+    protected function api4Get(string $entity, array $where = [], array $select = ['*'], array $orderBy = []): array {
+      return $entity === 'UFField' && $this->existing ? [$this->existing] : [];
     }
-    return ['id' => 43] + $values;
-  }
 
-  protected function api4Update(string $entity, array $where, array $values): array {
-    if ($this->failWrite) {
-      throw new \RuntimeException('Simulated UFField update failure.');
+    protected function api4Create(string $entity, array $values): array {
+      if ($this->failWrite) {
+        throw new \RuntimeException('Simulated UFField create failure.');
+      }
+      return ['id' => 43] + $values;
     }
-    return ['id' => 43] + $values;
-  }
 
-}
+    protected function api4Update(string $entity, array $where, array $values): array {
+      if ($this->failWrite) {
+        throw new \RuntimeException('Simulated UFField update failure.');
+      }
+      return ['id' => 43] + $values;
+    }
+
+  };
+};
 
 $checks = 0;
 $check = static function (bool $condition, string $message) use (&$checks): void {
@@ -104,7 +130,7 @@ $profileDocument = [
 
 foreach (['create', 'update'] as $operation) {
   foreach ([FALSE, TRUE] as $fail) {
-    $tag = new Bundle2TagFixture();
+    $tag = $newTagFixture();
     $tag->failWrite = $fail;
     if ($operation === 'update') {
       $tag->existing = ['id' => 17, 'name' => 'test_tag', 'label' => 'Original', 'parent_id' => NULL];
@@ -114,7 +140,7 @@ foreach (['create', 'update'] as $operation) {
     $check((bool) $result['ok'] === !$fail, 'Tag ' . $operation . ' reports failure accurately');
     $check(count($result['errors']) === ($fail ? 1 : 0), 'Tag ' . $operation . ' preserves the API error');
 
-    $profile = new Bundle2ProfileFieldFixture();
+    $profile = $newProfileFieldFixture();
     $profile->failWrite = $fail;
     if ($operation === 'update') {
       $profile->existing = ['id' => 43, 'uf_group_id' => 41, 'field_name' => 'first_name', 'field_type' => 'Individual', 'label' => 'First name', 'is_active' => FALSE];
@@ -127,12 +153,12 @@ foreach (['create', 'update'] as $operation) {
 }
 
 // Deliberately exercise dry-run: no write should be made or error fabricated.
-$tag = new Bundle2TagFixture();
+$tag = $newTagFixture();
 $tag->failWrite = TRUE;
 $preview = $tag->importIterable(['tag.yml' => $tagDocument], TRUE);
 $check($preview['create'] === 1 && $preview['ok'], 'Tag dry-run predicts create without invoking a write');
 
-$profile = new Bundle2ProfileFieldFixture();
+$profile = $newProfileFieldFixture();
 $profile->failWrite = TRUE;
 $preview = $profile->importIterable(['field.yml' => $profileDocument], TRUE);
 $check($preview['create'] === 1 && $preview['ok'], 'Profile Field dry-run predicts create without invoking a write');
