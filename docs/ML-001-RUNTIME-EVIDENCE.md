@@ -78,6 +78,26 @@ records to tickets. After examining results, inspect the true untranslated
 source and translation provenance with the installed CiviCRM implementation
 before changing the canonicalizer, YAML or fingerprint format.
 
+## Synthetic fixture verdict (2026-10-19; no database writes)
+
+A source-level test called the actual `Canonicalizer` with synthetic
+`af_test_multilingual` values, keeping the form name and structure the
+same but varying the title and nested label across EN/FR:
+
+| Comparison | Observed | Required |
+|---|---|---|
+| `Household Name` / `Household` versus `Nom du foyer` / `Foyer` | Different hashes | Same only **when authoritative provenance proves locale equivalence** |
+| `Household Name` versus a genuine edit to `Household Details` | Different hashes | Different |
+
+This reproduces the current literal-text drift and preservation of genuine
+changes. It is **not proof that unrelated strings are translations**; fixture
+assumptions cannot replace translation-source evidence. No source code or
+canonical fingerprint semantics were changed. The latest real DDEV findings
+were: `dcivi-stage` initializes CiviCRM 6.17.2 in `en_US` with no
+multilingual languages configured; `dcivi-dev` fails during bootstrap with a
+`civicrm_case_type.title` query mismatch. These infrastructure issues are
+parked. **ML-001 remains open P0**, mandatory before Beta2 publication.
+
 ## Runtime evidence still needed
 
 On a disposable copy of a representative multilingual CiviCRM environment:

@@ -157,23 +157,23 @@ class ProfileFieldHandler extends AbstractHandler implements StreamingHandlerInt
           $existing = (array) $matches[0];
           $existingPortable = $this->toPortable($existing);
           if ($this->desiredDiffers($existingPortable, $portable)) {
-            $summary['update']++;
             if (!$dryRun) {
               if (empty($existing['id'])) {
                 throw new \RuntimeException('Existing UFField has no local ID for update.');
               }
               $this->api4Update('UFField', [['id', '=', $existing['id']]], $desired);
             }
+            $summary['update']++;
           }
           else {
             $summary['skip']++;
           }
         }
         else {
-          $summary['create']++;
           if (!$dryRun) {
             $this->api4Create('UFField', $desired);
           }
+          $summary['create']++;
         }
       }
       catch (\Throwable $e) {

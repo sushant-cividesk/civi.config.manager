@@ -1,5 +1,17 @@
 # Automated QA
 
+## 2026-10-19 DDEV fast gate / Bundle 2 write-accounting smoke
+
+The user confirmed `qa:fast` green on DDEV after the Composer alias patch:
+319 PHPUnit tests, 2,304 assertions, mutation proofs, PHPCS, PHPStan, PHP
+7.4/8.0/8.3. This is a fast-QA result, not cross-environment/real-runtime
+release approval. The next narrow Bundle 2 change moves Tag/UFField
+create/update counting after the API4 operation returns successfully.
+`composer run test:bundle2-write-accounting` performs an in-memory
+26-check red/green regression (no database boot or writes); it also runs
+inside `qa:fast`. Run full DDEV QA later at the next meaningful checkpoint,
+not repeatedly after every small edit. ML-001 is still P0/open.
+
 ## 2026-10-16 fast QA reference and generated-cache protection
 
 The user-provided `a381b02` DDEV log showed 319 green PHPUnit tests,

@@ -2,6 +2,19 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **Bundle 2 — Tag/Profile Field write accounting (2026-10-19):** Corrected
+  the successful create/update counters to advance **after**, not before,
+  API4 confirms each write. Dependency-free red/green tests cover failed and
+  successful create/update operations for both adapters, and dry-run preview.
+  No changes to provider admission, delete-missing, import-plan safety or
+  business records. Real CiviCRM CRUD certification remains pending.
+- **ML-001 fixture checkpoint (2026-10-19):** Synthetic EN/FR titles and
+  nested labels still produce different Canonicalizer v2 hashes without
+  translation provenance; real title edits remain detectable. ML-001 remains
+  a P0 open release gate, and runtime-dependent work is deferred rather than
+  changing source/import behavior speculatively. The supplied DDEV `qa:fast`
+  results were green (319 tests, 2,304 assertions) before this Bundle 2 edit.
+
 - **Bundle 1 diagnostics (2026-10-19):** Added a read-only CLI probe to
   compare locale-specific Afform API4 payloads and inventory available
   scanner/translation metadata on a disposable multilingual CiviCRM site.

@@ -194,8 +194,8 @@ class TagHandler extends EntityDefinitionHandler {
         if (empty($existing['id'])) {
           throw new \RuntimeException('Existing Tag has no local ID for update: ' . $name . '.');
         }
-        $summary['update']++;
         $this->api4Update('Tag', [['id', '=', $existing['id']]], $desired);
+        $summary['update']++;
       }
       else {
         $summary['skip']++;
@@ -203,8 +203,8 @@ class TagHandler extends EntityDefinitionHandler {
       return;
     }
 
-    $summary['create']++;
     $this->api4Create('Tag', $desired);
+    $summary['create']++;
   }
 
   private function portableRow(array $row): array {

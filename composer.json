@@ -63,6 +63,7 @@
             "@test:sync-state-health",
             "@test:refactor-composition",
             "@test:mutation-targets",
+            "@test:bundle2-write-accounting",
             "@test:php74-signatures",
             "@test:js-scope-composition",
             "@lint:php",
@@ -120,6 +121,7 @@
         "test:mutation-reduced-import": "bash tests/ci/mutation-reduced-import.sh",
         "test:mutation-import-accounting": "bash tests/ci/mutation-import-accounting.sh",
         "test:composer-script-refs": "php tests/ci/composer-script-references-smoke.php",
+        "test:bundle2-write-accounting": "php tests/ci/bundle2-write-accounting-smoke.php",
         "compatibility8.0": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.0 CRM Civi configmanager.php settings tests"
     }
 }

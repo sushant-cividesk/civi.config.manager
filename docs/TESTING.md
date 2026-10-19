@@ -1,5 +1,22 @@
 # Testing
 
+## 2026-10-19 fast QA confirmation and Bundle 2 failure-path check
+
+The user-supplied DDEV `composer run qa:fast` passed 319 PHPUnit tests /
+2,304 assertions, mutation red/green proofs, PHPCS, PHPStan, and scoped PHP
+7.4/8.0/8.3 compatibility after the Composer QA-alias fix. This evidence
+predates the new Bundle 2 counter fix. Run the fast in-memory regression:
+
+```bash
+composer run test:bundle2-write-accounting
+```
+
+It checks successful/failed API4 create/update for Tags and UF Fields and
+dry-run previews, never bootstrapping CiviCRM or modifying site data.
+Counts must reflect confirmed writes only. Real CiviCRM Tag/UFGroup/UFField
+CRUD, dependency portability and business-data preservation still require
+disposable integration evidence. ML-001 remains open after synthetic testing.
+
 ## Latest regression prevention checkpoint (2026-10-16)
 
 The supplied DDEV evidence at `a381b02` is green for 319 PHPUnit tests,

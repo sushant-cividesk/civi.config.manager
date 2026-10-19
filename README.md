@@ -288,6 +288,7 @@ scripts to inspect only project source and tests.
 ```bash
 composer validate --strict
 composer qa:fast
+composer test:bundle2-write-accounting
 composer test:hook
 composer test:cli
 ```

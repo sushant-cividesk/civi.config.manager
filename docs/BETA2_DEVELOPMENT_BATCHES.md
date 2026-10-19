@@ -22,6 +22,18 @@ source checkpoint integrates it and includes a read-only ML-001 runtime probe.
 The assistant's source-only checks are not equivalent to a completed new
 DDEV `composer run qa:fast`; ML-001 has not been fixed. Keep Bundle 1 active.
 
+**Latest development checkpoint (2026-10-19):** The user-supplied DDEV
+`composer run qa:fast` now passes (319 PHPUnit tests / 2,304 assertions;
+mutation, PHPCS, PHPStan and scoped compatibility checks). A synthetic
+ML-001 fixture reproduces false locale-only drift while preserving real
+edit detection; this is a source-level test, **not** a functional fix, so
+ML-001 stays mandatory/open. The English-only STAGE and non-bootstrapping DEV
+cannot certify multilingual behavior. Proceeding with Bundle 2: corrected
+Tag/UFField attempted-write accounting; a dependency-free 26-check
+red/green smoke verifies counts and errors with simulated API4 failures
+and successes. DDEV QA and real CRUD validation for this new change are pending.
+Do not reopen the structural refactor or treat ML-001 as waived.
+
 Authoritative original release priorities: [BETA2_PRIORITIES.md](BETA2_PRIORITIES.md).
 Detailed pending items and historical decisions: [PROJECT_STATUS.md](PROJECT_STATUS.md).
 

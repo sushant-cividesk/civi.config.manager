@@ -9,6 +9,34 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
+## 2026-10-19 ML-001 fixture verdict / Bundle 2 accounting fix (current)
+
+The user ran `composer run qa:fast` on the 2026-10-19 QA-prevention
+source and reported green DDEV results: PHPUnit 319 tests / 2,304 assertions,
+mutation proof suites, CiviCRM PHPCS, PHPStan, PHP 7.4/8.0/8.3 compatibility,
+and source/UI contracts. This closes the **fast QA housekeeping checkpoint**,
+not the real-runtime/release-certification gates.
+
+For ML-001, a disposable **source-level** synthetic Afform fixture with
+`af_test_multilingual` and EN/FR labels (`Household Name` / `Nom du foyer`;
+`Household` / `Foyer`) was compared through the real Canonicalizer v2.
+Locale-only strings produced different hashes (required: same); a genuine
+title change also changed the hash (required: different). There were no DB
+writes. Neither DDEV site supplied trustworthy working multilingual
+translation provenance (`dcivi-stage` single-locale, `dcivi-dev` unrelated
+bootstrap/schema failure). **ML-001 remains unresolved P0.** Do not drop
+translated fields or claim an end-to-end fix; resume on a disposable
+multilingual runtime later, not by rebuilding unrelated DDEV installations.
+
+**Bundle 2 started:** Both Tag and UFField adapters counted attempted
+create/update writes before API4 success. A dependency-free red/green smoke
+reproduced the false-success accounting and now checks failed/successful
+create/update and read-only dry runs (26 checks). Changed only counter
+placement after API4 success, preserving identity mapping and no-delete
+policies. This updated source has **not** undergone a subsequent DDEV
+`qa:fast` run or real-provider import/export testing. Continue A69-01/02
+real-runtime certification without mutating production data.
+
 ## 2026-10-19 DDEV continuation (source checkpoint; not final QA)
 
 New user-uploaded code: `civi.config.manager(20261019-093637).zip`, Git
