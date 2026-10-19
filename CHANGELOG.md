@@ -2,6 +2,9 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **2026-10-19 QA/security:** Fixed Bundle 2 fixture coding standards and raised Symfony YAML minimum versions to exclude CVE-2026-109413. Composer lockfile and security audit must be verified before CI approval.
+
+
 - **Bundle 2 — Tag/Profile Field write accounting (2026-10-19):** Corrected
   the successful create/update counters to advance **after**, not before,
   API4 confirms each write. Dependency-free red/green tests cover failed and
