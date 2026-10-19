@@ -22,6 +22,13 @@ namespace Civi\Api4 {
     public static array $deleted = [];
 
     /**
+     * Simulate an API4 create/update failure before writing any records.
+     *
+     * @var string|null
+     */
+    public static ?string $failWrite = NULL;
+
+    /**
      * @var array<int, CivicfgHookFixtureAction> */
     public static array $actions = [];
 
@@ -175,6 +182,9 @@ namespace Civi\Api4 {
     /**
      * @return array<int, array<string, mixed>> */
     public function execute(): array {
+      if ($this->op === CivicfgHookFixture::$failWrite) {
+        throw new \RuntimeException('Simulated API4 ' . $this->op . ' failure.');
+      }
       if ($this->op === 'create') {
         $nextId = 1;
         foreach (CivicfgHookFixture::$rows as $row) {
@@ -281,6 +291,7 @@ namespace Civi\ConfigManager\Tests\Unit {
       CivicfgHookFixture::$updated = [];
       CivicfgHookFixture::$deleted = [];
       CivicfgHookFixture::$actions = [];
+      CivicfgHookFixture::$failWrite = NULL;
     }
 
     public function testExportUsesStableKeyAndRemovesRuntimeNestedAndSensitiveFields(): void {
@@ -447,6 +458,65 @@ namespace Civi\ConfigManager\Tests\Unit {
       self::assertTrue($summary['ok']);
       self::assertSame(1, $summary['create']);
       self::assertSame('new_template', CivicfgHookFixture::$created[0]['name']);
+    }
+
+    /**
+     * A generic API4 provider (including Profiles/UFGroup) must not count
+     * rejected creates or updates as successfully applied configuration.
+     */
+    public function testImportDoesNotCountFailedApi4Writes(): void {
+      $handler = $this->buildHandler();
+      foreach (['create', 'update'] as $operation) {
+        CivicfgHookFixture::$failWrite = $operation;
+        $name = $operation === 'create' ? 'new_template' : 'alpha_template';
+        $result = $handler->import([
+          'profile.yml' => [
+            'type' => 'myext_templates.item',
+            'entity' => 'CivicfgHookFixture',
+            'item' => ['name' => $name, 'label' => 'Requested Profile Label'],
+          ],
+        ], FALSE);
+
+        self::assertFalse($result['ok'], $operation . ' must report failure.');
+        self::assertSame(0, $result['create'], 'Failed write must not count as created.');
+        self::assertSame(0, $result['update'], 'Failed write must not count as updated.');
+        self::assertCount(1, $result['errors']);
+        self::assertStringContainsString('Simulated API4 ' . $operation . ' failure', $result['errors'][0]['message']);
+        self::assertSame([], CivicfgHookFixture::$created);
+        self::assertSame([], CivicfgHookFixture::$updated);
+        self::assertSame('Alpha Template', CivicfgHookFixture::$rows[0]['label']);
+      }
+    }
+
+    /**
+     * Dry-run counts are predictions and must never invoke API4 writes,
+     * including when the transport is configured to reject writes.
+     */
+    public function testDryRunCountsChangesWithoutAttemptingApi4Writes(): void {
+      $handler = $this->buildHandler();
+      CivicfgHookFixture::$failWrite = 'create';
+      $create = $handler->import([
+        'new.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'new_template', 'label' => 'New Profile'],
+        ],
+      ], TRUE);
+      self::assertTrue($create['ok']);
+      self::assertSame(1, $create['create']);
+      self::assertSame([], CivicfgHookFixture::$created);
+
+      CivicfgHookFixture::$failWrite = 'update';
+      $update = $handler->import([
+        'existing.yml' => [
+          'type' => 'myext_templates.item',
+          'entity' => 'CivicfgHookFixture',
+          'item' => ['name' => 'alpha_template', 'label' => 'New Label'],
+        ],
+      ], TRUE);
+      self::assertTrue($update['ok']);
+      self::assertSame(1, $update['update']);
+      self::assertSame([], CivicfgHookFixture::$updated);
     }
 
     public function testDryRunReportsChangeButDoesNotWrite(): void {

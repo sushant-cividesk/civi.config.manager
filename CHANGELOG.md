@@ -2,6 +2,15 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **Bundle 2 — UFGroup/Profiles write accounting (2026-10-19):** The generic
+  API4 importer, used by Profiles/UFGroup, now counts create/update only after
+  the API4 operation returns successfully. Failure and dry-run regression
+  cases were added to existing PHPUnit coverage. A guarded, read-only
+  Drupal/Drush provider probe samples portable Tag, UFGroup and UFField
+  export/validation/dry-run flows; it performs no writes. Local actual-handler
+  red/green checks passed; full DDEV QA and runtime provider certification
+  remain pending. Delete-missing and import-plan policy are unchanged.
+
 - **2026-10-19 QA/security:** Fixed Bundle 2 fixture coding standards and raised Symfony YAML minimum versions to exclude CVE-2026-109413. Composer lockfile and security audit must be verified before CI approval.
 
 

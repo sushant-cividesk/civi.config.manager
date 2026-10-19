@@ -370,10 +370,10 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
               $summary['errors'][] = ['file' => $filename, 'name' => $key, 'message' => 'Update is not allowed by this configuration provider.'];
               continue;
             }
-            $summary['update']++;
             if (!$dryRun) {
               $this->api4Update($this->entity, [['id', '=', $existing['id']]], $desired);
             }
+            $summary['update']++;
           }
           else {
             $summary['skip']++;
@@ -384,10 +384,10 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
             $summary['errors'][] = ['file' => $filename, 'name' => $key, 'message' => 'Create is not allowed by this configuration provider.'];
             continue;
           }
-          $summary['create']++;
           if (!$dryRun) {
             $this->api4Create($this->entity, $desired);
           }
+          $summary['create']++;
         }
       }
       catch (\Throwable $e) {
