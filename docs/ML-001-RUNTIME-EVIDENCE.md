@@ -52,6 +52,32 @@ Only if provenance proves equivalence should the handler compare a stable
 source/translation representation. A dynamically generated Afform without
 source identity must remain unverified for semantic locale matching.
 
+## Read-only DDEV evidence collector (2026-10-19)
+
+From an existing CiviCRM-buildkit DDEV extension shell on a **disposable**
+multilingual runtime, choose an existing machine name and two enabled languages:
+
+```bash
+ML001_AFFORM_NAME=af_household ML001_LANGUAGES=en_US,fr_FR \
+  cv scr tests/manual/ml001-afform-evidence.php
+```
+
+The script only calls read-only API4 `get`/`getFields` and the Afform scanner,
+requests locale-specific data via API4 `setLanguage()`, and prints title,
+layout/API4 hashes, known enabled languages, scanner-source availability and
+translation-entity field availability. It does not fetch full translation rows,
+change site/user locale settings, edit forms, or run an Import. Exit code 3
+means a second locale was not supplied; exit code 4 means a requested form
+could not be read or its API failed. The probe can succeed without proving
+that locale negotiation worked, so verify enabled locales and repeat with
+an affected form and a separate non-EN/FR pair. A hook-only form may have no
+file-source provenance. The script is diagnostic evidence, **not a fix**.
+
+Do not run this against PROD or attach raw client layouts/translation catalog
+records to tickets. After examining results, inspect the true untranslated
+source and translation provenance with the installed CiviCRM implementation
+before changing the canonicalizer, YAML or fingerprint format.
+
 ## Runtime evidence still needed
 
 On a disposable copy of a representative multilingual CiviCRM environment:

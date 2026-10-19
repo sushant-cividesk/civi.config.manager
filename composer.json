@@ -52,10 +52,11 @@
         "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
         "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
         "standards": "phpcs --standard=phpcs.xml.dist",
-        "compatibility7.4": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 7.4 .",
-        "compatibility8.1": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.1 .",
-        "compatibility8.3": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules --runtime-set testVersion 8.3 .",
+        "compatibility7.4": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 7.4 CRM Civi configmanager.php settings tests",
+        "compatibility8.1": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.1 CRM Civi configmanager.php settings tests",
+        "compatibility8.3": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.3 CRM Civi configmanager.php settings tests",
         "qa:fast": [
+            "@test:composer-script-refs",
             "@test:source-hygiene",
             "@test:source-hygiene-behavior",
             "@test:refactor-boundaries",
@@ -81,6 +82,7 @@
             "@test:browser-workflow-contract",
             "@test:provider-browser",
             "@test:mutation-provider-browser",
+            "@standards",
             "@analyse",
             "@compatibility7.4",
             "@compatibility8.0",
@@ -116,6 +118,8 @@
         "test:mutation-provider-browser": "bash tests/ci/mutation-provider-browser.sh",
         "test:mutation-import-plan": "bash tests/ci/mutation-import-plan.sh",
         "test:mutation-reduced-import": "bash tests/ci/mutation-reduced-import.sh",
-        "test:mutation-import-accounting": "bash tests/ci/mutation-import-accounting.sh"
+        "test:mutation-import-accounting": "bash tests/ci/mutation-import-accounting.sh",
+        "test:composer-script-refs": "php tests/ci/composer-script-references-smoke.php",
+        "compatibility8.0": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.0 CRM Civi configmanager.php settings tests"
     }
 }

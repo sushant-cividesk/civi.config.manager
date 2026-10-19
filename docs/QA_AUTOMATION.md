@@ -1,5 +1,25 @@
 # Automated QA
 
+## 2026-10-16 fast QA reference and generated-cache protection
+
+The user-provided `a381b02` DDEV log showed 319 green PHPUnit tests,
+mutation red/green proofs, PHPStan and the separate CiviCRM `standards`
+check. A subsequent `composer qa:fast` exposed an undefined
+`@compatibility8.0` alias. `test:composer-script-refs` now checks every
+Composer script alias **before running the expensive QA suite**, including a
+negative self-test to ensure missing aliases are detected. CiviCRM coding
+standards are included in `qa:fast` now that the reported style cleanup is
+passing. PHPCompatibility scripts target only `CRM`, `Civi`,
+`configmanager.php`, `settings` and `tests`, keeping generated `.phpstan-cache`
+files outside the scan; they still check source and tests at PHP 7.4, 8.0,
+and 8.3. Use `composer run compatibility7.4` instead of an unrestricted
+`phpcs ... .` that accidentally traverses generated caches.
+
+This is a QA workflow correction, not a successful final DDEV run of the
+modified Composer manifest; confirm `composer run qa:fast` in DDEV before
+marking the maintenance change complete. Real CiviCRM release gates remain
+separately deferred until feature freeze.
+
 ## R0.5 PHPStan source-contract helper registration
 
 `ConfigManagerPerformanceTest` and `ExtensionHandlerDiscoveryTest` call

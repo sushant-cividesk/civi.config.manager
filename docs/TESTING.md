@@ -1,5 +1,17 @@
 # Testing
 
+## Latest regression prevention checkpoint (2026-10-16)
+
+The supplied DDEV evidence at `a381b02` is green for 319 PHPUnit tests,
+2,304 assertions, mutation tests, PHPStan, and the separately executed CiviCRM
+coding standard. A later `composer qa:fast` printed an undefined
+`@compatibility8.0` alias after PHPStan. The Composer scripts now define that
+alias, check all `@script` references first, run `@standards` as a fast gate,
+and scope PHPCompatibility to real extension sources/tests (not the generated
+PHPStan cache). Source-only self-tests do **not** replace the post-patch
+DDEV `composer run qa:fast` check. Continue feature work with ML-001 after
+that small validation checkpoint; do not repeat bulk PHPCBF refactoring.
+
 ## R0.4 QA mutation/standards checkpoint (2026-10-16)
 
 The user's latest DDEV `composer qa:fast` at commit `85049f9` passed the

@@ -2,6 +2,24 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **Bundle 1 diagnostics (2026-10-19):** Added a read-only CLI probe to
+  compare locale-specific Afform API4 payloads and inventory available
+  scanner/translation metadata on a disposable multilingual CiviCRM site.
+  It does not change canonicalization or Import behavior, and ML-001 remains
+  unresolved until trustworthy runtime translation provenance is established.
+
+
+- **Fast QA contract guard (2026-10-16):** Fixed an undefined
+  `@compatibility8.0` Composer alias revealed by the user's DDEV run.
+  Added a dependency-free reference check before the expensive QA steps,
+  promoted the now-clean CiviCRM coding standard to `qa:fast`, and restricted
+  PHPCompatibility scans to the extension's source/test paths so generated
+  `.phpstan-cache` content cannot create false compatibility errors. No
+  production PHP, import behavior, provider capability, or YAML was changed.
+  Latest supplied DDEV evidence at `a381b02` passed PHPUnit (319 tests,
+  2,304 assertions), mutation checks and PHPStan; a fresh DDEV `qa:fast`
+  run is required after this new Composer change.
+
 - **R0.5 PHPStan test-helper discovery:** Register the existing PHPUnit
   source-contract reader in PHPStan `scanFiles`, so its global function is
   known to static analysis even though tests load it at runtime from method

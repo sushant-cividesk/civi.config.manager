@@ -9,6 +9,36 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
+## 2026-10-19 DDEV continuation (source checkpoint; not final QA)
+
+New user-uploaded code: `civi.config.manager(20261019-093637).zip`, Git
+`a381b02` on local/remote `main`; only uncommitted change was whitespace
+in `composer.json`. Composer dependencies were installed in DDEV, but the
+missing `compatibility8.0` and `test:composer-script-refs` scripts showed
+that the previous QA-prevention patch was not applied there. This development
+checkpoint applies the previously prepared QA correction to that source,
+removes the whitespace-only line, and adds
+`tests/manual/ml001-afform-evidence.php` for READ-ONLY runtime evidence.
+No Afform comparison/import behavior was changed. DDEV `qa:fast` after this
+checkpoint remains **unverified**; ML-001 P0 remains open. Once DDEV passes,
+collect multilingual Afform runtime provenance before attempting a fix.
+
+## 2026-10-16 latest DDEV review and development handoff
+
+Authoritative uploaded source: `civi.config.manager(20261016-111614).zip`,
+latest user-reported Git commit `a381b02` (local main; user-reported
+`origin/main` remains at `db671546`). **Confirmed in user-supplied DDEV log:**
+319 PHPUnit tests / 2,304 assertions pass, all five mutation proofs and
+PHPStan pass, and the CiviCRM style check passes. The complete fast rerun
+found an undefined Composer `@compatibility8.0` script alias; a bare
+PHPCompatibility scan had also inspected generated `.phpstan-cache` files.
+This bounded maintenance change adds the alias, a zero-dependency alias
+validator, blocking coding standards, and explicit compatibility source paths.
+It does not change production behavior. **Post-change Composer QA in DDEV is
+not yet proven green.** Prioritize ML-001 multilingual Afform false drift next,
+using the read-only evidence plan in `ML-001-RUNTIME-EVIDENCE.md`, and then
+proceed to core provider stability. Do not reopen the structural refactor.
+
 ## 2026-10-16 development-first structural checkpoint
 
 R0.1 extracted `ConfigIgnoreRules` and `ExtensionProviderIdentity` in commit

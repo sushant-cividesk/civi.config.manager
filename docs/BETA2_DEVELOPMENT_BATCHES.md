@@ -3,6 +3,25 @@
 **Current baseline:** `0.1.0-alpha68.6.1-core` (see `info.xml`).
 **Last scope decision:** 2026-10-16. The developer requested a **development-first** sequence: fix real defects, finish existing provider/UI functionality, and use *basic targeted smoke checks* now. The formerly approved mandatory Beta2 release-verification gates remain mandatory **before release**, but their scheduling is deferred to feature freeze. Never mark them passed without evidence.
 
+**Latest verified user checkpoint (2026-10-16, commit `a381b02`):** DDEV
+`qa:fast` passed 319 PHPUnit tests / 2,304 assertions, all five mutation
+proofs, PHPStan and applicable compatibility checks; `composer standards`
+also passed. The final rerun exposed a missing Composer alias
+`@compatibility8.0`, not a product regression. This QA maintenance patch
+adds the missing alias, validates Composer `@script` references before costly
+checks, enforces `@standards` in `qa:fast`, and scopes compatibility scans away
+from PHPStan-generated caches. **A new DDEV rerun remains pending for this
+patch.** A67-07 is implemented; **ML-001 remains P0/open and is the next
+product work**. Do not repeat broad code formatting or QA refactoring.
+
+**2026-10-19 continuation:** The latest user-uploaded DDEV source remains at
+`a381b02` on `main`, with `origin/main` also at that commit. Its only tracked
+working-tree change before this update was whitespace in `composer.json`.
+The 2026-10-16 QA-prevention patch applies cleanly to that baseline; this
+source checkpoint integrates it and includes a read-only ML-001 runtime probe.
+The assistant's source-only checks are not equivalent to a completed new
+DDEV `composer run qa:fast`; ML-001 has not been fixed. Keep Bundle 1 active.
+
 Authoritative original release priorities: [BETA2_PRIORITIES.md](BETA2_PRIORITIES.md).
 Detailed pending items and historical decisions: [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
