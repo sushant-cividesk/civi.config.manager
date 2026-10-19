@@ -2,6 +2,17 @@
 
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
+- **Bundle 2 disposable CRUD certification fixture (2026-10-19):** Added a
+  STAGE-only, explicit-opt-in manual script for real Tag parent/child, Profile
+  (UFGroup) and Profile Field (UFField) create/update, repeated imports,
+  portable export/semantic references, rejection of missing dependencies,
+  no-delete preservation and fixture cleanup. It fails closed outside the
+  expected DDEV STAGE webroot/database. In-memory API4 simulation passed
+  normal and forced-failure cleanup flows. **Actual STAGE writes and
+  certification remain pending until the operator runs the script.** No
+  production provider behavior or release gates were changed.
+
+
 - **Bundle 2 — UFGroup/Profiles write accounting (2026-10-19):** The generic
   API4 importer, used by Profiles/UFGroup, now counts create/update only after
   the API4 operation returns successfully. Failure and dry-run regression
