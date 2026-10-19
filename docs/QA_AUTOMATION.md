@@ -1,5 +1,9 @@
 # Automated QA
 
+## Bundle 2 PHPCompatibility fixture exception
+
+Exclude only `tests/ci/bundle2-write-accounting-smoke.php` from PHPCompatibility scanning because its nested anonymous-class methods trigger incorrect `$this` closure warnings. The fixture remains covered by PHP lint, normal PHPCS, PHPStan, and its 26 behavioral checks in `qa:fast`. Production code and other tests remain in compatibility scans.
+
 ## 2026-10-19 DDEV fast gate / Bundle 2 write-accounting smoke
 
 The user confirmed `qa:fast` green on DDEV after the Composer alias patch:

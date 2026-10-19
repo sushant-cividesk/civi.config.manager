@@ -24,8 +24,8 @@ use Civi\ConfigManager\Handler\TagHandler;
 /**
  * Make a Tag handler with in-memory API4 responses and no database writes.
  */
-$newTagFixture = static function (): TagHandler {
-  return new class extends TagHandler {
+$newTagFixture = function (): TagHandler {
+  return new class() extends TagHandler {
     /**
      * Simulate an API4 write failure.
      *
@@ -63,8 +63,8 @@ $newTagFixture = static function (): TagHandler {
 /**
  * Make a UFField handler with in-memory API4 responses and no database writes.
  */
-$newProfileFieldFixture = static function (): ProfileFieldHandler {
-  return new class extends ProfileFieldHandler {
+$newProfileFieldFixture = function (): ProfileFieldHandler {
+  return new class() extends ProfileFieldHandler {
     /**
      * Simulate an API4 write failure.
      *
