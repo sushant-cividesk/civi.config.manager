@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-20 — ML-001 source-locale read stabilization (STAGE verification pending)
+
+- STAGE read-only API4 probe reproduced locale-dependent output: 77 of 139 Afforms varied between `en_US` and `fr_FR`, one layout varied, and an in-memory hook-generated `Save` title translated to `Enregistrer` with unchanged layout. `is_multilingual=false` means legacy multilingual DB fields are not enabled, although API4 locale negotiation succeeded.
+- Pin the built-in FormBuilder Afform API4 **read** actions (`get` pagination and lookup) to the gettext source locale `en_US`, so ambient user/CLI locale alone does not alter export YAML, Synchronize fingerprints, or dry-run Import matching. Leave other API4 types, all writes, the generic Canonicalizer and YAML format unchanged; fail closed if `setLanguage()` is not supported.
+- Add a red-before/green-after handler regression proving stable export/diff/preview and detection of a genuine source-text change, plus an opt-in, read-only STAGE proof with process-only hook fixture and restored locale.
+- **Partial ML-001 fix, not Beta2 certification:** separately stored `Translation`/`TranslationSource` edits are not exported by this Afform handler. Old locale-specific YAML requires reviewed migration. Real STAGE read/preview and source/translation-edit validation remain release requirements. No writes or deployment performed.
+
+
+
+## 2026-10-20 — ML-001 guarded multilingual STAGE diagnosis (unreleased)
+
+- Record the developer's confirmed full DDEV `qa:fast` PASS on Bundle 5/6
+  commit `2a24ce3` after the PHPCS hotfix.
+- Add a strictly read-only, opt-in STAGE locale probe using a process-local
+  `civi.afform.get` synthetic form (real `ts()` translation) and hashed
+  comparison of existing FormBuilder Afform outputs/source files. Add
+  no-opt-in, wrong-root and no-write regression guards to `qa:fast`.
+- **No Afform canonicalizer, Import behavior, YAML schema or translation
+  records have been changed.** A real STAGE locale/provenance run and a
+  genuine translated-edit/no-write round trip remain required to fix ML-001.
+
+
 ## 2026-10-20 — Bundle 5 QA documentation hotfix and Bundle 6 measured baseline (unreleased)
 
 - User-run DDEV `qa:fast` passed the 321-test/2,326-assertion PHPUnit suite, source lint (197 PHP files), focused Bundle 5/6 checks, PHPStan and compatibility checks, but stopped at PHPCS: `PresenterImportFeedbackTrait::getImportReadiness()` lacked four `@param` annotations. Added explicit annotations for all six parameters; **the updated PHPCS and full `qa:fast` must be rerun in DDEV**, not reported as passed yet. The separate locked Composer audit found no advisories.

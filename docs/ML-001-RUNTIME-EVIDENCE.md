@@ -1,5 +1,71 @@
 # ML-001 multilingual Afform: evidence required before a safe fix
 
+## 2026-10-20 — Real STAGE reproduction and source-locale candidate fix
+
+**Measured user-executed STAGE result:** CiviCRM `6.17.2`, database `dcivistagecivi_jwy32`. API4 honored both `en_US` and `fr_FR`; the caller's locale was restored. `CRM_Core_I18n::isMultiLingual()` returned `false`, and the legacy `enableMultipleLanguages`/`enabledLanguages` settings were `null`. This site has working gettext/UI locale switching but **not legacy multilingual database mode**. Among 139 shared existing Afforms, 77 varied by locale (including 1 layout change). The synthetic process-only Afform title switched `Save` to `Enregistrer`, with identical layout. The first ten varying examples had no discoverable Afform source file, so their programmatic source/translation provenance remains unresolved.
+
+**Root cause at Configuration Manager boundary:** The built-in `formbuilder-afforms` GenericApi4CollectionHandler reads locale-dependent `Afform.get` values (`title`, `layout`) and the canonical fingerprint compares strings literally. API4's `setLanguage()` is an explicit per-action locale selector. CiviCRM's own `civi.afform.get` hook permits generated translated titles. Thus two user sessions can produce different YAML bytes from the same source. The fix makes built-in Afform API4 read actions use the fixed gettext source locale `en_US` for both streaming export and existing-record Import lookup. It preserves all original source strings and the strict generic hash, so a source-title edit still changes the fingerprint. The API fails closed if it cannot set the requested locale; other Generic API4 types are untouched. No automatic rewrite of existing Saved Config is performed.
+
+**Standalone regression:** `php tests/ci/ml001-afform-stable-locale-smoke.php` was RED before the fix (`User locale changed exported Saved Config`) and GREEN after. It exercises actual handler Export, Diff, Import preview and a genuine source-title edit, using an API4 action stub. Source read and stage safety guards are in `qa:fast`.
+
+**Required real DDEV STAGE verification (no persisted test data):**
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+ML001_SOURCE_LOCALE_TEST=YES_STAGE_ONLY   drush php:script /var/www/html/ext/civi.config.manager/tests/manual/ml001-stage-source-locale-smoke.php
+```
+
+This script checks the exact STAGE path and database before using a process-local `civi.afform.get` fixture. It compares only hashed Export results under two caller locales, then makes an **in-memory source-title change** and requires Diff to detect it. The event listener and original language are restored in `finally`; existing Afforms, files, YAML, translations and settings are never written. Expect `ML-001 STAGE SOURCE-LOCALE EXPORT/DIFF: PASS`, `locale_only_export_differences: 0`, and `genuine_source_edit_detected: true`. A failure stops acceptance without masking a potential provider bug.
+
+**Outstanding release obligations:** `en_US` is a source-locale *read policy*, **not** full translation synchronization. Changes made only to CiviCRM `Translation`/`TranslationSource` records (including French-only translated string edits) are not represented by the present Afform YAML schema and may not affect the `en_US` projection. Those changes must be exported/synchronized through a separately proven translation-aware mechanism; do **not** claim detection, auto-import them, remove fields from hashes, or enable dangerous write fallback. Confirm real translated-edit detection, cross-site no-write round-trip with independent IDs, and a controlled migration of any existing French-localized YAML before closing ML-001 or approving Beta2. The old `tests/pending/ml001/MultilingualAfformCanonicalizationTest.php` intentionally compares raw translated strings without provenance and may remain red: it is historical evidence, not a legitimate shortcut for the handler to ignore text.
+
+## 2026-10-20 — ML-001 multilingual STAGE test harness (NOT a product fix)
+
+The developer reports that the disposable DDEV STAGE site has now been configured
+for multiple languages. That setting has not yet been independently verified.
+The prior ML-001 evidence was from La Cause, not from the newly configured STAGE.
+Before modifying canonical fingerprints or Afform Import, establish the exact
+locale-dependent fields and their authoritative source; do not erase or ignore
+translated titles/labels to force the intentionally red test to pass.
+
+Run once from the DDEV STAGE **Drupal webroot** (no `ddev ssh` required if you
+are already in the container):
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+ML001_STAGE_PROBE=YES_STAGE_ONLY ML001_LANGUAGES=en_US,fr_FR \
+  drush php:script /var/www/html/ext/civi.config.manager/tests/manual/ml001-stage-locale-probe.php
+```
+
+This read-only probe requires the exact STAGE root and a `dcivistage*` CiviCRM
+database. It attaches a randomly named `civi.afform.get` hook-supplied Afform
+**only in the running PHP process**. Its title is resolved by CiviCRM's own
+`ts('Save')`, allowing actual API4 `setLanguage()` translation behavior to be
+observed without fake hand-coded EN/FR equivalents. It also compares at most
+251 existing Afform API rows by stable machine name, prints only hashed
+existing titles/layouts and up to 10 source-file SHA256 sets, and immediately
+removes the temporary event listener. **No DB records, local Afform files,
+translations, scope, YAML, settings or locale configurations are written.**
+It cannot by itself test a real translated edit or a safe Import.
+
+The report must show `requested_locales_honored: true`, distinct negotiated
+locale names, and `active_locale_restored: true` before any locale difference
+is meaningful. `temporary_fixture.title_differs` may be false if the installed
+gettext catalog returns the same string in both locales; in that case examine
+`existing_afforms.locale_varying_count` and confirm the STAGE language packs.
+Source hashes can demonstrate that **bytes stayed unchanged while API values
+changed**, but they do not establish semantic equivalence or cover hook-only
+forms. Do not run the pending red canonicalizer test as if it were a release
+validation or report Bundle 1/ML-001 completed before real translated-edit
+and safe no-write round-trip evidence.
+
+The negative guard test (`node tests/ci/ml001-stage-locale-guards.js`) runs in
+`composer qa:fast`. Actual DDEV STAGE diagnostics remain an explicit manual
+step. Based on those results, implement a targeted, provenance-backed
+Afform normalization that preserves genuine translations; prove both
+locale-only no-drift and real-edit detection before removing the P0 block.
+
+
 Status: NOT FIXED. This document and the red regression test are investigation
 artifacts only; they do not authorize a Beta2 release or a production import.
 

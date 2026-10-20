@@ -1,5 +1,36 @@
 # Configuration Manager project status
 
+## 2026-10-20 — ML-001 source-locale stabilization (not full multilingual sync)
+
+Actual guarded STAGE diagnostic: CiviCRM 6.17.2, `dcivistagecivi_jwy32`, both `en_US` and `fr_FR` negotiated, 77/139 Afforms with locale-dependent values and one with layout drift; in-memory hook-provided `Save`/`Enregistrer` title translated while layout stayed identical. CiviCRM reports `is_multilingual=false` with null legacy multilingual settings; this is UI/gettext locale switching, not legacy database multilingual mode. Existing source provenance for sampled hook forms was unavailable.
+
+**Source-level fix:** The built-in `formbuilder-afforms` handler pins API4 `get` calls used for Export, Synchronize and existing-record Import lookup to `en_US`. This makes its Saved Config source projection invariant under the operator's current locale; it preserves titles/layout and source changes rather than weakening fingerprints. Other API4 handlers, API writes, the canonical schema and stored YAML remain untouched. Added a standalone source-locale handler test (red before/green after), two QA script guards and a read-only real STAGE proof (not yet executed). The original green DDEV `qa:fast` (321 tests/2,326 assertions) predates this production change; DDEV rerun pending.
+
+**P0 remains OPEN:** This stabilizes gettext-derived source projection only. It does not export CiviCRM's separately stored translations, detect French-only `TranslationSource` changes, migrate existing French-language YAML or certify cross-environment portability. No live STAGE writes were made. The multi-language synchronization acceptance gate remains blocked until genuine translation edits and no-write Import round trips have been demonstrated in a disposable multilingual runtime.
+
+## 2026-10-20 — Latest DDEV QA and ML-001 STAGE diagnostics
+
+Developer-confirmed `main` HEAD `2a24ce3` passed the complete DDEV `composer
+run qa:fast` pipeline after the PHPCS parameter-annotation hotfix: 321 PHPUnit
+tests / 2,326 assertions, 197 PHP syntax checks, PHPCS, PHPStan, mutation
+regressions and PHP 7.4/8.0/8.3 compatibility; locked Composer audit found no
+advisories. The isolated direct `phpcs` command lacked the CiviCRM sniff path
+but the project Composer alias passed, so that command's failure is not a
+remaining product defect. Bundle 6 STAGE was profiled twice with comparable
+27-28 ms median inventory times over 192 providers; no cache is justified.
+
+**ML-001 remains OPEN P0.** The developer reports enabling multiple languages
+on disposable DDEV STAGE. A new stage-guarded read-only probe can now test
+locale negotiation and compare real Afform API4 outputs, plus an ephemeral
+`civi.afform.get` form backed by real `ts()` translation. This is preparatory
+reproduction, not a canonicalization or Import change. The Stage probe has
+**not** yet been executed and no actual multilingual source/translation
+provenance or genuine edit has been verified. See
+`docs/ML-001-RUNTIME-EVIDENCE.md` and `docs/TESTING.md`. No production data,
+CiviCRM handlers, canonical fingerprint schema or Import behavior was changed
+in this diagnostic increment.
+
+
 ## 2026-10-20 — Latest QA/profiler evidence and narrow PHPCS hotfix
 
 **Developer-run DDEV on Bundle 5/6 source:** PHPUnit **321 tests / 2,326 assertions PASS**; 197 PHP source files lint clean; Bundle 5 Import-readiness (9) and CLI (16) checks PASS; Bundle 6 guard checks PASS; PHPStan and PHP compatibility checks PASS; Composer locked security audit found no advisories. `qa:fast` nevertheless **FAILED at PHPCS** because `getImportReadiness()` did not document four method parameters. The hotfix documents the six arguments without altering executable Import or CLI behavior. **The post-hotfix DDEV full QA result is not yet available.**

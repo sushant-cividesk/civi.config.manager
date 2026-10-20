@@ -1,5 +1,18 @@
 # Beta2 priorities and evidence gates
 
+**2026-10-20 ML-001 source-locale work (P0 remains OPEN):** Actual STAGE `Afform.get` switched title values in 77/139 existing forms across `en_US`/`fr_FR`; one layout varied. STAGE negotiates both languages, but its legacy multilingual DB mode is off. The FormBuilder handler now pins export and matching reads to the `en_US` gettext source locale; a red/green handler regression proves stable source-language projection and genuine source-title edit detection. Updated DDEV `qa:fast` and real read-only STAGE proof are pending. TranslationSource/Translation record edits, legacy YAML migration, cross-site import and release matrix remain unresolved; do not close ML-001 or Beta2.
+
+
+
+**2026-10-20 ML-001 continuation:** Committed local HEAD `2a24ce3` was
+reported green on DDEV full QA. The developer has now enabled multilingual
+STAGE settings; a guarded, read-only Afform locale/translation diagnostic
+was added (no API write, no stored fixtures), but actual STAGE data and
+translation provenance are still unverified. **ML-001 remains mandatory/open**
+until locale-only drift disappears without hiding genuine translated edits.
+Existing priority order and release approval requirements remain unchanged.
+
+
 **2026-10-20 evidence checkpoint (approved priorities unchanged):** User-run DDEV STAGE guarded Bundle 3 contributed-provider CRUD/cleanup PASS and targeted Bundle 4 browser 3/3 PASS. Bundle 5 operator error/CLI UX is implemented in the current uncommitted patch with dependency-free regressions; Bundle 6 contains read-only profiling instrumentation only, not a discovery-cache implementation or proven optimization. Bundle 5/6 updated DDEV QA passed functional/static checks up to PHPCS (four missing parameter-doc entries; fixed in the latest follow-up, DDEV rerun pending). The Bundle 6 STAGE read-only benchmark passed: 192 inventory providers, 27.176 ms median and 366.372 ms maximum across three samples. This is not sufficient evidence for a persistent cache or its invalidation correctness. ML-001, A69-05 cross-site independent-ID proof and mandatory release gates remain open.
 
 **Approved task priority order:** 2026-10-08 (user-confirmed). **Development baseline:**

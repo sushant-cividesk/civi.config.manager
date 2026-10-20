@@ -1,5 +1,20 @@
 # Automated QA
 
+## ML-001 source-language read regression (2026-10-20)
+
+`test:ml001-stable-locale` exercises the built-in Afform GenericApi4CollectionHandler's real Export/Diff/preview paths using an isolated locale-aware API4 fake. It was RED before read-language selection and GREEN after. The same test asserts a genuine source-title edit stays visible and custom Generic API4 registrations retain prior behavior. `test:ml001-source-guards` proves the real-STAGE in-memory fixture requires explicit opt-in and exact DDEV webroot, restores the locale/listener, and contains no write APIs. Both are included in `qa:fast`; they cannot certify separately stored translation edits or real STAGE behavior.
+
+## ML-001 STAGE multilingual guard (2026-10-20)
+
+`test:ml001-stage-guards` checks the read-only multilingual Afform diagnostic
+refuses unapproved execution and wrong webroots before Drupal/CiviCRM
+bootstrap. A source guard verifies that the diagnostic has no write calls.
+`composer qa:fast` continues running all prior tests; the deliberately red
+multilingual semantic test stays in the separately invoked pending suite.
+A green guard does not demonstrate locale negotiation or a translation fix:
+run `tests/manual/ml001-stage-locale-probe.php` on disposable DDEV STAGE.
+
+
 ## 2026-10-20 — Bundle 5 operator guard and Bundle 6 profiling gates
 
 `test:bundle5-readiness` proves the Import presentation always distinguishes permission, dependency, validation, empty scope and unreviewed-plan blockers from a valid reviewed plan. `test:bundle5-cli` stubs `cv` and proves unsupported/conflicting flags fail **before** invoking API4, while supported preview, exact reviewed apply and export still invoke the existing API contract. `test:bundle6-profile-guards` checks that the optional profiler refuses no-opt-in/wrong-webroot contexts and contains no Import/Export/write operation. All three are integrated into `qa:fast`; they do not weaken it or exempt any production source.

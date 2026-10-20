@@ -1,5 +1,9 @@
 # Beta2 development bundles — implementation tracker
 
+**2026-10-20 Bundle 1 ML-001 (partial implementation, mandatory P0 open):** From real STAGE locale-output proof, the built-in FormBuilder Afform handler now pins API4 read language to the `en_US` gettext source to prevent operator-locale-only Export/Synchronize drift. Source edit detection and unchanged custom Generic handler behavior pass in a dependency-free regression; DDEV full suite and guarded real STAGE integration are pending. French-only TranslationSource/Translation edits and existing locale-specific YAML migration still require an explicit translation-aware design; do not mark all of Bundle 1 certified.
+
+
+
 **2026-10-20 updated bundle execution status (current source):** Bundle 3 completed real guarded disposable Contact Layout/Report create/update/round-trip/idempotency and exact cleanup on DDEV STAGE (`cfgb3_6300c6ed82c8`). Bundle 4 targeted STAGE Playwright passed 3/3 after clearing CiviCRM and Drupal caches. These are **tested environment-level milestones**, not full cross-version/cross-site release certification.
 
 **New Bundle 5 work in this patch:** Human-readable Import readiness reasons with concrete recovery steps, plus unambiguous CLI preview/apply flags. The reviewed Import plan, provider permissions, dependency exclusion, import accounting and no-delete policy are untouched. DDEV focused tests and PHPUnit passed on the new code; full `qa:fast` stopped at PHPCS on four missing method `@param` entries. These annotations have been added; rerun the full DDEV QA gate.

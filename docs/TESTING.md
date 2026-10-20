@@ -1,5 +1,53 @@
 # Testing
 
+## ML-001 source-locale candidate: verification after latest patch (2026-10-20)
+
+Source-level root cause reproduced from user-provided STAGE evidence: the same FormBuilder Afform generates localized API4 `title`/`layout` under different API languages (77/139 shared rows vary, one layout differs). The built-in Afform handler now selects the `en_US` source language on read actions, retaining titles/layout and detecting real source edits. This is *not* a TranslationSource synchronization solution.
+
+From the existing extension DDEV shell, first run full QA; use project standards via Composer rather than an unconfigured standalone global `phpcs`:
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+git diff --check
+composer run qa:fast
+composer audit --locked
+```
+
+Then from the existing disposable STAGE Drupal webroot, run the **read-only** source-locale integration smoke:
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+ML001_SOURCE_LOCALE_TEST=YES_STAGE_ONLY   drush php:script /var/www/html/ext/civi.config.manager/tests/manual/ml001-stage-source-locale-smoke.php
+```
+
+Expected: `ML-001 STAGE SOURCE-LOCALE EXPORT/DIFF: PASS`, `locale_only_export_differences: 0`, `genuine_source_edit_detected: true`, no stored test data. The script reads actual forms in both requested locales but changes only an ephemeral hook variable. It restores the original locale on exit. **No real Import write is authorized.** Existing Saved Config may have been exported under a different locale; do not auto-rewrite/re-import it before reviewing a safe migration. Genuine translated-value edits (`Translation` / `TranslationSource` records), multilingual-DB mode and independent-ID cross-site round-trip still need separate tests and a translation-aware implementation before full ML-001 completion.
+
+## ML-001 — guarded read-only multilingual STAGE reproduction (2026-10-20)
+
+The prior local `qa:fast` on committed `2a24ce3` was fully green. This new
+ML-001 diagnostic adds one new no-opt-in/wrong-webroot/no-write guard smoke;
+run `composer run qa:fast` again once the incremental patch is applied.
+The intentionally red `composer test:ml001:pending` remains outside default QA.
+
+To prove which values are locale-dependent in the **real configured STAGE**:
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+ML001_STAGE_PROBE=YES_STAGE_ONLY ML001_LANGUAGES=en_US,fr_FR \
+  drush php:script /var/www/html/ext/civi.config.manager/tests/manual/ml001-stage-locale-probe.php
+```
+
+This does not create or modify persisted test data. One randomly named hook
+Afform exists only inside the PHP process and is removed from the dispatcher
+in `finally`. Existing Afform comparisons disclose source SHA256 metadata and
+changed counts, **not client layout/title values**. A complete result needs
+`requested_locales_honored: true` and `active_locale_restored: true`. If the
+locales collapse to one, fix STAGE language configuration before interpreting
+any source hashes; if no records differ, use an actually translated test source
+before concluding the bug does not reproduce. Only a later provenance-backed
+source fix with a genuine-edit test and no-write Import round trip can close ML-001.
+
+
 ## 2026-10-20 — PHPCS-only hotfix and measured Bundle 6 baseline
 
 The developer-run DDEV `qa:fast` reached PHPCS after passing 321 PHPUnit tests (2,326 assertions), new Bundle 5/6 smoke tests, lint and preceding gates, then stopped with four missing-parameter-doc errors for `PresenterImportFeedbackTrait::getImportReadiness()`. The PHPDoc is corrected with **no runtime logic change**. The separate `composer audit --locked` found no advisories. Re-run from the existing extension shell:

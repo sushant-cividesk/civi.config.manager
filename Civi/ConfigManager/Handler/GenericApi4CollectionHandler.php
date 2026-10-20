@@ -59,6 +59,22 @@ class GenericApi4CollectionHandler extends AbstractHandler implements StreamingH
     $this->splitFiles = $splitFiles;
   }
 
+  /**
+   * Afform.get can produce translated gettext titles/layouts from the same
+   * source definition. Capture the source-language form rather than allowing
+   * an operator's UI locale to rewrite Saved Config and Import previews.
+   *
+   * Keep ordinary API4 handlers and other GenericApi4 registrations unchanged.
+   * TranslationSource/Translation data remain a separate synchronization
+   * concern; pinning this read does not export localized translation records.
+   *
+   * @param string $entity API4 entity being read.
+   * @return string|null The stable source locale when needed.
+   */
+  protected function getApi4ReadLanguage(string $entity): ?string {
+    return $this->type === 'formbuilder-afforms' && $entity === 'Afform' ? 'en_US' : NULL;
+  }
+
   public function getType(): string {
     return $this->type;
   }

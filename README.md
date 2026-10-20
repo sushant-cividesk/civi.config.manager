@@ -1,5 +1,17 @@
 # Configuration Manager for CiviCRM
 
+**ML-001 source-locale stability (2026-10-20, awaiting STAGE proof):** The built-in FormBuilder Afform handler now requests `en_US` explicitly on API4 read actions, avoiding locale-only false drift without removing title/layout or changing the Canonicalizer/YAML format. Source-title edits remain detectable in the local behavioral regression. This does **not** synchronize independently stored French `Translation`/`TranslationSource` edits; run the guarded `tests/manual/ml001-stage-source-locale-smoke.php` and finish translated-edit/cross-site proof before declaring ML-001 complete. See `docs/ML-001-RUNTIME-EVIDENCE.md`.
+
+
+
+**ML-001 STAGE diagnostic (2026-10-20):** The latest local DDEV `qa:fast` passed
+after the Bundle 5 PHPCS hotfix (`2a24ce3`). Multilingual Afform false drift
+remains open: the new in-memory, read-only stage probe records real Afform API4
+locale differences and source-file provenance without creating permanent data.
+Run it as documented in `docs/ML-001-RUNTIME-EVIDENCE.md` before considering
+any Afform canonicalizer or Import changes. No multilingual fix is claimed.
+
+
 Configuration Manager brings a Git-friendly configuration workflow to CiviCRM. It exports supported configuration to YAML, compares YAML with the active database, validates changes, and safely imports supported configuration between environments.
 
 **Extension key:** `civi.config.manager`

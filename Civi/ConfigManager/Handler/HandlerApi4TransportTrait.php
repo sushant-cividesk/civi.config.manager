@@ -91,6 +91,35 @@ trait HandlerApi4TransportTrait {
   }
 
   /**
+   * A handler may opt into a stable language for API4 read actions.
+   *
+   * By default the caller's locale is preserved for existing provider types.
+   *
+   * @param string $entity API4 entity being read.
+   * @return string|null Explicit read locale, or NULL for the caller locale.
+   */
+  protected function getApi4ReadLanguage(string $entity): ?string {
+    return NULL;
+  }
+
+  /**
+   * Select the handler's source locale or refuse an unsupported API action.
+   *
+   * @param string $entity API4 entity being read.
+   * @param mixed $action API4 Get action with optional setLanguage().
+   */
+  private function applyApi4ReadLanguage(string $entity, $action): void {
+    $language = $this->getApi4ReadLanguage($entity);
+    if ($language === NULL) {
+      return;
+    }
+    if (!is_callable([$action, 'setLanguage'])) {
+      throw new \RuntimeException('API4 provider ' . $entity . ' cannot pin the source locale. Refusing a language-dependent configuration read.');
+    }
+    $action->setLanguage($language);
+  }
+
+  /**
    * Iterate an API4 collection in bounded pages without retaining prior pages.
    *
    * This is the primitive large-site handlers should use. api4Get() remains a
@@ -136,6 +165,7 @@ trait HandlerApi4TransportTrait {
 
     while (TRUE) {
       $action = $class::get(FALSE)->addSelect(...$select);
+      $this->applyApi4ReadLanguage($entity, $action);
       foreach ($where as $condition) {
         $action->addWhere(...$condition);
       }
@@ -233,6 +263,7 @@ trait HandlerApi4TransportTrait {
       throw new \RuntimeException('API4 entity not available: ' . $entity . '. Install/enable the provider before managing this configuration type.');
     }
     $action = $class::get(FALSE)->addSelect(...$select);
+    $this->applyApi4ReadLanguage($entity, $action);
     foreach ($where as $condition) {
       $action->addWhere(...$condition);
     }
