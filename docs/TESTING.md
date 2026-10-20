@@ -1,5 +1,50 @@
 # Testing
 
+## 2026-10-20 — Bundle 2/3 provider regressions and real-runtime evidence
+
+The current user-reported DDEV baseline passed `composer run qa:fast`
+(321 tests / 2,326 assertions) **before** the next source changes. After
+updating the checked-out source, rerun `composer run qa:fast`; it now includes
+`test:bundle2-profile-type` and `test:bundle3-write-accounting`.
+
+The first smoke checks explicitly cover no-write Profile `group_type`
+CSV/array representation equivalence, genuine changed types, successful
+vs failed Contact Layout API4 writes, ReportInstance APIv3 error-result writes,
+failed report reads (no implicit create), and read-only previews. They require
+no DB or CiviCRM installation. Do not substitute them for real provider CRUD.
+
+**DDEV STAGE — guarded Bundle 2 fixture writes** (only after reviewing the
+code and confirming the disposable site; never against a client/PROD site):
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+CIVICFG_BUNDLE2_DISPOSABLE_CRUD=YES_STAGE_ONLY \
+  drush php:script /var/www/html/ext/civi.config.manager/tests/manual/bundle2-provider-disposable-crud.php
+```
+
+The new Profile repeat-preview runs without a second write and logs only
+random disposable fixture values if CiviCRM persists a different shape.
+Success requires both `Fixture cleanup PASS` and
+`BUNDLE 2 STAGE DISPOSABLE CRUD: PASS`, including UFField checks.
+
+**DDEV STAGE — read-only Bundle 3 inspection:**
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+drush php:script /var/www/html/ext/civi.config.manager/tests/manual/bundle3-provider-readonly.php
+```
+
+This probe checks up to three existing ContactLayout and ReportInstance
+portable exports per provider, validation and dry-run idempotency. It refuses
+non-STAGE webroots/databases. Exit 0 means only sampled read/preview PASS;
+exit 1 indicates failure; exit 2 means missing providers or samples, so
+certification remains incomplete. It never requests provider create/update/
+delete. For Bundle 3 completion, run independently guarded disposable CRUD,
+version-specific reference portability and different-ID round-trip tests on
+a site with representative Contact Layout Editor/Report configurations.
+
+
+
 ## 2026-10-19 fast QA confirmation and Bundle 2 failure-path check
 
 The user-supplied DDEV `composer run qa:fast` passed 319 PHPUnit tests /

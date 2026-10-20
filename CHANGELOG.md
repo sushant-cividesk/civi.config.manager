@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-20 — Bundle 2 follow-up and Bundle 3 safety (unreleased)
+
+- **Bundle 2 Profiles:** Recognize equivalent comma-delimited YAML and API4
+  array readbacks for the explicitly declared UFGroup `group_type` field when
+  deciding whether a write is necessary. Genuine changes remain detectable;
+  no field is ignored or made unwritable. Added six independent, dependency-free
+  red/green checks. The guarded STAGE CRUD fixture now checks the repeat
+  preview *before* a second write and reports only disposable fixture fields
+  on mismatch. **Original STAGE failure still requires an actual rerun.**
+- **Bundle 3 Contact Layouts / Reports:** Count create/update only after
+  successful API calls. Fail closed when ReportInstance APIv3 returns `is_error`
+  on either reads or writes; a failed lookup must never imply "new record".
+  Added 29 in-memory red/green accounting/error checks and a STAGE-only
+  read-only Contact Layout/Report export/validate/dry-run evidence probe.
+- Local checks do not replace a fresh DDEV `qa:fast`, provider runtime
+  verification or any mandatory Beta2 release gate. No product version change,
+  delete capability, dependencies or production deployment.
+
 ## Unreleased — Structural groundwork for Beta2 development (2026-10-16)
 
 - **Bundle 2 disposable CRUD certification fixture (2026-10-19):** Added a

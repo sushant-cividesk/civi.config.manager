@@ -9,7 +9,39 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
-## 2026-10-19 ML-001 fixture verdict / Bundle 2 accounting fix (current)
+## 2026-10-20 — Current uploaded source and Beta2 provider checkpoint
+
+Latest user-supplied checkout `civi.config.manager(20261020-073615).zip`:
+`main` at `0fcf6d65f6de7c204a133756dc515699d297f190`, archived Git
+working tree clean. The user supplied DDEV results showing `qa:fast` green:
+**321 PHPUnit tests, 2,326 assertions**, mutation proofs, PHP syntax/PHPCS,
+PHPStan 0 errors, and PHPCompatibility scans for 7.4/8.0/8.3.
+These results are for **the uploaded baseline before this new patch**, not a
+fresh QA run on the modified source.
+
+The real guarded STAGE CRUD run had passed Tag create/update/round-trip and
+Profile create, then **FAILED** at unchanged Profile repeat import:
+`update=1, skip=0` (expected `update=0, skip=1`). No Profile Field CRUD was
+reached, and automatic fixture cleanup confirmed zero residue. The codebase
+change in this checkpoint narrows Profile group-type comparison to its
+explicitly declared comma-serialized `group_type` field: API4 array readbacks
+and equivalent comma-delimited YAML compare equally, while changed values
+still count as changes. Dependency-free tests were red on the uploaded source
+and now pass (6 checks). **The actual failing STAGE path has not yet been
+rerun; Bundle 2 is not certified.** The STAGE fixture now checks repeat
+preview before any second write and prints limited fixture readback on failure.
+
+**Bundle 3 has started at the source/QA level.** ContactLayout and
+ReportInstance handlers counted attempted writes before successful API
+responses. ReportInstance additionally interpreted APIv3 `is_error` read
+results as empty lookups, risking unwanted creation. Both issues now fail
+closed and report correct counts; 29 dependency-free failure/success checks
+went red/green. A new STAGE-only **read-only** probe for real ContactLayout and
+traditional ReportInstance providers is prepared but **not yet executed**.
+No contributed-provider create/update/portability certification is claimed.
+ML-001 and all other mandatory Beta2 release gates remain open.
+
+
 
 The user ran `composer run qa:fast` on the 2026-10-19 QA-prevention
 source and reported green DDEV results: PHPUnit 319 tests / 2,304 assertions,

@@ -322,6 +322,17 @@ try {
   bundle2Counts($profile->import($groupDocs, FALSE), 1, 0, 0, 'Profile create');
   $groupRecord = bundle2ReadOne('UFGroup', [['name', '=', $groupName]], ['id', 'name', 'title']);
   $groupId = (int) $groupRecord['id'];
+  // Inspect a repeat import without writing first. If CiviCRM persisted a
+  // different field shape, show only this random fixture's source/readback.
+  $profileRepeatPreview = $profile->import($groupDocs, TRUE);
+  if ((int) ($profileRepeatPreview['update'] ?? 0) !== 0 || empty($profileRepeatPreview['ok'])) {
+    $readback = bundle2ReadOne('UFGroup', [['name', '=', $groupName]], array_merge(['id'], array_keys($group)));
+    fwrite(STDERR, 'Profile repeat preview diagnostic (disposable fixture only): ' . json_encode([
+      'desired' => $group,
+      'api4_readback' => $readback,
+    ]) . "\n");
+  }
+  bundle2Counts($profileRepeatPreview, 0, 0, 1, 'Profile repeat preview');
   bundle2Counts($profile->import($groupDocs, FALSE), 0, 0, 1, 'Profile repeat import');
   $exportedGroup = bundle2ExportOne($profile, 'name', $groupName);
   bundle2Require(!isset($exportedGroup['item']['id']), 'Profile export leaked a local record ID.');

@@ -157,23 +157,25 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
         $existing = $this->findByIdentity($identity);
         if ($existing) {
           if ($this->desiredDiffers($existing, $row)) {
-            $summary['update']++;
             if (!$dryRun) {
               if (empty($existing['id'])) {
                 throw new \RuntimeException('Existing report instance has no local ID for update: ' . $identity['key']);
               }
-              $this->api3('ReportInstance', 'create', $row + ['id' => $existing['id'], 'sequential' => 1]);
+              $result = $this->api3('ReportInstance', 'create', $row + ['id' => $existing['id'], 'sequential' => 1]);
+              $this->assertApi3WriteSucceeded($result);
             }
+            $summary['update']++;
           }
           else {
             $summary['skip']++;
           }
         }
         else {
-          $summary['create']++;
           if (!$dryRun) {
-            $this->api3('ReportInstance', 'create', $row + ['sequential' => 1]);
+            $result = $this->api3('ReportInstance', 'create', $row + ['sequential' => 1]);
+            $this->assertApi3WriteSucceeded($result);
           }
+          $summary['create']++;
         }
       }
       catch (\Throwable $e) {
@@ -195,6 +197,7 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
         'return' => self::FIELDS,
         'options' => ['limit' => $limit, 'offset' => $offset, 'sort' => 'name ASC'],
       ]);
+      $this->assertApi3Succeeded($result, 'read');
       $rows = array_values((array) ($result['values'] ?? []));
       foreach ($rows as $row) {
         yield (array) $row;
@@ -219,6 +222,23 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
   }
 
   /**
+   * APIv3 may report failed writes in a result array rather than throwing.
+   */
+  private function assertApi3WriteSucceeded(array $result): void {
+    $this->assertApi3Succeeded($result, 'write');
+  }
+
+  /**
+   * A read error must never look like an empty collection or a new record.
+   */
+  private function assertApi3Succeeded(array $result, string $operation): void {
+    if (!empty($result['is_error'])) {
+      $message = (string) ($result['error_message'] ?? 'Unknown CiviCRM APIv3 error.');
+      throw new \RuntimeException('ReportInstance APIv3 ' . $operation . ' failed: ' . $message);
+    }
+  }
+
+  /**
    * @param array{mode:string,fields:array<int,string>,key:string,report_id:string,value:string} $identity */
   private function findByIdentity(array $identity): array {
     $params = [
@@ -234,6 +254,7 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
       $params['title'] = $identity['value'];
     }
     $result = $this->api3('ReportInstance', 'get', $params);
+    $this->assertApi3Succeeded($result, 'read');
     $rows = array_values((array) ($result['values'] ?? []));
     if ($identity['mode'] === 'legacy-title') {
       $rows = array_values(array_filter($rows, static function ($row): bool {

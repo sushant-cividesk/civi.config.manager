@@ -3,6 +3,21 @@
 **Current baseline:** `0.1.0-alpha68.6.1-core` (see `info.xml`).
 **Last scope decision:** 2026-10-16. The developer requested a **development-first** sequence: fix real defects, finish existing provider/UI functionality, and use *basic targeted smoke checks* now. The formerly approved mandatory Beta2 release-verification gates remain mandatory **before release**, but their scheduling is deferred to feature freeze. Never mark them passed without evidence.
 
+**2026-10-20 continuation — current provider work:** The uploaded
+`0fcf6d65` source has a clean archived Git tree; user-run DDEV `qa:fast`
+passed 321 tests / 2,326 assertions on that pre-change baseline. STAGE
+Tag CRUD passed; UFGroup/Profile repeat import failed `update=1, skip=0`,
+with successful disposable cleanup. Bundle 2 now has a narrow comparison
+regression for explicitly declared comma-serialized `group_type` values
+(6 in-memory red/green checks), and its real STAGE repeat-preview is guarded
+before a second write. This is **not** a successful STAGE rerun or permission
+to skip Profile/UFField CRUD proof. Bundle 3 source work has begun: Contact
+Layout and ReportInstance only count completed writes, and failed APIv3 report
+reads block unsafe creates. 29 in-memory red/green checks pass. A read-only
+STAGE Contact Layout/Report probe is prepared, not executed. The present
+source changes still require full DDEV QA and real-runtime provider evidence.
+**Do not label Bundle 2 or Bundle 3 certified yet.** ML-001 remains P0/open.
+
 **Latest verified user checkpoint (2026-10-16, commit `a381b02`):** DDEV
 `qa:fast` passed 319 PHPUnit tests / 2,304 assertions, all five mutation
 proofs, PHPStan and applicable compatibility checks; `composer standards`

@@ -70,6 +70,9 @@ final class CoreEntityDefinitions {
         'entity' => 'UFGroup',
         'path' => 'profiles/groups',
         'key_fields' => ['name'],
+        // API4 can read the comma-separated group_type as a list even when
+        // existing YAML supplies the equivalent legacy scalar string.
+        'comma_serialized_fields' => ['group_type'],
         'export_fields' => [
           'name', 'is_active', 'group_type', 'title', 'frontend_title',
           'description', 'help_pre', 'help_post', 'limit_listings_group_id',

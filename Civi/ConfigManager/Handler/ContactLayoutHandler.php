@@ -153,23 +153,23 @@ class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerIn
           $unusedDependencies = [];
           $existingComparable = $this->toPortable($existing, $unusedDependencies);
           if ($this->desiredDiffers($existingComparable, $row)) {
-            $summary['update']++;
             if (!$dryRun) {
               if (empty($existing['id'])) {
                 throw new \RuntimeException('Existing ContactLayout has no local ID for update: ' . $label);
               }
               $this->api4Update('ContactLayout', [['id', '=', $existing['id']]], $desired);
             }
+            $summary['update']++;
           }
           else {
             $summary['skip']++;
           }
         }
         else {
-          $summary['create']++;
           if (!$dryRun) {
             $this->api4Create('ContactLayout', $desired);
           }
+          $summary['create']++;
         }
       }
       catch (\Throwable $e) {

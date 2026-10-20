@@ -60,6 +60,12 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
    */
   private array $referenceFields;
   /**
+   * Declared COMMA-serialized fields whose API4 getter may return arrays.
+   *
+   * @var array
+   */
+  private array $commaSerializedFields;
+  /**
    * @var array
    */
   private array $orderedPaths;
@@ -120,6 +126,7 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
     $this->runtimeFields = array_values((array) ($definition['runtime_fields'] ?? []));
     $this->sensitiveFields = array_values((array) ($definition['sensitive_fields'] ?? []));
     $this->referenceFields = (array) ($definition['reference_fields'] ?? []);
+    $this->commaSerializedFields = array_values((array) ($definition['comma_serialized_fields'] ?? []));
     $this->orderedPaths = array_values((array) ($definition['ordered_paths'] ?? []));
     $this->unorderedPaths = array_values((array) ($definition['unordered_paths'] ?? []));
     $this->orderBy = (array) ($definition['order_by'] ?? $this->defaultOrderBy());
@@ -406,6 +413,43 @@ class EntityDefinitionHandler extends AbstractHandler implements StreamingHandle
 
     $summary['ok'] = empty($summary['errors']);
     return $summary;
+  }
+
+  /**
+   * Compare API4 COMMA-serialized values by logical items, not PHP shape.
+   *
+   * Unlike a blanket ignore, changing an item still requires an update. This
+   * only applies to fields explicitly declared as COMMA-serialized by the
+   * provider; other arrays and strings retain strict comparison semantics.
+   */
+  protected function desiredDiffers(array $existing, array $desired): bool {
+    foreach ($this->commaSerializedFields as $field) {
+      if (!array_key_exists($field, $existing) || !array_key_exists($field, $desired)) {
+        continue;
+      }
+      $existing[$field] = $this->normaliseCommaSerializedValue($existing[$field]);
+      $desired[$field] = $this->normaliseCommaSerializedValue($desired[$field]);
+    }
+    return parent::desiredDiffers($existing, $desired);
+  }
+
+  /**
+   * Accept both historical comma-delimited YAML and API4 array readbacks.
+   *
+   * @param mixed $value
+   * @return mixed
+   */
+  private function normaliseCommaSerializedValue($value) {
+    if (is_array($value)) {
+      return array_values($value);
+    }
+    if ($value === NULL || $value === '') {
+      return [];
+    }
+    if (is_string($value)) {
+      return explode(',', $value);
+    }
+    return $value;
   }
 
   protected function normaliseDataForDiff(array $data): array {
