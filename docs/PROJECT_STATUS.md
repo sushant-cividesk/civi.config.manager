@@ -9,6 +9,32 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
+## 2026-10-20 — Current uploaded checkout and Contact Layout portable references
+
+The user-uploaded `civi.config.manager(20261020-095024).zip` is on local
+`main` at `087c458` with a clean tracked worktree, two commits ahead of its
+recorded `origin/main`. The latest user-run DDEV `qa:fast` passed 321 PHPUnit
+tests / 2,326 assertions, PHPCS and PHPStan, PHPCompatibility scans and
+Composer audit. Guarded STAGE Bundle 2 disposable CRUD passed with complete
+cleanup. The later STAGE Bundle 3 probe showed three ReportInstances with
+no warnings, all in-sync, but no ContactLayout sample; Bundle 3 was therefore
+INCOMPLETE, not failed or certified.
+
+A source-level Bundle 3 safety regression found that ContactLayout validation
+accepted raw `related_rel: 44_ab` in Saved Config even though 44 is a local
+RelationshipType ID. That could let an environment-local relationship
+reference through preflight. A minimal ContactLayout-only guard now rejects
+that raw value in both validation and direct import; the existing export
+conversion still turns valid local IDs into stable semantic references.
+Twenty database-free checks cover portable Group, Profile, Custom Group and
+RelationshipType resolution across two simulated sites with different IDs,
+repeat no-write imports, missing references, and invalid directions. The
+unsafe-value regression failed on the uploaded source and passed after the
+change. Source QA in this review does not replace a full updated DDEV
+`qa:fast` or guarded real contributed-provider CRUD/cross-environment proof.
+No delete capability was enabled; ML-001 and mandatory Beta2 release gates
+remain open. No commit, push or deployment was performed in this review.
+
 ## 2026-10-20 — Latest DDEV evidence, QA scope and Bundle 3 follow-up
 
 The user has committed the Bundle 2/3 source fixes locally as `9f735b34`

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-20 — Bundle 3 Contact Layout portability guard (unreleased)
+
+- Block unresolved local `related_rel` values such as `44_ab` during Contact
+  Layout YAML validation and direct Import. The adapter continues exporting
+  valid relationship values as stable semantic references; no existing
+  reference mapping, provider action, deletion policy or schema was changed.
+- Added 20 database-free checks for semantic references across two simulated
+  sites with different IDs, dry-run/no-write behavior, repeat-import
+  idempotency, invalid local references, missing target references and
+  invalid relationship directions. Confirmed the new validation regression
+  failed against the uploaded source before the fix and passes afterward.
+- The developer's prior DDEV QA and STAGE results predate this guard; full
+  updated DDEV QA and real contributed-provider runtime certification remain
+  required. Contact Layout had no existing STAGE samples. ML-001 remains open.
+
 ## 2026-10-20 — Bundle 2 STAGE verification and QA boundary follow-up (unreleased)
 
 - **Bundle 2 STAGE:** User-run guarded disposable CRUD passed all Tag,

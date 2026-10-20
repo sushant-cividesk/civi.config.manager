@@ -3,6 +3,21 @@
 **Current baseline:** `0.1.0-alpha68.6.1-core` (see `info.xml`).
 **Last scope decision:** 2026-10-16. The developer requested a **development-first** sequence: fix real defects, finish existing provider/UI functionality, and use *basic targeted smoke checks* now. The formerly approved mandatory Beta2 release-verification gates remain mandatory **before release**, but their scheduling is deferred to feature freeze. Never mark them passed without evidence.
 
+**2026-10-20 Bundle 3 follow-up (current source checkpoint):** The newly
+uploaded `087c458` checkout is clean and includes the successful QA scope
+change and ReportInstance warning fix. Subsequent user-run DDEV `qa:fast`
+was green (321 tests / 2,326 assertions; PHPStan, PHPCS, compatibility and
+Composer security audit passed). The STAGE read-only probe confirmed three
+ReportInstances in sync without warnings; it remains **INCOMPLETE** because
+no ContactLayout fixture exists. A dependency-free regression then confirmed
+that ContactLayout validation incorrectly accepted a local numeric
+relationship reference (`related_rel: 44_ab`) inside saved YAML. The narrow
+provider-only guard rejects it before Import and retains semantic conversion
+on Export. Twenty in-memory reference portability and idempotency checks
+now pass, including target IDs that differ from source IDs. The new source
+change still needs DDEV full QA and real-runtime provider certification.
+**Bundle 3 is not certified; ML-001 and release gates remain open.**
+
 **2026-10-20 latest provider evidence (supersedes the earlier status below):**
 Guarded DDEV STAGE Bundle 2 disposable CRUD **PASS**, including Tag,
 UFGroup/Profile and UFField create/update, round trips, repeat import,

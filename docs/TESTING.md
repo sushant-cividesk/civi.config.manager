@@ -1,5 +1,24 @@
 # Testing
 
+## 2026-10-20 — Bundle 3 Contact Layout semantic-reference regression
+
+Run `php tests/ci/bundle3-contactlayout-references-smoke.php` to exercise
+source-to-target Contact Layout references without a database. It is also
+included in `composer run qa:fast` under `test:bundle3-layout-references`.
+The checks use different local Group, UFGroup, CustomGroup and RelationshipType
+IDs for two simulated sites, verify that a repeated import performs no write,
+and block raw local `related_rel` values before import. The raw-value check
+failed against the previous handler and passes with the new guard.
+
+This is **not** real Contact Layout Editor integration certification. The
+latest STAGE read-only probe has no ContactLayout sample records (exit 2) and
+therefore does not verify create/update or cross-environment runtime behavior.
+Do not create fixture records on a client or production site. Any future
+STAGE disposable CRUD test must verify provider create and cleanup actions,
+use exact random fixture identity, guard the DDEV STAGE database/webroot,
+perform independently verified cleanup and require explicit operator opt-in.
+Keep the existing fail-closed Import, dependency, and no-delete policies.
+
 ## 2026-10-20 — Updated DDEV evidence and production-only QA scopes
 
 **Bundle 2 is functionally certified for guarded disposable STAGE CRUD.**

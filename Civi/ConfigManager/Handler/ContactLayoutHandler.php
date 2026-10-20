@@ -340,6 +340,12 @@ class ContactLayoutHandler extends AbstractHandler implements StreamingHandlerIn
       if (is_string($key) && preg_match('/_id$/', $key) && is_scalar($child) && $child !== '' && $child !== NULL) {
         throw new \RuntimeException('ContactLayout contains unresolved local numeric/reference field at ' . $childPath . '.');
       }
+      // Related-contact blocks encode a local RelationshipType ID plus
+      // direction (e.g. 44_ab). That shape is portable only after it has
+      // been converted to a semantic reference by transformNestedForExport().
+      if ($key === 'related_rel' && is_string($child) && preg_match('/^\d+_(?:ab|ba|r)$/', $child)) {
+        throw new \RuntimeException('ContactLayout contains unresolved local relationship reference at ' . $childPath . '.');
+      }
       $this->assertPortableValue($child, $childPath);
     }
   }
