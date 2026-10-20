@@ -9,7 +9,37 @@ B2-06/07, B2-08/09, UX-002, then Phase 2. A67-04/06, UX-002, and
 Phase 2 remain optional; Phase 2 P1 is planning priority only, **not a
 commitment to add new features before Beta2**. No order change waives a release gate.
 
-## 2026-10-20 — Current uploaded source and Beta2 provider checkpoint
+## 2026-10-20 — Latest DDEV evidence, QA scope and Bundle 3 follow-up
+
+The user has committed the Bundle 2/3 source fixes locally as `9f735b34`
+(`main`); the last reported remote-tracking commit remains `0fcf6d65`.
+Two test-fixture files were modified locally by PHPCBF afterward; the exact
+remaining DDEV working tree should be checked before applying new changes.
+No push or deployment is evidenced.
+
+**Bundle 2 verified on guarded DDEV STAGE:** complete Tags, UFGroup/Profile,
+and UFField create/update, previews, repeated imports, round trips,
+no-delete preservation and reference guards. Fixture cleanup: PASS, zero
+remaining records. This resolves the original UFGroup repeat-import
+certification failure on that STAGE version. It does not establish the
+cross-environment portability, version matrix or other Beta2 release gates.
+
+**Bundle 3 incomplete:** read-only ReportInstance sample export/validate/
+dry-run PASS (three skips), but the probe logged a PHP warning due to a
+legacy report without a `name` key, and no ContactLayout sample exists on
+this STAGE site. The warning has a dependency-free red-before/green-after
+regression and a narrow corrected `name` fallback. A fresh STAGE probe and
+contributed-provider CRUD/portability evidence remain outstanding.
+
+**Fast QA:** the user observed 321 PHPUnit tests / 2,326 assertions PASS on
+`9f735b34`, but the full `qa:fast` then FAILED PHPCS because two `tests/ci`
+fixtures had style issues. On request, production-only PHPCS, compatibility,
+PHPStan targets and the PHP 7.4 signature scan exclude the entire `tests/`
+tree; PHPUnit, source hygiene, behavioral regressions and PHP lint still
+include tests. Rerun `qa:fast` in DDEV before calling the updated pipeline
+passing. All mandatory Beta2 release gates, including ML-001, remain open.
+
+## 2026-10-20 — Prior uploaded source checkpoint (historical)
 
 Latest user-supplied checkout `civi.config.manager(20261020-073615).zip`:
 `main` at `0fcf6d65f6de7c204a133756dc515699d297f190`, archived Git

@@ -28,11 +28,9 @@ use Civi\ConfigManager\Service\CoreEntityDefinitions;
 
 $definition = CoreEntityDefinitions::metadataDriven()['profiles'];
 $handler = new class('profiles', $definition) extends EntityDefinitionHandler {
-  /**
-   * @var array<string,mixed> */
+  /** @var array<string,mixed> */
   public array $existing = [];
-  /**
-   * @var array<int,array<string,mixed>> */
+  /** @var array<int,array<string,mixed>> */
   public array $writes = [];
 
   protected function api4GetFirst(string $entity, array $where, array $select = ['*']): ?array {
@@ -43,7 +41,6 @@ $handler = new class('profiles', $definition) extends EntityDefinitionHandler {
     $this->writes[] = $values;
     return $values;
   }
-
 };
 
 $checks = 0;

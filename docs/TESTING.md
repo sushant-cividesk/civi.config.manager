@@ -1,5 +1,43 @@
 # Testing
 
+## 2026-10-20 — Updated DDEV evidence and production-only QA scopes
+
+**Bundle 2 is functionally certified for guarded disposable STAGE CRUD.**
+The user's latest run passed Tags, Profiles (including repeat import), UFFields,
+export round trips, updates, idempotency, missing-reference rejection,
+no-delete preservation and zero-residue fixture cleanup.
+
+The latest user DDEV `qa:fast` on commit `9f735b34` ran 321 PHPUnit tests /
+2,326 assertions and all earlier smoke/mutation checks, but failed PHPCS
+while scanning the *test fixtures*. The developer has chosen to exclude the
+entire `tests/` tree from production-only PHPCS, PHPCompatibility, PHPStan
+analysis targets and signature checks; no runtime tests were removed. The
+`test:qa-scope` smoke protects this separation. Syntax lint still includes
+`tests/`. Never run an unscoped `phpcbf ./tests/` as part of this project gate.
+
+Bundle 3 read-only STAGE produced 3 ReportInstance export/validate/dry-run
+skips, but logged `Undefined array key "name"` in a legacy-title lookup.
+A regression test fails against the prior handler and passes after the narrow
+undefined-key fix. The same probe was **INCOMPLETE** because this site has no
+ContactLayout sample records. After applying this follow-up patch, rerun:
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+composer validate --strict
+composer run qa:fast
+composer audit --locked
+
+cd /var/www/html/build/dcivi-stage/web
+drush php:script /var/www/html/ext/civi.config.manager/tests/manual/bundle3-provider-readonly.php
+```
+
+Absent ContactLayout fixtures still mean Bundle 3 certification is pending,
+even if the ReportInstance warnings disappear. Never generate or delete
+client data to satisfy this check. A separate guarded disposable runtime with
+representative Contact Layout Editor/Report configuration is required before
+claiming create/update/portable-ID certification.
+
+
 ## 2026-10-20 — Bundle 2/3 provider regressions and real-runtime evidence
 
 The current user-reported DDEV baseline passed `composer run qa:fast`

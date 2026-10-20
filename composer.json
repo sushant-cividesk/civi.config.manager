@@ -52,11 +52,12 @@
         "test:cli": "phpunit --configuration phpunit.xml.dist --filter '/(CliInstallerTest|CliCommandTest)/'",
         "analyse": "PHPSTAN_TURBO=0 phpstan analyse --configuration phpstan.neon.dist --no-progress",
         "standards": "phpcs --standard=phpcs.xml.dist",
-        "compatibility7.4": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache,*/tests/ci/bundle2-write-accounting-smoke.php --runtime-set testVersion 7.4 CRM Civi configmanager.php settings tests",
-        "compatibility8.1": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache,*/tests/ci/bundle2-write-accounting-smoke.php --runtime-set testVersion 8.1 CRM Civi configmanager.php settings tests",
-        "compatibility8.3": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache,*/tests/ci/bundle2-write-accounting-smoke.php --runtime-set testVersion 8.3 CRM Civi configmanager.php settings tests",
+        "compatibility7.4": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 7.4 CRM Civi configmanager.php settings",
+        "compatibility8.1": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.1 CRM Civi configmanager.php settings",
+        "compatibility8.3": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.3 CRM Civi configmanager.php settings",
         "qa:fast": [
             "@test:composer-script-refs",
+            "@test:qa-scope",
             "@test:source-hygiene",
             "@test:source-hygiene-behavior",
             "@test:refactor-boundaries",
@@ -66,6 +67,7 @@
             "@test:bundle2-write-accounting",
             "@test:bundle2-profile-type",
             "@test:bundle3-write-accounting",
+            "@test:bundle3-report-legacy-name",
             "@test:php74-signatures",
             "@test:js-scope-composition",
             "@lint:php",
@@ -112,6 +114,7 @@
         "test:mutation-targets": "bash tests/ci/mutation-targets-smoke.sh",
         "test:bundle2-profile-type": "php tests/ci/bundle2-profile-type-smoke.php",
         "test:bundle3-write-accounting": "php tests/ci/bundle3-write-accounting-smoke.php",
+        "test:bundle3-report-legacy-name": "php tests/ci/bundle3-report-legacy-name-smoke.php",
         "test:php74-signatures": "php tests/ci/php74-signatures-smoke.php",
         "test:js-scope-composition": "node tests/ci/configmanager-scope-composition-test.js",
         "test:browser-workflow-contract": "php tests/ci/browser-workflow-contract.php",
@@ -125,7 +128,8 @@
         "test:mutation-reduced-import": "bash tests/ci/mutation-reduced-import.sh",
         "test:mutation-import-accounting": "bash tests/ci/mutation-import-accounting.sh",
         "test:composer-script-refs": "php tests/ci/composer-script-references-smoke.php",
+        "test:qa-scope": "php tests/ci/qa-scope-smoke.php",
         "test:bundle2-write-accounting": "php tests/ci/bundle2-write-accounting-smoke.php",
-        "compatibility8.0": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache,*/tests/ci/bundle2-write-accounting-smoke.php --runtime-set testVersion 8.0 CRM Civi configmanager.php settings tests"
+        "compatibility8.0": "phpcs --standard=PHPCompatibility --extensions=php,module,inc,install --ignore=vendor,node_modules,.phpstan-cache --runtime-set testVersion 8.0 CRM Civi configmanager.php settings"
     }
 }

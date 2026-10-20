@@ -3,7 +3,21 @@
 **Current baseline:** `0.1.0-alpha68.6.1-core` (see `info.xml`).
 **Last scope decision:** 2026-10-16. The developer requested a **development-first** sequence: fix real defects, finish existing provider/UI functionality, and use *basic targeted smoke checks* now. The formerly approved mandatory Beta2 release-verification gates remain mandatory **before release**, but their scheduling is deferred to feature freeze. Never mark them passed without evidence.
 
-**2026-10-20 continuation — current provider work:** The uploaded
+**2026-10-20 latest provider evidence (supersedes the earlier status below):**
+Guarded DDEV STAGE Bundle 2 disposable CRUD **PASS**, including Tag,
+UFGroup/Profile and UFField create/update, round trips, repeat import,
+no-delete preservation, reference checks and zero-residue cleanup. Local
+`main` commit `9f735b34` contains the first Bundle 3 provider corrections.
+User DDEV `qa:fast` reached PHPCS after 321 PHPUnit tests / 2,326 assertions
+and failed on test-fixture formatting only. The user has now requested
+production-only QA static/style scans, excluding `tests/` without disabling
+tests. Bundle 3 STAGE read-only ReportInstance samples=3 PASS with an
+undefined `name` warning; no ContactLayout sample exists, therefore Bundle 3
+is **still incomplete**. The narrow report warning fix has a red/green
+regression but requires rerun on STAGE. ML-001 remains P0/open and all Beta2
+release gates remain mandatory.
+
+**2026-10-20 prior provider checkpoint (historical):** The uploaded
 `0fcf6d65` source has a clean archived Git tree; user-run DDEV `qa:fast`
 passed 321 tests / 2,326 assertions on that pre-change baseline. STAGE
 Tag CRUD passed; UFGroup/Profile repeat import failed `update=1, skip=0`,

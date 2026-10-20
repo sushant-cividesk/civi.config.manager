@@ -281,9 +281,12 @@ docs/                              architecture and operator/developer documenta
 Fast verification:
 
 `composer qa:fast` includes Composer alias validation, CiviCRM coding
-standards, PHPStan, and scoped PHP 7.4/8.0/8.3 compatibility checks. Do not
-run a broad PHPCompatibility scan over `.phpstan-cache`; use the Composer
-scripts to inspect only project source and tests.
+standards, PHPStan, and PHP 7.4/8.0/8.3 compatibility checks scoped to
+production extension code. The entire `tests/` tree is excluded from PHPCS,
+PHPCompatibility, PHPStan analysis targets and the production-only PHP 7.4
+signature scan. **Tests are still executed** by PHPUnit, regression and mutation
+checks, and all testing PHP still receives syntax lint and source-hygiene
+checks. Run the defined Composer commands, not unrestricted `phpcs .` scans.
 
 ```bash
 composer validate --strict

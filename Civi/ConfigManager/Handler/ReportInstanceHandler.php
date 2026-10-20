@@ -258,7 +258,8 @@ class ReportInstanceHandler extends AbstractHandler implements StreamingHandlerI
     $rows = array_values((array) ($result['values'] ?? []));
     if ($identity['mode'] === 'legacy-title') {
       $rows = array_values(array_filter($rows, static function ($row): bool {
-        return trim((string) ((array) $row)['name'] ?? '') === '';
+        $report = (array) $row;
+        return trim((string) ($report['name'] ?? '')) === '';
       }));
     }
     if (count($rows) > 1) {

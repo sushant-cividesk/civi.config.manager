@@ -54,7 +54,6 @@ $layout = new class() extends ContactLayoutHandler {
     $this->writes++;
     return ['id' => 13] + $values;
   }
-
 };
 
 $report = new class() extends ReportInstanceHandler {
@@ -68,15 +67,9 @@ $report = new class() extends ReportInstanceHandler {
       if ($this->failRead) {
         return ['is_error' => 1, 'error_message' => 'Simulated APIv3 read failure.'];
       }
-      return [
-        'values' => $this->exists ? [[
-          'id' => 14,
-          'name' => 'fixture_report',
-          'report_id' => 'contact/summary',
-          'title' => 'Existing',
-        ],
-        ] : [],
-      ];
+      return ['values' => $this->exists ? [[
+        'id' => 14, 'name' => 'fixture_report', 'report_id' => 'contact/summary', 'title' => 'Existing',
+      ]] : []];
     }
     if ($action === 'create') {
       $this->writes++;
@@ -86,7 +79,6 @@ $report = new class() extends ReportInstanceHandler {
     }
     return ['values' => []];
   }
-
 };
 
 $layoutDoc = ['type' => 'contact-layouts.item', 'item' => ['label' => 'fixture_layout', 'weight' => 2, 'groups' => []]];

@@ -9,9 +9,8 @@
   <file>Civi</file>
   <file>configmanager.php</file>
   <file>settings</file>
-  <file>tests</file>
   <exclude-pattern>*/vendor/*</exclude-pattern>
   <exclude-pattern>*/node_modules/*</exclude-pattern>
-  <exclude-pattern>*/tests/playwright/*</exclude-pattern>
+  <exclude-pattern>*/tests/*</exclude-pattern>
   <rule ref="CiviCRM"/>
 </ruleset>

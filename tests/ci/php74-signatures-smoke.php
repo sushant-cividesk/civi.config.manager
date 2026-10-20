@@ -89,7 +89,7 @@ foreach ($fixtures as $fixture) {
 
 $root = dirname(__DIR__, 2);
 $paths = [
-  $root . '/Civi', $root . '/CRM', $root . '/tests', $root . '/settings',
+  $root . '/Civi', $root . '/CRM', $root . '/settings',
 ];
 $paths[] = $root . '/configmanager.php';
 $errors = [];

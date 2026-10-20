@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-20 — Bundle 2 STAGE verification and QA boundary follow-up (unreleased)
+
+- **Bundle 2 STAGE:** User-run guarded disposable CRUD passed all Tag,
+  UFGroup/Profile and UFField scenarios, including repeated imports,
+  round trips, updates, reference guardrails, no-delete preservation and
+  fixture cleanup. Original UFGroup repeat-import defect now passes on STAGE.
+- **Bundle 3:** Real read-only ReportInstance samples=3 passed portable
+  export/validate/dry-run. Three warnings exposed an unsafe legacy `name`
+  array read when that optional key was absent; added a red/green regression
+  and corrected the PHP precedence. ContactLayout had no representative STAGE
+  records; real contributed-provider certification is still incomplete.
+- **QA policy:** Production PHPCS, PHPCompatibility, PHPStan analysis targets
+  and PHP 7.4 signatures no longer scan `tests/`. Test execution, regression
+  scripts, mutation checks, source hygiene and PHP syntax lint stay enabled;
+  a scope-regression guard prevents future accidental re-inclusion. The user's
+  pre-change fast gate passed 321 PHPUnit tests/2,326 assertions but PHPCS
+  failed on two test fixtures. A new full DDEV `qa:fast` rerun is required.
+- No new provider delete rights, import bypasses, dependency changes, product
+  version changes, push or deployment are included.
+
+
 ## 2026-10-20 — Bundle 2 follow-up and Bundle 3 safety (unreleased)
 
 - **Bundle 2 Profiles:** Recognize equivalent comma-delimited YAML and API4
@@ -8,7 +29,7 @@
   no field is ignored or made unwritable. Added six independent, dependency-free
   red/green checks. The guarded STAGE CRUD fixture now checks the repeat
   preview *before* a second write and reports only disposable fixture fields
-  on mismatch. **Original STAGE failure still requires an actual rerun.**
+  on mismatch. **The subsequent guarded STAGE rerun passed; see the newer checkpoint above.**
 - **Bundle 3 Contact Layouts / Reports:** Count create/update only after
   successful API calls. Fail closed when ReportInstance APIv3 returns `is_error`
   on either reads or writes; a failed lookup must never imply "new record".

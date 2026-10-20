@@ -1,6 +1,37 @@
 # Automated QA
 
-## Bundle 2 PHPCompatibility fixture exception
+## 2026-10-20 — Current test-source QA boundary (supersedes fixture exception)
+
+The developer explicitly requested **the entire `tests/` directory outside
+production code-quality enforcement**, rather than repeatedly formatting
+throwaway fixtures. `composer standards`/`phpcs.xml.dist`, Composer
+PHPCompatibility checks for 7.4/8.0/8.1/8.3, PHPStan's `paths` analysis
+targets, and the dedicated PHP 7.4 signature scan now cover production
+sources only (`CRM`, `Civi`, `configmanager.php`, `settings`, as appropriate).
+There is no longer a one-off `bundle2-write-accounting-smoke.php` exception.
+
+**Do not disable the tests.** `qa:fast` still runs PHPUnit, dedicated Bundle
+2/3 behavior regressions, security/mutation checks, source hygiene, scenario
+checks and PHP syntax lint of both production and test files. PHPStan may
+still *load* test bootstrap/scan helper files to resolve symbols while it
+analyzes production code; loading them is not targeting `tests/` for analysis.
+`test:qa-scope` enforces these boundaries to prevent accidental regression.
+This policy does not certify the PHP compatibility of test scaffolding; it
+keeps compatibility enforcement focused on shipped runtime code.
+
+Latest user results: Bundle 2 guarded STAGE disposable CRUD **PASS** for
+Tags, Profiles and Profile Fields, including cleanup with zero test records.
+On updated commit `9f735b34`, DDEV `qa:fast` reached PHPCS after 321 PHPUnit
+tests/2,326 assertions and failed solely on test-fixture style violations;
+production-standard and compatibility results for this subsequent QA change
+require rerunning in DDEV. The Bundle 3 read-only STAGE probe confirmed 3
+ReportInstances export/validate/dry-run skips but found no ContactLayout
+samples; it emitted warnings from a missing legacy report `name` key. A
+warning-specific red/green regression and source fix have been prepared; the
+original STAGE probe must be rerun to confirm no warnings.
+
+
+## Historical: Bundle 2 PHPCompatibility fixture exception (superseded)
 
 Exclude only `tests/ci/bundle2-write-accounting-smoke.php` from PHPCompatibility scanning because its nested anonymous-class methods trigger incorrect `$this` closure warnings. The fixture remains covered by PHP lint, normal PHPCS, PHPStan, and its 26 behavioral checks in `qa:fast`. Production code and other tests remain in compatibility scans.
 
