@@ -113,6 +113,7 @@
                 <span class="civicfg-capability civicfg-capability-{$row.capability|escape}" title="{$row.capability_help|escape}">{$row.capability_label|escape}</span>
               </div>
 
+              {* Kept as the authoritative POST value and no-JS mode control. *}
               <select id="scope-mode-{$row.type|escape}" name="scope_mode[{$row.type|escape}]" class="crm-form-select civicfg-scope-mode" data-civicfg-scope-mode aria-label="{ts 1=$row.label}How should %1 be handled?{/ts}" {if $scopeOverridden}disabled="disabled"{/if}>
                 <option value="all" {if $row.mode_all}selected="selected"{/if} {if $row.capability eq 'unavailable'}disabled="disabled"{/if}>{ts}Manage everything{/ts}</option>
                 <option value="selected" {if $row.mode_selected}selected="selected"{/if} {if $row.capability eq 'unavailable'}disabled="disabled"{/if}>{ts}Manage selected items{/ts}</option>
@@ -168,7 +169,8 @@
               <div class="civicfg-selected-controls" data-civicfg-selected-controls {if !$row.mode_selected}hidden="hidden"{/if}>
                 <div class="civicfg-selected-summary">
                   <strong>{ts}Managed items{/ts}</strong>
-                  <span class="civicfg-muted" data-civicfg-scope-count>{if $row.selector_count gt 0}{$row.selector_count|escape} {ts}selected{/ts}{else}{ts}None selected yet{/ts}{/if}</span>
+                  <span class="civicfg-muted" data-civicfg-scope-count aria-live="polite">{if $row.selector_count gt 0}{$row.selector_count|escape} {ts}selected{/ts}{else}{ts}None selected yet{/ts}{/if}</span>
+                  <span class="civicfg-muted" data-civicfg-scope-available-count>{ts}Item count loads when Choose items is opened.{/ts}</span>
                 </div>
                 <button type="button" class="button civicfg-scope-picker-button" data-civicfg-scope-picker="{$row.type|escape}" {if $scopeOverridden || $row.capability eq 'unavailable'}disabled="disabled"{/if}><span>{ts}Choose items{/ts}</span></button>
                 <div class="civicfg-selected-chips" data-civicfg-selected-chips></div>

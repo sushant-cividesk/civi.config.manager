@@ -8,6 +8,16 @@
 actually verified and the user explicitly authorizes tagging and publication.
 The approved **priority order is not a release approval**.
 
+**2026-10-20 current evidence update (retains approved priorities):** Bundle 2
+passed disposable DDEV STAGE CRUD. The latest user-reported DDEV `qa:fast`
+passed 321 PHPUnit tests / 2,326 assertions, PHPCS, PHPStan, compatibility
+scans and audit at local commit `dc3baf2`. The subsequent uncommitted Bundle 3
+STAGE CRUD script and Bundle 4 Settings UX enhancements have source-only tests
+but **no updated full DDEV/browser/STAGE certification yet**. QA-003 still
+requires the supported runtime/CI matrix, A69-05 still requires cross-site
+portable identity proof, A67-04/06 still needs accessible browser evidence,
+and ML-001 remains open. Historical diagnostic sections below are preserved.
+
 ## Approved order (authoritative)
 
 | Order | ID | Priority | Scope and current state | Gate / evidence required |

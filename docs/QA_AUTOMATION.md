@@ -1,5 +1,23 @@
 # Automated QA
 
+## 2026-10-20 — Bundle 3/4 safe regression additions
+
+`tests/ci/bundle3-disposable-guards.js` spawns the guarded manual script in
+unapproved and wrong-webroot contexts; both must stop **before** CiviCRM
+bootstrap or database writes. The actual consented DDEV STAGE run is kept
+manual because it creates and cleans exact disposable provider records.
+
+`tests/ci/bundle4-settings-mode-smoke.js` constructs a minimal DOM to prove
+radio choices update the original `scope_mode` select (and vice versa),
+respects disabled actions, updates selected-only controls and never starts
+provider enumeration on page load. `tests/playwright/config-manager.spec.js`
+contains the logged-in/browser obligations for focus, lazy counts and bulk
+synchronization. `tests/playwright/targeted-smoke.spec.js` separately adds
+read-only DDEV Settings acceptance checks without relying on seeded data.
+These tests stay executable even though `tests/` is excluded
+from production-only static/code-style scanners.
+
+
 ## 2026-10-20 — Current test-source QA boundary (supersedes fixture exception)
 
 The developer explicitly requested **the entire `tests/` directory outside

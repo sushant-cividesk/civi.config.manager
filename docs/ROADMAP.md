@@ -2,6 +2,15 @@
 
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
+**2026-10-20 active development checkpoint:** Bundle 2 completed guarded
+STAGE CRUD. Bundle 3 has reviewed Contact Layout/Report adapters, semantic
+reference regression and a guarded but **not yet executed** disposable STAGE
+CRUD script. Bundle 4 has progressive Settings mode cards, lazy item counts
+and picker focus safeguards, pending logged-in browser/role verification.
+The mandatory ML-001 and release-certification gates remain open. This
+supersedes the older "Begin Bundle 1 next" execution note below, not the
+approved release priority order.
+
 The user **confirmed** the P0/P1 work order on 2026-10-08. Its authoritative
 ranking and mandatory proof are in [Beta2 priorities](BETA2_PRIORITIES.md).
 P0 starts with QA-003, ML-001, A69-05, B2-02/03, and optional A67-04/06.

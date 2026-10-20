@@ -278,6 +278,12 @@ docs/                              architecture and operator/developer documenta
 
 ## Development and QA
 
+**Bundle 3/4 continued work (October 20):** Guarded disposable STAGE provider
+CRUD certification and progressive Settings mode cards/on-demand counts/picker
+focus safeguards are prepared in this source. This is not a Beta2 release or
+runtime certification; see `docs/TESTING.md` for the opt-in STAGE command and
+acceptance checks. Previously passing DDEV QA predates these new changes.
+
 Fast verification:
 
 `composer qa:fast` includes Composer alias validation, CiviCRM coding

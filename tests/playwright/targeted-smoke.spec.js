@@ -100,6 +100,48 @@ test.describe('Configuration Manager targeted site smoke', () => {
     expect(pageErrors, `Uncaught page errors: ${pageErrors.join('\n')}`).toEqual([]);
   });
 
+  test('Settings mode cards and lazy picker retain keyboard access without saving', async ({ page }) => {
+    let pickerRequests = 0;
+    page.on('request', request => {
+      if (request.url().includes('op=scope-options-json')) pickerRequests++;
+    });
+    await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('[data-civicfg-scope-row="scheduled-jobs"]');
+    await expect(row).toBeVisible();
+    const source = row.locator('[data-civicfg-scope-mode]');
+    const selectedMode = row.locator('[data-civicfg-mode-choice][value="selected"]');
+    const watchMode = row.locator('[data-civicfg-mode-choice][value="watch"]');
+    if (await selectedMode.isDisabled()) {
+      test.skip(true, 'Scope is intentionally locked or this provider is unavailable; manual access check required.');
+    }
+    await expect(source).toHaveAttribute('name', 'scope_mode[scheduled-jobs]');
+    expect(pickerRequests).toBe(0);
+    await selectedMode.check();
+    await expect(source).toHaveValue('selected');
+    await expect(row.locator('[data-civicfg-selected-controls]')).toBeVisible();
+    await expect(row.locator('[data-civicfg-scope-available-count]')).toContainText('Item count loads when Choose items is opened.');
+    const trigger = row.locator('[data-civicfg-scope-picker]');
+    await trigger.click();
+    const modal = page.locator('#civicfg-scope-picker-modal');
+    await expect(modal).toBeVisible();
+    await expect(modal.locator('#civicfg-scope-picker-search')).toBeFocused();
+    await expect(modal.locator('#civicfg-scope-picker-status')).not.toContainText('Loading current CiviCRM items...');
+    expect(pickerRequests).toBe(1);
+    const availableCount = await modal.locator('.civicfg-scope-picker-item:not(.is-missing)').count();
+    await expect(row.locator('[data-civicfg-scope-available-count]'))
+      .toContainText(availableCount + ' available in Current CiviCRM');
+    await expect(modal.locator('[data-civicfg-picker-selection-count]')).toContainText('item(s) selected for management');
+    await page.keyboard.press('Escape');
+    await expect(modal).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await watchMode.check();
+    await expect(source).toHaveValue('watch');
+    await expect(row.locator('[data-civicfg-selected-controls]')).toBeHidden();
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeVisible();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeHidden();
+  });
+
   test('keeps Import fail-closed language and outcome accounting visible', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=import', { waitUntil: 'domcontentloaded' });
     const block = page.locator('.crm-configmanager-block');

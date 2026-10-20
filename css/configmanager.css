@@ -523,3 +523,17 @@
 @media (max-width:700px) {
   .crm-configmanager-block .civicfg-detected-provider-status {width:100%; margin-left:0;}
 }
+
+/* A67 Settings mode cards enhance the native mode select (which works without JS). */
+.crm-configmanager-block .civicfg-mode-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem;border:0;padding:0;margin:0 0 .6rem;min-width:0;}
+.crm-configmanager-block .civicfg-mode-options-legend {font-weight:600;margin-bottom:.35rem;}
+.crm-configmanager-block .civicfg-mode-option {display:flex;align-items:flex-start;gap:.45rem;border:1px solid #b8c3d1;border-radius:5px;background:#fff;padding:.5rem;cursor:pointer;min-width:0;}
+.crm-configmanager-block .civicfg-mode-option:has(input:checked) {border-color:#3674a8;background:#eef6ff;}
+.crm-configmanager-block .civicfg-mode-option:focus-within {outline:2px solid #3674a8;outline-offset:1px;}
+.crm-configmanager-block .civicfg-mode-option:has(input:disabled) {opacity:.65;cursor:not-allowed;}
+.crm-configmanager-block .civicfg-mode-option input {flex:none;margin:.2rem 0 0;}
+.crm-configmanager-block .civicfg-mode-option strong {display:block;font-size:.92em;}
+.crm-configmanager-block .civicfg-mode-option-description {display:block;color:#526170;font-size:.81em;line-height:1.35;}
+.crm-configmanager-block .civicfg-scope-picker-selection {font-weight:600;margin:.25rem 0 .45rem;}
+.crm-configmanager-block .civicfg-selected-summary [data-civicfg-scope-available-count] {display:block;font-size:.85em;}
+@media (max-width:600px) {.crm-configmanager-block .civicfg-mode-options {grid-template-columns:minmax(0,1fr);}}

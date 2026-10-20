@@ -22,6 +22,14 @@
       if (target) {
         target.textContent = count ? (count + ' selected') : 'None selected yet';
       }
+      var available = row.querySelector('[data-civicfg-scope-available-count]');
+      if (available) {
+        var total = row.getAttribute('data-civicfg-loaded-item-count');
+        var missing = row.getAttribute('data-civicfg-missing-item-count') || '0';
+        available.textContent = total === null
+          ? 'Item count loads when Choose items is opened.'
+          : total + ' available in Current CiviCRM' + (missing !== '0' ? '; ' + missing + ' saved selector(s) currently missing' : '');
+      }
     }
 
     function renderScopeChips(row, selectedItems) {
@@ -43,10 +51,66 @@
       }
     }
 
+    // Progressive enhancement: native select remains the authoritative form value.
+    // Radios offer direct, keyboard-accessible mode choices without changing
+    // the server's scope_mode[] POST contract. With JS disabled, select works.
+    function enhanceScopeModeChoices(row) {
+      var mode = row.querySelector('[data-civicfg-scope-mode]');
+      if (!mode || row.querySelector('[data-civicfg-mode-options]')) { return; }
+      var choices = document.createElement('fieldset');
+      choices.className = 'civicfg-mode-options';
+      choices.setAttribute('data-civicfg-mode-options', '1');
+      var legend = document.createElement('legend');
+      legend.className = 'civicfg-mode-options-legend';
+      legend.textContent = 'Handling mode for ' + (row.getAttribute('data-scope-label') || 'configuration');
+      choices.appendChild(legend);
+      var descriptions = {
+        all: 'Export, compare and safely import supported configuration.',
+        selected: 'Manage only specifically chosen items.',
+        watch: 'Monitor changes without exporting or importing.',
+        ignore: 'Do not manage or monitor this type.'
+      };
+      Array.prototype.slice.call(mode.options).forEach(function(option) {
+        var label = document.createElement('label');
+        label.className = 'civicfg-mode-option';
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'civicfg_ui_mode[' + (row.getAttribute('data-civicfg-scope-row') || '') + ']';
+        radio.value = option.value;
+        radio.disabled = !!option.disabled || !!mode.disabled;
+        radio.checked = mode.value === option.value;
+        radio.setAttribute('data-civicfg-mode-choice', '1');
+        var title = document.createElement('strong');
+        title.textContent = option.textContent;
+        var detail = document.createElement('span');
+        detail.className = 'civicfg-mode-option-description';
+        detail.textContent = descriptions[option.value] || '';
+        label.appendChild(radio);
+        var content = document.createElement('span');
+        content.appendChild(title);
+        content.appendChild(detail);
+        label.appendChild(content);
+        radio.addEventListener('change', function() {
+          if (!radio.checked || radio.disabled || mode.disabled) { return; }
+          mode.value = radio.value;
+          mode.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        choices.appendChild(label);
+      });
+      mode.parentNode.insertBefore(choices, mode.nextSibling);
+      // Only hide the select after the replacement radio controls exist.
+      mode.hidden = true;
+      mode.setAttribute('aria-hidden', 'true');
+      mode.tabIndex = -1;
+    }
+
     function refreshScopeRow(row) {
       if (!row) { return; }
       var mode = row.querySelector('[data-civicfg-scope-mode]');
       var value = mode ? mode.value : 'all';
+      row.querySelectorAll('[data-civicfg-mode-choice]').forEach(function(choice) {
+        choice.checked = choice.value === value;
+      });
       var controls = row.querySelector('[data-civicfg-selected-controls]');
       if (controls) { controls.hidden = value !== 'selected'; }
       row.querySelectorAll('[data-civicfg-mode-help]').forEach(function(help) {
@@ -232,6 +296,7 @@
     refreshScopeBulkControls();
 
     document.querySelectorAll('[data-civicfg-scope-row]').forEach(function(row) {
+      enhanceScopeModeChoices(row);
       refreshScopeRow(row);
       var mode = row.querySelector('[data-civicfg-scope-mode]');
       if (mode) {
@@ -279,6 +344,7 @@
             '<p class="description" id="civicfg-scope-picker-help">Choose the items Configuration Manager should manage. Stable portable identities are saved automatically.</p>' +
             '<input type="search" class="crm-form-text civicfg-scope-search" id="civicfg-scope-picker-search" placeholder="Search items..." />' +
             '<div class="civicfg-scope-picker-status" id="civicfg-scope-picker-status" aria-live="polite"></div>' +
+            '<div class="civicfg-scope-picker-selection" data-civicfg-picker-selection-count role="status" aria-live="polite"></div>' +
             '<div class="civicfg-scope-picker-list" id="civicfg-scope-picker-list"></div>' +
             '<div class="civicfg-actions"><button type="button" class="button" data-civicfg-scope-picker-apply><span>Use selected items</span></button><button type="button" class="button" data-civicfg-scope-picker-close><span>Cancel</span></button></div>' +
           '</div>' +
@@ -289,14 +355,48 @@
         btn.addEventListener('click', function() { closeScopePicker(modal); });
       });
       modal.addEventListener('click', function(ev) { if (ev.target === modal) { closeScopePicker(modal); } });
+      modal.addEventListener('change', function(ev) {
+        if (ev.target && ev.target.hasAttribute('data-civicfg-scope-option')) {
+          updatePickerSelectionCount(modal);
+        }
+      });
+      modal.addEventListener('keydown', function(ev) {
+        if (modal.hidden) { return; }
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          closeScopePicker(modal);
+          return;
+        }
+        if (ev.key !== 'Tab') { return; }
+        var focusable = Array.prototype.slice.call(modal.querySelectorAll('button, input, select, textarea, a[href]'))
+          .filter(function(item) { return !item.disabled && !item.closest('[hidden]') && !item.closest('.is-filtered'); });
+        if (!focusable.length) { ev.preventDefault(); return; }
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+        else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+      });
       return modal;
     }
 
     function closeScopePicker(modal) {
+      modal._civicfgRequest = (modal._civicfgRequest || 0) + 1;
       modal.classList.remove('is-open');
       modal.setAttribute('aria-hidden', 'true');
       modal.hidden = true;
       modal._civicfgRow = null;
+      var returnFocus = modal._civicfgReturnFocus;
+      modal._civicfgReturnFocus = null;
+      if (returnFocus && typeof returnFocus.focus === 'function') { returnFocus.focus(); }
+    }
+
+    function updatePickerSelectionCount(modal) {
+      var target = modal.querySelector('[data-civicfg-picker-selection-count]');
+      if (!target) { return; }
+      var selected = modal.querySelectorAll('[data-civicfg-scope-option]:checked').length;
+      var total = modal.querySelectorAll('[data-civicfg-scope-option]').length;
+      target.textContent = selected + ' of ' + total + ' item(s) selected for management.';
     }
 
     function renderScopePickerItems(modal, items, currentSelectors, autoSelectRecommended) {
@@ -364,6 +464,7 @@
       else {
         status.textContent = items.length + ` item(s) available. No customized workflow template currently matches CiviCRM's Revert condition.`;
       }
+      updatePickerSelectionCount(modal);
       status.setAttribute('data-civicfg-total-items', String(items.length));
       status.setAttribute('data-civicfg-base-status', status.textContent);
     }
@@ -391,7 +492,7 @@
       }
     }
 
-    function openScopePicker(row) {
+    function openScopePicker(row, trigger) {
       var form = row.closest('form');
       var endpoint = civicfgNormalizeUrl(form ? form.getAttribute('data-civicfg-scope-options-url') : '');
       var type = row.getAttribute('data-civicfg-scope-row') || '';
@@ -400,6 +501,9 @@
       var currentSelectors = parseScopeSelectors(textarea);
       var modal = ensureScopePickerModal();
       modal._civicfgRow = row;
+      modal._civicfgReturnFocus = trigger || document.activeElement;
+      modal._civicfgRequest = (modal._civicfgRequest || 0) + 1;
+      var requestId = modal._civicfgRequest;
       modal.querySelector('#civicfg-scope-picker-title').textContent = 'Choose ' + label;
       var pickerSearch = modal.querySelector('#civicfg-scope-picker-search');
       var pickerStatus = modal.querySelector('#civicfg-scope-picker-status');
@@ -413,10 +517,12 @@
       modal.hidden = false;
       modal.setAttribute('aria-hidden', 'false');
       modal.classList.add('is-open');
+      pickerSearch.focus();
 
       fetch(endpoint + '&scope_type=' + encodeURIComponent(type), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
         .then(civicfgParseJsonResponse)
         .then(function(data) {
+          if (modal.hidden || modal._civicfgRequest !== requestId) { return; }
           if (!data || !data.ok) { throw new Error((data && data.error) ? data.error : 'Could not load configuration items.'); }
           if (data.available === false) {
             pickerStatus.textContent = data.unavailable_reason || 'This configuration provider is unavailable on this site.';
@@ -427,6 +533,9 @@
             return;
           }
           var loadedItems = data.items || [];
+          row.setAttribute('data-civicfg-loaded-item-count', String(loadedItems.filter(function(item) { return !item.missing; }).length));
+          row.setAttribute('data-civicfg-missing-item-count', String(loadedItems.filter(function(item) { return !!item.missing; }).length));
+          updateScopeCount(row);
           var savedPolicy = data.policy || {};
           var autoSelectRecommended = currentSelectors.length === 0 && String(savedPolicy.mode || '') !== 'selected';
           renderScopePickerItems(modal, loadedItems, currentSelectors, autoSelectRecommended);
@@ -438,6 +547,7 @@
           }));
         })
         .catch(function(error) {
+          if (modal.hidden || modal._civicfgRequest !== requestId) { return; }
           pickerStatus.textContent = error.message || 'Could not load configuration items.';
           pickerStatus.classList.add('is-error');
           pickerSearch.disabled = true;
@@ -448,7 +558,7 @@
     document.querySelectorAll('[data-civicfg-scope-picker]').forEach(function(button) {
       button.addEventListener('click', function() {
         var row = button.closest('[data-civicfg-scope-row]');
-        if (row) { openScopePicker(row); }
+        if (row) { openScopePicker(row, button); }
       });
     });
 

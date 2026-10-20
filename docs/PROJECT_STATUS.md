@@ -1,5 +1,35 @@
 # Configuration Manager project status
 
+## 2026-10-20 — Latest Bundle 3/4 implementation checkpoint
+
+**Baseline:** The user's latest observed local `main` commit was `dc3baf2`
+(three commits ahead of the last observed remote-tracking commit `0fcf6d65`).
+DDEV `qa:fast` passed 321 tests / 2,326 assertions, PHPCS, PHPStan, static
+PHP 7.4/8.0/8.3 scans, mutation proofs and locked audit **before this next
+uncommitted Bundle 3/4 change**. The user-run guarded STAGE Bundle 2 test
+passed with zero fixture residue. The Bundle 3 read-only probe verified three
+ReportInstances but had no ContactLayout samples.
+
+**Bundle 3:** The ContactLayout semantic reference validation guard and previous
+ReportInstance accounting/legacy-read fixes are preserved. A new opt-in guarded
+STAGE disposable CRUD script covers ContactLayout and ReportInstance. Negative
+local guard tests pass. **Real STAGE CRUD results are not available**; do not
+mark contributed providers certified. Cross-environment independent record-ID
+proof remains a required release gate.
+
+**Bundle 4:** The native scope-mode select still owns POST values; with JS
+available it is enhanced into labeled radio cards for All, Selected, Watch,
+and Ignore. Unavailable choices and site-defined override restrictions remain
+disabled. Picker item totals are loaded on demand (not at page render), with
+visible missing-selector counts, selection counts and keyboard focus handling.
+Existing group search, bulk changes, unsaved warning, dependency guidance and
+lazy item options are unchanged. JavaScript/unit and browser acceptance checks
+are prepared; actual logged-in browser/role testing is pending.
+
+**No commits, pushes or deployment were made in this preparation.** ML-001
+remains a mandatory unresolved P0 item and all other Beta2 release gates apply.
+
+
 This is the durable implementation checklist and decision log. Update it in the same change as code, tests, or a changed decision. `info.xml` is authoritative for the development version; `CHANGELOG.md` records completed work.
 
 The **user-confirmed P0/P1 task order (2026-10-08)** and mandatory evidence

@@ -1,5 +1,62 @@
 # Testing
 
+## 2026-10-20 — Bundle 3/4 acceptance (new work)
+
+Inside the existing DDEV extension shell (no second `ddev ssh`):
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+git diff --check
+composer run qa:fast
+composer audit --locked
+```
+
+The fast gate runs `test:bundle3-disposable-guards` (wrong-root/no-opt-in test)
+and `test:bundle4-ui` (mode card/radio synchronization) alongside existing
+regressions. The Bundle 4 stateful Playwright suite also checks lazy item
+fetches, keyboard opener focus and per-provider loaded item counts. It must be
+run in the normal authenticated browser fixture setup; the local authoring
+container does not supply that CiviCRM/browser environment.
+
+**Real Bundle 3 disposable CRUD — STAGE ONLY, with opt-in**. Confirm that
+`/var/www/html/build/dcivi-stage/web` and the `dcivistage*` database are
+actually disposable first. The script refuses other webroots/databases,
+requires provider create/update/cleanup availability, uses exact random
+fixture names, performs read-only preview and independent post-write checks,
+and deletes only its own test records. It **does not** enable deletion within
+normal Configuration Manager imports.
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+CIVICFG_BUNDLE3_DISPOSABLE_CRUD=YES_STAGE_ONLY \
+  drush php:script /var/www/html/ext/civi.config.manager/tests/manual/bundle3-provider-disposable-crud.php
+```
+
+Success requires **both** `Fixture cleanup PASS` and
+`BUNDLE 3 STAGE DISPOSABLE CRUD: PASS`. Any other output is an incomplete or
+failed certification. If PHP is killed before `finally`, inspect only the
+printed exact `cfgb3_` token; do not delete unrelated records or retry
+blindly. If cleanup fails, stop and review the exact fixture record IDs.
+
+**Read-only targeted Settings browser proof:** From the existing extension DDEV
+shell where npm/Playwright dependencies and the DDEV Chromium browser are
+already installed, run `npm run test:ui:stage` (uses the configured STAGE DDEV
+URL and standard auth helper). The new read-only Settings test verifies
+mode choices, lazy counts, picker Escape/focus and unsaved scope behavior.
+The command must not save any scope changes. A skipped test due to a
+site-controlled/locked scope is **not** completion evidence.
+
+**Settings browser/role check:** Under the authorized DDEV STAGE admin, open
+Settings; radio choices must change the underlying `scope_mode[]` POST values,
+selected-item controls appear only in Selected mode, unavailable choices
+remain disabled, and no items are enumerated until Choose items is clicked.
+Verify live picker counts exclude currently missing objects, saved missing
+selectors are preserved, Tab stays in the modal, Escape closes and restores
+focus, bulk apply keeps mode radios synchronized, unsaved changes warn, and
+Save preserves the selected policies. Repeat with read-only/unauthorized roles
+and a narrow viewport. Never claim those interactions ran from source-only QA.
+
+
 ## 2026-10-20 — Bundle 3 Contact Layout semantic-reference regression
 
 Run `php tests/ci/bundle3-contactlayout-references-smoke.php` to exercise

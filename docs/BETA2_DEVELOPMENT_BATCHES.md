@@ -1,5 +1,19 @@
 # Beta2 development bundles — implementation tracker
 
+**2026-10-20 development continuation — Bundle 3/4:** Based on the user's
+confirmed local `dc3baf2` and its green DDEV QA results (321 PHPUnit tests,
+2,326 assertions), prepared a new guarded DDEV STAGE disposable CRUD proof for
+ContactLayout and ReportInstance; local opt-in and wrong-webroot tests pass.
+This **does not yet prove STAGE CRUD**, and absence of ContactLayout samples in
+the last read-only probe remains documented. Bundle 4 now has progressively
+enhanced native mode radio cards, lazy item/selection counts, picker keyboard
+focus restoration and stale async-response protection. Existing scope POST,
+permissions, dependency warnings, bulk controls and selected/unmanaged modes
+remain unchanged. DDEV full QA, read-only confirmation, guarded STAGE CRUD and
+logged-in responsive/keyboard browser smoke are the next acceptance steps.
+**Both bundles remain pending runtime sign-off until that evidence is supplied.**
+
+
 **Current baseline:** `0.1.0-alpha68.6.1-core` (see `info.xml`).
 **Last scope decision:** 2026-10-16. The developer requested a **development-first** sequence: fix real defects, finish existing provider/UI functionality, and use *basic targeted smoke checks* now. The formerly approved mandatory Beta2 release-verification gates remain mandatory **before release**, but their scheduling is deferred to feature freeze. Never mark them passed without evidence.
 

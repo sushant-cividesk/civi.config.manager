@@ -318,7 +318,8 @@ test.describe('Configuration Manager scope settings', () => {
 
     const mode = row.locator('[data-civicfg-scope-mode]');
     const selectedControls = row.locator('[data-civicfg-selected-controls]');
-    await mode.selectOption('selected');
+    await row.locator('[data-civicfg-mode-choice][value="selected"]').check();
+    await expect(mode).toHaveValue('selected');
     await expect(selectedControls).toBeVisible();
     await expect(row.getByText('Monitor everything else in this type')).toBeVisible();
 
@@ -329,8 +330,10 @@ test.describe('Configuration Manager scope settings', () => {
     expect(siblingBox).not.toBeNull();
     expect(selectedBox.height).toBeGreaterThan(siblingBox.height);
 
-    await row.getByRole('button', { name: 'Choose items' }).click();
+    const trigger = row.getByRole('button', { name: 'Choose items' });
+    await trigger.click();
     await expect(page.locator('#civicfg-scope-picker-modal')).toBeVisible();
+    await expect(page.locator('#civicfg-scope-picker-search')).toBeFocused();
     await expect(page.locator('[data-civicfg-scope-option]').first()).toBeVisible();
     await expect(page.locator('#civicfg-scope-picker-status')).not.toContainText('Loading current CiviCRM items...');
     expect(pickerRequests).toBe(1);
@@ -345,9 +348,16 @@ test.describe('Configuration Manager scope settings', () => {
     await search.fill('');
     await expect(page.locator('.civicfg-scope-picker-item:not(.is-filtered)')).toHaveCount(total);
     await expect(page.locator('#civicfg-scope-picker-status')).toContainText(total + ' item(s) available');
+    const available = await page.locator('.civicfg-scope-picker-item:not(.is-missing)').count();
+    await expect(row.locator('[data-civicfg-scope-available-count]')).toContainText(available + ' available in Current CiviCRM');
+    await expect(page.locator('[data-civicfg-picker-selection-count]')).toContainText('item(s) selected for management');
 
-    await page.locator('[data-civicfg-scope-picker-close]').first().click();
-    await mode.selectOption('watch');
+    // Escape returns keyboard focus to the invoking button; it does not apply changes.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#civicfg-scope-picker-modal')).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await row.locator('[data-civicfg-mode-choice][value="watch"]').check();
+    await expect(mode).toHaveValue('watch');
     await expect(selectedControls).toBeHidden();
   });
 
@@ -431,10 +441,10 @@ test.describe('Configuration Manager scope settings', () => {
 
     const customDataRow = page.locator('[data-civicfg-scope-row="custom-data"]');
     if (await customDataRow.count()) {
-      await customDataRow.locator('[data-civicfg-scope-mode]').selectOption('all');
+      await customDataRow.locator('[data-civicfg-mode-choice][value="all"]').check();
       const optionGroupsRow = page.locator('[data-civicfg-scope-row="option-groups"]');
       if (await optionGroupsRow.count()) {
-        await optionGroupsRow.locator('[data-civicfg-scope-mode]').selectOption('ignore');
+        await optionGroupsRow.locator('[data-civicfg-mode-choice][value="ignore"]').check();
         await expect(page.locator('[data-civicfg-scope-dependency-summary]')).toBeVisible();
         await expect(customDataRow.locator('[data-civicfg-scope-card-dependency-warning]')).toContainText('Option Groups');
         const manageDependencies = customDataRow.locator('[data-civicfg-manage-dependencies]');
@@ -453,6 +463,7 @@ test.describe('Configuration Manager scope settings', () => {
     await page.locator('[data-civicfg-scope-bulk-apply]').click();
     await expect(page.locator('[data-civicfg-scope-unsaved]')).toBeVisible();
     await expect(page.locator('[data-civicfg-scope-unsaved]')).toContainText('Export, Import, Validate, and Synchronize still use the last saved scope');
+    await expect(rows.first().locator('[data-civicfg-mode-choice][value="ignore"]')).toBeChecked();
     await expect(page.getByRole('button', { name: 'Save scope changes' })).toBeVisible();
     for (let i = 0; i < await rows.count(); i++) {
       await expect(rows.nth(i).locator('[data-civicfg-scope-mode]')).toHaveValue('ignore');
@@ -511,7 +522,7 @@ test.describe('Configuration Manager scope settings', () => {
   test('updates the civicrm.settings.php example from current choices', async ({ page }) => {
     await page.goto('/civicrm/admin/config-manager?reset=1&op=settings', { waitUntil: 'domcontentloaded' });
     const row = page.locator('[data-civicfg-scope-row="message-templates"]');
-    await row.locator('[data-civicfg-scope-mode]').selectOption('watch');
+    await row.locator('[data-civicfg-mode-choice][value="watch"]').check();
 
     const example = page.locator('#civicfg-scope-settings-example');
     await expect(example).toContainText("'message-templates' => [");

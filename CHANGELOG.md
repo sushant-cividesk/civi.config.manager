@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-20 — Bundle 3 guarded certification and Bundle 4 Settings UX (unreleased)
+
+- Added a guarded, opt-in DDEV STAGE-only disposable ContactLayout/ReportInstance
+  CRUD certification script. Its preflight requires the correct webroot/database,
+  matching extension checkout and independently available API cleanup actions.
+  It validates/preview-checks before writes and deletes only exact random
+  fixture IDs in `finally`; an interrupted process still needs manual review.
+  **No live STAGE certification has been run with this new script yet.**
+- Added dependency-free negative tests proving the fixture refuses execution
+  without explicit opt-in or from the wrong webroot.
+- Settings scope mode cards now enhance (and submit through) the existing native
+  mode select, keeping current server scope policies, dependencies, bulk action,
+  and no-JS select behavior. Unavailable modes remain disabled.
+- Added per-type on-demand current-item/missing-selector counts, modal selection
+  counts, keyboard Tab/Escape focus behavior, opener focus restoration and stale
+  request guards for repeated picker openings. Counts load **only when the
+  picker is opened**; no eager provider inventory fetch was added.
+- Added a dependency-free UI mode-state test, read-only DDEV targeted browser
+  acceptance path, and adjusted stateful real-browser assertions
+  to test the mode cards and picker focus. Full `qa:fast`, real browser smoke,
+  guarded STAGE CRUD and cross-site independent IDs must be run on the updated
+  DDEV checkout before considering Bundles 3/4 certified. No data migration,
+  dependency change, delete-missing capability, tag, push or deployment.
+
+
 ## 2026-10-20 — Bundle 3 Contact Layout portability guard (unreleased)
 
 - Block unresolved local `related_rel` values such as `44_ab` during Contact
