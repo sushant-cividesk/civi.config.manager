@@ -288,6 +288,14 @@ trait MainPageResponseTrait {
     $this->page->assign('importErrorMessages', $importErrorMessages);
     $this->page->assign('importWarningMessages', $importWarningMessages);
     $this->page->assign('importErrorCount', count($importErrorMessages));
+    $this->page->assign('importReadiness', $this->presenter->getImportReadiness(
+      Permission::has(Permission::IMPORT),
+      (array) $importApplyTypes,
+      count($importErrorMessages),
+      is_array($importResult) ? $importResult : NULL,
+      (string) $importPlanId,
+      (array) ($importResult['dependency_components'] ?? [])
+    ));
     $syncErrors = [];
     if ($op === 'sync') {
       foreach ((array) ($diffResult['errors'] ?? []) as $error) {

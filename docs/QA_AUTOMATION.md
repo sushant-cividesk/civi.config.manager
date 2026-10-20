@@ -1,5 +1,12 @@
 # Automated QA
 
+## 2026-10-20 — Bundle 5 operator guard and Bundle 6 profiling gates
+
+`test:bundle5-readiness` proves the Import presentation always distinguishes permission, dependency, validation, empty scope and unreviewed-plan blockers from a valid reviewed plan. `test:bundle5-cli` stubs `cv` and proves unsupported/conflicting flags fail **before** invoking API4, while supported preview, exact reviewed apply and export still invoke the existing API contract. `test:bundle6-profile-guards` checks that the optional profiler refuses no-opt-in/wrong-webroot contexts and contains no Import/Export/write operation. All three are integrated into `qa:fast`; they do not weaken it or exempt any production source.
+
+The initial user-run read-only STAGE benchmark passed (3 samples; 192 providers; inventory median 27.176 ms, maximum 366.372 ms; peak memory 30 MB). Any repeated STAGE latency measurement remains manual and explicitly opt-in. No automated CI may mutate CiviCRM or infer provider cache correctness from a source-only timing check. Bundle 3 actual guarded CRUD and Bundle 4 three targeted Playwright tests have already passed in the user's DDEV STAGE evidence.
+
+
 ## 2026-10-20 — Bundle 3/4 safe regression additions
 
 `tests/ci/bundle3-disposable-guards.js` spawns the guarded manual script in

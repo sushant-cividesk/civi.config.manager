@@ -278,6 +278,9 @@ docs/                              architecture and operator/developer documenta
 
 ## Development and QA
 
+**Current 2026-10-20 status:** User-run guarded DDEV STAGE Bundle 3 Contact Layout/Report CRUD + cleanup passed; Bundle 4 targeted browser checks passed 3/3 after cache rebuild. Bundle 5 adds Import readiness guidance and explicit CLI preview/apply flag protection. Bundle 6 adds a STAGE-only read-only metadata timing tool, **not a cache** or a claim of performance improvement. DDEV `qa:fast` passed tests and analysis but stopped on missing PHPDoc parameter annotations in the new Import-readiness method; the follow-up fixes that documentation and requires a fresh DDEV PHPCS/full QA run. The STAGE profiler captured 192 providers, 27.176 ms median inventory time (three samples); no cache was introduced. See `docs/TESTING.md` for exact steps. ML-001 and mandatory Beta2 gates remain open.
+
+
 **Bundle 3/4 continued work (October 20):** Guarded disposable STAGE provider
 CRUD certification and progressive Settings mode cards/on-demand counts/picker
 focus safeguards are prepared in this source. This is not a Beta2 release or

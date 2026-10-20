@@ -1,5 +1,8 @@
 # Roadmap
 
+**2026-10-20 newest continuation:** Bundle 3 real guarded STAGE disposable CRUD and cleanup **PASS**; Bundle 4 targeted DDEV STAGE browser **3/3 PASS** after cache rebuild. Bundle 5 operator readiness and CLI safeguards passed DDEV focused tests; full `qa:fast` encountered four missing PHPDoc parameter entries at PHPCS, now corrected pending DDEV rerun. Bundle 6 profiler completed a read-only STAGE baseline (192 providers, inventory median 27.176 ms/max 366.372 ms; 3 samples); A66-05 cache/invalidation work remains unimplemented without a demonstrated persistent bottleneck. Cross-environment, ML-001 and mandatory Beta2 release gates remain open.
+
+
 This roadmap describes planned work. Completed release history is maintained in `../CHANGELOG.md`.
 
 **2026-10-20 active development checkpoint:** Bundle 2 completed guarded

@@ -1,5 +1,49 @@
 # Testing
 
+## 2026-10-20 — PHPCS-only hotfix and measured Bundle 6 baseline
+
+The developer-run DDEV `qa:fast` reached PHPCS after passing 321 PHPUnit tests (2,326 assertions), new Bundle 5/6 smoke tests, lint and preceding gates, then stopped with four missing-parameter-doc errors for `PresenterImportFeedbackTrait::getImportReadiness()`. The PHPDoc is corrected with **no runtime logic change**. The separate `composer audit --locked` found no advisories. Re-run from the existing extension shell:
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+git diff --check
+phpcs --standard=phpcs.xml.dist
+composer run qa:fast
+composer audit --locked
+```
+
+The developer-run Bundle 6 STAGE profiler already passed using 3 samples: inventory median 27.176 ms/max 366.372 ms (192 providers); cold scope median 3.729 ms/max 55.779 ms (22 scope types); cold handlers median 0.031 ms/max 10.912 ms (22 handlers); peak memory 30 MB. Warm scope results round to 0.000 ms at the current profiler precision, **not literally zero runtime**. These internal same-process measurements do not justify persistent caching or prove invalidation correctness. Do not change source or cache behavior solely to reduce a single cold maximum.
+
+## 2026-10-20 — Bundle 3/4 accepted evidence; Bundle 5/6 new verification
+
+Confirmed user-executed DDEV STAGE results: guarded Bundle 3 ContactLayout/ReportInstance CRUD PASS (token `cfgb3_6300c6ed82c8`, exact cleanup PASS); targeted Bundle 4 Playwright PASS (3/3) after `cv flush` and `drush cr`. The latest full green `qa:fast` output is from the code preceding the new Bundle 5/6 changes.
+
+After applying the incremental patch in `/var/www/html/ext/civi.config.manager` to verified `19aca94` source (preserve unrelated working-tree changes), run:
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+git diff --check
+php tests/ci/bundle5-import-readiness-smoke.php
+node tests/ci/bundle5-cli-guard-smoke.js
+node tests/ci/bundle6-profile-guards.js
+composer run qa:fast
+composer audit --locked
+```
+
+Bundle 5 smoke tests cover blocked permissions, dependency components, invalid preview and missing plan, including exact valid preview/apply/export CLI command preservation and rejection of ambiguous mutation flags. The UI additions are *presentation-only*: a hidden or disabled Import apply action cannot be enabled by modifying these messages. Real browser checks should confirm the blocked-preview explanation and unchanged reviewed plan/error banners, on DDEV only.
+
+**Bundle 6 read-only performance measurement (DDEV STAGE only):** Before measurement, confirm `/var/www/html/build/dcivi-stage/web` is a disposable site with the expected `dcivistage*` CiviCRM database. The guard rejects any other path/database and does not call export, import, deletes or scope saves. CiviCRM bootstrap can still refresh operational caches.
+
+```bash
+cd /var/www/html/build/dcivi-stage/web
+CIVICFG_BUNDLE6_PROFILE=YES_STAGE_ONLY \
+  CIVICFG_BUNDLE6_SAMPLES=3 \
+  drush php:script /var/www/html/ext/civi.config.manager/tests/manual/bundle6-stage-readonly-profile.php
+```
+
+Capture the JSON timing results (minimum/median/maximum ms for cold handler registration, cold/warm scope and provider inventory, plus counts and peak memory). Re-run with identical CMS/CiviCRM/extension versions and realistic provider cardinality; do not compare dev-console/request/browser timings as equivalent to internal PHP timings. Only propose A66-05 caching when repeated measurements demonstrate a material bottleneck, a safe TTL/extension/schema/settings invalidation contract, and a real-runtime regression plan. **Do not mark Bundle 6 as optimized because its profiler executes successfully.**
+
+
 ## 2026-10-20 — Bundle 3/4 acceptance (new work)
 
 Inside the existing DDEV extension shell (no second `ddev ssh`):

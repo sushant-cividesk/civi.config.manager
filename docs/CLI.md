@@ -1,5 +1,8 @@
 # Configuration Manager CLI
 
+**Bundle 5 CLI safety (2026-10-20):** `civicfg import` defaults to read-only preview. The **only** supported apply form is `civicfg import --yes --plan <48-character-reviewed-plan-id>`; a stale plan still fails the server-side revalidation. `import --write` is explicitly rejected (it is not an apply synonym), as is `import --yes --dry-run`. For Export, `--write` remains the supported write flag; `export --yes` is rejected rather than silently using Import-style confirmation. Use a fresh preview after a scope, dependency or environment change. These parser guards supplement and do not replace the existing API4 permission, plan binding and dependency checks.
+
+
 Configuration Manager has one CLI implementation:
 
 ```text

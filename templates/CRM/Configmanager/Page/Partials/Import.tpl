@@ -2,6 +2,13 @@
     <h3>{ts}Import From Sync Directory{/ts}</h3>
     <p>{ts}Review Saved Config changes that can be applied to CiviCRM. Import follows Saved Config as the source of truth for supported handlers and may create, update, or delete records after confirmation.{/ts}</p>
 
+    {if !$importReadiness.ready and ($importPlan|@count gt 0 or $importErrorCount gt 0)}
+      <div class="messages warning no-popup civicfg-import-readiness" data-civicfg-import-readiness="{$importReadiness.reason|escape}">
+        <strong>{ts}Import is not ready to apply.{/ts}</strong>
+        {$importReadiness.next_action|escape}
+      </div>
+    {/if}
+
     {if $importPlan|@count eq 0}
       <div class="messages status no-popup">{ts}Nothing to import from the sync directory. If changes are listed as In CiviCRM on the Synchronize tab, use Export to write them to Saved Config first.{/ts}</div>
     {else}

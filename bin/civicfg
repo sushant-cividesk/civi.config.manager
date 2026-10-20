@@ -20,8 +20,8 @@ Usage:
 Common options:
   --type TYPE       Limit to a config type. Repeat for export/import/diff/validate/watch.
   --dry-run         Preview only. Default for import; optional for export.
-  --write           Write YAML files for export.
-  --yes, -y         Apply import or answer yes where supported.
+  --write           Write YAML files for export only (never Import).
+  --yes, -y         Apply Import only with an exact reviewed --plan (not --dry-run).
   --plan PLAN_ID    Reviewed Import plan ID required with --yes.
   --exclude-component ID  Build a fresh preview without one safe blocked dependency component.
   --json            Ask cv for JSON output when supported.
@@ -88,6 +88,8 @@ fi
 types=()
 selectors=()
 dry_run=""
+write_requested="0"
+dry_run_requested="0"
 yes="0"
 json="0"
 mode=""
@@ -133,9 +135,11 @@ while [[ $# -gt 0 ]]; do
       cross_deny="1"
       ;;
     --dry-run)
+      dry_run_requested="1"
       dry_run="1"
       ;;
     --write)
+      write_requested="1"
       dry_run="0"
       ;;
     --yes|-y)
@@ -191,13 +195,21 @@ if [[ "$command" != "import" && ( -n "$plan_id" || -n "$exclude_component_id" ) 
   fail "--plan and --exclude-component are only valid for import."
 fi
 
+if [[ "$command" != "import" && "$command" != "export" ]]; then
+  [[ "$write_requested" == "0" && "$dry_run_requested" == "0" && "$yes" == "0" ]] || fail "--write, --dry-run, and --yes are only valid for Export or Import."
+fi
+
 case "$command" in
   export)
+    [[ "$yes" == "0" ]] || fail "Export uses --write to save files; --yes is reserved for reviewed Import apply."
+    [[ "$write_requested" == "0" || "$dry_run_requested" == "0" ]] || fail "Export cannot combine --write and --dry-run; choose one action."
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for export."
     [[ -n "$dry_run" ]] || dry_run="0"
     exec "${cv_cmd}" "${cv_args[@]}" api4 ConfigManager.export dryRun="$dry_run" type="$type_json"
     ;;
   import)
+    [[ "$write_requested" == "0" ]] || fail "Import --write is not supported. Use --dry-run to obtain a reviewed plan, then --yes --plan PLAN_ID to apply."
+    [[ "$yes" == "0" || "$dry_run_requested" == "0" ]] || fail "Import --yes cannot be combined with --dry-run; review first, then apply the exact plan."
     [[ -z "$mode" && ${#selectors[@]} -eq 0 && "$watch_unmanaged" == "0" && "$cross_allow" == "0" && "$cross_deny" == "0" ]] || fail "Scope/cross-site options are not valid for import."
     [[ -n "$dry_run" ]] || dry_run="1"
     if [[ "$yes" == "1" && -z "$plan_id" ]]; then

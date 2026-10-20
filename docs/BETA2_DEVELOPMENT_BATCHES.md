@@ -1,5 +1,12 @@
 # Beta2 development bundles — implementation tracker
 
+**2026-10-20 updated bundle execution status (current source):** Bundle 3 completed real guarded disposable Contact Layout/Report create/update/round-trip/idempotency and exact cleanup on DDEV STAGE (`cfgb3_6300c6ed82c8`). Bundle 4 targeted STAGE Playwright passed 3/3 after clearing CiviCRM and Drupal caches. These are **tested environment-level milestones**, not full cross-version/cross-site release certification.
+
+**New Bundle 5 work in this patch:** Human-readable Import readiness reasons with concrete recovery steps, plus unambiguous CLI preview/apply flags. The reviewed Import plan, provider permissions, dependency exclusion, import accounting and no-delete policy are untouched. DDEV focused tests and PHPUnit passed on the new code; full `qa:fast` stopped at PHPCS on four missing method `@param` entries. These annotations have been added; rerun the full DDEV QA gate.
+
+**New Bundle 6 work in this patch:** Instrument cold/warm scope metadata and provider inventory with a strictly read-only STAGE profiler (1–5 samples). **No caching or performance optimization was introduced**. The initial real STAGE measurements are now recorded above in the latest project checkpoint (three same-process samples, median inventory 27.176 ms/max 366.372 ms for 192 providers), but a demonstrated sustained bottleneck and extension/schema invalidation proof still do not exist. A66-05 remains open until justified by data. Release gates and ML-001 remain open.
+
+
 **2026-10-20 development continuation — Bundle 3/4:** Based on the user's
 confirmed local `dc3baf2` and its green DDEV QA results (321 PHPUnit tests,
 2,326 assertions), prepared a new guarded DDEV STAGE disposable CRUD proof for

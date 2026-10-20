@@ -78,6 +78,58 @@ trait PresenterImportFeedbackTrait {
     return '';
   }
 
+  /**
+   * Explain why the server will not offer the reviewed Import apply action.
+   * This is presentation only: the existing server-side plan and permission
+   * checks remain authoritative, including on direct POST and API4 calls.
+   *
+   * @param bool $canImport Whether the current user may apply Import.
+   * @param array<int,string> $applyTypes Importable types in the reviewed scope.
+   * @param int $errorCount Number of operator-visible Import errors.
+   * @param array<string,mixed>|null $result Current Import preview result, if any.
+   * @param string $planId Server-issued reviewed-plan token, if present.
+   * @param array<int,array<string,mixed>> $components Blocked dependency groups.
+   * @return array{ready:bool,reason:string,next_action:string}
+   */
+  public function getImportReadiness(bool $canImport, array $applyTypes, int $errorCount, ?array $result, string $planId, array $components = []): array {
+    if (!$canImport) {
+      return [
+        'ready' => FALSE,
+        'reason' => 'permission',
+        'next_action' => ts('Your account cannot apply Import. Ask an administrator to review the required Configuration Manager permissions.'),
+      ];
+    }
+    if ($components) {
+      return [
+        'ready' => FALSE,
+        'reason' => 'dependencies',
+        'next_action' => ts('Review the dependency components listed below. Fix the missing references and preview again, or exclude a complete component only when the safety check allows it.'),
+      ];
+    }
+    if ($errorCount > 0 || (is_array($result) && ($result['ok'] ?? TRUE) === FALSE)) {
+      return [
+        'ready' => FALSE,
+        'reason' => 'validation',
+        'next_action' => ts('Fix the reported validation or provider errors, then build a fresh Import preview. No blocked Import may be applied.'),
+      ];
+    }
+    if (!$applyTypes) {
+      return [
+        'ready' => FALSE,
+        'reason' => 'no_changes',
+        'next_action' => ts('No importable changes are available in the selected scope. Review Synchronize and Export first if Current CiviCRM changes must be saved.'),
+      ];
+    }
+    if (!preg_match('/^[a-f0-9]{48}$/', $planId)) {
+      return [
+        'ready' => FALSE,
+        'reason' => 'unreviewed_plan',
+        'next_action' => ts('A current reviewed Import plan is required. Refresh the Import preview; never apply an expired or missing plan.'),
+      ];
+    }
+    return ['ready' => TRUE, 'reason' => 'ready', 'next_action' => ''];
+  }
+
   public function extractImportMessages(?array $importResult): array {
     $messages = [];
     if (!$importResult) {

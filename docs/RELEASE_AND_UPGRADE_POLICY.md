@@ -16,6 +16,10 @@ checks, and the runtime package builder must fail if `bin/civicfg` is not
 executable. This source-package validation does **not** replace the later
 installable runtime ZIP and upgrade/lifecycle release gate.
 
+## Operator preflight for reviewed Import (Bundle 5)
+
+Before moving Saved Config between environments, take the normal deployment backup and verify the target site's enabled providers, scope policy, reviewed file diff, dependent configuration, and whether cross-site Import is explicitly permitted. Start with the read-only `civicfg import --dry-run --json`. If blocked, resolve the errors and preview again, or exclude **only** a complete dependency component that the server proves safe. Review all included/excluded types and verify the new plan token. Apply only the exact reviewed plan with `civicfg import --yes --plan <plan_id>`; never use `import --write` or bypass the plan guard. After apply, inspect the Import outcome (Applied/Blocked/Excluded/Remaining Difference) and run Synchronize. Stop and reconcile partial failures before retrying; never assume rollback of already applied API operations. This runbook does not authorize live client changes or waive the release gates.
+
 ## Compatibility rules after beta
 
 - Treat exported YAML as user-owned configuration. Avoid changing YAML structure unless there is a documented migration path.

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-20 — Bundle 5 QA documentation hotfix and Bundle 6 measured baseline (unreleased)
+
+- User-run DDEV `qa:fast` passed the 321-test/2,326-assertion PHPUnit suite, source lint (197 PHP files), focused Bundle 5/6 checks, PHPStan and compatibility checks, but stopped at PHPCS: `PresenterImportFeedbackTrait::getImportReadiness()` lacked four `@param` annotations. Added explicit annotations for all six parameters; **the updated PHPCS and full `qa:fast` must be rerun in DDEV**, not reported as passed yet. The separate locked Composer audit found no advisories.
+- Guarded DDEV STAGE read-only Bundle 6 profiling **PASS** (3 samples; 22 handlers, 22 scope types, 192 discovered inventory providers, 30 MB peak): provider inventory median 27.176 ms and maximum 366.372 ms; handler cold median 0.031 ms/max 10.912 ms; scope cold median 3.729 ms/max 55.779 ms. Scope warm results rounded to 0.000 ms at three-decimal reporting precision, not exact zero runtime.
+- A one-process, three-sample measurement does not establish persistent latency or prove a safe discovery-cache invalidation contract. No caching, provider data, plan semantics or CLI behavior was modified in this hotfix.
+
+## 2026-10-20 — Bundle 3/4 evidence and Bundle 5/6 continuation (unreleased)
+
+- **Bundle 3 real STAGE result (user-executed):** The guarded disposable ContactLayout and ReportInstance CRUD test passed create/update, initial/update previews, repeat imports, round-trip, persisted value checks and idempotency. Token `cfgb3_6300c6ed82c8` cleaned up completely with both `Fixture cleanup PASS` and `BUNDLE 3 STAGE DISPOSABLE CRUD: PASS`. Independent-ID cross-environment certification remains a separate release requirement.
+- **Bundle 4 real browser result (user-executed):** After `cv flush` and `drush cr`, the DDEV STAGE targeted Playwright suite passed 3/3, including Settings mode cards, lazy picker, focus return and unsaved-change handling. The preceding missing template element was consistent with stale rendered templates; both caches were refreshed together, so the exact cache responsible is unproven. Role/accessibility/responsive acceptance remains a broader QA gate.
+- **Bundle 5:** Add operator-facing Import readiness reasons and recovery guidance without changing the reviewed-plan guard or Import engine. The CLI now refuses ambiguous `import --write`, conflicting `import --yes --dry-run`, and `export --yes`; supported reviewed apply, preview and export commands remain. Added dependency-free safety/regression checks.
+- **Bundle 6:** Add an opt-in, STAGE-guarded, read-only handler/scope/provider-inventory timing tool with bounded samples and cardinality checks. **No production discovery cache, performance claim or schema/configuration change is made without measured data and invalidation evidence.**
+- These Bundle 5/6 changes still need updated full DDEV `qa:fast`, browser acceptance for new copy, and runtime profiling; prior green `qa:fast` (321 tests / 2,326 assertions) predates this patch. No commit, push, release or deployment.
+
+
 ## 2026-10-20 — Bundle 3 guarded certification and Bundle 4 Settings UX (unreleased)
 
 - Added a guarded, opt-in DDEV STAGE-only disposable ContactLayout/ReportInstance
