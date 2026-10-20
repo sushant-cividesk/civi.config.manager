@@ -1,5 +1,11 @@
 # Configuration Manager project status
 
+## 2026-10-20 — GitHub Actions PHP-matrix regression hotfix
+
+**Observed in screen recording:** `QA - Fast` passed on PHP 8.3 but failed on PHP 7.4 and 8.1 at `tests/ci/bundle2-profile-type-smoke.php:24`. The test aliased PHP's built-in `stdClass` to an API4 placeholder. PHP versions before 8.3 do not support class aliases of internal classes; PHP 7.4 emitted a warning and the smoke subsequently failed, while PHP 8.1 terminated with `ValueError`. This is a **test-fixture compatibility defect**, not evidence of an Import or Profile handler runtime regression.
+
+**Fix:** Replace the internal-class alias with a user-defined no-op stub. Keep the existing tests that compare equivalent UFGroup `group_type` array/CSV values, genuine changes, and no-write behavior. Add a fixture-class reflection guard so the mistake is detected even when a newer PHP runtime permits internal-class aliases. Local PHP 8.4 smoke **PASS (7 checks)**; no executable application code changed. **Still required:** rerun GitHub Actions `QA - Fast` on PHP 7.4, 8.1, and 8.3. The last DDEV suite passed before this fixture-only change.
+
 ## 2026-10-20 — ML-001 source-locale stabilization (not full multilingual sync)
 
 Actual guarded STAGE diagnostic: CiviCRM 6.17.2, `dcivistagecivi_jwy32`, both `en_US` and `fr_FR` negotiated, 77/139 Afforms with locale-dependent values and one with layout drift; in-memory hook-provided `Save`/`Enregistrer` title translated while layout stayed identical. CiviCRM reports `is_multilingual=false` with null legacy multilingual settings; this is UI/gettext locale switching, not legacy database multilingual mode. Existing source provenance for sampled hook forms was unavailable.

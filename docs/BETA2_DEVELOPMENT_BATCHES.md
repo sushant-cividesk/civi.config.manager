@@ -1,5 +1,7 @@
 # Beta2 development bundles — implementation tracker
 
+**2026-10-20 QA portability checkpoint:** The GitHub fast-QA jobs on PHP 7.4 and 8.1 failed before exercising Bundle 2 Profile comparison because the smoke aliased the internal `stdClass` as an API4 stand-in (allowed on PHP 8.3+ only). The fixture now aliases a user-defined no-op class, with a regression guard preventing the internal-class alias from recurring on newer PHP. Local PHP 8.4 smoke passed (7 checks); full GitHub PHP 7.4/8.1/8.3 matrix rerun is pending. Production handlers and the Beta2 priority order are unchanged.
+
 **2026-10-20 Bundle 1 ML-001 (partial implementation, mandatory P0 open):** From real STAGE locale-output proof, the built-in FormBuilder Afform handler now pins API4 read language to the `en_US` gettext source to prevent operator-locale-only Export/Synchronize drift. Source edit detection and unchanged custom Generic handler behavior pass in a dependency-free regression; DDEV full suite and guarded real STAGE integration are pending. French-only TranslationSource/Translation edits and existing locale-specific YAML migration still require an explicit translation-aware design; do not mark all of Bundle 1 certified.
 
 

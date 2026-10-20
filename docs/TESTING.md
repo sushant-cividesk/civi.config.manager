@@ -1,5 +1,21 @@
 # Testing
 
+## 2026-10-20 — PHP 7.4/8.1 GitHub Actions fixture compatibility
+
+GitHub `QA - Fast` stopped in `tests/ci/bundle2-profile-type-smoke.php` when its API4 provider-availability stub attempted to alias the internal `stdClass` (unsupported before PHP 8.3). This was not a failure of the underlying `group_type` comparison. The test now aliases a user-defined stand-in and checks that the target class is user-defined. On the local PHP 8.4 runtime, the original behavior checks plus the new regression guard pass (7 checks total).
+
+After applying the hotfix in the existing DDEV extension shell, run:
+
+```bash
+cd /var/www/html/ext/civi.config.manager
+php tests/ci/bundle2-profile-type-smoke.php
+git diff --check
+composer run qa:fast
+composer audit --locked
+```
+
+Then push the tested commit to trigger the `QA - Fast` GitHub Actions matrix (PHP 7.4, 8.1, 8.3). Check that the required fast QA and subsequent hook, CLI, and advisory steps pass on all three versions. The local PHP 8.4 test does **not** substitute for that matrix. This hotfix does not alter saved configuration, multilingual behavior, Import safety, or provider data.
+
 ## ML-001 source-locale candidate: verification after latest patch (2026-10-20)
 
 Source-level root cause reproduced from user-provided STAGE evidence: the same FormBuilder Afform generates localized API4 `title`/`layout` under different API languages (77/139 shared rows vary, one layout differs). The built-in Afform handler now selects the `en_US` source language on read actions, retaining titles/layout and detecting real source edits. This is *not* a TranslationSource synchronization solution.

@@ -21,7 +21,10 @@ spl_autoload_register(static function (string $class) use ($root): void {
 
 // The handler's real API4 transport methods are overridden below. The stub
 // only satisfies its provider-availability gate, never calls the database.
-class_alias(\stdClass::class, 'Civi\\Api4\\UFGroup');
+// PHP < 8.3 cannot alias internal classes such as stdClass; CI also runs
+// this test on PHP 7.4 and 8.1. Use a user-defined class on every version.
+class Bundle2ProfileApi4Stub {}
+class_alias(Bundle2ProfileApi4Stub::class, 'Civi\\Api4\\UFGroup');
 
 use Civi\ConfigManager\Handler\EntityDefinitionHandler;
 use Civi\ConfigManager\Service\CoreEntityDefinitions;
@@ -51,6 +54,9 @@ $check = static function (bool $condition, string $message) use (&$checks): void
     exit(1);
   }
 };
+
+// This must also fail on PHP 8.3+ if somebody reintroduces a stdClass alias.
+$check((new \ReflectionClass('Civi\\Api4\\UFGroup'))->isUserDefined(), 'API4 fixture must be a user-defined class for PHP 7.4/8.1');
 
 $handler->existing = [
   'id' => 71,

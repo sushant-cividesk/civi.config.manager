@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-20 — PHP 7.4/8.1 fast-QA fixture hotfix (unreleased)
+
+- Fix the Bundle 2 Profile group-type smoke fixture: `class_alias(stdClass::class, ...)` depended on PHP 8.3+ support for aliasing internal classes. In the reported GitHub Actions run, PHP 7.4 warned and failed the fixture's comparison assertion, and PHP 8.1 threw `ValueError`; PHP 8.3 passed.
+- Alias an explicitly user-defined, no-op fixture class instead. Assert that the aliased API4 availability placeholder is user-defined so this regression is detectable on PHP 8.3+ as well. The six original comparison/write-accounting assertions are preserved; no production provider, Import code, configuration, or data changes.
+- Local isolated smoke: **7 checks passed** using available PHP 8.4. The GitHub Actions 7.4/8.1/8.3 matrix must rerun before claiming CI recovered.
+
 ## 2026-10-20 — ML-001 source-locale read stabilization (STAGE verification pending)
 
 - STAGE read-only API4 probe reproduced locale-dependent output: 77 of 139 Afforms varied between `en_US` and `fr_FR`, one layout varied, and an in-memory hook-generated `Save` title translated to `Enregistrer` with unchanged layout. `is_multilingual=false` means legacy multilingual DB fields are not enabled, although API4 locale negotiation succeeded.
